@@ -1,7 +1,8 @@
 # mini-agi — master plan (v4, Rust product)
 
 Status: EXECUTING. Phase 0 complete (kernel hash/store/memory + CLI,
-28 tests green, clippy/fmt clean, release build). This is the plan of
+28 tests green). Phase 1 complete (eval engine, 51 tests green, gate PASS
+on 11 cases). This is the plan of
 record for the Rust rewrite. Charter: `docs/CHALLENGE.md` (verbatim,
 founding user prompt — never lose). ADRs: `docs/adr/ADR-0001..0003` (+
 inherited PoC ADR-0001..0012 semantics).
@@ -117,10 +118,16 @@ mini-agi-rs/  (Cargo workspace)
 - Evidence: 28 tests (6 unit + 11 integration + 10 CLI subprocess), clippy
   `-D warnings` clean, fmt clean, release build OK.
 
-### Phase 1 — Eval engine
+### Phase 1 — Eval engine (DONE)
 - run.json parsing (codex JSONL), 4D scoring, golden matching, baseline,
-  regression gate. Port 11 eval cases as fixtures.
+  regression gate. 11 eval cases ported as fixtures.
 - Acceptance: `mini-agi eval run` reproduces PoC scores on all 11 cases.
+- Evidence: `crates/mini-agi-core/src/eval.rs` (score_run, score_all_cases,
+  run_gate — TOOL_PARITY_PENALTY=0.85, DEFAULT_TOLERANCE=0.05,
+  MAX_COST_GROWTH=1.25), 14 tests incl. 1:1 PoC baseline reproduction
+  (composite/tokens/cost, tol. 0.0005), CLI `eval score`/`eval gate`,
+  gate `PASS: 11 cases, 0 regressions`; 51 tests green, clippy/fmt clean.
+- Commit: 3aa9f48.
 
 ### Phase 2 — Skills
 - SKILL.md frontmatter parsing, verify-hook execution, registry with
