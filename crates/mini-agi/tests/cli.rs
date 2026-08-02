@@ -511,6 +511,12 @@ fn cli_mcp_handshake_and_tool_call() {
         f.extend_from_slice(&body);
         f
     };
+    // rmcp/codex transports speak newline-delimited JSON, not LSP frames.
+    let line = |v: serde_json::Value| {
+        let mut f = serde_json::to_vec(&v).unwrap();
+        f.push(b'\n');
+        f
+    };
     stdin
         .write_all(&frame(serde_json::json!({
             "jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -518,12 +524,12 @@ fn cli_mcp_handshake_and_tool_call() {
         })))
         .unwrap();
     stdin
-        .write_all(&frame(serde_json::json!({
+        .write_all(&line(serde_json::json!({
             "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}
         })))
         .unwrap();
     stdin
-        .write_all(&frame(serde_json::json!({
+        .write_all(&line(serde_json::json!({
             "jsonrpc": "2.0", "id": 3, "method": "tools/call",
             "params": {"name": "stats", "arguments": {}}
         })))
@@ -685,5 +691,39 @@ fn cli_checkpoint_verify_rolls_back_uncommitted_edits() {
         std::fs::read_to_string(root.join("AGENTS.md")).unwrap(),
         "BROKEN"
     );
+    wipe(&root);
+}
+
+#[test]
+fn cli_ticket_lifecycle() {
+    let root = tmp_root("c20");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("tickets")).unwrap();
+    std::fs::write(
+        root.join("tickets/TICKET-001.md"),
+        r#"{"id":"TICKET-001","title":"gates","goal":"wire gates","scope":["scripts/"]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("tickets/TICKET-002.md"),
+        "---\nid: TICKET-002\ntitle: memory derive\ngoal: regenerate views\nscope: memory/derived\n---\n",
+    )
+    .unwrap();
+    let list = run(&root, &["ticket", "list"]);
+    assert!(list.status.success());
+    let text = stdout(&list);
+    assert!(text.contains("TICKET-001  gates"));
+    assert!(text.contains("TICKET-002  memory derive"));
+    let show = run(&root, &["ticket", "show", "TICKET-002"]);
+    assert!(show.status.success());
+    assert!(stdout(&show).contains("goal: regenerate views"));
+    let show_num = run(&root, &["ticket", "show", "001"]);
+    assert!(show_num.status.success());
+    assert!(stdout(&show_num).contains("id: TICKET-001"));
+    let validate = run(&root, &["ticket", "validate", "TICKET-001"]);
+    assert!(validate.status.success());
+    assert!(stdout(&validate).contains("validates"));
+    let missing = run(&root, &["ticket", "show", "TICKET-999"]);
+    assert_eq!(missing.status.code(), Some(1));
     wipe(&root);
 }

@@ -8,7 +8,7 @@
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
-use mini_agi_core::{eval, memory, skills};
+use mini_agi_core::{eval, memory, skills, ticket};
 use serde_json::{Value, json};
 
 const PROTOCOL_VERSION: &str = "2025-03-26";
@@ -35,30 +35,43 @@ pub fn run_stdio_server() -> Result<(), io::Error> {
 
 /// Read one `Content-Length` framed JSON message; `None` on clean EOF.
 fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<Value>, io::Error> {
-    let mut length: Option<usize> = None;
-    loop {
-        let mut header = String::new();
-        let read = input.read_line(&mut header)?;
-        if read == 0 {
-            return Ok(None); // EOF before any frame
-        }
-        let header = header.trim_end();
-        if header.is_empty() {
-            break;
-        }
-        if let Some(rest) = header.strip_prefix("Content-Length:") {
-            length = rest.trim().parse::<usize>().ok();
-        }
+    let mut first = String::new();
+    if input.read_line(&mut first)? == 0 {
+        return Ok(None); // EOF before any frame
     }
-    let Some(length) = length else {
-        return Err(io::Error::new(
+    let first = first.trim_end();
+    if let Some(rest) = first.strip_prefix("Content-Length:") {
+        let length = rest
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad Content-Length"))?;
+        loop {
+            let mut header = String::new();
+            if input.read_line(&mut header)? == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "unexpected EOF in headers",
+                ));
+            }
+            if header.trim().is_empty() {
+                break;
+            }
+        }
+        let mut body = vec![0u8; length];
+        input.read_exact(&mut body)?;
+        serde_json::from_slice(&body)
+            .map(Some)
+            .map_err(io::Error::other)
+    } else if first.starts_with('{') || first.starts_with('[') {
+        serde_json::from_str(first)
+            .map(Some)
+            .map_err(io::Error::other)
+    } else {
+        Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "missing Content-Length",
-        ));
-    };
-    let mut body = vec![0u8; length];
-    input.read_exact(&mut body)?;
-    Ok(Some(serde_json::from_slice(&body).unwrap_or(Value::Null)))
+            format!("unrecognized MCP frame: {first:?}"),
+        ))
+    }
 }
 
 /// Write one framed JSON message.
@@ -214,6 +227,24 @@ fn tool_definitions() -> Vec<Value> {
             description: "Context budget report.",
             params: &[],
             required: &[],
+        },
+        ToolDef {
+            name: "ticket_list",
+            description: "List all tickets in tickets/.",
+            params: &[],
+            required: &[],
+        },
+        ToolDef {
+            name: "ticket_show",
+            description: "Show one ticket (TICKET-<n> or number).",
+            params: &[("id", "string")],
+            required: &["id"],
+        },
+        ToolDef {
+            name: "ticket_validate",
+            description: "Validate one ticket against the ADR-0007 contract.",
+            params: &[("id", "string")],
+            required: &["id"],
         },
     ];
     TOOLS
@@ -378,6 +409,31 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 report.brief_bytes,
                 report.leverage_ratio
             )
+        }
+        "ticket_list" => match ticket::list_tickets(root) {
+            Ok(tickets) => tickets
+                .iter()
+                .map(|t| format!("{}  {}  scope: {}", t.id, t.title, t.scope.join(", ")))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            Err(e) => format!("error: {e}"),
+        },
+        "ticket_show" | "ticket_validate" => {
+            let id = arg!("id");
+            match ticket::find_ticket(root, id) {
+                Ok(t) if name == "ticket_show" => format!(
+                    "id: {}\ntitle: {}\ngoal: {}\nscope: {}",
+                    t.id,
+                    t.title,
+                    t.goal,
+                    t.scope.join(", ")
+                ),
+                Ok(t) => format!(
+                    "ok: {} ({}) validates against the ticket contract",
+                    t.id, t.title
+                ),
+                Err(e) => format!("error: {e}"),
+            }
         }
         other => format!("error: unknown tool '{other}'"),
     }

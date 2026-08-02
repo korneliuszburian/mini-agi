@@ -14,6 +14,7 @@ use mini_agi_core::journal;
 use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
 use mini_agi_core::metrics;
 use mini_agi_core::skills;
+use mini_agi_core::ticket;
 
 mod init;
 mod mcp;
@@ -67,6 +68,30 @@ enum Command {
     Mcp,
     /// Scaffold a repo: layout, gate scripts, AGENTS.md, MCP config.
     Init,
+    /// Ticket lifecycle: list, show, validate (ADR-0007 contracts).
+    Ticket(TicketArgs),
+}
+
+#[derive(Args, Debug)]
+struct TicketArgs {
+    #[command(subcommand)]
+    action: TicketAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum TicketAction {
+    /// List all tickets in `tickets/`.
+    List,
+    /// Show one ticket (by `TICKET-<n>` or number).
+    Show {
+        /// Ticket id.
+        id: String,
+    },
+    /// Validate one ticket against the ADR-0007 contract.
+    Validate {
+        /// Ticket id.
+        id: String,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -231,6 +256,49 @@ fn main() -> ExitCode {
             Err(e) => fail(&format!("mcp server error: {e}")),
         },
         Command::Init => cmd_init(),
+        Command::Ticket(TicketArgs { action }) => match action {
+            TicketAction::List => cmd_ticket_list(),
+            TicketAction::Show { id } => cmd_ticket_show(&id),
+            TicketAction::Validate { id } => cmd_ticket_validate(&id),
+        },
+    }
+}
+
+fn cmd_ticket_list() -> ExitCode {
+    match ticket::list_tickets(&root()) {
+        Ok(tickets) => {
+            for t in &tickets {
+                println!("{}  {}  scope: {}", t.id, t.title, t.scope.join(", "));
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot list tickets: {e}")),
+    }
+}
+
+fn cmd_ticket_show(id: &str) -> ExitCode {
+    match ticket::find_ticket(&root(), id) {
+        Ok(t) => {
+            println!("id: {}", t.id);
+            println!("title: {}", t.title);
+            println!("goal: {}", t.goal);
+            println!("scope: {}", t.scope.join(", "));
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&e.to_string()),
+    }
+}
+
+fn cmd_ticket_validate(id: &str) -> ExitCode {
+    match ticket::find_ticket(&root(), id) {
+        Ok(t) => {
+            println!(
+                "ok: {} ({}) validates against the ticket contract",
+                t.id, t.title
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&e.to_string()),
     }
 }
 
