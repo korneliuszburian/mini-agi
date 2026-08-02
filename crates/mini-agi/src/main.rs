@@ -211,14 +211,25 @@ fn cmd_checkpoint_audit() -> ExitCode {
         }
         Err(e) => return fail(&format!("cannot read journal: {e}")),
     };
-    let v = journal::violations(&journal::parse_journal(&text), journal::GATE_SINCE);
+    let events = journal::parse_journal(&text);
+    let mut failed = false;
+    let v = journal::violations(&events, journal::GATE_SINCE);
     for h in &v.historical {
         println!("historical (pre-gate, not failing): {h}");
     }
-    if !v.bad.is_empty() {
-        for b in &v.bad {
-            println!("VIOLATION: {b}");
-        }
+    for b in &v.bad {
+        println!("VIOLATION: {b}");
+        failed = true;
+    }
+    let audit = journal::audit_journal(&events);
+    for a in &audit.historical {
+        println!("WARNING: historical anomaly: {}", a.message);
+    }
+    for a in &audit.bad {
+        println!("ANOMALY (line {}): {}", a.line_no, a.message);
+        failed = true;
+    }
+    if failed {
         return fail("FAIL: checkpoint cascade incomplete");
     }
     println!("ok: checkpoint cascade complete (every VERIFY has BEGIN)");

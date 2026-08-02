@@ -43,6 +43,8 @@ impl JournalKind {
 /// One parsed journal line.
 #[derive(Debug, Clone)]
 pub struct JournalEvent {
+    /// 1-based line number in the journal file (awk `NR` semantics).
+    pub line_no: usize,
     /// ISO-8601 UTC timestamp (first token).
     pub ts: String,
     /// Event kind (second token).
@@ -82,7 +84,7 @@ pub const ACK_LEGACY_UNTIL: &str = GATE_SINCE;
 #[must_use]
 pub fn parse_journal(text: &str) -> Vec<JournalEvent> {
     let mut events = Vec::new();
-    for line in text.lines() {
+    for (i, line) in text.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() {
             continue;
@@ -96,6 +98,7 @@ pub fn parse_journal(text: &str) -> Vec<JournalEvent> {
             continue;
         };
         events.push(JournalEvent {
+            line_no: i + 1,
             ts: ts.to_string(),
             kind,
             label: label.to_string(),
@@ -149,6 +152,95 @@ pub fn violations(events: &[JournalEvent], since: &str) -> JournalViolations {
         }
     }
     result
+}
+
+/// One anomaly found by the line-based audit.
+#[derive(Debug, Clone)]
+pub struct AuditAnomaly {
+    /// 1-based journal line number of the offending event.
+    pub line_no: usize,
+    /// Human-readable description (`PoC` `audit.sh` wording).
+    pub message: String,
+}
+
+/// Result of the line-based audit.
+#[derive(Debug, Default)]
+pub struct AuditReport {
+    /// Anomalies after the newest complete green checkpoint — fail the gate.
+    pub bad: Vec<AuditAnomaly>,
+    /// Anomalies before the newest complete green — warnings only.
+    pub historical: Vec<AuditAnomaly>,
+}
+
+/// Line-based completeness audit (PORT of `PoC` `scripts/audit.sh`, T008
+/// semantics):
+///
+/// - a `BEGIN` for an already-open label is an **orphan BEGIN** anomaly at
+///   the earlier `BEGIN` line;
+/// - a `VERIFY-PASS`/`VERIFY-FAIL` without an open `BEGIN` is a
+///   **VERIFY without BEGIN** anomaly;
+/// - `VERIFY-PASS` closes its `BEGIN` and advances the historical boundary
+///   (newest complete green); `VERIFY-FAIL` is a terminal outcome and also
+///   resolves its `BEGIN`;
+/// - an unclosed `BEGIN` is an orphan anomaly **unless** it is the literal
+///   last line of the journal (verification in progress — `checkpoint.sh`
+///   appends `BEGIN` before running the verifier);
+/// - anomalies before the newest complete green are historical (warned,
+///   not failing); from it onward they fail the gate.
+#[must_use]
+pub fn audit_journal(events: &[JournalEvent]) -> AuditReport {
+    let mut report = AuditReport::default();
+    let mut anomalies: Vec<AuditAnomaly> = Vec::new();
+    let mut open: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut newest_complete_green = 0usize;
+    for event in events {
+        match event.kind {
+            JournalKind::Begin => {
+                if let Some(earlier) = open.insert(&event.label, event.line_no) {
+                    anomalies.push(AuditAnomaly {
+                        line_no: earlier,
+                        message: format!("orphan BEGIN: {}", event.label),
+                    });
+                }
+            }
+            JournalKind::VerifyPass => {
+                if open.remove(event.label.as_str()).is_none() {
+                    anomalies.push(AuditAnomaly {
+                        line_no: event.line_no,
+                        message: format!("VERIFY without BEGIN: {}", event.label),
+                    });
+                } else {
+                    newest_complete_green = event.line_no;
+                }
+            }
+            JournalKind::VerifyFail => {
+                if open.remove(event.label.as_str()).is_none() {
+                    anomalies.push(AuditAnomaly {
+                        line_no: event.line_no,
+                        message: format!("VERIFY without BEGIN: {}", event.label),
+                    });
+                }
+            }
+            JournalKind::Status | JournalKind::End => {}
+        }
+    }
+    let last_line = events.last().map_or(0, |e| e.line_no);
+    for (label, line_no) in open {
+        if line_no != last_line {
+            anomalies.push(AuditAnomaly {
+                line_no,
+                message: format!("orphan BEGIN: {label}"),
+            });
+        }
+    }
+    for anomaly in anomalies {
+        if anomaly.line_no > newest_complete_green {
+            report.bad.push(anomaly);
+        } else {
+            report.historical.push(anomaly);
+        }
+    }
+    report
 }
 
 #[cfg(test)]
@@ -267,5 +359,67 @@ mod tests {
         let v = audit(text);
         assert!(v.bad.is_empty());
         assert!(v.historical.is_empty());
+    }
+
+    #[test]
+    fn audit_open_segment_anomalies_fail() {
+        let text = "t BEGIN complete -> a\n
+t VERIFY-PASS complete @ a\n
+t BEGIN orphan -> b\n
+t VERIFY-PASS missing @ b\n
+t VERIFY-FAIL failed @ b\n";
+        let r = audit_journal(&parse_journal(text));
+        assert_eq!(r.bad.len(), 3);
+        let msgs: Vec<&str> = r.bad.iter().map(|a| a.message.as_str()).collect();
+        assert!(msgs.contains(&"orphan BEGIN: orphan"));
+        assert!(msgs.contains(&"VERIFY without BEGIN: missing"));
+        assert!(msgs.contains(&"VERIFY without BEGIN: failed"));
+        assert!(r.historical.is_empty());
+    }
+
+    #[test]
+    fn audit_historical_anomalies_warn_without_failing() {
+        let text = "t BEGIN orphan -> a\n
+t VERIFY-PASS missing @ a\n
+t BEGIN complete -> b\n
+t VERIFY-PASS complete @ b\n";
+        let r = audit_journal(&parse_journal(text));
+        assert!(r.bad.is_empty());
+        assert_eq!(r.historical.len(), 2);
+        let msgs: Vec<&str> = r.historical.iter().map(|a| a.message.as_str()).collect();
+        assert!(msgs.contains(&"orphan BEGIN: orphan"));
+        assert!(msgs.contains(&"VERIFY without BEGIN: missing"));
+    }
+
+    #[test]
+    fn audit_allows_last_line_unpaired_begin_as_in_flight_verify() {
+        let text = "t BEGIN complete -> a\n
+t VERIFY-PASS complete @ a\n
+t BEGIN in-flight -> b\n";
+        let r = audit_journal(&parse_journal(text));
+        assert!(r.bad.is_empty());
+        assert!(r.historical.is_empty());
+    }
+
+    #[test]
+    fn audit_verify_fail_resolves_begin() {
+        let text = "t BEGIN step -> a\n
+t VERIFY-FAIL step @ a\n";
+        let r = audit_journal(&parse_journal(text));
+        assert!(r.bad.is_empty());
+        assert!(r.historical.is_empty());
+    }
+
+    #[test]
+    fn audit_line_numbers_point_at_offending_events() {
+        let text = "t BEGIN one -> a\n\
+t VERIFY-PASS one @ a\n\
+t BEGIN two -> b\n\
+t BEGIN three -> c\n";
+        let r = audit_journal(&parse_journal(text));
+        assert_eq!(r.bad.len(), 1);
+        assert_eq!(r.bad[0].line_no, 3);
+        assert_eq!(r.bad[0].message, "orphan BEGIN: two");
+        assert!(r.historical.is_empty());
     }
 }
