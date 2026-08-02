@@ -12,6 +12,7 @@ use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
 use mini_agi_core::journal;
 use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
+use mini_agi_core::metrics;
 use mini_agi_core::skills;
 
 /// Repository root: `AGENTIC_ROOT` env var, else current directory.
@@ -55,6 +56,10 @@ enum Command {
     Checkpoint(CheckpointArgs),
     /// Typed handoff contract validation (ADR-0007).
     Validate(ValidateArgs),
+    /// Canonical-memory inventory by domain (port of `PoC` stats.py).
+    Stats,
+    /// Context budget report (port of `PoC` budget.py).
+    Budget,
 }
 
 #[derive(Args, Debug)]
@@ -212,7 +217,52 @@ fn main() -> ExitCode {
         Command::Validate(ValidateArgs { contract, document }) => {
             cmd_validate(&contract, &document)
         }
+        Command::Stats => cmd_stats(),
+        Command::Budget => cmd_budget(),
     }
+}
+
+fn cmd_stats() -> ExitCode {
+    let root = root();
+    match metrics::stats(&root) {
+        Ok(report) => {
+            println!("canonical entries: {}", report.entries);
+            println!("canonical facts: {}", report.facts);
+            println!("derived views: {}", report.derived_views);
+            for (domain, count) in &report.per_domain {
+                if *count > 0 {
+                    println!("{domain}: {count}");
+                }
+            }
+            println!("gate: PASS");
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot compute stats: {e}")),
+    }
+}
+
+fn cmd_budget() -> ExitCode {
+    let report = metrics::budget(&root());
+    println!("CONTEXT BUDGET REPORT");
+    println!(
+        "  AGENTS chain:    {}B ({}% of 32KiB cap)",
+        report.agents_chain_bytes, report.chain_pct_of_32k
+    );
+    if report.chain_over_cap {
+        println!("  WARN: AGENTS chain exceeds 32KiB cap");
+    }
+    println!(
+        "  Skills list:     {}B for {} skills ({}% of 2% budget)",
+        report.skills_list_bytes, report.skills_count, report.skills_pct_of_budget
+    );
+    if report.skills_over_budget {
+        println!("  WARN: skills list exceeds 2% budget");
+    }
+    println!(
+        "  Memory leverage: canonical {}B -> brief {}B (x{} compression into working set)",
+        report.canonical_bytes, report.brief_bytes, report.leverage_ratio
+    );
+    ExitCode::SUCCESS
 }
 
 fn cmd_validate(contract_name: &str, document: &Path) -> ExitCode {

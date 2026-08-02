@@ -28,6 +28,8 @@ step "tests"        cargo test --all || fail=1
 step "eval-gate"    ./target/debug/mini-agi eval gate || fail=1
 step "checkpoint"   ./target/debug/mini-agi checkpoint audit || fail=1
 step "provenance"   ./target/debug/mini-agi provenance || fail=1
+step "stats"        ./target/debug/mini-agi stats || fail=1
+step "budget"       ./target/debug/mini-agi budget || fail=1
 
 if [ "$fail" -eq 0 ]; then
     echo "verify: ALL GREEN"
