@@ -1,0 +1,557 @@
+//! Memory engine — port of `PoC` `scripts/consolidate.py` + `scripts/derive.py`.
+//!
+//! Consolidation: episodic buffer -> canonical facts (append-only, deduped,
+//! contested-wording queue + signoff). Derivation: canonical -> context brief,
+//! per-domain fragments, `CLAUDE.md` shim (regenerated, never hand-edited).
+
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
+use std::fs;
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+
+use thiserror::Error;
+
+use crate::hash::{fact_id, source_sha256};
+use crate::store::{EntryFile, parse_canonical_facts};
+
+/// Relative path of the canonical memory directory.
+pub const CANONICAL_REL: &str = "memory/canonical";
+/// Relative path of the canonical entries directory.
+pub const ENTRIES_REL: &str = "memory/canonical/entries";
+/// Relative path of the derived views directory.
+pub const DERIVED_REL: &str = "memory/derived";
+/// Relative path of the per-domain fragments directory.
+pub const PER_DOMAIN_REL: &str = "memory/derived/per-domain";
+/// Relative path of the review (contested) queue directory.
+pub const REVIEW_REL: &str = "memory/review";
+
+/// Derived brief size cap in bytes (context budget; `PoC`: 8192).
+pub const MAX_BRIEF_BYTES: usize = 8192;
+
+/// Memory engine errors (deterministic, exit-code mapped by the CLI).
+#[derive(Debug, Error)]
+pub enum MemoryError {
+    /// The episodic buffer contained no fact candidates.
+    #[error("no facts found in episodic buffer")]
+    NoFacts,
+    /// Filesystem operation failed.
+    #[error("entry write failed: {0}")]
+    Io(#[from] std::io::Error),
+    /// The fact being signed off already exists in canonical memory.
+    #[error("fact already known")]
+    FactKnown,
+    /// The contested queue has no fact at the requested index.
+    #[error("contested fact index not found")]
+    IndexNotFound,
+    /// Signoff was called with a missing queue or a non-positive index.
+    #[error("signoff requires an existing queue file and positive fact index")]
+    BadSignoff,
+    /// Derivation ran before any canonical facts existed.
+    #[error("no canonical facts yet — run ingest first")]
+    NoCanonical,
+}
+
+/// Options for a consolidation run.
+#[derive(Debug, Clone, Default)]
+pub struct ConsolidateOptions {
+    /// Domain assigned to new facts.
+    pub domain: String,
+    /// Route wording-variants of known facts to the review queue instead of canonical.
+    pub require_signoff: bool,
+    /// Report without writing anything (no directories created).
+    pub dry_run: bool,
+}
+
+/// Outcome of a consolidation run (mirrors `PoC` stdout semantics).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConsolidateOutcome {
+    /// Facts written (or planned) to canonical.
+    pub new_facts: usize,
+    /// Facts skipped as duplicates or queued.
+    pub skipped: usize,
+    /// Entry written (None for dry-run / empty consolidation).
+    pub entry: Option<EntryFile>,
+}
+
+/// Extract fact candidates from an episodic buffer: `FACT:` lines and
+/// bullets (`- ` / `* `) with payload of at least 8 chars.
+///
+/// Mirrors `PoC` `extract_candidates`.
+#[must_use]
+pub fn extract_candidates(text: &str) -> Vec<String> {
+    let mut facts = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.to_ascii_lowercase().starts_with("fact:") {
+            let payload = trimmed["fact:".len()..].trim();
+            if !payload.is_empty() {
+                facts.push(payload.to_string());
+            }
+        } else if let Some(payload) = trimmed
+            .strip_prefix('-')
+            .or_else(|| trimmed.strip_prefix('*'))
+        {
+            let payload = payload.trim();
+            if payload.len() >= 8 {
+                facts.push(payload.to_string());
+            }
+        }
+    }
+    facts
+}
+
+/// All canonical entry files under `root/memory/canonical/entries` (sorted).
+#[must_use]
+pub fn canonical_entries(root: &Path) -> Vec<PathBuf> {
+    let entries_root = root.join(ENTRIES_REL);
+    let mut out = Vec::new();
+    let Ok(days) = fs::read_dir(&entries_root) else {
+        return out;
+    };
+    for day in days.flatten() {
+        let Ok(meta) = day.file_type() else { continue };
+        if !meta.is_dir() {
+            continue;
+        }
+        let Ok(entries) = fs::read_dir(day.path()) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.path().extension().is_some_and(|e| e == "md") {
+                out.push(entry.path());
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// `(fact_id, domain, body)` triples from canonical entries (`PoC` `read_facts`).
+///
+/// Body is whitespace-flattened exactly like `" ".join(m.group(2).split())`.
+#[must_use]
+pub fn read_facts(root: &Path) -> Vec<(String, String, String)> {
+    let mut facts = Vec::new();
+    for entry in canonical_entries(root) {
+        let Ok(text) = fs::read_to_string(&entry) else {
+            continue;
+        };
+        let mut domain = "general".to_string();
+        for line in text.lines() {
+            if let Some(rest) = line.strip_prefix("- domain:") {
+                domain = rest.trim().to_string();
+                break;
+            }
+        }
+        for (body, id) in parse_canonical_facts(&text) {
+            let flat = body.split_whitespace().collect::<Vec<_>>().join(" ");
+            facts.push((id, domain.clone(), flat));
+        }
+    }
+    facts
+}
+
+/// `(fact_body, fact_id)` pairs from all canonical entries.
+///
+/// Mirrors `PoC` `parsed_canonical_facts`.
+#[must_use]
+pub fn canonical_facts(root: &Path) -> Vec<(String, String)> {
+    let mut facts = Vec::new();
+    for entry in canonical_entries(root) {
+        let Ok(text) = fs::read_to_string(&entry) else {
+            continue;
+        };
+        facts.extend(parse_canonical_facts(&text));
+    }
+    facts
+}
+
+/// All known 16-hex fact ids across canonical entries.
+#[must_use]
+pub fn existing_fact_ids(root: &Path) -> Vec<String> {
+    let mut ids = Vec::new();
+    for entry in canonical_entries(root) {
+        let Ok(text) = fs::read_to_string(&entry) else {
+            continue;
+        };
+        ids.extend(crate::store::extract_fact_ids(&text));
+    }
+    ids
+}
+
+/// UTC now formatted `YYYY-MM-DDTHH:MM:SSZ` (`PoC` strftime contract).
+#[must_use]
+pub fn utc_now_stamp() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let (y, m, d, hh, mm, ss) = civil_from_unix(secs);
+    format!("{y:04}-{m:02}-{d:02}T{hh:02}:{mm:02}:{ss:02}Z")
+}
+
+/// UTC now formatted `YYYY-MM-DD`.
+#[must_use]
+pub fn utc_now_date() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let (y, m, d, _, _, _) = civil_from_unix(secs);
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
+/// Civil calendar from unix seconds (Howard Hinnant's algorithm).
+fn civil_from_unix(secs: u64) -> (i64, u32, u32, u32, u32, u32) {
+    let days = (secs / 86_400).cast_signed();
+    let rem = secs % 86_400;
+    let hh = u32::try_from(rem / 3600).unwrap_or(0);
+    let mm = u32::try_from((rem % 3600) / 60).unwrap_or(0);
+    let ss = u32::try_from(rem % 60).unwrap_or(0);
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = u32::try_from(doy - (153 * mp + 2) / 5 + 1).unwrap_or(0);
+    let m = u32::try_from(if mp < 10 { mp + 3 } else { mp - 9 }).unwrap_or(0);
+    (if m <= 2 { y + 1 } else { y }, m, d, hh, mm, ss)
+}
+
+/// Write a canonical entry with `## F-NNN` blocks (`PoC` `write_canonical_entry`).
+///
+/// Returns the written entry file; parent directories are created.
+///
+/// # Errors
+///
+/// Returns [`MemoryError::Io`] when a directory or file cannot be created.
+pub fn write_canonical_entry(
+    root: &Path,
+    facts: &[(String, String)],
+    source: &str,
+    domain: &str,
+    kind: &str,
+) -> Result<EntryFile, MemoryError> {
+    let entry = crate::store::next_entry(root, &utc_now_date());
+    if let Some(parent) = entry.path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let stamp = utc_now_stamp();
+    let stem = entry
+        .path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("entry");
+    let mut content = format!("# Canonical entry {stem} (consolidated from {source})\n\n");
+    let _ = writeln!(
+        content,
+        "- date: {stamp}\n- source: {source}\n- domain: {domain}\n- kind: {kind}"
+    );
+    for (i, (fact, digest)) in facts.iter().enumerate() {
+        let _ = writeln!(content, "\n## F-{i:03} `{digest}`\n\n{fact}");
+    }
+    fs::write(&entry.path, content)?;
+    Ok(entry)
+}
+
+/// Append one contested fact to the review queue (`PoC` `append_contested`).
+///
+/// # Errors
+///
+/// Returns [`MemoryError::Io`] when the queue cannot be opened or written.
+pub fn append_contested(
+    root: &Path,
+    fact: &str,
+    digest: &str,
+    source: &str,
+    existing_hash: &str,
+) -> Result<PathBuf, MemoryError> {
+    let queue = root
+        .join(REVIEW_REL)
+        .join(format!("contested-{}.md", utc_now_date()));
+    if let Some(parent) = queue.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let current = fs::read_to_string(&queue).unwrap_or_default();
+    let number = current.lines().filter(|l| l.starts_with("## C-")).count() + 1;
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&queue)?;
+    writeln!(
+        f,
+        "## C-{number:03} `{digest}`\n- source: {source}\n- reason: same first 40 chars\n- existing fact hash: {existing_hash}\n\n{fact}\n"
+    )?;
+    Ok(queue)
+}
+
+/// Parse `(digest, payload)` pairs from a contested queue file (`PoC` `queued_facts`).
+#[must_use]
+pub fn queued_facts(queue: &Path) -> Vec<(String, String)> {
+    let Ok(lines) = fs::read_to_string(queue) else {
+        return Vec::new();
+    };
+    let mut records = Vec::new();
+    let lines: Vec<&str> = lines.lines().collect();
+    for (pos, line) in lines.iter().enumerate() {
+        let Some(id) = line
+            .strip_prefix("## C-")
+            .and_then(|rest| rest.split('`').nth(1))
+            .filter(|id| id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()))
+        else {
+            continue;
+        };
+        let payload = lines[pos + 1..]
+            .iter()
+            .find(|item| !item.is_empty() && !item.starts_with("- "))
+            .copied()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        records.push((id.to_string(), payload));
+    }
+    records
+}
+
+/// Consolidate an episodic buffer into canonical facts.
+///
+/// Mirrors `PoC` `main()`: dedup by fact id, contested-wording routing when
+/// `require_signoff`, dry-run reporting without any writes.
+///
+/// # Errors
+///
+/// Returns [`MemoryError::NoFacts`] for an empty buffer and
+/// [`MemoryError::Io`] for any filesystem failure.
+pub fn consolidate(
+    root: &Path,
+    buffer_text: &str,
+    source: &str,
+    opts: &ConsolidateOptions,
+) -> Result<ConsolidateOutcome, MemoryError> {
+    let candidates = extract_candidates(buffer_text);
+    if candidates.is_empty() {
+        return Err(MemoryError::NoFacts);
+    }
+
+    let mut known: Vec<String> = existing_fact_ids(root);
+    let canonical = canonical_facts(root);
+
+    let mut new_facts: Vec<(String, String)> = Vec::new();
+    let mut skipped = 0usize;
+
+    for fact in candidates {
+        let h = fact_id(&fact);
+        if known.contains(&h) {
+            skipped += 1;
+            continue;
+        }
+        let contested = canonical
+            .iter()
+            .find(|(old_fact, _)| {
+                old_fact.starts_with(&fact[..fact.len().min(40)]) && *old_fact != fact
+            })
+            .map(|(_, old_hash)| old_hash.clone());
+        if opts.require_signoff
+            && let Some(old_hash) = contested
+        {
+            if !opts.dry_run {
+                append_contested(root, &fact, &h, source, &old_hash)?;
+            }
+            skipped += 1;
+            continue;
+        }
+        known.push(h.clone());
+        new_facts.push((fact, h));
+    }
+
+    if opts.dry_run {
+        let entry = crate::store::next_entry(root, &utc_now_date());
+        return Ok(ConsolidateOutcome {
+            new_facts: new_facts.len(),
+            skipped,
+            entry: Some(entry),
+        });
+    }
+    if new_facts.is_empty() {
+        return Ok(ConsolidateOutcome {
+            new_facts: 0,
+            skipped,
+            entry: None,
+        });
+    }
+    let entry = write_canonical_entry(root, &new_facts, source, &opts.domain, "consolidation")?;
+    Ok(ConsolidateOutcome {
+        new_facts: new_facts.len(),
+        skipped,
+        entry: Some(entry),
+    })
+}
+
+/// Promote ONE contested fact from the queue into canonical (`PoC` `--signoff`).
+///
+/// # Errors
+///
+/// Returns [`MemoryError::BadSignoff`] when the queue is missing or the index
+/// is not positive, [`MemoryError::IndexNotFound`] for an out-of-range index,
+/// and [`MemoryError::FactKnown`] when the fact was already promoted.
+pub fn signoff(
+    root: &Path,
+    queue: &Path,
+    index: usize,
+    domain: &str,
+) -> Result<EntryFile, MemoryError> {
+    if !queue.exists() || index < 1 {
+        return Err(MemoryError::BadSignoff);
+    }
+    let blocks = queued_facts(queue);
+    let Some((digest, fact)) = blocks.get(index - 1).cloned() else {
+        return Err(MemoryError::IndexNotFound);
+    };
+    if existing_fact_ids(root).contains(&digest) {
+        return Err(MemoryError::FactKnown);
+    }
+    let source = queue
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("queue")
+        .to_string();
+    write_canonical_entry(root, &[(fact, digest)], &source, domain, "signoff")
+}
+
+/// Provenance header for every derived artifact (`PoC` `provenance_block`).
+#[must_use]
+pub fn provenance_block(root: &Path) -> String {
+    let entries = canonical_entries(root);
+    let joined = entries
+        .iter()
+        .map(|p| fs::read_to_string(p).unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "# PROVENANCE\n# canonical_sha256: {}\n# canonical_entries: {}\n# derived_at: regenerated deterministically by mini-agi derive\n# rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive\n\n",
+        source_sha256(&joined),
+        entries.len()
+    )
+}
+
+/// Render the derived context brief (`PoC` `render_brief`).
+#[must_use]
+pub fn render_brief(root: &Path, facts: &[(String, String, String)]) -> String {
+    let mut out = provenance_block(root);
+    out.push_str("# CONTEXT BRIEF (derived)\n\nRead this before starting any session. Canonical wins over this file.\n\n");
+    for (fid, domain, text) in facts {
+        let _ = writeln!(out, "- `{fid}` [{domain}] {text}");
+    }
+    out
+}
+
+/// Render per-domain `AGENTS.md` fragments (`PoC` `render_domain_agents`).
+#[must_use]
+pub fn render_domain_agents(
+    root: &Path,
+    facts: &[(String, String, String)],
+) -> BTreeMap<String, String> {
+    let mut domains: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (fid, domain, text) in facts {
+        domains
+            .entry(domain.clone())
+            .or_default()
+            .push(format!("- `{fid}` {text}"));
+    }
+    domains
+        .into_iter()
+        .map(|(domain, lines)| {
+            let name: String = domain
+                .to_ascii_lowercase()
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+                .collect::<String>()
+                .trim_matches('-')
+                .to_string();
+            let mut content = provenance_block(root);
+            let _ = writeln!(
+                content,
+                "# Domain: {domain} (derived from canonical memory)\n\nApplies when working on this domain. Canonical memory wins on conflict."
+            );
+            content.push_str(&lines.join("\n"));
+            content.push('\n');
+            (name, content)
+        })
+        .collect()
+}
+
+/// Render the `CLAUDE.md` import shim (`PoC` `render_claude_shim`, ADR-0009).
+#[must_use]
+pub fn render_claude_shim(root: &Path) -> String {
+    let mut out = provenance_block(root);
+    out.push_str(
+        "# CLAUDE.md — generated import-shim (do not hand-edit; mini-agi derive)\n\n\
+         This repo's canonical agent instructions live in AGENTS.md.\n\
+         Context brief: memory/derived/context-brief.md (regenerated by derive).\n\
+         Deterministic gates: `mini-agi verify` (fmt, test, clippy, checkpoint gate).\n",
+    );
+    out
+}
+
+/// Regenerate all derived views from canonical memory (`PoC` `main`).
+///
+/// Returns `(fact_count, fragment_count)`.
+///
+/// # Errors
+///
+/// Returns [`MemoryError::NoCanonical`] when no facts exist and
+/// [`MemoryError::Io`] for filesystem failures.
+pub fn derive(root: &Path, brief_only: bool) -> Result<(usize, usize), MemoryError> {
+    let facts = read_facts(root);
+    if facts.is_empty() {
+        return Err(MemoryError::NoCanonical);
+    }
+    fs::create_dir_all(root.join(DERIVED_REL))?;
+    fs::write(
+        root.join(DERIVED_REL).join("context-brief.md"),
+        render_brief(root, &facts),
+    )?;
+    fs::write(root.join("CLAUDE.md"), render_claude_shim(root))?;
+
+    let fragments = if brief_only {
+        BTreeMap::new()
+    } else {
+        let fragments = render_domain_agents(root, &facts);
+        let per_domain = root.join(PER_DOMAIN_REL);
+        fs::create_dir_all(&per_domain)?;
+        for (name, content) in &fragments {
+            fs::write(per_domain.join(format!("AGENTS.{name}.md")), content)?;
+        }
+        fragments
+    };
+    Ok((facts.len(), fragments.len()))
+}
+
+/// Current canonical fingerprint for the provenance gate (`PoC` `sha256(joined)`).
+#[must_use]
+pub fn canonical_fingerprint(root: &Path) -> String {
+    let entries = canonical_entries(root);
+    let joined = entries
+        .iter()
+        .map(|p| fs::read_to_string(p).unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join("\n");
+    source_sha256(&joined)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn utc_stamp_matches_poc_format() {
+        let stamp = utc_now_stamp();
+        assert_eq!(stamp.len(), 20);
+        assert!(stamp.ends_with('Z'));
+        assert!(stamp.contains('T'));
+        let date = utc_now_date();
+        assert_eq!(date.len(), 10);
+        assert!(stamp.starts_with(&date));
+    }
+}

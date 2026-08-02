@@ -1,0 +1,334 @@
+//! CLI contract tests — ported 1:1 from `PoC` `tests/test_consolidate.py`
+//! subprocess assertions (stdout + exit codes), run against the real binary.
+
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+const BIN: &str = env!("CARGO_BIN_EXE_mini-agi");
+
+fn run(root: &Path, args: &[&str]) -> Output {
+    std::fs::create_dir_all(root).unwrap();
+    Command::new(BIN)
+        .args(args)
+        .env("AGENTIC_ROOT", root)
+        .output()
+        .expect("binary runs")
+}
+
+fn stdout(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+fn tmp_root(tag: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!("mag-cli-test-{tag}-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    root
+}
+
+fn wipe(root: &Path) {
+    let _ = std::fs::remove_dir_all(root);
+    std::fs::create_dir_all(root).unwrap();
+}
+
+fn seed_existing_entry(root: &Path, date: &str, seq: u32, content: &str) {
+    let day = root.join("memory/canonical/entries").join(date);
+    let path = day.join(format!("{date}-{seq:03}.md"));
+    std::fs::create_dir_all(&day).unwrap();
+    std::fs::write(path, content).unwrap();
+}
+
+fn today() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    let secs = now.as_secs();
+    // UTC civil date (reused from kernel contract: YYYY-MM-DD)
+    let days = (secs / 86_400).cast_signed();
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if m <= 2 { y + 1 } else { y };
+    format!("{year:04}-{m:02}-{d:02}")
+}
+
+#[test]
+fn cli_consolidates_fact_and_bullet_with_provenance_and_next_sequence() {
+    let root = tmp_root("c1");
+    wipe(&root);
+    let day = today();
+    seed_existing_entry(
+        &root,
+        &day,
+        2,
+        "# existing\n\n## F-001 `0123456789abcdef`\n\nold fact\n",
+    );
+    let buffer = root.join("session.md");
+    std::fs::write(
+        &buffer,
+        "FACT: explicit memory survives compaction\n- bullets with enough detail survive too\n",
+    )
+    .unwrap();
+
+    let out = run(
+        &root,
+        &[
+            "mem",
+            "consolidate",
+            buffer.to_str().unwrap(),
+            "--domain",
+            "testing",
+        ],
+    );
+    assert!(out.status.success(), "{}", stdout(&out));
+    let entry = root
+        .join("memory/canonical/entries")
+        .join(&day)
+        .join(format!("{day}-003.md"));
+    assert!(entry.exists());
+    let content = std::fs::read_to_string(&entry).unwrap();
+    assert!(content.contains("explicit memory survives compaction"));
+    assert!(content.contains("- domain: testing\n- kind: consolidation"));
+    assert!(stdout(&out).contains("entry: memory/canonical/entries"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_same_fact_from_two_buffers_creates_one_canonical_fact() {
+    let root = tmp_root("c2");
+    wipe(&root);
+    let fact = "FACT: repeated evidence belongs in canonical memory once";
+    let first = root.join("first.md");
+    std::fs::write(&first, fact).unwrap();
+    assert!(
+        run(&root, &["mem", "consolidate", first.to_str().unwrap()])
+            .status
+            .success()
+    );
+
+    let second = root.join("second.md");
+    std::fs::write(&second, fact).unwrap();
+    let out = run(&root, &["mem", "consolidate", second.to_str().unwrap()]);
+    assert!(out.status.success());
+    assert!(stdout(&out).contains("consolidated 0 new facts (skipped 1 duplicates)"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_empty_buffer_exits_one() {
+    let root = tmp_root("c3");
+    wipe(&root);
+    let buffer = root.join("empty.md");
+    std::fs::write(&buffer, "just a heading\n").unwrap();
+    let out = run(&root, &["mem", "consolidate", buffer.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("no facts found"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_dry_run_reports_planned_entry_and_preserves_empty_tree() {
+    let root = tmp_root("c4");
+    wipe(&root);
+    let buffer = root.join("dry-run.md");
+    std::fs::write(
+        &buffer,
+        "FACT: one prospective canonical fact\nFACT: one prospective canonical fact\n",
+    )
+    .unwrap();
+    let out = run(
+        &root,
+        &[
+            "mem",
+            "consolidate",
+            buffer.to_str().unwrap(),
+            "--dry-run",
+            "--domain",
+            "testing",
+        ],
+    );
+    assert!(out.status.success());
+    let day = today();
+    assert!(stdout(&out).contains(&format!(
+        "entry: memory/canonical/entries/{day}/{day}-001.md"
+    )));
+    assert!(stdout(&out).contains("would write 1 new facts (skipped 1 duplicates)"));
+    assert!(
+        !root.join("memory").exists(),
+        "dry-run must not create canonical directories"
+    );
+    wipe(&root);
+}
+
+#[test]
+fn cli_require_signoff_queues_wording_variant_without_canonical_write() {
+    let root = tmp_root("c5");
+    wipe(&root);
+    let first = root.join("first.md");
+    std::fs::write(
+        &first,
+        "FACT: A fact whose first forty characters are shared, original wording.\n",
+    )
+    .unwrap();
+    assert!(
+        run(&root, &["mem", "consolidate", first.to_str().unwrap()])
+            .status
+            .success()
+    );
+
+    let variant = root.join("variant.md");
+    std::fs::write(
+        &variant,
+        "FACT: A fact whose first forty characters are shared, alternate wording.\n",
+    )
+    .unwrap();
+    let out = run(
+        &root,
+        &[
+            "mem",
+            "consolidate",
+            variant.to_str().unwrap(),
+            "--require-signoff",
+        ],
+    );
+    assert!(out.status.success());
+    let queue = root
+        .join("memory/review")
+        .join(format!("contested-{}.md", today()));
+    let queued = std::fs::read_to_string(&queue).unwrap();
+    assert!(queued.contains("alternate wording"));
+    assert!(queued.contains("reason: same first 40 chars"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_signoff_promotes_queued_fact_once() {
+    let root = tmp_root("c6");
+    wipe(&root);
+    let first = root.join("first.md");
+    std::fs::write(
+        &first,
+        "FACT: A fact whose first forty characters are shared, original wording.\n",
+    )
+    .unwrap();
+    assert!(
+        run(&root, &["mem", "consolidate", first.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let variant = root.join("variant.md");
+    std::fs::write(
+        &variant,
+        "FACT: A fact whose first forty characters are shared, alternate wording.\n",
+    )
+    .unwrap();
+    assert!(
+        run(
+            &root,
+            &[
+                "mem",
+                "consolidate",
+                variant.to_str().unwrap(),
+                "--require-signoff"
+            ]
+        )
+        .status
+        .success()
+    );
+    let queue = root
+        .join("memory/review")
+        .join(format!("contested-{}.md", today()));
+
+    let promoted = run(&root, &["mem", "signoff", queue.to_str().unwrap(), "1"]);
+    assert!(promoted.status.success(), "{}", stdout(&promoted));
+    assert!(stdout(&promoted).contains("signed off 1 fact"));
+    let repeated = run(&root, &["mem", "signoff", queue.to_str().unwrap(), "1"]);
+    assert_eq!(repeated.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&repeated.stderr).contains("already known"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_signoff_rejects_bad_queue_and_index() {
+    let root = tmp_root("c7");
+    wipe(&root);
+    let out = run(&root, &["mem", "signoff", "nonexistent.md", "1"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("signoff requires"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_derive_reports_and_writes_views() {
+    let root = tmp_root("c8");
+    wipe(&root);
+    let buffer = root.join("buf.md");
+    std::fs::write(
+        &buffer,
+        "FACT: derive produces views from canonical facts\n",
+    )
+    .unwrap();
+    assert!(
+        run(
+            &root,
+            &[
+                "mem",
+                "consolidate",
+                buffer.to_str().unwrap(),
+                "--domain",
+                "agent-harness"
+            ]
+        )
+        .status
+        .success()
+    );
+
+    let out = run(&root, &["derive"]);
+    assert!(out.status.success(), "{}", stdout(&out));
+    assert!(stdout(&out).contains("derived: context-brief.md (1 facts)"));
+    assert!(root.join("memory/derived/context-brief.md").exists());
+    assert!(
+        root.join("memory/derived/per-domain/AGENTS.agent-harness.md")
+            .exists()
+    );
+    assert!(root.join("CLAUDE.md").exists());
+    wipe(&root);
+}
+
+#[test]
+fn cli_derive_fails_without_canonical() {
+    let root = tmp_root("c9");
+    wipe(&root);
+    let out = run(&root, &["derive"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("no canonical facts yet"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_provenance_prints_fingerprint() {
+    let root = tmp_root("c10");
+    wipe(&root);
+    let buffer = root.join("buf.md");
+    std::fs::write(
+        &buffer,
+        "FACT: provenance gate compares canonical fingerprint\n",
+    )
+    .unwrap();
+    assert!(
+        run(&root, &["mem", "consolidate", buffer.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let out = run(&root, &["provenance"]);
+    assert!(out.status.success());
+    assert!(stdout(&out).starts_with("canonical_sha256: "));
+    let fp = stdout(&out).split_whitespace().nth(1).unwrap().to_string();
+    assert_eq!(fp.len(), 16);
+    wipe(&root);
+}

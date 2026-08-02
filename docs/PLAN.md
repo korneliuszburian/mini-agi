@@ -1,10 +1,16 @@
-# mini-agi — master plan (v3, Rust product)
+# mini-agi — master plan (v4, Rust product)
 
-Status: EXECUTING. Phase 0 in progress (workspace + kernel hash/store landed,
-clippy/fmt clean, CI wired). This is the plan of record for the Rust rewrite.
-PoC (/home/krn/coding/krn/mini-agi, tag `v1-spec-reference`) is the frozen
-behavioral spec — its 82 tests + 11 evals cases + golden trajectories are the
-contract we port to Rust.
+Status: EXECUTING. Phase 0 complete (kernel hash/store/memory + CLI,
+28 tests green, clippy/fmt clean, release build). This is the plan of
+record for the Rust rewrite. Charter: `docs/CHALLENGE.md` (verbatim,
+founding user prompt — never lose). ADRs: `docs/adr/ADR-0001..0003` (+
+inherited PoC ADR-0001..0012 semantics).
+
+Three generations, one lineage (ADR-0001):
+- v1 `agentic-core` — loop proof; canonical facts = knowledge source.
+- v2 `mini-agi` (tag `v1-spec-reference`) — FROZEN behavioral spec: 82
+  tests, 11 eval cases, golden trajectories, ADR-0001..0012. The contract.
+- v3 `mini-agi-rs` — this repo. Spec = PoC; knowledge = agentic-core@HEAD.
 
 ## Vision — why this blows the doors off
 
@@ -51,7 +57,7 @@ mini-agi-rs/  (Cargo workspace)
 │       ├── mcp.rs        — stdio MCP server (JSON-RPC 2.0, hand-rolled)
 │       ├── adapters/     — codex exec, claude, opencode session adapters
 │       └── derive.rs     — brief/fragments regeneration (port PoC)
-├── skills/               — our own skills, from scratch, each with verify test
+├── skills/               — REMOVED (ADR-0002): skills live in .agents/skills/
 ├── tests/                — integration tests (behavioral contract from PoC)
 └── memory/               — mini-agi's OWN memory (dogfooding, ADR-0009)
 ```
@@ -66,8 +72,13 @@ mini-agi-rs/  (Cargo workspace)
   if a real need appears (nothing does for a stdio server).
 - Storage: markdown+git, same as PoC. Provenance hashes, append-only entries,
   derived views regenerated. Migration-free, human-readable, diffable.
-- Skills live in-repo under `skills/` (project-scoped by default). Global
-  skill dirs are frozen/disabled (`~/.agents/skills.disabled`). No leakage.
+- Skills live in `.agents/skills/` (project-scoped by default) — the
+  standard discovery path for Codex/Claude/Cursor/opencode (ADR-0002).
+  Global skill dirs are frozen/disabled (`~/.agents/skills.disabled`). No
+  leakage.
+- HITL = external LLM reviewer, memory-anchored (ADR-0003): independent
+  session, MUST cite canonical fact ids, deterministic gates first
+  (IBM/AAAI: judge ~45% vs judge+tools ~94%). Grilling removed from spec.
 
 ## Key decisions (evidence-linked)
 
@@ -98,11 +109,13 @@ mini-agi-rs/  (Cargo workspace)
 
 ## Phases
 
-### Phase 0 — Foundations (now)
+### Phase 0 — Foundations (DONE)
 - Cargo workspace, core crate, hash+store+memory with tests ported from PoC.
 - Acceptance: `cargo test` green; `mini-agi mem add/consolidate/derive`
   behaves identically to PoC scripts (same file layout, same hashes).
 - Deliverable: crates skeleton + memory engine + contract JSON Schemas.
+- Evidence: 28 tests (6 unit + 11 integration + 10 CLI subprocess), clippy
+  `-D warnings` clean, fmt clean, release build OK.
 
 ### Phase 1 — Eval engine
 - run.json parsing (codex JSONL), 4D scoring, golden matching, baseline,
@@ -113,6 +126,10 @@ mini-agi-rs/  (Cargo workspace)
 - SKILL.md frontmatter parsing, verify-hook execution, registry with
   versioning, project scoping, install from GitHub (`mini-agi skill add`).
 - Acceptance: our first 3 in-repo skills with passing verify tests.
+- Ports from PoC: `.agents/skills/` minus grilling stubs (ADR-0003); every
+  ported skill gets checkable+exhaustive completion criteria (Matt Pocock
+  standard — our v2 skills violated it) + a verify test. Reviewer skill
+  has memory-anchor gate (verdict without canonical fact ids = fail).
 
 ### Phase 3 — Orchestration
 - checkpoint journal + audit (PORTED audit semantics from T008 amendments),
@@ -139,6 +156,9 @@ mini-agi-rs/  (Cargo workspace)
 - Dreaming/unsupervised consolidation — drift risk.
 - Porting our 17 superpowers skills — user decision: from scratch, small,
   with verify tests.
+- Grilling (`grill-me`/`grill-with-docs`, `/grilling`, `/domain-modeling`) —
+  dead stubs referencing non-existent commands; HITL in our system is the
+  external memory-anchored reviewer (ADR-0003).
 
 ## Dogfooding contract (hard rule)
 mini-agi's own memory/ + skills/ are first-class users of the kernel. Every

@@ -3,10 +3,18 @@
 mini-agi: single-binary agent kernel — enforcement-bound memory, evaluation,
 skills registry, checkpoint journal. CLI + MCP server. Rust, edition 2024.
 
-Canonical spec: PoC at `/home/krn/coding/krn/mini-agi` (tag `v1-spec-reference`)
-is the FROZEN behavioral contract — its 82 tests, 11 eval cases and golden
-trajectories define behavior we port; do not "improve" semantics without an
-ADR. Master plan: `docs/PLAN.md`.
+Three generations, one lineage (ADR-0001):
+- v1 `agentic-core` — loop proof; its canonical facts = knowledge source.
+- v2 `mini-agi` (tag `v1-spec-reference`) — FROZEN behavioral contract: its
+  82 tests, 11 eval cases and golden trajectories define behavior we port;
+  do not "improve" semantics without an ADR. In case of divergence
+  PoC wins over v1.
+- v3 = this repo.
+
+Charter (founding goal, verbatim, NEVER lose or paraphrase): `docs/CHALLENGE.md`.
+ADRs: `docs/adr/` (ADR-0001..0003 local + inherited PoC ADR-0001..0012).
+Master plan: `docs/PLAN.md`. Canonical memory import source:
+`agentic-core@HEAD`.
 
 ## Toolchain (pinned)
 
@@ -51,6 +59,9 @@ ADR. Master plan: `docs/PLAN.md`.
   ambiguous contract decisions.
 - Reviews are fresh-session and independent; implementer self-reviews are
   not independent evidence.
+- Reviewer is MEMORY-ANCHORED (ADR-0003): a verdict must cite canonical
+  fact ids it relies on; a review without memory anchors fails the gate.
+  Deterministic gates run before the LLM judge, never after it alone.
 
 ## Communication (no yapping)
 
