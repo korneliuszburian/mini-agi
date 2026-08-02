@@ -8,7 +8,7 @@ description = "mini-agi: single-binary agent kernel — memory, evals, skills, o
 readme = "README.md"
 keywords = ["agent", "memory", "evaluation", "mcp", "skill"]
 categories = ["development-tools", "command-line-utilities"]
-repository = "https://github.com/krn/mini-agi"
+repository = "https://github.com/korneliuszburian/mini-agi"
 
 [dependencies]
 mini-agi-core = { path = "../mini-agi-core" }
