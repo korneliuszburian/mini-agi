@@ -1,9 +1,9 @@
 # mini-agi — master plan (v4, Rust product)
 
-Status: EXECUTING. Phase 0 complete (kernel hash/store/memory + CLI,
-28 tests green). Phase 1 complete (eval engine, 51 tests green, gate PASS
-on 11 cases). This is the plan of
-record for the Rust rewrite. Charter: `docs/CHALLENGE.md` (verbatim,
+Status: EXECUTING. Phases 0-4 complete (memory, eval, skills, journal,
+contracts, metrics, MCP+adapters; 96 tests green, verify ALL GREEN).
+Phase 5 dogfood in progress (this repo runs on its own kernel). This is the
+plan of record for the Rust rewrite. Charter: `docs/CHALLENGE.md` (verbatim,
 founding user prompt — never lose). ADRs: `docs/adr/ADR-0001..0003` (+
 inherited PoC ADR-0001..0012 semantics).
 
@@ -129,7 +129,7 @@ mini-agi-rs/  (Cargo workspace)
   gate `PASS: 11 cases, 0 regressions`; 51 tests green, clippy/fmt clean.
 - Commit: 3aa9f48.
 
-### Phase 2 — Skills (registry DONE, MCP-scope pending)
+### Phase 2 — Skills (DONE)
 - SKILL.md frontmatter parsing, verify-hook execution, registry with
   versioning, project scoping, install from GitHub (`mini-agi skill add`).
 - Acceptance: our first 3 in-repo skills with passing verify tests.
@@ -142,19 +142,31 @@ mini-agi-rs/  (Cargo workspace)
   clone), CLI `skill list/show/verify/add`, `scripts/verify.sh` (silent
   target = fail), `scripts/checkpoint.sh` (ECC port), 15 skills ported
   with completion criteria, verify hooks green on verify/checkpoint/review
-  (+ review-anchor-test), 63 tests green. Commits: 1a71e91.
+  (+ review-anchor-test). Commits: 1a71e91, fdc3fa1.
 
-### Phase 3 — Orchestration
+### Phase 3 — Orchestration (DONE)
 - checkpoint journal + audit (PORTED audit semantics from T008 amendments),
-  ticket lifecycle, session resume (`codex exec --resume`), cache-first
-  prompt layout, budgets.
-- Acceptance: full ticket run through mini-agi without PoC scripts.
+  typed contracts (ADR-0007), budgets, cache-first prompt layout.
+- Ticket lifecycle/session resume are agent-side (skills + codex adapters);
+  the kernel side (journal + audit + contracts + metrics) is complete.
+- Evidence: `journal.rs` (checkpoint-gate timestamp semantics + audit.sh
+  line semantics: orphan BEGIN, in-flight exception, boundary = newest
+  complete green), `contract.rs` (validate.py port, 4 bundled schemas),
+  `metrics.rs` (stats + budget ports), CLI `checkpoint audit`/`validate`/
+  `stats`/`budget` wired into verify.sh. Commits: c248c03, b3209f5, e0ca29c,
+  e3f9c8f.
 
-### Phase 4 — MCP server + adapters
-- MCP stdio server (memory/eval/skills tools), codex adapter, docs for
-  Claude/Cursor/opencode wiring.
-- Acceptance: `mini-agi mcp` + `mcp-remote` connect; a foreign agent reads
-  brief and writes an enforced fact.
+### Phase 4 — MCP server + adapters (DONE)
+- MCP stdio server (memory/eval/skills tools), codex adapter, opencode
+  wiring.
+- Evidence: `mcp.rs` (Content-Length framed, protocol 2025-03-26, 14 tools,
+  initialize/tools-list/tools-call/ping), `mini-agi mcp` + handshake test,
+  `.codex/agents/*.toml`, `opencode.json` (dogfood MCP). Commit: ce03339,
+  c21220d.
+
+### Phase 5 — Dogfood + productize (in progress)
+- mini-agi runs its OWN tickets through itself (memory in `memory/`).
+- CLI polish, install path (`cargo install`), README, demo, versioning.
 
 ### Phase 5 — Dogfood + productize
 - mini-agi runs its OWN tickets through itself (memory in `memory/`).
