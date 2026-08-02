@@ -76,7 +76,7 @@ vs 32KiB cap, skills list vs 2% budget, memory leverage ratio).
 ```sh
 rustup show                # verify pinned 1.97.1
 cargo build --release
-cargo install --path .     # install as `mini-agi`
+cargo install --path crates/mini-agi   # install as `mini-agi` (workspace root is a virtual manifest)
 ```
 
 ## Layout
