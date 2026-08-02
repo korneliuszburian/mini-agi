@@ -1,8 +1,9 @@
 # mini-agi — master plan (v4, Rust product)
 
 Status: COMPLETE. Phases 0-5 done (memory, eval, skills, journal,
-contracts, metrics, MCP+adapters, init, CI, demo, dogfood; 97 tests
-green, verify ALL GREEN, version 0.2.0). This is the
+contracts, metrics, MCP+adapters, ticket lifecycle, init, CI, demo,
+dogfood incl. live codex-through-MCP; 110 tests green, verify ALL
+GREEN, version 0.3.0). This is the
 plan of record for the Rust rewrite. Charter: `docs/CHALLENGE.md` (verbatim,
 founding user prompt — never lose). ADRs: `docs/adr/ADR-0001..0004` (+
 inherited PoC ADR-0001..0012 semantics).
@@ -157,12 +158,18 @@ mini-agi-rs/  (Cargo workspace)
   e3f9c8f.
 
 ### Phase 4 — MCP server + adapters (DONE)
-- MCP stdio server (memory/eval/skills tools), codex adapter, opencode
-  wiring.
-- Evidence: `mcp.rs` (Content-Length framed, protocol 2025-03-26, 14 tools,
-  initialize/tools-list/tools-call/ping), `mini-agi mcp` + handshake test,
-  `.codex/agents/*.toml`, `opencode.json` (dogfood MCP). Commit: ce03339,
-  c21220d.
+- MCP stdio server (memory/eval/skills/ticket tools), codex adapter,
+  opencode wiring.
+- Evidence: `mcp.rs` (dual framing: LSP Content-Length + rmcp/codex
+  newline-JSON — the codex transport was found live and fixed after its
+  handshake timed out; protocol 2025-03-26, 17 tools,
+  initialize/tools-list/tools-call/ping), handshake test covering BOTH
+  framings, `.codex/agents/*.toml`, `opencode.json` (dogfood MCP).
+- PROVEN live: codex exec (gpt-5.6-terra) called `provenance`, `stats`,
+  `memory_consolidate` (new fact landed, dedup by content hash) and
+  `memory_derive` through the MCP server — Phase 4 acceptance
+  "a foreign agent reads brief and writes an enforced fact" demonstrated.
+  Commits: ce03339, c21220d, 0ffbb31.
 
 ### Phase 5 — Dogfood + productize (DONE)
 - mini-agi runs its OWN tickets through itself (memory in `memory/`).

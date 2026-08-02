@@ -14,7 +14,7 @@ skills registry, orchestration** — exposed as CLI + MCP server so ANY agent
 
 ## Status
 
-All phases 0-5 complete, 97 tests green, gate ALL GREEN, v0.2.0:
+All phases 0-5 complete, 110 tests green, gate ALL GREEN, v0.3.0:
 
 | Phase | Deliverable |
 | --- | --- |
@@ -22,7 +22,7 @@ All phases 0-5 complete, 97 tests green, gate ALL GREEN, v0.2.0:
 | 1 | eval engine (4D scoring, golden, baseline, regression gate) |
 | 2 | skills registry (frontmatter, verify hooks, `skill add`) + 15 skills with completion criteria |
 | 3 | checkpoint journal audit (T008 semantics), typed contracts, metrics |
-| 4 | stdio MCP server (14 tools) + codex/opencode adapters |
+| 4 | stdio MCP server (17 tools, codex+claude framings) + adapters; PROVEN live: codex wrote facts through MCP |
 | 5 | `init` scaffold, CI on pinned toolchain, demo, dogfood, v0.2.0 |
 
 ## The deterministic gate
@@ -51,6 +51,8 @@ mini-agi validate <eval-run|ticket|spec|verdict> <document.json>
 mini-agi stats | budget
 mini-agi mcp                  # stdio MCP server (14 tools)
 mini-agi init                  # scaffold a repo with a verified brain
+mini-agi ticket list|show|validate <id>
+mini-agi mcp                  # stdio MCP server (17 tools)
 ```
 
 ## MCP
