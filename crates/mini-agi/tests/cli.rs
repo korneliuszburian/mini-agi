@@ -553,3 +553,71 @@ fn cli_mcp_handshake_and_tool_call() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_full_ticket_run_end_to_end() {
+    let root = tmp_root("c17");
+    wipe(&root);
+    let out = run(&root, &["init"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(root.join("scripts/verify.sh").is_file());
+    assert!(root.join("AGENTS.md").is_file());
+    assert!(root.join("opencode.json").is_file());
+    let buffer = root.join("buf.md");
+    std::fs::write(
+        &buffer,
+        "FACT: a full ticket runs through the kernel CLI alone.\n\
+         FACT: the gate audits the checkpoint journal on every run.\n",
+    )
+    .unwrap();
+    let c = run(&root, &["mem", "consolidate", buffer.to_str().unwrap()]);
+    assert!(c.status.success());
+    assert!(stdout(&c).contains("consolidated 2 new facts"));
+    let d = run(&root, &["derive"]);
+    assert!(d.status.success());
+    assert!(stdout(&d).contains("context-brief.md (2 facts)"));
+    let p = run(&root, &["provenance"]);
+    assert!(p.status.success());
+    assert_eq!(stdout(&p).trim().len(), 16 + "canonical_sha256: ".len());
+    let git = |args: &[&str]| {
+        Command::new("git")
+            .current_dir(&root)
+            .args(args)
+            .status()
+            .unwrap()
+    };
+    assert!(git(&["init", "-q"]).success());
+    assert!(git(&["config", "user.email", "t@t"]).success());
+    assert!(git(&["config", "user.name", "t"]).success());
+    assert!(git(&["add", "-A"]).success());
+    assert!(git(&["commit", "-qm", "seed"]).success());
+    let begin = Command::new(root.join("scripts/checkpoint.sh"))
+        .current_dir(&root)
+        .arg("begin")
+        .arg("ticket-run")
+        .output()
+        .unwrap();
+    assert!(begin.status.success());
+    let audit = run(&root, &["checkpoint", "audit"]);
+    assert!(audit.status.success(), "{}", stdout(&audit));
+    assert!(stdout(&audit).contains("checkpoint cascade complete"));
+    let ticket = root.join("t.json");
+    std::fs::write(
+        &ticket,
+        r#"{"id":"TICKET-001","title":"t","goal":"g","scope":["scripts/"]}"#,
+    )
+    .unwrap();
+    let v = run(&root, &["validate", "ticket", ticket.to_str().unwrap()]);
+    assert!(v.status.success());
+    let stats = run(&root, &["stats"]);
+    assert!(stats.status.success());
+    assert!(stdout(&stats).contains("canonical entries: 1"));
+    let budget = run(&root, &["budget"]);
+    assert!(budget.status.success());
+    assert!(stdout(&budget).contains("AGENTS chain:"));
+    wipe(&root);
+}

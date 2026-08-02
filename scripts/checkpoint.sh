@@ -30,7 +30,7 @@ case "${1:-}" in
     rev="$(git -C "$ROOT" rev-parse --short HEAD)"
     if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
       dirty_paths="$(git -C "$ROOT" status --porcelain | sed 's/^...//')"
-      disallowed_paths="$(printf '%s\n' "$dirty_paths" | awk '!/^(tickets\/|scripts\/|tests\/|memory\/|evals\/|docs\/|adr\/|artifacts\/|knowledge\/|\.agents\/|crates\/|Makefile$|AGENTS\.md$|CLAUDE\.md$|Cargo\.toml$|Cargo\.lock$)/')"
+      disallowed_paths="$(printf '%s\n' "$dirty_paths" | awk '!/^(tickets\/|scripts\/|tests\/|memory\/|evals\/|docs\/|adr\/|artifacts\/|knowledge\/|\.agents\/|crates\/|Makefile$|AGENTS\.md$|CLAUDE\.md$|Cargo\.toml$|Cargo\.lock$|opencode\.json$|\.gitignore$)/')"
       if [ -n "$disallowed_paths" ]; then
         echo "$(ts) CHECKPOINT-ABORT $label disallowed dirty paths: $disallowed_paths" >> "$JOURNAL"
         echo "checkpoint aborted: dirty paths outside the allowlist:" >&2

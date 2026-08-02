@@ -1,8 +1,8 @@
 # mini-agi — master plan (v4, Rust product)
 
-Status: EXECUTING. Phases 0-4 complete (memory, eval, skills, journal,
-contracts, metrics, MCP+adapters; 96 tests green, verify ALL GREEN).
-Phase 5 dogfood in progress (this repo runs on its own kernel). This is the
+Status: COMPLETE. Phases 0-5 done (memory, eval, skills, journal,
+contracts, metrics, MCP+adapters, init, CI, demo, dogfood; 97 tests
+green, verify ALL GREEN, version 0.2.0). This is the
 plan of record for the Rust rewrite. Charter: `docs/CHALLENGE.md` (verbatim,
 founding user prompt — never lose). ADRs: `docs/adr/ADR-0001..0003` (+
 inherited PoC ADR-0001..0012 semantics).
@@ -164,9 +164,19 @@ mini-agi-rs/  (Cargo workspace)
   `.codex/agents/*.toml`, `opencode.json` (dogfood MCP). Commit: ce03339,
   c21220d.
 
-### Phase 5 — Dogfood + productize (in progress)
+### Phase 5 — Dogfood + productize (DONE)
 - mini-agi runs its OWN tickets through itself (memory in `memory/`).
-- CLI polish, install path (`cargo install`), README, demo, versioning.
+- CLI polish, install path (`cargo install --path crates/mini-agi`),
+  README, demo, versioning (0.2.0).
+- Evidence: `mini-agi init` scaffolds a repo (layout, embedded gate
+  scripts, AGENTS.md, review rubric, opencode.json MCP config pointing at
+  the binary; idempotent, scripts chmod +x), E2E test
+  `cli_full_ticket_run_end_to_end` (init -> consolidate -> derive ->
+  provenance -> checkpoint begin/audit -> validate -> stats -> budget),
+  `scripts/demo.sh` killer demo, `.github/workflows/ci.yml` runs the full
+  gate on pinned 1.97.1, dogfood fact in canonical memory, gate green on
+  a fresh init'd repo (eval gate passes with zero cases).
+- Commits: 0bf2515, 96fc29d, 0.2.0.
 
 ### Phase 5 — Dogfood + productize
 - mini-agi runs its OWN tickets through itself (memory in `memory/`).

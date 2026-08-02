@@ -14,7 +14,7 @@ skills registry, orchestration** — exposed as CLI + MCP server so ANY agent
 
 ## Status
 
-Phases 0-4 complete, 96+ tests green, gate ALL GREEN:
+All phases 0-5 complete, 97 tests green, gate ALL GREEN, v0.2.0:
 
 | Phase | Deliverable |
 | --- | --- |
@@ -23,7 +23,7 @@ Phases 0-4 complete, 96+ tests green, gate ALL GREEN:
 | 2 | skills registry (frontmatter, verify hooks, `skill add`) + 15 skills with completion criteria |
 | 3 | checkpoint journal audit (T008 semantics), typed contracts, metrics |
 | 4 | stdio MCP server (14 tools) + codex/opencode adapters |
-| 5 | dogfood: this repo runs on its own kernel (see below) |
+| 5 | `init` scaffold, CI on pinned toolchain, demo, dogfood, v0.2.0 |
 
 ## The deterministic gate
 
@@ -50,6 +50,7 @@ mini-agi checkpoint audit
 mini-agi validate <eval-run|ticket|spec|verdict> <document.json>
 mini-agi stats | budget
 mini-agi mcp                  # stdio MCP server (14 tools)
+mini-agi init                  # scaffold a repo with a verified brain
 ```
 
 ## MCP

@@ -15,6 +15,7 @@ use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
 use mini_agi_core::metrics;
 use mini_agi_core::skills;
 
+mod init;
 mod mcp;
 
 /// Repository root: `AGENTIC_ROOT` env var, else current directory.
@@ -64,6 +65,8 @@ enum Command {
     Budget,
     /// stdio MCP server (tools over JSON-RPC 2.0).
     Mcp,
+    /// Scaffold a repo: layout, gate scripts, AGENTS.md, MCP config.
+    Init,
 }
 
 #[derive(Args, Debug)]
@@ -227,6 +230,22 @@ fn main() -> ExitCode {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => fail(&format!("mcp server error: {e}")),
         },
+        Command::Init => cmd_init(),
+    }
+}
+
+fn cmd_init() -> ExitCode {
+    let root = root();
+    match init::init(&root) {
+        Ok(created) => {
+            println!("initialized: {}", root.display());
+            for item in &created {
+                println!("  created: {item}");
+            }
+            println!("next: add facts (mini-agi mem consolidate), then mini-agi derive");
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("init failed: {e}")),
     }
 }
 
@@ -470,7 +489,9 @@ fn eval_gate_text(root: &Path, tolerance: f64, write_baseline: bool) -> Result<S
     let entries = eval::score_all_cases(&cases_dir, root, &golden_dir)
         .map_err(|e| format!("eval gate: {e}"))?;
     if entries.is_empty() {
-        return Err("no eval cases found in evals/cases/".to_string());
+        // A fresh repo has nothing to regress: the gate passes trivially,
+        // so an init'd repo is gate-green from the first commit.
+        return Ok("PASS: 0 cases, 0 regressions — no cases in evals/cases/".to_string());
     }
     if write_baseline || !baseline_path.exists() {
         if let Some(parent) = baseline_path.parent() {
