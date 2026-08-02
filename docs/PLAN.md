@@ -4,7 +4,7 @@ Status: COMPLETE. Phases 0-5 done (memory, eval, skills, journal,
 contracts, metrics, MCP+adapters, init, CI, demo, dogfood; 97 tests
 green, verify ALL GREEN, version 0.2.0). This is the
 plan of record for the Rust rewrite. Charter: `docs/CHALLENGE.md` (verbatim,
-founding user prompt — never lose). ADRs: `docs/adr/ADR-0001..0003` (+
+founding user prompt — never lose). ADRs: `docs/adr/ADR-0001..0004` (+
 inherited PoC ADR-0001..0012 semantics).
 
 Three generations, one lineage (ADR-0001):
@@ -176,7 +176,11 @@ mini-agi-rs/  (Cargo workspace)
   `scripts/demo.sh` killer demo, `.github/workflows/ci.yml` runs the full
   gate on pinned 1.97.1, dogfood fact in canonical memory, gate green on
   a fresh init'd repo (eval gate passes with zero cases).
-- Commits: 0bf2515, 96fc29d, 0.2.0.
+- Codex review fixes: eval gate never silently re-baselines (missing
+  baseline = fail, explicit `--write-baseline` only), checkpoint rollback
+  always lands on the last BEGIN (ADR-0004, Coherence Collapse hole),
+  MCP tool schemas carry real JSON types + tolerant arg parsing.
+- Commits: 0bf2515, 96fc29d, 0.2.0, v0.2.0 tag.
 
 ### Phase 5 — Dogfood + productize
 - mini-agi runs its OWN tickets through itself (memory in `memory/`).

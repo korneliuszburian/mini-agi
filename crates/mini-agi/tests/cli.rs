@@ -621,3 +621,69 @@ fn cli_full_ticket_run_end_to_end() {
     assert!(stdout(&budget).contains("AGENTS chain:"));
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_gate_never_silently_rebaselines() {
+    let root = tmp_root("c18");
+    wipe(&root);
+    let real = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("evals/cases/real-ticket-008-v2/run.json");
+    std::fs::create_dir_all(root.join("evals/cases/real")).unwrap();
+    std::fs::copy(&real, root.join("evals/cases/real/run.json")).unwrap();
+    let out = run(&root, &["eval", "gate"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stdout(&out).contains("baseline missing"));
+    let write = run(&root, &["eval", "gate", "--write-baseline"]);
+    assert!(write.status.success());
+    assert!(stdout(&write).contains("baseline written"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_checkpoint_verify_rolls_back_uncommitted_edits() {
+    let root = tmp_root("c19");
+    wipe(&root);
+    let out = run(&root, &["init"]);
+    assert!(out.status.success());
+    std::fs::write(root.join("scripts/verify.sh"), "#!/bin/sh\nexit 1\n").unwrap();
+    let git = |args: &[&str]| {
+        Command::new("git")
+            .current_dir(&root)
+            .args(args)
+            .status()
+            .unwrap()
+    };
+    assert!(git(&["init", "-q"]).success());
+    assert!(git(&["config", "user.email", "t@t"]).success());
+    assert!(git(&["config", "user.name", "t"]).success());
+    assert!(git(&["add", "-A"]).success());
+    assert!(git(&["commit", "-qm", "seed"]).success());
+    let begin = Command::new(root.join("scripts/checkpoint.sh"))
+        .current_dir(&root)
+        .arg("begin")
+        .arg("step1")
+        .output()
+        .unwrap();
+    assert!(begin.status.success());
+    std::fs::write(root.join("AGENTS.md"), "BROKEN").unwrap();
+    let verify = Command::new(root.join("scripts/checkpoint.sh"))
+        .current_dir(&root)
+        .arg("verify")
+        .arg("step1")
+        .output()
+        .unwrap();
+    assert_eq!(verify.status.code(), Some(1));
+    let text = String::from_utf8_lossy(&verify.stdout).into_owned();
+    assert!(text.contains("rolled back to green checkpoint"));
+    let journal = std::fs::read_to_string(root.join("memory/episodic/checkpoints.log")).unwrap();
+    assert!(journal.contains("ROLLBACK to"));
+    assert_ne!(
+        std::fs::read_to_string(root.join("AGENTS.md")).unwrap(),
+        "BROKEN"
+    );
+    wipe(&root);
+}

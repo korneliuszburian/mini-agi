@@ -64,15 +64,22 @@ case "${1:-}" in
       echo "green: $label @ $prev"
     else
       last_green="$(awk '/BEGIN/{for (i = 1; i <= NF; i++) if ($i == "->") r = $(i + 1)} END{print r}' "$JOURNAL" 2>/dev/null || true)"
-      if [ -n "$last_green" ] && [ "$last_green" != "$prev" ]; then
-        echo "$(ts) VERIFY-FAIL $label @ $prev -> ROLLBACK to $last_green" >> "$JOURNAL"
+      if [ -n "$last_green" ]; then
+        # The BEGIN rev is the recovery point (it committed state). Always
+        # reset --hard to it — even when it equals HEAD, the reset discards
+        # the uncommitted broken edits (PoC's NO-ROLLBACK dead-end was a
+        # Coherence Collapse hole; ADR-0004).
         git -C "$ROOT" reset -q --hard "$last_green"
         git -C "$ROOT" clean -fdq -e memory/episodic/checkpoints.log
         mkdir -p "$ROOT/memory/episodic"
+        # Journal AFTER the reset: reset --hard restores the journal to the
+        # checkpoint commit's version, which would swallow a line journaled
+        # before it. The journal must record the outcome.
+        echo "$(ts) VERIFY-FAIL $label @ $prev -> ROLLBACK to $last_green" >> "$JOURNAL"
         echo "RED: $label @ $prev — rolled back to green checkpoint $last_green"
       else
         echo "$(ts) VERIFY-FAIL $label @ $prev -> NO-ROLLBACK" >> "$JOURNAL"
-        echo "RED: $label @ $prev — no earlier green checkpoint, leaving tree as-is"
+        echo "RED: $label @ $prev — no earlier BEGIN, leaving tree as-is"
       fi
       exit 1
     fi

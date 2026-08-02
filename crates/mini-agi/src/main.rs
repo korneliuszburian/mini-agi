@@ -493,7 +493,7 @@ fn eval_gate_text(root: &Path, tolerance: f64, write_baseline: bool) -> Result<S
         // so an init'd repo is gate-green from the first commit.
         return Ok("PASS: 0 cases, 0 regressions — no cases in evals/cases/".to_string());
     }
-    if write_baseline || !baseline_path.exists() {
+    if write_baseline {
         if let Some(parent) = baseline_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -507,8 +507,11 @@ fn eval_gate_text(root: &Path, tolerance: f64, write_baseline: bool) -> Result<S
             entries.len()
         ));
     }
-    let text =
-        std::fs::read_to_string(&baseline_path).map_err(|_| "baseline unreadable".to_string())?;
+    let text = std::fs::read_to_string(&baseline_path).map_err(|_| {
+        "baseline missing: run `mini-agi eval gate --write-baseline` once — \
+         the gate never re-baselines silently"
+            .to_string()
+    })?;
     let baseline: Vec<eval::GateEntry> =
         serde_json::from_str(&text).map_err(|_| "baseline malformed".to_string())?;
     let result = eval::run_gate(&entries, &baseline, tolerance);
