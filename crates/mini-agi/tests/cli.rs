@@ -727,3 +727,48 @@ fn cli_ticket_lifecycle() {
     assert_eq!(missing.status.code(), Some(1));
     wipe(&root);
 }
+
+#[test]
+fn cli_run_ingest_and_insights() {
+    let root = tmp_root("c21");
+    wipe(&root);
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("evals/cases/real-ticket-008-v2/run.json");
+    std::fs::create_dir_all(root.join("evals/cases/real-ticket-008-v2")).unwrap();
+    std::fs::copy(&src, root.join("evals/cases/real-ticket-008-v2/run.json")).unwrap();
+    let golden_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("evals/golden/real-ticket-compact.json");
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::copy(
+        &golden_src,
+        root.join("evals/golden/real-ticket-compact.json"),
+    )
+    .unwrap();
+    let run_path = root.join("evals/cases/real-ticket-008-v2/run.json");
+    let ingest = run(&root, &["run", "ingest", run_path.to_str().unwrap()]);
+    assert!(
+        ingest.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ingest.stderr)
+    );
+    assert!(stdout(&ingest).contains("ingested: real-ticket-008-v2"));
+    assert!(stdout(&ingest).contains("world model: 2 new facts"));
+    let derive = run(&root, &["derive"]);
+    assert!(derive.status.success());
+    let insights = run(&root, &["insights"]);
+    assert!(insights.status.success());
+    let text = stdout(&insights);
+    assert!(text.contains("SYSTEM INTELLIGENCE REPORT"));
+    assert!(text.contains("real-ticket-008-v2: 0.9774"));
+    assert!(text.contains("1 entries, 2 facts"));
+    assert!(text.contains("capability gaps: none"));
+    wipe(&root);
+}

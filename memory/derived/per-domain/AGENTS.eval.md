@@ -1,0 +1,22 @@
+# PROVENANCE
+# canonical_sha256: 8fb04615ad32f4af
+# canonical_entries: 14
+# derived_at: regenerated deterministically by mini-agi derive
+# rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
+
+# Domain: eval (derived from canonical memory)
+
+Applies when working on this domain. Canonical memory wins on conflict.
+- `0d15dc7a5f566730` run real-ticket-008-v2 scored composite 0.9774 on 265897 tokens (0.6971 USD) with 0 scope violations and 0 tool mismatches.
+- `6c7dd3b30d429ae4` run real-ticket-008-v2 is a strong run (composite >= 0.9).
+- `24ca89466bb01359` run flailing scored composite 0.2851 on 9200 tokens (0.6100 USD) with 3 scope violations and 0 tool mismatches.
+- `717835cda5492d7d` run harnessed scored composite 0.6141 on 2750 tokens (0.1800 USD) with 3 scope violations and 0 tool mismatches.
+- `9cb30db774cf56e1` run reactive-loop scored composite 0.0000 on 14000 tokens (0.9300 USD) with 3 scope violations and 0 tool mismatches.
+- `5491303b97d5f0bf` run reactive-loop is a failed run (composite 0.0).
+- `9b114f49a878d2b0` run real-ticket-001-v2 scored composite 0.2402 on 106513 tokens (0.2772 USD) with 4 scope violations and 4 tool mismatches.
+- `a08b4972b251ec1c` run real-ticket-002-v2 scored composite 0.2945 on 112411 tokens (0.2903 USD) with 3 scope violations and 4 tool mismatches.
+- `0133392e91476d88` run real-ticket-003-v2 scored composite 0.3614 on 291156 tokens (0.7732 USD) with 0 scope violations and 6 tool mismatches.
+- `1baffc8f38dd24b1` run real-ticket-004-v2 scored composite 0.4122 on 134212 tokens (0.3447 USD) with 0 scope violations and 5 tool mismatches.
+- `2a08ff2b87eddc68` run real-ticket-005-v2 scored composite 0.4896 on 162500 tokens (0.4179 USD) with 0 scope violations and 4 tool mismatches.
+- `552e4f04104ecf4d` run real-ticket-006-v2 scored composite 0.4437 on 126907 tokens (0.3322 USD) with 0 scope violations and 5 tool mismatches.
+- `35295a4f074c3beb` run real-ticket-007-v2 scored composite 0.5220 on 1841123 tokens (1.3143 USD) with 0 scope violations and 4 tool mismatches.

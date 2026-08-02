@@ -1,0 +1,317 @@
+//! The intelligence layer (ADR-0005): runs compound into the world model.
+//!
+//! Sequoia thesis ("From Hierarchy to Intelligence", Dorsey & Botha,
+//! 2026-03-31): an intelligence-organized company's world model is built
+//! from recorded actions, and the honest signal is measured, not
+//! reported. For an agent kernel the honest signal is the scored run:
+//! tokens, cost, composite score, violations. This module closes the loop:
+//!
+//! - [`ingest_run`] turns one scored `run.json` (plus optional retro) into
+//!   canonical facts with provenance — the model deepens per run without
+//!   human writing;
+//! - [`insights`] aggregates runs, memory, tickets and the journal into a
+//!   compounding report — the failure signal (failing case, REWORK, budget
+//!   overrun) IS the roadmap.
+
+use std::fs;
+use std::io;
+use std::path::Path;
+
+use crate::eval::{self, ScoreReport};
+use crate::memory;
+
+/// Result of ingesting one run into the world model.
+#[derive(Debug)]
+pub struct IngestReport {
+    /// Case name (parent directory of the run file).
+    pub case: String,
+    /// Composite score of the ingested run.
+    pub composite: f64,
+    /// Total tokens of the run.
+    pub tokens: u64,
+    /// Total cost in USD.
+    pub cost_usd: f64,
+    /// Canonical facts written by this ingest.
+    pub new_facts: usize,
+    /// Facts already known (dedup by content hash).
+    pub skipped: usize,
+}
+
+/// Ingest a scored run (plus optional retro) into canonical memory.
+///
+/// Facts carry `domain: eval` and provenance (`source: run ingest`). The
+/// run is scored against `evals/golden`; re-ingesting the same run adds
+/// nothing (content-hash dedup) — idempotent by construction.
+///
+/// # Errors
+///
+/// Returns the underlying I/O, scoring, or memory error.
+pub fn ingest_run(root: &Path, run: &Path, retro: Option<&Path>) -> Result<IngestReport, String> {
+    let report = eval::score_run(run, root, &root.join("evals/golden"))
+        .map_err(|e| format!("cannot score run: {e}"))?;
+    let case = run
+        .parent()
+        .and_then(|p| p.file_name())
+        .map_or_else(|| "run".to_string(), |n| n.to_string_lossy().into_owned());
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "FACT: run {case} scored composite {:.4} on {} tokens ({:.4} USD) with {} scope violations and {} tool mismatches.",
+        report.composite,
+        report.tokens_total,
+        report.cost_usd,
+        report.scope_violations.len(),
+        report.tool_mismatches_vs_golden
+    ));
+    if let Some(flag) = run_flag(&report) {
+        lines.push(format!("FACT: run {case} {flag}."));
+    }
+    if let Some(retro_path) = retro
+        && let Ok(text) = fs::read_to_string(retro_path)
+    {
+        for bullet in text
+            .lines()
+            .filter(|l| l.trim_start().starts_with("- "))
+            .take(3)
+        {
+            let line = bullet.trim().trim_start_matches("- ").trim();
+            if !line.is_empty() {
+                lines.push(format!("FACT: retro ({case}): {line}"));
+            }
+        }
+    }
+    let buffer = lines.join("\n");
+    let opts = memory::ConsolidateOptions {
+        domain: "eval".to_string(),
+        require_signoff: false,
+        dry_run: false,
+    };
+    let outcome = memory::consolidate(root, &buffer, "run ingest", &opts)
+        .map_err(|e| format!("cannot consolidate run facts: {e}"))?;
+    Ok(IngestReport {
+        case,
+        composite: report.composite,
+        tokens: report.tokens_total,
+        cost_usd: report.cost_usd,
+        new_facts: outcome.new_facts,
+        skipped: outcome.skipped,
+    })
+}
+
+/// One-line run flag for the world model (measured signals, ADR-0005).
+fn run_flag(report: &ScoreReport) -> Option<String> {
+    if report.composite >= 0.9 {
+        Some("is a strong run (composite >= 0.9)".to_string())
+    } else if report.composite <= 0.0 {
+        Some("is a failed run (composite 0.0)".to_string())
+    } else {
+        None
+    }
+}
+
+/// One case's aggregated run data.
+#[derive(Debug)]
+pub struct CaseInsight {
+    /// Case name.
+    pub case: String,
+    /// Latest composite score.
+    pub composite: f64,
+}
+
+/// The compounding report.
+#[derive(Debug)]
+pub struct InsightsReport {
+    /// Runs found under `evals/cases/`.
+    pub runs: usize,
+    /// Mean composite across runs.
+    pub composite_avg: f64,
+    /// Total tokens across runs.
+    pub tokens_total: u64,
+    /// Total cost across runs.
+    pub cost_total: f64,
+    /// Per-case latest composite, sorted by case.
+    pub cases: Vec<CaseInsight>,
+    /// Canonical entries count.
+    pub entries: usize,
+    /// Canonical facts count.
+    pub facts: usize,
+    /// Tickets discovered.
+    pub tickets: usize,
+    /// Journal events by kind (begin/pass/fail/status).
+    pub journal: [usize; 4],
+    /// Capability gaps: cases scoring below the gate tolerance are the
+    /// roadmap (Sequoia failure-signal loop).
+    pub gaps: Vec<String>,
+}
+
+/// Aggregate runs, memory, tickets and the journal into the report.
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error.
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "exact port of PoC float math; run counts are bounded by case list size"
+)]
+pub fn insights(root: &Path) -> Result<InsightsReport, io::Error> {
+    let cases_dir = root.join("evals/cases");
+    let golden_dir = root.join("evals/golden");
+    let mut cases: Vec<CaseInsight> = Vec::new();
+    let mut tokens_total = 0u64;
+    let mut cost_total = 0.0f64;
+    let mut gaps = Vec::new();
+    if cases_dir.is_dir() {
+        for entry in fs::read_dir(&cases_dir)? {
+            let entry = entry?;
+            let run = entry.path().join("run.json");
+            if !run.is_file() {
+                continue;
+            }
+            let case = entry.file_name().to_string_lossy().into_owned();
+            if let Ok(report) = eval::score_run(&run, root, &golden_dir) {
+                tokens_total += report.tokens_total;
+                cost_total += report.cost_usd;
+                if report.composite <= 0.05 {
+                    gaps.push(format!("{case} (composite {:.4})", report.composite));
+                }
+                cases.push(CaseInsight {
+                    case,
+                    composite: report.composite,
+                });
+            }
+        }
+    }
+    cases.sort_by(|a, b| a.case.cmp(&b.case));
+    let runs = cases.len();
+    let composite_avg = if runs == 0 {
+        0.0
+    } else {
+        cases.iter().map(|c| c.composite).sum::<f64>() / runs as f64
+    };
+
+    let stats = crate::metrics::stats(root).unwrap_or_default();
+    let tickets = crate::ticket::list_tickets(root).unwrap_or_default().len();
+    let mut journal = [0usize; 4];
+    let journal_path = root.join("memory/episodic/checkpoints.log");
+    if let Ok(text) = fs::read_to_string(&journal_path) {
+        for event in crate::journal::parse_journal(&text) {
+            match event.kind {
+                crate::journal::JournalKind::Begin => journal[0] += 1,
+                crate::journal::JournalKind::VerifyPass => journal[1] += 1,
+                crate::journal::JournalKind::VerifyFail => journal[2] += 1,
+                crate::journal::JournalKind::Status => journal[3] += 1,
+                crate::journal::JournalKind::End => {}
+            }
+        }
+    }
+
+    Ok(InsightsReport {
+        runs,
+        composite_avg,
+        tokens_total,
+        cost_total,
+        cases,
+        entries: stats.entries,
+        facts: stats.facts,
+        tickets,
+        journal,
+        gaps,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-insights-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    fn seed_case(root: &std::path::Path, case: &str) {
+        let dir = root.join("evals/cases").join(case);
+        fs::create_dir_all(&dir).unwrap();
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../evals/cases/real-ticket-008-v2/run.json");
+        fs::copy(&src, dir.join("run.json")).unwrap();
+        let golden = root.join("evals/golden");
+        fs::create_dir_all(&golden).unwrap();
+        let gsrc = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../evals/golden/real-ticket-compact.json");
+        fs::copy(&gsrc, golden.join("real-ticket-compact.json")).unwrap();
+    }
+
+    #[test]
+    fn ingest_run_writes_world_model_facts_and_is_idempotent() {
+        let root = tmp_root("ingest");
+        seed_case(&root, "real-ticket-008-v2");
+        let run = root.join("evals/cases/real-ticket-008-v2/run.json");
+        let first = ingest_run(&root, &run, None).unwrap();
+        assert_eq!(first.case, "real-ticket-008-v2");
+        assert!((first.composite - 0.9774).abs() < 0.001);
+        assert!(first.new_facts >= 1);
+        let second = ingest_run(&root, &run, None).unwrap();
+        assert_eq!(second.new_facts, 0);
+        assert!(second.skipped >= 1);
+        let text =
+            fs::read_to_string(root.join("memory/canonical/entries/2026-08-02/2026-08-02-001.md"))
+                .unwrap_or_default();
+        assert!(text.contains("composite"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ingest_retro_bullets_become_facts() {
+        let root = tmp_root("ingest-retro");
+        seed_case(&root, "real-ticket-008-v2");
+        fs::write(
+            root.join("retro.md"),
+            "# Retro\n\n- batching amortized the fixed overhead\n- checkpoint discipline held\n",
+        )
+        .unwrap();
+        let run = root.join("evals/cases/real-ticket-008-v2/run.json");
+        let report = ingest_run(&root, &run, Some(&root.join("retro.md"))).unwrap();
+        assert!(report.new_facts >= 2);
+        let text =
+            fs::read_to_string(root.join("memory/canonical/entries/2026-08-02/2026-08-02-001.md"))
+                .unwrap_or_default();
+        assert!(text.contains("batching amortized"));
+        assert!(text.contains("checkpoint discipline held"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn insights_aggregate_runs_and_memory() {
+        let root = tmp_root("insights");
+        seed_case(&root, "real-ticket-008-v2");
+        let report = insights(&root).unwrap();
+        assert_eq!(report.runs, 1);
+        assert!((report.composite_avg - 0.9774).abs() < 0.001);
+        assert!(report.tokens_total > 100_000);
+        assert!(report.cost_total > 0.0);
+        assert_eq!(report.cases.len(), 1);
+        assert!(report.gaps.is_empty());
+        assert_eq!(report.entries, 0);
+        assert_eq!(report.facts, 0);
+        assert_eq!(report.tickets, 0);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn insights_flags_failing_runs_as_capability_gaps() {
+        let root = tmp_root("gaps");
+        let dir = root.join("evals/cases/reactive-loop");
+        fs::create_dir_all(&dir).unwrap();
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../evals/cases/reactive-loop/run.json");
+        fs::copy(&src, dir.join("run.json")).unwrap();
+        fs::create_dir_all(root.join("evals/golden")).unwrap();
+        let report = insights(&root).unwrap();
+        assert_eq!(report.runs, 1);
+        assert_eq!(report.gaps.len(), 1);
+        assert!(report.gaps[0].contains("reactive-loop"));
+        let _ = fs::remove_dir_all(&root);
+    }
+}

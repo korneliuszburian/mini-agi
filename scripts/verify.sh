@@ -61,6 +61,7 @@ if [ -n "$BIN" ]; then
     step "provenance"   "$BIN" provenance || fail=1
     step "stats"        "$BIN" stats || fail=1
     step "budget"       "$BIN" budget || fail=1
+    step "insights"     "$BIN" insights || fail=1
 else
     if [ "$has_cargo" -eq 1 ]; then
         echo "[FAIL] build: kernel binary missing — expected target/debug/mini-agi or mini-agi on PATH"

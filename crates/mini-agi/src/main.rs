@@ -10,6 +10,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
+use mini_agi_core::insights;
 use mini_agi_core::journal;
 use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
 use mini_agi_core::metrics;
@@ -70,6 +71,28 @@ enum Command {
     Init,
     /// Ticket lifecycle: list, show, validate (ADR-0007 contracts).
     Ticket(TicketArgs),
+    /// Runs compound into the world model (ADR-0005).
+    Run(RunArgs),
+    /// Compounding report: runs, memory, tickets, gaps.
+    Insights,
+}
+
+#[derive(Args, Debug)]
+struct RunArgs {
+    #[command(subcommand)]
+    action: RunAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum RunAction {
+    /// Ingest a scored run.json (+ optional retro) into canonical memory.
+    Ingest {
+        /// Path to the run file (evals/cases/<case>/run.json).
+        run: PathBuf,
+        /// Optional retro markdown (bullets become facts).
+        #[arg(long)]
+        retro: Option<PathBuf>,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -261,6 +284,62 @@ fn main() -> ExitCode {
             TicketAction::Show { id } => cmd_ticket_show(&id),
             TicketAction::Validate { id } => cmd_ticket_validate(&id),
         },
+        Command::Run(RunArgs { action }) => match action {
+            RunAction::Ingest { run, retro } => cmd_run_ingest(&run, retro.as_deref()),
+        },
+        Command::Insights => cmd_insights(),
+    }
+}
+
+fn cmd_run_ingest(run: &Path, retro: Option<&Path>) -> ExitCode {
+    match insights::ingest_run(&root(), run, retro) {
+        Ok(report) => {
+            println!(
+                "ingested: {} (composite {:.4}, {} tokens, {:.4} USD)",
+                report.case, report.composite, report.tokens, report.cost_usd
+            );
+            println!(
+                "world model: {} new facts, {} known",
+                report.new_facts, report.skipped
+            );
+            println!("next: mini-agi derive && mini-agi provenance");
+            ExitCode::SUCCESS
+        }
+        Err(msg) => fail(&msg),
+    }
+}
+
+fn cmd_insights() -> ExitCode {
+    match insights::insights(&root()) {
+        Ok(report) => {
+            println!("SYSTEM INTELLIGENCE REPORT");
+            println!(
+                "  runs: {} (composite avg {:.4}, {} tokens, {:.4} USD)",
+                report.runs, report.composite_avg, report.tokens_total, report.cost_total
+            );
+            for case in &report.cases {
+                println!("    {}: {:.4}", case.case, case.composite);
+            }
+            println!(
+                "  memory: {} entries, {} facts",
+                report.entries, report.facts
+            );
+            println!("  tickets: {}", report.tickets);
+            println!(
+                "  journal: {} begins, {} passes, {} fails, {} status",
+                report.journal[0], report.journal[1], report.journal[2], report.journal[3]
+            );
+            if report.gaps.is_empty() {
+                println!("  capability gaps: none — no failing runs");
+            } else {
+                println!("  capability gaps (roadmap, ADR-0005):");
+                for gap in &report.gaps {
+                    println!("    {gap}");
+                }
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot compute insights: {e}")),
     }
 }
 

@@ -97,23 +97,36 @@ pub fn find_ticket(root: &Path, id: &str) -> Result<Ticket, TicketError> {
         .strip_prefix("TICKET-")
         .or_else(|| id.strip_prefix("ticket-"))
         .unwrap_or(id);
-    // Only bare ticket numbers are looked up — never paths (no traversal).
-    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+    // Numeric prefix only — never paths (no traversal); lookups stay inside
+    // tickets/. A suffix (TICKET-001-v2) resolves via prefix scan.
+    let prefix: String = digits.chars().take_while(char::is_ascii_digit).collect();
+    if prefix.is_empty() {
         return Err(TicketError::Io(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!("invalid ticket id '{id}': expected TICKET-<number>"),
         )));
     }
-    let name = format!("TICKET-{digits}.md");
-    let path = tickets_dir(root).join(name);
+    let dir = tickets_dir(root);
+    let mut path = dir.join(format!("TICKET-{prefix}.md"));
     if !path.is_file() {
-        return Err(TicketError::Io(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!(
-                "no ticket {id} in {}",
-                path.parent().unwrap_or(root).display()
-            ),
-        )));
+        path = dir
+            .read_dir()
+            .map_err(TicketError::Io)?
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| {
+                p.extension().is_some_and(|e| e == "md")
+                    && p.file_name().is_some_and(|n| {
+                        let n = n.to_string_lossy();
+                        n.starts_with(&format!("TICKET-{prefix}-"))
+                    })
+            })
+            .ok_or_else(|| {
+                TicketError::Io(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("no ticket {id} in {}", dir.display()),
+                ))
+            })?;
     }
     load_ticket(&path)
 }
@@ -155,8 +168,11 @@ pub fn parse_ticket(text: &str) -> Result<Ticket, TicketError> {
             ticket.id
         )));
     }
+    // Contract pattern is `^TICKET-[0-9]+` via re.search: at least one
+    // digit must follow the dash; a suffix (e.g. `TICKET-001-v2`) is
+    // allowed, a non-digit like `TICKET-x` is not.
     let suffix = &ticket.id["TICKET-".len()..];
-    if suffix.is_empty() || !suffix.bytes().all(|b| b.is_ascii_digit()) {
+    if !suffix.starts_with(|c: char| c.is_ascii_digit()) {
         return Err(TicketError::Invalid(format!(
             "id '{}' must match ^TICKET-[0-9]+",
             ticket.id
