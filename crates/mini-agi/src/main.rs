@@ -9,6 +9,7 @@ use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
 use mini_agi_core::eval::{self, EvalError};
+use mini_agi_core::journal;
 use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
 use mini_agi_core::skills;
 
@@ -49,6 +50,21 @@ enum Command {
     Eval(EvalArgs),
     /// Verifiable skills registry (`.agents/skills/`, ADR-0002).
     Skill(SkillArgs),
+    /// Checkpoint journal audit (T008 semantics).
+    Checkpoint(CheckpointArgs),
+}
+
+#[derive(Args, Debug)]
+struct CheckpointArgs {
+    #[command(subcommand)]
+    action: CheckpointAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum CheckpointAction {
+    /// Completeness audit of memory/episodic/checkpoints.log; exit
+    /// non-zero when a VERIFY has no earlier BEGIN since the gate boundary.
+    Audit,
 }
 
 #[derive(Args, Debug)]
@@ -179,7 +195,34 @@ fn main() -> ExitCode {
             SkillAction::Verify { name } => cmd_skill_verify(&name),
             SkillAction::Add { source } => cmd_skill_add(&source),
         },
+        Command::Checkpoint(CheckpointArgs { action }) => match action {
+            CheckpointAction::Audit => cmd_checkpoint_audit(),
+        },
     }
+}
+
+fn cmd_checkpoint_audit() -> ExitCode {
+    let root = root();
+    let journal = root.join("memory").join("episodic").join("checkpoints.log");
+    let text = match std::fs::read_to_string(&journal) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return fail("FAIL: journal missing: memory/episodic/checkpoints.log");
+        }
+        Err(e) => return fail(&format!("cannot read journal: {e}")),
+    };
+    let v = journal::violations(&journal::parse_journal(&text), journal::GATE_SINCE);
+    for h in &v.historical {
+        println!("historical (pre-gate, not failing): {h}");
+    }
+    if !v.bad.is_empty() {
+        for b in &v.bad {
+            println!("VIOLATION: {b}");
+        }
+        return fail("FAIL: checkpoint cascade incomplete");
+    }
+    println!("ok: checkpoint cascade complete (every VERIFY has BEGIN)");
+    ExitCode::SUCCESS
 }
 
 fn cmd_skill_add(source: &str) -> ExitCode {

@@ -7,6 +7,7 @@
 
 pub mod eval;
 pub mod hash;
+pub mod journal;
 pub mod memory;
 pub mod skills;
 pub mod store;

@@ -21,10 +21,12 @@ step() {
     return 0
 }
 
+step "build"         cargo build || fail=1
 step "fmt-check"    sh -c 'cargo fmt --check && echo "fmt-check: clean"' || fail=1
 step "clippy"       cargo clippy --all-targets -- -D warnings || fail=1
 step "tests"        cargo test --all || fail=1
 step "eval-gate"    ./target/debug/mini-agi eval gate || fail=1
+step "checkpoint"   ./target/debug/mini-agi checkpoint audit || fail=1
 step "provenance"   ./target/debug/mini-agi provenance || fail=1
 
 if [ "$fail" -eq 0 ]; then

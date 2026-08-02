@@ -439,3 +439,54 @@ fn cli_skill_add_installs_from_local_git() {
     let _ = std::fs::remove_dir_all(&src);
     wipe(&root);
 }
+
+#[test]
+fn cli_checkpoint_audit_passes_clean_journal() {
+    let root = tmp_root("c14");
+    wipe(&root);
+    let journal = root.join("memory/episodic/checkpoints.log");
+    std::fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    std::fs::write(
+        &journal,
+        "2026-08-02T19:00:00Z BEGIN demo -> abc123\n\
+         2026-08-02T19:01:00Z VERIFY-PASS demo @ abc123\n",
+    )
+    .unwrap();
+    let out = run(&root, &["checkpoint", "audit"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(stdout(&out).contains("checkpoint cascade complete"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_checkpoint_audit_fails_on_missing_begin() {
+    let root = tmp_root("c15");
+    wipe(&root);
+    let journal = root.join("memory/episodic/checkpoints.log");
+    std::fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    std::fs::write(
+        &journal,
+        "2026-08-02T19:00:00Z VERIFY-PASS t002 @ 57ce2c7\n",
+    )
+    .unwrap();
+    let out = run(&root, &["checkpoint", "audit"]);
+    assert_eq!(out.status.code(), Some(1));
+    let text = stdout(&out);
+    assert!(text.contains("VIOLATION"));
+    assert!(text.contains("VERIFY without earlier BEGIN"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_checkpoint_audit_fails_when_journal_missing() {
+    let root = tmp_root("c16");
+    wipe(&root);
+    let out = run(&root, &["checkpoint", "audit"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("journal missing"));
+    wipe(&root);
+}
