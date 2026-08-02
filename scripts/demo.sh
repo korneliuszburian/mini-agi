@@ -42,7 +42,7 @@ git add -A && git commit -qm seed
 
 echo
 echo "==> gates"
-"$BIN" eval gate || true
+"$BIN" eval gate
 "$BIN" stats
 "$BIN" budget
 
