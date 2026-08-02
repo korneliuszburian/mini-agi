@@ -15,6 +15,8 @@ use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
 use mini_agi_core::metrics;
 use mini_agi_core::skills;
 
+mod mcp;
+
 /// Repository root: `AGENTIC_ROOT` env var, else current directory.
 fn root() -> PathBuf {
     std::env::var_os("AGENTIC_ROOT").map_or_else(
@@ -60,6 +62,8 @@ enum Command {
     Stats,
     /// Context budget report (port of `PoC` budget.py).
     Budget,
+    /// stdio MCP server (tools over JSON-RPC 2.0).
+    Mcp,
 }
 
 #[derive(Args, Debug)]
@@ -219,6 +223,10 @@ fn main() -> ExitCode {
         }
         Command::Stats => cmd_stats(),
         Command::Budget => cmd_budget(),
+        Command::Mcp => match mcp::run_stdio_server() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => fail(&format!("mcp server error: {e}")),
+        },
     }
 }
 
@@ -266,70 +274,91 @@ fn cmd_budget() -> ExitCode {
 }
 
 fn cmd_validate(contract_name: &str, document: &Path) -> ExitCode {
+    match validate_doc_text(contract_name, document) {
+        Ok(text) => {
+            println!("{text}");
+            ExitCode::SUCCESS
+        }
+        Err(msg) => fail(&msg),
+    }
+}
+
+fn validate_doc_text(contract_name: &str, document: &Path) -> Result<String, String> {
     let contract = match contract_name {
         "eval-run" => contract::Contract::EvalRun,
         "ticket" => contract::Contract::Ticket,
         "spec" => contract::Contract::Spec,
         "verdict" => contract::Contract::Verdict,
         other => {
-            return fail(&format!(
+            return Err(format!(
                 "unknown contract '{other}' (eval-run|ticket|spec|verdict)"
             ));
         }
     };
-    let text = match std::fs::read_to_string(document) {
-        Ok(text) => text,
-        Err(e) => return fail(&format!("cannot read {}: {e}", document.display())),
-    };
-    let value = match contract::parse_document(&text) {
-        Ok(value) => value,
-        Err(e) => return fail(&format!("invalid JSON in {}: {e}", document.display())),
-    };
+    let text = std::fs::read_to_string(document)
+        .map_err(|e| format!("cannot read {}: {e}", document.display()))?;
+    let value = contract::parse_document(&text)
+        .map_err(|e| format!("invalid JSON in {}: {e}", document.display()))?;
     match contract::validate_contract_value(contract, &value) {
-        Ok(()) => {
-            println!(
-                "ok: {} validates against {contract_name}",
-                document.display()
-            );
-            ExitCode::SUCCESS
-        }
-        Err(err) => fail(&format!("{} does not validate: {err}", document.display())),
+        Ok(()) => Ok(format!(
+            "ok: {} validates against {contract_name}",
+            document.display()
+        )),
+        Err(err) => Err(format!("{} does not validate: {err}", document.display())),
     }
 }
 
 fn cmd_checkpoint_audit() -> ExitCode {
-    let root = root();
-    let journal = root.join("memory").join("episodic").join("checkpoints.log");
-    let text = match std::fs::read_to_string(&journal) {
-        Ok(text) => text,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return fail("FAIL: journal missing: memory/episodic/checkpoints.log");
+    match checkpoint_audit_text(&root()) {
+        Ok(text) => {
+            println!("{text}");
+            ExitCode::SUCCESS
         }
-        Err(e) => return fail(&format!("cannot read journal: {e}")),
-    };
+        Err(msg) => {
+            println!("{msg}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn checkpoint_audit_text(root: &Path) -> Result<String, String> {
+    let journal = root.join("memory").join("episodic").join("checkpoints.log");
+    let text = std::fs::read_to_string(&journal).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            "FAIL: journal missing: memory/episodic/checkpoints.log".to_string()
+        } else {
+            format!("cannot read journal: {e}")
+        }
+    })?;
     let events = journal::parse_journal(&text);
+    let mut lines = Vec::new();
     let mut failed = false;
     let v = journal::violations(&events, journal::GATE_SINCE);
     for h in &v.historical {
-        println!("historical (pre-gate, not failing): {h}");
+        lines.push(format!("historical (pre-gate, not failing): {h}"));
     }
     for b in &v.bad {
-        println!("VIOLATION: {b}");
+        lines.push(format!("VIOLATION: {b}"));
         failed = true;
     }
     let audit = journal::audit_journal(&events);
     for a in &audit.historical {
-        println!("WARNING: historical anomaly: {}", a.message);
+        lines.push(format!("WARNING: historical anomaly: {}", a.message));
     }
     for a in &audit.bad {
-        println!("ANOMALY (line {}): {}", a.line_no, a.message);
+        lines.push(format!("ANOMALY (line {}): {}", a.line_no, a.message));
         failed = true;
     }
     if failed {
-        return fail("FAIL: checkpoint cascade incomplete");
+        return Err(format!(
+            "{}\nFAIL: checkpoint cascade incomplete",
+            lines.join("\n")
+        ));
     }
-    println!("ok: checkpoint cascade complete (every VERIFY has BEGIN)");
-    ExitCode::SUCCESS
+    Ok(format!(
+        "{}\nok: checkpoint cascade complete (every VERIFY has BEGIN)",
+        lines.join("\n")
+    ))
 }
 
 fn cmd_skill_add(source: &str) -> ExitCode {
@@ -422,16 +451,26 @@ fn cmd_eval_score(run: &Path) -> ExitCode {
 }
 
 fn cmd_eval_gate(tolerance: f64, write_baseline: bool) -> ExitCode {
-    let root = root();
+    match eval_gate_text(&root(), tolerance, write_baseline) {
+        Ok(text) => {
+            println!("{text}");
+            ExitCode::SUCCESS
+        }
+        Err(msg) => {
+            println!("{msg}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn eval_gate_text(root: &Path, tolerance: f64, write_baseline: bool) -> Result<String, String> {
     let cases_dir = root.join("evals/cases");
     let golden_dir = root.join("evals/golden");
     let baseline_path = root.join("evals/results/baseline.json");
-    let entries = match eval::score_all_cases(&cases_dir, &root, &golden_dir) {
-        Ok(entries) => entries,
-        Err(e) => return fail(&format!("eval gate: {e}")),
-    };
+    let entries = eval::score_all_cases(&cases_dir, root, &golden_dir)
+        .map_err(|e| format!("eval gate: {e}"))?;
     if entries.is_empty() {
-        return fail("no eval cases found in evals/cases/");
+        return Err("no eval cases found in evals/cases/".to_string());
     }
     if write_baseline || !baseline_path.exists() {
         if let Some(parent) = baseline_path.parent() {
@@ -439,47 +478,56 @@ fn cmd_eval_gate(tolerance: f64, write_baseline: bool) -> ExitCode {
         }
         let json = serde_json::to_string_pretty(&entries).unwrap();
         if std::fs::write(&baseline_path, json).is_err() {
-            return fail("baseline write failed");
+            return Err("baseline write failed".to_string());
         }
-        println!(
+        return Ok(format!(
             "baseline written: {} ({} cases)",
             baseline_path.display(),
             entries.len()
-        );
-        return ExitCode::SUCCESS;
+        ));
     }
-    let Ok(text) = std::fs::read_to_string(&baseline_path) else {
-        return fail("baseline unreadable");
-    };
-    let Ok(baseline) = serde_json::from_str::<Vec<eval::GateEntry>>(&text) else {
-        return fail("baseline malformed");
-    };
+    let text =
+        std::fs::read_to_string(&baseline_path).map_err(|_| "baseline unreadable".to_string())?;
+    let baseline: Vec<eval::GateEntry> =
+        serde_json::from_str(&text).map_err(|_| "baseline malformed".to_string())?;
     let result = eval::run_gate(&entries, &baseline, tolerance);
-    for message in &result.messages {
-        println!("{message}");
-    }
+    let mut lines = result.messages.clone();
     let verdict = if result.failures == 0 { "PASS" } else { "FAIL" };
-    println!(
+    lines.push(format!(
         "{verdict}: {} cases, {} regressions",
         result.case_count, result.failures
-    );
+    ));
     if result.failures == 0 {
-        ExitCode::SUCCESS
+        Ok(lines.join("\n"))
     } else {
-        ExitCode::from(1)
+        Err(lines.join("\n"))
     }
 }
 
 fn cmd_consolidate(
-    episodic: &PathBuf,
+    episodic: &Path,
     domain: &str,
     require_signoff: bool,
     dry_run: bool,
 ) -> ExitCode {
-    let root = root();
-    let Ok(text) = std::fs::read_to_string(episodic) else {
-        return fail(&format!("{} not found", episodic.display()));
-    };
+    match consolidate_text(episodic, domain, require_signoff, dry_run, &root()) {
+        Ok(text) => {
+            println!("{text}");
+            ExitCode::SUCCESS
+        }
+        Err(msg) => fail(&msg),
+    }
+}
+
+fn consolidate_text(
+    episodic: &Path,
+    domain: &str,
+    require_signoff: bool,
+    dry_run: bool,
+    root: &Path,
+) -> Result<String, String> {
+    let text = std::fs::read_to_string(episodic)
+        .map_err(|_| format!("{} not found", episodic.display()))?;
     let source = episodic
         .file_name()
         .and_then(|s| s.to_str())
@@ -490,67 +538,81 @@ fn cmd_consolidate(
         require_signoff,
         dry_run,
     };
-    match memory::consolidate(&root, &text, &source, &opts) {
+    match memory::consolidate(root, &text, &source, &opts) {
         Ok(outcome) => {
-            let entry_line = outcome.entry.as_ref().map(|entry| {
-                let rel = entry.path.strip_prefix(&root).unwrap_or(&entry.path);
-                format!("entry: {}", rel.display())
-            });
+            let mut lines = Vec::new();
+            if let Some(entry) = &outcome.entry {
+                let rel = entry.path.strip_prefix(root).unwrap_or(&entry.path);
+                lines.push(format!("entry: {}", rel.display()));
+            }
             if dry_run {
-                println!(
+                lines.push(format!(
                     "dry-run: would write {} new facts (skipped {} duplicates)",
                     outcome.new_facts, outcome.skipped
-                );
+                ));
             } else {
-                println!(
+                lines.push(format!(
                     "consolidated {} new facts (skipped {} duplicates)",
                     outcome.new_facts, outcome.skipped
-                );
-            }
-            if let Some(line) = entry_line {
-                println!("{line}");
+                ));
             }
             if outcome.new_facts > 0 && !dry_run {
-                println!("next: make derive && make provenance");
+                lines.push("next: mini-agi derive && mini-agi provenance".to_string());
             }
-            ExitCode::SUCCESS
+            Ok(lines.join("\n"))
         }
-        Err(MemoryError::NoFacts) => fail("no facts found in episodic buffer"),
-        Err(MemoryError::Io(e)) => fail(&format!("entry write failed: {e}")),
-        Err(_) => fail("unexpected memory error"),
+        Err(MemoryError::NoFacts) => Err("no facts found in episodic buffer".to_string()),
+        Err(MemoryError::Io(e)) => Err(format!("entry write failed: {e}")),
+        Err(_) => Err("unexpected memory error".to_string()),
     }
 }
 
 fn cmd_signoff(queue: &Path, index: usize, domain: &str) -> ExitCode {
-    let root = root();
-    match memory::signoff(&root, queue, index, domain) {
-        Ok(entry) => {
-            let rel = entry.path.strip_prefix(&root).unwrap_or(&entry.path);
-            println!("signed off 1 fact");
-            println!("entry: {}", rel.display());
+    match signoff_text(queue, index, domain, &root()) {
+        Ok(text) => {
+            println!("{text}");
             ExitCode::SUCCESS
         }
-        Err(MemoryError::BadSignoff) => {
-            fail("signoff requires an existing queue file and positive fact index")
+        Err(msg) => fail(&msg),
+    }
+}
+
+fn signoff_text(queue: &Path, index: usize, domain: &str, root: &Path) -> Result<String, String> {
+    match memory::signoff(root, queue, index, domain) {
+        Ok(entry) => {
+            let rel = entry.path.strip_prefix(root).unwrap_or(&entry.path);
+            Ok(format!("signed off 1 fact\nentry: {}", rel.display()))
         }
-        Err(MemoryError::IndexNotFound) => fail("contested fact index not found"),
-        Err(MemoryError::FactKnown) => fail("fact already known"),
-        Err(MemoryError::Io(e)) => fail(&format!("entry write failed: {e}")),
-        Err(_) => fail("unexpected memory error"),
+        Err(MemoryError::BadSignoff) => {
+            Err("signoff requires an existing queue file and positive fact index".to_string())
+        }
+        Err(MemoryError::IndexNotFound) => Err("contested fact index not found".to_string()),
+        Err(MemoryError::FactKnown) => Err("fact already known".to_string()),
+        Err(MemoryError::Io(e)) => Err(format!("entry write failed: {e}")),
+        Err(_) => Err("unexpected memory error".to_string()),
     }
 }
 
 fn cmd_derive(brief_only: bool) -> ExitCode {
-    let root = root();
-    match memory::derive(&root, brief_only) {
-        Ok((facts, fragments)) => {
-            println!("derived: context-brief.md ({facts} facts)");
-            println!("derived: {fragments} per-domain fragments");
+    match derive_text(brief_only, &root()) {
+        Ok(text) => {
+            println!("{text}");
             ExitCode::SUCCESS
         }
-        Err(MemoryError::NoCanonical) => fail("no canonical facts yet — run ingest first"),
-        Err(MemoryError::Io(e)) => fail(&format!("derive failed: {e}")),
-        Err(_) => fail("unexpected memory error"),
+        Err(msg) => fail(&msg),
+    }
+}
+
+fn derive_text(brief_only: bool, root: &Path) -> Result<String, String> {
+    match memory::derive(root, brief_only) {
+        Ok((facts, fragments)) => Ok(format!(
+            "derived: context-brief.md ({facts} facts)\nderived: {fragments} per-domain fragments"
+        )),
+        Err(MemoryError::NoCanonical) => {
+            Err("no canonical facts yet — run ingest first".to_string())
+        }
+        Err(MemoryError::Io(e)) => Err(format!("derive failed: {e}")),
+        Err(_) => Err("unexpected memory error".to_string()),
     }
 }
 

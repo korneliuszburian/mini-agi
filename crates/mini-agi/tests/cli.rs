@@ -487,6 +487,69 @@ fn cli_checkpoint_audit_fails_when_journal_missing() {
     wipe(&root);
     let out = run(&root, &["checkpoint", "audit"]);
     assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("journal missing"));
+    assert!(stdout(&out).contains("journal missing"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_mcp_handshake_and_tool_call() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let root = tmp_root("m1");
+    wipe(&root);
+    let mut child = Command::new(BIN)
+        .args(["mcp"])
+        .env("AGENTIC_ROOT", &root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("mcp spawns");
+    let mut stdin = child.stdin.take().unwrap();
+    let frame = |v: serde_json::Value| {
+        let body = serde_json::to_vec(&v).unwrap();
+        let mut f = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
+        f.extend_from_slice(&body);
+        f
+    };
+    stdin
+        .write_all(&frame(serde_json::json!({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}
+        })))
+        .unwrap();
+    stdin
+        .write_all(&frame(serde_json::json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}
+        })))
+        .unwrap();
+    stdin
+        .write_all(&frame(serde_json::json!({
+            "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+            "params": {"name": "stats", "arguments": {}}
+        })))
+        .unwrap();
+    stdin.flush().unwrap();
+    drop(stdin);
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    let mut frames = Vec::new();
+    for part in text.split("Content-Length: ").skip(1) {
+        let Some((len, body)) = part.split_once("\r\n\r\n") else {
+            continue;
+        };
+        let n: usize = len.trim().parse().unwrap();
+        frames.push(serde_json::from_slice::<serde_json::Value>(&body.as_bytes()[..n]).unwrap());
+    }
+    assert_eq!(frames.len(), 3);
+    assert_eq!(frames[0]["result"]["serverInfo"]["name"], "mini-agi");
+    let tools = frames[1]["result"]["tools"].as_array().unwrap();
+    assert!(tools.iter().any(|t| t["name"] == "stats"));
+    assert!(
+        frames[2]["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("canonical entries")
+    );
     wipe(&root);
 }
