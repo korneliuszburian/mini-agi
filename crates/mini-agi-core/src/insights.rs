@@ -315,3 +315,176 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 }
+
+/// A backlog item generated from a capability gap (ADR-0005).
+#[derive(Debug)]
+pub struct BacklogTicket {
+    /// Generated ticket id.
+    pub id: String,
+    /// Case behind the gap.
+    pub case: String,
+    /// Whether the ticket already existed (dedup) or was written.
+    pub created: bool,
+}
+
+/// Turn capability gaps into tickets — the Sequoia failure-signal loop:
+/// a failing run IS a roadmap item. Idempotent: a gap already referenced
+/// by an existing ticket is skipped.
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error.
+pub fn backlog(root: &Path) -> Result<Vec<BacklogTicket>, io::Error> {
+    let report = insights(root)?;
+    let existing = crate::ticket::list_tickets(root).unwrap_or_default();
+    let mut next_number = existing
+        .iter()
+        .filter_map(|t| {
+            t.id.strip_prefix("TICKET-")
+                .and_then(|s| s.split(|c: char| !c.is_ascii_digit()).next())
+                .and_then(|d| d.parse::<u32>().ok())
+        })
+        .max()
+        .unwrap_or(0)
+        + 1;
+    let mut created = Vec::new();
+    for gap in &report.gaps {
+        let case = gap.split(" (composite").next().unwrap_or(gap).to_string();
+        let already = existing
+            .iter()
+            .any(|t| t.goal.contains(&case) || t.title.contains(&case));
+        if already {
+            created.push(BacklogTicket {
+                id: String::new(),
+                case: case.clone(),
+                created: false,
+            });
+            continue;
+        }
+        let id = format!("TICKET-{next_number}");
+        next_number += 1;
+        let body = format!(
+            "# Ticket\n\n- id: {id}\n- title: Fix capability gap: {case} scores below gate\n- goal (one sentence): Bring {case} composite above the gate tolerance by fixing the failing run.\n- domain: eval\n"
+        );
+        fs::write(root.join("tickets").join(format!("{id}.md")), body)?;
+        created.push(BacklogTicket {
+            id,
+            case,
+            created: true,
+        });
+    }
+    Ok(created)
+}
+
+/// The resume block: what a fresh session needs to pick up state
+/// (brief summary, journal tail, in-flight checkpoint).
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error.
+pub fn resume(root: &Path) -> Result<String, io::Error> {
+    let stats = crate::metrics::stats(root).unwrap_or_default();
+    let mut out = format!(
+        "resume: {} canonical facts across {} entries\n",
+        stats.facts, stats.entries
+    );
+    let journal = root.join("memory/episodic/checkpoints.log");
+    if let Ok(text) = fs::read_to_string(&journal) {
+        let lines: Vec<&str> = text.lines().collect();
+        let tail = lines.iter().rev().take(5).rev();
+        out.push_str("journal tail:\n");
+        for line in tail {
+            use std::fmt::Write as _;
+            let _ = writeln!(out, "  {line}");
+        }
+        if let Some(last) = lines.last()
+            && last.contains("BEGIN")
+        {
+            out.push_str("in-flight checkpoint: yes (last line is a BEGIN)\n");
+        }
+    }
+    let brief = root.join("memory/derived/context-brief.md");
+    if let Ok(text) = fs::read_to_string(&brief) {
+        let head: Vec<&str> = text.lines().take(12).collect();
+        out.push_str("brief head:\n");
+        for line in head {
+            use std::fmt::Write as _;
+            let _ = writeln!(out, "  {line}");
+        }
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod backlog_tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-backlog-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        root
+    }
+
+    #[test]
+    fn backlog_writes_gap_ticket_and_dedups() {
+        let root = tmp_root("a");
+        let dir = root.join("evals/cases/reactive-loop");
+        fs::create_dir_all(&dir).unwrap();
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../evals/cases/reactive-loop/run.json");
+        fs::copy(&src, dir.join("run.json")).unwrap();
+        let first = backlog(&root).unwrap();
+        assert_eq!(first.len(), 1);
+        assert!(first[0].created);
+        assert_eq!(first[0].id, "TICKET-1");
+        assert!(root.join("tickets/TICKET-1.md").is_file());
+        let second = backlog(&root).unwrap();
+        assert_eq!(second.len(), 1);
+        assert!(!second[0].created);
+        let text = fs::read_to_string(root.join("tickets/TICKET-1.md")).unwrap();
+        assert!(text.contains("reactive-loop"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn backlog_numbers_continue_after_existing_tickets() {
+        let root = tmp_root("b");
+        fs::write(
+            root.join("tickets/TICKET-7.md"),
+            "- id: TICKET-7\n- title: old\n- goal: old ticket\n",
+        )
+        .unwrap();
+        let dir = root.join("evals/cases/reactive-loop");
+        fs::create_dir_all(&dir).unwrap();
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../evals/cases/reactive-loop/run.json");
+        fs::copy(&src, dir.join("run.json")).unwrap();
+        let first = backlog(&root).unwrap();
+        assert_eq!(first[0].id, "TICKET-8");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resume_block_includes_brief_and_journal() {
+        let root = tmp_root("c");
+        fs::create_dir_all(root.join("memory/episodic")).unwrap();
+        fs::write(
+            root.join("memory/episodic/checkpoints.log"),
+            "2026-08-02T19:00:00Z BEGIN step -> abc\n2026-08-02T19:01:00Z VERIFY-PASS step @ abc\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("memory/derived")).unwrap();
+        fs::write(
+            root.join("memory/derived/context-brief.md"),
+            "# CONTEXT BRIEF\n\n- fact one\n",
+        )
+        .unwrap();
+        let block = resume(&root).unwrap();
+        assert!(block.contains("resume:"));
+        assert!(block.contains("VERIFY-PASS step"));
+        assert!(block.contains("fact one"));
+        let _ = fs::remove_dir_all(&root);
+    }
+}

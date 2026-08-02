@@ -3,6 +3,28 @@
 All notable changes to mini-agi. Format: Keep a Changelog; this project
 follows semantic versioning (workspace `Cargo.toml` `version`).
 
+## [Unreleased]
+
+### Added (intelligence layer, ADR-0005 — Sequoia "From Hierarchy to
+Intelligence" direction)
+- `mini-agi run ingest <run.json> [--retro]` — scored runs compound into
+  canonical memory (idempotent); retro bullets become facts.
+- `mini-agi insights` — compounding report (runs, tokens/cost, per-case
+  composite, memory, tickets, journal, capability gaps) wired into the
+  gate.
+- `mini-agi backlog` — the failure signal IS the roadmap: capability gaps
+  become tickets automatically (dedup by case).
+- `mini-agi resume` — resume block (brief head + journal tail +
+  in-flight checkpoint) for a fresh session.
+- MCP tools: run_ingest, insights, backlog, resume (21 tools total).
+- Sequoia thesis ingested into canonical memory (domain: strategy);
+  ADR-0005 records the direction.
+
+### Fixed
+- Ticket ids follow the PoC contract exactly (`^TICKET-[0-9]+` via
+  re.search): `TICKET-001-v2` accepted, `TICKET-x` rejected; v2 lookup
+  via prefix scan, traversal-safe.
+
 ## [0.3.0] — 2026-08-02
 
 ### Added

@@ -8,7 +8,7 @@
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
-use mini_agi_core::{eval, memory, skills, ticket};
+use mini_agi_core::{eval, insights, memory, skills, ticket};
 use serde_json::{Value, json};
 
 const PROTOCOL_VERSION: &str = "2025-03-26";
@@ -268,6 +268,30 @@ fn tool_definitions() -> Vec<Value> {
             params: &[("id", "string")],
             required: &["id"],
         },
+        ToolDef {
+            name: "run_ingest",
+            description: "Ingest a scored run.json into canonical memory (ADR-0005).",
+            params: &[("run", "string"), ("retro", "string")],
+            required: &["run"],
+        },
+        ToolDef {
+            name: "insights",
+            description: "Compounding report: runs, memory, tickets, gaps.",
+            params: &[],
+            required: &[],
+        },
+        ToolDef {
+            name: "backlog",
+            description: "Failure signal -> roadmap: gaps become tickets.",
+            params: &[],
+            required: &[],
+        },
+        ToolDef {
+            name: "resume",
+            description: "Resume block for a fresh session.",
+            params: &[],
+            required: &[],
+        },
     ];
     TOOLS
         .iter()
@@ -438,6 +462,75 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 .map(|t| format!("{}  {}  scope: {}", t.id, t.title, t.scope.join(", ")))
                 .collect::<Vec<_>>()
                 .join("\n"),
+            Err(e) => format!("error: {e}"),
+        },
+        "run_ingest" => {
+            let run = arg!("run");
+            let retro = {
+                let r = arg!("retro");
+                if r.is_empty() {
+                    None
+                } else {
+                    Some(Path::new(r))
+                }
+            };
+            match super::ingest_text(root, Path::new(run), retro) {
+                Ok(text) => text,
+                Err(msg) => format!("error: {msg}"),
+            }
+        }
+        "insights" => match insights::insights(root) {
+            Ok(report) => {
+                let mut lines = vec![format!(
+                    "runs: {} (composite avg {:.4}, {} tokens, {:.4} USD)",
+                    report.runs, report.composite_avg, report.tokens_total, report.cost_total
+                )];
+                for case in &report.cases {
+                    lines.push(format!("  {}: {:.4}", case.case, case.composite));
+                }
+                lines.push(format!(
+                    "memory: {} entries, {} facts",
+                    report.entries, report.facts
+                ));
+                lines.push(format!("tickets: {}", report.tickets));
+                lines.push(format!(
+                    "journal: {} begins, {} passes, {} fails, {} status",
+                    report.journal[0], report.journal[1], report.journal[2], report.journal[3]
+                ));
+                if report.gaps.is_empty() {
+                    lines.push("capability gaps: none".to_string());
+                } else {
+                    lines.push("capability gaps (roadmap, ADR-0005):".to_string());
+                    for gap in &report.gaps {
+                        lines.push(format!("  {gap}"));
+                    }
+                }
+                lines.join("\n")
+            }
+            Err(e) => format!("error: {e}"),
+        },
+        "backlog" => match insights::backlog(root) {
+            Ok(items) => {
+                if items.is_empty() {
+                    "no capability gaps — roadmap is clear".to_string()
+                } else {
+                    items
+                        .iter()
+                        .map(|i| {
+                            if i.created {
+                                format!("created: {} — gap: {}", i.id, i.case)
+                            } else {
+                                format!("exists: {} — gap: {}", i.id, i.case)
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                }
+            }
+            Err(e) => format!("error: {e}"),
+        },
+        "resume" => match insights::resume(root) {
+            Ok(block) => block,
             Err(e) => format!("error: {e}"),
         },
         "ticket_show" | "ticket_validate" => {

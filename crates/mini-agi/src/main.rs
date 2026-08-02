@@ -75,6 +75,10 @@ enum Command {
     Run(RunArgs),
     /// Compounding report: runs, memory, tickets, gaps.
     Insights,
+    /// Failure signal -> roadmap: gaps become tickets (ADR-0005).
+    Backlog,
+    /// Resume block for a fresh session.
+    Resume,
 }
 
 #[derive(Args, Debug)]
@@ -288,25 +292,63 @@ fn main() -> ExitCode {
             RunAction::Ingest { run, retro } => cmd_run_ingest(&run, retro.as_deref()),
         },
         Command::Insights => cmd_insights(),
+        Command::Backlog => cmd_backlog(),
+        Command::Resume => cmd_resume(),
+    }
+}
+
+fn cmd_backlog() -> ExitCode {
+    match insights::backlog(&root()) {
+        Ok(items) => {
+            for item in &items {
+                if item.created {
+                    println!("created: {} — gap: {}", item.id, item.case);
+                } else {
+                    println!("exists: {} — gap: {}", item.id, item.case);
+                }
+            }
+            if items.is_empty() {
+                println!("no capability gaps — roadmap is clear");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot generate backlog: {e}")),
+    }
+}
+
+fn cmd_resume() -> ExitCode {
+    match insights::resume(&root()) {
+        Ok(block) => {
+            print!("{block}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot resume: {e}")),
     }
 }
 
 fn cmd_run_ingest(run: &Path, retro: Option<&Path>) -> ExitCode {
-    match insights::ingest_run(&root(), run, retro) {
-        Ok(report) => {
-            println!(
-                "ingested: {} (composite {:.4}, {} tokens, {:.4} USD)",
-                report.case, report.composite, report.tokens, report.cost_usd
-            );
-            println!(
-                "world model: {} new facts, {} known",
-                report.new_facts, report.skipped
-            );
-            println!("next: mini-agi derive && mini-agi provenance");
+    match ingest_text(&root(), run, retro) {
+        Ok(text) => {
+            println!("{text}");
             ExitCode::SUCCESS
         }
         Err(msg) => fail(&msg),
     }
+}
+
+/// Shared by the CLI and the MCP server (no stdout pollution in server
+/// mode).
+fn ingest_text(root: &Path, run: &Path, retro: Option<&Path>) -> Result<String, String> {
+    let report = insights::ingest_run(root, run, retro)?;
+    Ok(format!(
+        "ingested: {} (composite {:.4}, {} tokens, {:.4} USD)\nworld model: {} new facts, {} known\nnext: mini-agi derive && mini-agi provenance",
+        report.case,
+        report.composite,
+        report.tokens,
+        report.cost_usd,
+        report.new_facts,
+        report.skipped
+    ))
 }
 
 fn cmd_insights() -> ExitCode {
