@@ -332,3 +332,56 @@ fn cli_provenance_prints_fingerprint() {
     assert_eq!(fp.len(), 16);
     wipe(&root);
 }
+
+#[test]
+fn cli_skill_list_discovery() {
+    let root = tmp_root("c11");
+    wipe(&root);
+    let skills = root.join(".agents/skills");
+    std::fs::create_dir_all(skills.join("verify")).unwrap();
+    std::fs::create_dir_all(skills.join("plain")).unwrap();
+    std::fs::write(
+        skills.join("verify/SKILL.md"),
+        "---\nname: verify\ndescription: gate skill\nverify: 'true'\n---\n",
+    )
+    .unwrap();
+    std::fs::write(
+        skills.join("plain/SKILL.md"),
+        "---\nname: plain\ndescription: ref skill\n---\n",
+    )
+    .unwrap();
+    let out = run(&root, &["skill", "list"]);
+    assert!(out.status.success());
+    let text = stdout(&out);
+    assert!(text.contains("verify  [verify]  gate skill"));
+    assert!(text.contains("plain  [ref]  ref skill"));
+    wipe(&root);
+}
+
+#[test]
+fn cli_skill_verify_pass_and_fail() {
+    let root = tmp_root("c12");
+    wipe(&root);
+    let skills = root.join(".agents/skills");
+    std::fs::create_dir_all(skills.join("good")).unwrap();
+    std::fs::create_dir_all(skills.join("bad")).unwrap();
+    std::fs::write(
+        skills.join("good/SKILL.md"),
+        "---\nname: good\ndescription: ok\nverify: 'true'\n---\n",
+    )
+    .unwrap();
+    std::fs::write(
+        skills.join("bad/SKILL.md"),
+        "---\nname: bad\ndescription: no\nverify: 'exit 2'\n---\n",
+    )
+    .unwrap();
+    let ok = run(&root, &["skill", "verify", "good"]);
+    assert!(ok.status.success());
+    assert!(stdout(&ok).contains("PASS: good"));
+    let bad = run(&root, &["skill", "verify", "bad"]);
+    assert_eq!(bad.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("FAIL: bad"));
+    let unknown = run(&root, &["skill", "verify", "nope"]);
+    assert_eq!(unknown.status.code(), Some(1));
+    wipe(&root);
+}

@@ -10,6 +10,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 use mini_agi_core::eval::{self, EvalError};
 use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
+use mini_agi_core::skills;
 
 /// Repository root: `AGENTIC_ROOT` env var, else current directory.
 fn root() -> PathBuf {
@@ -46,6 +47,30 @@ enum Command {
     Provenance,
     /// Four-dimensional eval scoring + regression gate (`PoC` harness).
     Eval(EvalArgs),
+    /// Verifiable skills registry (`.agents/skills/`, ADR-0002).
+    Skill(SkillArgs),
+}
+
+#[derive(Args, Debug)]
+struct SkillArgs {
+    #[command(subcommand)]
+    action: SkillAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum SkillAction {
+    /// List all discovered skills with their verify hooks.
+    List,
+    /// Show one skill's frontmatter summary.
+    Show {
+        /// Skill name.
+        name: String,
+    },
+    /// Run a skill's verify hook; exit non-zero on failure.
+    Verify {
+        /// Skill name.
+        name: String,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -142,6 +167,73 @@ fn main() -> ExitCode {
                 write_baseline,
             } => cmd_eval_gate(tolerance, write_baseline),
         },
+        Command::Skill(SkillArgs { action }) => match action {
+            SkillAction::List => cmd_skill_list(),
+            SkillAction::Show { name } => cmd_skill_show(&name),
+            SkillAction::Verify { name } => cmd_skill_verify(&name),
+        },
+    }
+}
+
+fn cmd_skill_list() -> ExitCode {
+    let root = root();
+    match skills::discover_skills(&root) {
+        Ok(reg) => {
+            for skill in &reg {
+                let hook = if skill.verify.is_some() {
+                    "verify"
+                } else {
+                    "ref"
+                };
+                println!("{}  [{hook}]  {}", skill.name, skill.description);
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot discover skills: {e}")),
+    }
+}
+
+fn cmd_skill_show(name: &str) -> ExitCode {
+    let root = root();
+    match skills::find_skill(&root, name) {
+        Ok(skill) => {
+            println!("name: {}", skill.name);
+            println!("description: {}", skill.description);
+            println!(
+                "verify: {}",
+                skill.verify.as_deref().unwrap_or("(none — reference only)")
+            );
+            println!(
+                "disable-model-invocation: {}",
+                skill.disable_model_invocation
+            );
+            if let Some(hint) = &skill.argument_hint {
+                println!("argument-hint: {hint}");
+            }
+            println!("path: {}", skill.path.display());
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&e.to_string()),
+    }
+}
+
+fn cmd_skill_verify(name: &str) -> ExitCode {
+    let root = root();
+    match skills::find_skill(&root, name) {
+        Ok(skill) => match skills::verify_skill(&skill, &root) {
+            Ok(result) => {
+                if result.passed {
+                    println!("PASS: {name}");
+                    ExitCode::SUCCESS
+                } else {
+                    eprintln!("FAIL: {name} (exit {:?})", result.exit_code);
+                    eprintln!("{}", result.output);
+                    ExitCode::from(1)
+                }
+            }
+            Err(e) => fail(&e.to_string()),
+        },
+        Err(e) => fail(&e.to_string()),
     }
 }
 
