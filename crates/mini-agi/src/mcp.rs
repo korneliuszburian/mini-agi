@@ -14,6 +14,10 @@ use serde_json::{Value, json};
 const PROTOCOL_VERSION: &str = "2025-03-26";
 const SERVER_NAME: &str = "mini-agi";
 
+/// Protocol versions this server actually speaks; anything else falls back
+/// to `PROTOCOL_VERSION` during negotiation.
+const SUPPORTED_VERSIONS: &[&str] = &["2025-03-26", "2025-06-18", "2025-11-25"];
+
 /// Run the stdio MCP server loop until EOF.
 ///
 /// # Errors
@@ -33,6 +37,10 @@ pub fn run_stdio_server() -> Result<(), io::Error> {
     Ok(())
 }
 
+/// Maximum accepted frame body (protects the allocator from an
+/// attacker-controlled `Content-Length`; MCP frames are tiny).
+const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
+
 /// Read one `Content-Length` framed JSON message; `None` on clean EOF.
 fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<Value>, io::Error> {
     let mut first = String::new();
@@ -40,11 +48,18 @@ fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<Value>, io::Error> {
         return Ok(None); // EOF before any frame
     }
     let first = first.trim_end();
-    if let Some(rest) = first.strip_prefix("Content-Length:") {
+    if first.to_ascii_lowercase().starts_with("content-length:") {
+        let rest = first.split_once(':').map_or("", |(_, v)| v);
         let length = rest
             .trim()
             .parse::<usize>()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad Content-Length"))?;
+        if length > MAX_FRAME_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("frame too large: {length} > {MAX_FRAME_BYTES}"),
+            ));
+        }
         loop {
             let mut header = String::new();
             if input.read_line(&mut header)? == 0 {
@@ -106,12 +121,19 @@ fn dispatch(message: &Value, initialized: &mut bool) -> Option<Value> {
 }
 
 fn handle_initialize(params: &Value) -> Value {
-    let protocol_version = params
+    // The server negotiates: echo the client's version only when it is one
+    // we actually support; otherwise offer our own (spec fallback).
+    let requested = params
         .get("protocolVersion")
         .and_then(Value::as_str)
         .unwrap_or(PROTOCOL_VERSION);
+    let negotiated = if SUPPORTED_VERSIONS.contains(&requested) {
+        requested
+    } else {
+        PROTOCOL_VERSION
+    };
     json!({
-        "protocolVersion": protocol_version,
+        "protocolVersion": negotiated,
         "capabilities": { "tools": {} },
         "serverInfo": { "name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION") },
     })

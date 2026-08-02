@@ -117,7 +117,9 @@ pub fn init(root: &Path) -> Result<Vec<String>, io::Error> {
     ];
     for (rel, content, _note) in files {
         let path = root.join(rel);
-        if path.exists() {
+        // symlink_metadata: a broken symlink still exists — do not clobber
+        // it with a regular file.
+        if fs::symlink_metadata(&path).is_ok() {
             continue;
         }
         if let Some(parent) = path.parent() {
@@ -142,13 +144,22 @@ pub fn init(root: &Path) -> Result<Vec<String>, io::Error> {
     }
 
     let opencode_path = root.join("opencode.json");
-    if !opencode_path.exists() {
+    if fs::symlink_metadata(&opencode_path).is_err() {
         let exe = std::env::current_exe().unwrap_or_else(|_| Path::new("mini-agi").to_path_buf());
-        let config = format!(
-            "{{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"mcp\": {{\n    \"mini-agi\": {{\n      \"type\": \"local\",\n      \"command\": [\"{}\", \"mcp\"],\n      \"enabled\": true\n    }}\n  }}\n}}\n",
-            exe.display()
-        );
-        fs::write(&opencode_path, config)?;
+        let config = serde_json::json!({
+            "$schema": "https://opencode.ai/config.json",
+            "mcp": {
+                "mini-agi": {
+                    "type": "local",
+                    "command": [exe.to_string_lossy(), "mcp"],
+                    "enabled": true
+                }
+            }
+        });
+        fs::write(
+            &opencode_path,
+            serde_json::to_string_pretty(&config).map_err(io::Error::other)? + "\n",
+        )?;
         created.push("opencode.json".to_string());
     }
 

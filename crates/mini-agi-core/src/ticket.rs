@@ -97,19 +97,25 @@ pub fn find_ticket(root: &Path, id: &str) -> Result<Ticket, TicketError> {
         .strip_prefix("TICKET-")
         .or_else(|| id.strip_prefix("ticket-"))
         .unwrap_or(id);
-    let mut name = format!("TICKET-{digits}.md");
-    let dir = tickets_dir(root);
-    if !dir.join(&name).is_file() {
-        // id may already include the prefix
-        name = format!("{digits}.md");
-        if !dir.join(&name).is_file() {
-            return Err(TicketError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("no ticket {id} in {}", dir.display()),
-            )));
-        }
+    // Only bare ticket numbers are looked up — never paths (no traversal).
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(TicketError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("invalid ticket id '{id}': expected TICKET-<number>"),
+        )));
     }
-    load_ticket(&dir.join(name))
+    let name = format!("TICKET-{digits}.md");
+    let path = tickets_dir(root).join(name);
+    if !path.is_file() {
+        return Err(TicketError::Io(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!(
+                "no ticket {id} in {}",
+                path.parent().unwrap_or(root).display()
+            ),
+        )));
+    }
+    load_ticket(&path)
 }
 
 /// Load and validate a ticket file (JSON or markdown frontmatter).
@@ -149,6 +155,13 @@ pub fn parse_ticket(text: &str) -> Result<Ticket, TicketError> {
             ticket.id
         )));
     }
+    let suffix = &ticket.id["TICKET-".len()..];
+    if suffix.is_empty() || !suffix.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(TicketError::Invalid(format!(
+            "id '{}' must match ^TICKET-[0-9]+",
+            ticket.id
+        )));
+    }
     Ok(ticket)
 }
 
@@ -169,11 +182,29 @@ fn parse_frontmatter_ticket(text: &str) -> Result<Ticket, TicketError> {
         .ok_or_else(|| TicketError::Parse("missing closing ---".into()))?;
     let frontmatter = &rest[..block];
     let mut fields = std::collections::HashMap::new();
+    let mut scope_items: Vec<String> = Vec::new();
+    let mut in_scope_list = false;
     for line in frontmatter.lines() {
+        if in_scope_list {
+            if let Some(item) = line.trim_start().strip_prefix("- ") {
+                let item = item.trim().to_string();
+                if !item.is_empty() {
+                    scope_items.push(item);
+                }
+                continue;
+            }
+            in_scope_list = false;
+        }
         let Some((k, v)) = line.split_once(':') else {
             continue;
         };
-        fields.insert(k.trim().to_string(), v.trim().to_string());
+        let k = k.trim().to_string();
+        let v = v.trim().to_string();
+        if k == "scope" && v.is_empty() {
+            in_scope_list = true;
+            continue;
+        }
+        fields.insert(k, v);
     }
     let id = fields
         .get("id")
@@ -192,7 +223,7 @@ fn parse_frontmatter_ticket(text: &str) -> Result<Ticket, TicketError> {
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
         })
-        .unwrap_or_default();
+        .unwrap_or(scope_items);
     Ok(Ticket {
         id: id.clone(),
         title: title.clone(),
@@ -229,6 +260,16 @@ fn parse_bullet_ticket(text: &str) -> Result<Ticket, TicketError> {
         };
         let k = k.trim().to_lowercase();
         let v = v.trim().to_string();
+        if k.starts_with("scope-exceptions") {
+            // Header with empty value starts the block; a value on the same
+            // line is honored as inline scope. Must be checked BEFORE the
+            // empty-value guard, or every block would be skipped.
+            if v.is_empty() {
+                in_scope_block = true;
+                continue;
+            }
+            in_scope_block = false;
+        }
         if v.is_empty() {
             continue;
         }
@@ -244,8 +285,6 @@ fn parse_bullet_ticket(text: &str) -> Result<Ticket, TicketError> {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
-        } else if k.starts_with("scope-exceptions") && v.is_empty() {
-            in_scope_block = true;
         }
     }
     Ok(Ticket {

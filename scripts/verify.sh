@@ -31,14 +31,9 @@ skip() {
 }
 
 BIN="./target/debug/mini-agi"
-if [ ! -x "$BIN" ]; then
-    BIN="$(command -v mini-agi 2>/dev/null || true)"
-fi
-if [ -n "$BIN" ] && [ ! -x "$BIN" ]; then
-    BIN=""
-fi
-
+has_cargo=0
 if [ -f Cargo.toml ]; then
+    has_cargo=1
     step "build"         cargo build || fail=1
     step "fmt-check"    sh -c 'cargo fmt --check && echo "fmt-check: clean"' || fail=1
     step "clippy"       cargo clippy --all-targets -- -D warnings || fail=1
@@ -50,6 +45,16 @@ else
     skip "tests" "no Cargo.toml"
 fi
 
+# Resolve the kernel binary AFTER the build step, so a just-built local
+# debug binary is found. In a Rust repo a missing binary is a hard failure
+# (the kernel gates are required there); in a non-Rust repo they skip.
+if [ ! -x "$BIN" ]; then
+    BIN="$(command -v mini-agi 2>/dev/null || true)"
+fi
+if [ -n "$BIN" ] && [ ! -x "$BIN" ]; then
+    BIN=""
+fi
+
 if [ -n "$BIN" ]; then
     step "eval-gate"    "$BIN" eval gate || fail=1
     step "checkpoint"   "$BIN" checkpoint audit || fail=1
@@ -57,11 +62,16 @@ if [ -n "$BIN" ]; then
     step "stats"        "$BIN" stats || fail=1
     step "budget"       "$BIN" budget || fail=1
 else
-    skip "eval-gate" "mini-agi binary not found (install: cargo install mini-agi)"
-    skip "checkpoint" "mini-agi binary not found"
-    skip "provenance" "mini-agi binary not found"
-    skip "stats" "mini-agi binary not found"
-    skip "budget" "mini-agi binary not found"
+    if [ "$has_cargo" -eq 1 ]; then
+        echo "[FAIL] build: kernel binary missing — expected target/debug/mini-agi or mini-agi on PATH"
+        fail=1
+    else
+        skip "eval-gate" "mini-agi binary not found (install: cargo install mini-agi)"
+        skip "checkpoint" "mini-agi binary not found"
+        skip "provenance" "mini-agi binary not found"
+        skip "stats" "mini-agi binary not found"
+        skip "budget" "mini-agi binary not found"
+    fi
 fi
 
 if [ "$fail" -eq 0 ]; then
