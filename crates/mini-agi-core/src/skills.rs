@@ -261,6 +261,134 @@ pub fn verify_skill(skill: &Skill, cwd: &Path) -> Result<VerifyResult, SkillErro
     })
 }
 
+/// Install skills from a source into the registry.
+///
+/// The source is a git repository (URL, `owner/repo` GitHub shorthand, or a
+/// local path). Skills are taken from the repo's own `.agents/skills/`, or
+/// from the repo root when the repo itself is a skill (has `SKILL.md`).
+/// The frontmatter must parse and `name` must match the directory name,
+/// otherwise installation fails.
+///
+/// # Errors
+///
+/// Returns [`SkillError::Io`] on filesystem failure, [`SkillError::Parse`]
+/// for malformed `SKILL.md`, or [`SkillError::VerifyFailed`] when git
+/// cannot clone the source.
+pub fn install_skills(root: &Path, source: &str) -> Result<Vec<String>, SkillError> {
+    let normalized = if source.contains('/') && !source.starts_with("http") {
+        if source.starts_with("github.com") || source.matches('/').count() == 1 {
+            format!("https://github.com/{source}")
+        } else {
+            source.to_string()
+        }
+    } else {
+        source.to_string()
+    };
+    let staging = std::env::temp_dir().join(format!(
+        "mag-skill-src-{}-{}",
+        std::process::id(),
+        hash_tail(&normalized)
+    ));
+    let _ = fs::remove_dir_all(&staging);
+    let status = Command::new("git")
+        .args([
+            "clone",
+            "--depth",
+            "1",
+            "-q",
+            &normalized,
+            staging.to_str().unwrap(),
+        ])
+        .status()
+        .map_err(|e| SkillError::VerifyFailed(format!("git clone: {e}")))?;
+    if !status.success() {
+        return Err(SkillError::VerifyFailed(format!(
+            "git clone failed for '{source}'"
+        )));
+    }
+    let repo_skills = staging.join(".agents").join("skills");
+    let mut installed = Vec::new();
+    if repo_skills.is_dir() {
+        let entries = fs::read_dir(&repo_skills).map_err(SkillError::Io)?;
+        for entry in entries {
+            let entry = entry.map_err(SkillError::Io)?;
+            if !entry.path().is_dir() {
+                continue;
+            }
+            let skill_md = entry.path().join("SKILL.md");
+            if skill_md.is_file() {
+                let name = install_one(root, &skill_md)?;
+                installed.push(name);
+            }
+        }
+    } else if staging.join("SKILL.md").is_file() {
+        installed.push(install_one(root, &staging.join("SKILL.md"))?);
+    } else {
+        return Err(SkillError::Parse(
+            "source has neither .agents/skills/ nor a root SKILL.md".into(),
+        ));
+    }
+    if installed.is_empty() {
+        return Err(SkillError::Parse("source contains no skills".into()));
+    }
+    let _ = fs::remove_dir_all(&staging);
+    Ok(installed)
+}
+
+fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
+    let content = fs::read_to_string(skill_md).map_err(SkillError::Io)?;
+    let skill = parse_skill_md(&content)?;
+    let dir_name = skill_md
+        .parent()
+        .ok_or_else(|| SkillError::Parse("skill has no directory".into()))?
+        .file_name()
+        .ok_or_else(|| SkillError::Parse("skill has no directory name".into()))?
+        .to_string_lossy()
+        .into_owned();
+    if skill.name != dir_name {
+        return Err(SkillError::Parse(format!(
+            "name '{name}' does not match directory '{dir_name}'",
+            name = skill.name
+        )));
+    }
+    let dest = agents_dir(root).join(&skill.name);
+    let _ = fs::remove_dir_all(&dest);
+    fs::create_dir_all(&dest).map_err(SkillError::Io)?;
+    fs::copy(skill_md, dest.join("SKILL.md")).map_err(SkillError::Io)?;
+    for entry in fs::read_dir(skill_md.parent().unwrap()).map_err(SkillError::Io)? {
+        let entry = entry.map_err(SkillError::Io)?;
+        if entry.file_name() == "SKILL.md" {
+            continue;
+        }
+        let target = dest.join(entry.file_name());
+        if entry.file_type().is_ok_and(|t| t.is_dir()) {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), &target).map_err(SkillError::Io)?;
+        }
+    }
+    Ok(skill.name)
+}
+
+fn copy_dir(src: &Path, dest: &Path) -> Result<(), SkillError> {
+    fs::create_dir_all(dest).map_err(SkillError::Io)?;
+    for entry in fs::read_dir(src).map_err(SkillError::Io)? {
+        let entry = entry.map_err(SkillError::Io)?;
+        let target = dest.join(entry.file_name());
+        if entry.file_type().is_ok_and(|t| t.is_dir()) {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), &target).map_err(SkillError::Io)?;
+        }
+    }
+    Ok(())
+}
+
+fn hash_tail(s: &str) -> String {
+    let h = crate::hash::source_sha256(s);
+    h[..12].to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -71,6 +71,12 @@ enum SkillAction {
         /// Skill name.
         name: String,
     },
+    /// Install skills from a git source (repo with `.agents/skills/`, or a
+    /// repo that is itself a skill).
+    Add {
+        /// Git URL, `owner/repo` GitHub shorthand, or local path.
+        source: String,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -171,7 +177,21 @@ fn main() -> ExitCode {
             SkillAction::List => cmd_skill_list(),
             SkillAction::Show { name } => cmd_skill_show(&name),
             SkillAction::Verify { name } => cmd_skill_verify(&name),
+            SkillAction::Add { source } => cmd_skill_add(&source),
         },
+    }
+}
+
+fn cmd_skill_add(source: &str) -> ExitCode {
+    let root = root();
+    match skills::install_skills(&root, source) {
+        Ok(installed) => {
+            for name in &installed {
+                println!("installed: {name}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot install from '{source}': {e}")),
     }
 }
 

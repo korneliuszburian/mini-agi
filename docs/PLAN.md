@@ -129,7 +129,7 @@ mini-agi-rs/  (Cargo workspace)
   gate `PASS: 11 cases, 0 regressions`; 51 tests green, clippy/fmt clean.
 - Commit: 3aa9f48.
 
-### Phase 2 — Skills
+### Phase 2 — Skills (registry DONE, MCP-scope pending)
 - SKILL.md frontmatter parsing, verify-hook execution, registry with
   versioning, project scoping, install from GitHub (`mini-agi skill add`).
 - Acceptance: our first 3 in-repo skills with passing verify tests.
@@ -137,6 +137,12 @@ mini-agi-rs/  (Cargo workspace)
   ported skill gets checkable+exhaustive completion criteria (Matt Pocock
   standard — our v2 skills violated it) + a verify test. Reviewer skill
   has memory-anchor gate (verdict without canonical fact ids = fail).
+- Evidence: `crates/mini-agi-core/src/skills.rs` (frontmatter parser with
+  multiline/quoting, discovery, verify-hook exec, `skill add` via git
+  clone), CLI `skill list/show/verify/add`, `scripts/verify.sh` (silent
+  target = fail), `scripts/checkpoint.sh` (ECC port), 15 skills ported
+  with completion criteria, verify hooks green on verify/checkpoint/review
+  (+ review-anchor-test), 63 tests green. Commits: 1a71e91.
 
 ### Phase 3 — Orchestration
 - checkpoint journal + audit (PORTED audit semantics from T008 amendments),

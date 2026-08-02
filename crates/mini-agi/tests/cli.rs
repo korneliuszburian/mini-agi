@@ -385,3 +385,57 @@ fn cli_skill_verify_pass_and_fail() {
     assert_eq!(unknown.status.code(), Some(1));
     wipe(&root);
 }
+
+#[test]
+fn cli_skill_add_installs_from_local_git() {
+    let root = tmp_root("c13");
+    wipe(&root);
+    let src = std::env::temp_dir().join(format!("mag-skill-src-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&src);
+    std::fs::create_dir_all(src.join(".agents/skills/hello")).unwrap();
+    std::fs::write(
+        src.join(".agents/skills/hello/SKILL.md"),
+        "---\nname: hello\ndescription: test skill\nverify: 'true'\n---\n",
+    )
+    .unwrap();
+    let git = Command::new("git")
+        .current_dir(&src)
+        .args(["init", "-q"])
+        .status()
+        .unwrap();
+    assert!(git.success());
+    let git = Command::new("git")
+        .current_dir(&src)
+        .args(["add", "-A"])
+        .status()
+        .unwrap();
+    assert!(git.success());
+    let git = Command::new("git")
+        .current_dir(&src)
+        .args([
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+        ])
+        .status()
+        .unwrap();
+    assert!(git.success());
+    let out = run(&root, &["skill", "add", src.to_str().unwrap()]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(stdout(&out).contains("installed: hello"));
+    let list = run(&root, &["skill", "list"]);
+    assert!(stdout(&list).contains("hello  [verify]  test skill"));
+    let verify = run(&root, &["skill", "verify", "hello"]);
+    assert!(verify.status.success());
+    assert!(stdout(&verify).contains("PASS: hello"));
+    let _ = std::fs::remove_dir_all(&src);
+    wipe(&root);
+}
