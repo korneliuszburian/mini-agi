@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
+use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
 use mini_agi_core::journal;
 use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
@@ -52,6 +53,16 @@ enum Command {
     Skill(SkillArgs),
     /// Checkpoint journal audit (T008 semantics).
     Checkpoint(CheckpointArgs),
+    /// Typed handoff contract validation (ADR-0007).
+    Validate(ValidateArgs),
+}
+
+#[derive(Args, Debug)]
+struct ValidateArgs {
+    /// Contract name: eval-run, ticket, spec, or verdict.
+    contract: String,
+    /// JSON document file to validate.
+    document: PathBuf,
 }
 
 #[derive(Args, Debug)]
@@ -198,6 +209,41 @@ fn main() -> ExitCode {
         Command::Checkpoint(CheckpointArgs { action }) => match action {
             CheckpointAction::Audit => cmd_checkpoint_audit(),
         },
+        Command::Validate(ValidateArgs { contract, document }) => {
+            cmd_validate(&contract, &document)
+        }
+    }
+}
+
+fn cmd_validate(contract_name: &str, document: &Path) -> ExitCode {
+    let contract = match contract_name {
+        "eval-run" => contract::Contract::EvalRun,
+        "ticket" => contract::Contract::Ticket,
+        "spec" => contract::Contract::Spec,
+        "verdict" => contract::Contract::Verdict,
+        other => {
+            return fail(&format!(
+                "unknown contract '{other}' (eval-run|ticket|spec|verdict)"
+            ));
+        }
+    };
+    let text = match std::fs::read_to_string(document) {
+        Ok(text) => text,
+        Err(e) => return fail(&format!("cannot read {}: {e}", document.display())),
+    };
+    let value = match contract::parse_document(&text) {
+        Ok(value) => value,
+        Err(e) => return fail(&format!("invalid JSON in {}: {e}", document.display())),
+    };
+    match contract::validate_contract_value(contract, &value) {
+        Ok(()) => {
+            println!(
+                "ok: {} validates against {contract_name}",
+                document.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(err) => fail(&format!("{} does not validate: {err}", document.display())),
     }
 }
 
