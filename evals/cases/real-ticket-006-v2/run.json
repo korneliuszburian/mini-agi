@@ -1,0 +1,252 @@
+{
+  "goal": "TICKET-006",
+  "scope": [
+    "scripts/consolidate.py",
+    "tests/test_consolidate.py",
+    "tickets/TICKET-006-gates.md",
+    "artifacts/TICKET-006-v2/"
+  ],
+  "outcome": {
+    "achieved": true,
+    "tests": true,
+    "typecheck": true
+  },
+  "tokens_total": 126907,
+  "cost_usd": 0.3322,
+  "golden": "real-ticket-consolidate.json",
+  "trajectory": [
+    {
+      "step": 1,
+      "action": "read: const r = await tools.exec_command({\"cmd\":\"sed -n '1,240p' .agents/skills/orches",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 4483,
+      "output_tokens": 45,
+      "reverted": false
+    },
+    {
+      "step": 2,
+      "action": "read: const r = await tools.exec_command({\"cmd\":\"sed -n '1,260p' tickets/TICKET-006.md",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 4663,
+      "output_tokens": 53,
+      "reverted": false
+    },
+    {
+      "step": 3,
+      "action": "read: const r = await tools.exec_command({\"cmd\":\"nl -ba scripts/consolidate.py; nl -ba",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 7024,
+      "output_tokens": 35,
+      "reverted": false
+    },
+    {
+      "step": 4,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"nl -ba scripts/compact.sh | sed -n '1",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 7955,
+      "output_tokens": 95,
+      "reverted": false
+    },
+    {
+      "step": 5,
+      "action": "read: const r = await tools.exec_command({\"cmd\":\"sed -n '1,240p' .agents/skills/tdd/SK",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 0,
+      "output_tokens": 0,
+      "reverted": false
+    },
+    {
+      "step": 6,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"git status --short && rg --files -g '",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 4755,
+      "output_tokens": 54,
+      "reverted": false
+    },
+    {
+      "step": 7,
+      "action": "read: const r = await tools.exec_command({\"cmd\":\"sed -n '1,300p' tickets/TICKET-006.md",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 5167,
+      "output_tokens": 35,
+      "reverted": false
+    },
+    {
+      "step": 8,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"sed -n '1,260p' memory/derived/contex",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 5489,
+      "output_tokens": 25,
+      "reverted": false
+    },
+    {
+      "step": 9,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"scripts/checkpoint.sh begin ticket006",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 5891,
+      "output_tokens": 101,
+      "reverted": false
+    },
+    {
+      "step": 10,
+      "action": "write: const patch = \"*** Begin Patch\\n*** Update File: /home/krn/coding/krn/mini-agi/t",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 6112,
+      "output_tokens": 219,
+      "reverted": false,
+      "paths": [
+        "tests/test_consolidate.py"
+      ]
+    },
+    {
+      "step": 11,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"python3 -m unittest tests.test_consol",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 6141,
+      "output_tokens": 34,
+      "reverted": false
+    },
+    {
+      "step": 12,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"scripts/checkpoint.sh begin ticket006",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 6290,
+      "output_tokens": 30,
+      "reverted": false
+    },
+    {
+      "step": 13,
+      "action": "write: const patch = \"*** Begin Patch\\n*** Update File: /home/krn/coding/krn/mini-agi/s",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 6446,
+      "output_tokens": 207,
+      "reverted": false,
+      "paths": [
+        "scripts/consolidate.py"
+      ]
+    },
+    {
+      "step": 14,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"python3 -m unittest tests.test_consol",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 6467,
+      "output_tokens": 17,
+      "reverted": false
+    },
+    {
+      "step": 15,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"make verify\",\"workdir\":\"/home/krn/cod",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 6620,
+      "output_tokens": 179,
+      "reverted": false
+    },
+    {
+      "step": 16,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"scripts/checkpoint.sh verify ticket00",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 6845,
+      "output_tokens": 21,
+      "reverted": false
+    },
+    {
+      "step": 17,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"git show --stat --oneline e931b9b && ",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 7050,
+      "output_tokens": 114,
+      "reverted": false
+    },
+    {
+      "step": 18,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"scripts/checkpoint.sh begin ticket006",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 7221,
+      "output_tokens": 48,
+      "reverted": false
+    },
+    {
+      "step": 19,
+      "action": "write: const patch = \"*** Begin Patch\\n*** Update File: /home/krn/coding/krn/mini-agi/t",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 7327,
+      "output_tokens": 114,
+      "reverted": false,
+      "paths": [
+        "tests/test_consolidate.py"
+      ]
+    },
+    {
+      "step": 20,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"python3 -m unittest tests.test_consol",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 7361,
+      "output_tokens": 42,
+      "reverted": false
+    },
+    {
+      "step": 21,
+      "action": "exec: const r = await tools.exec_command({\"cmd\":\"scripts/checkpoint.sh verify ticket00",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 7600,
+      "output_tokens": 25,
+      "reverted": false
+    }
+  ],
+  "source": "codex-session",
+  "session_id": "019fc340-0094-71c3-9d44-898dc048e54a",
+  "cwd": "/home/krn/coding/krn/mini-agi",
+  "cli_version": "0.145.0",
+  "cost_is_estimate": true,
+  "per_step_tokens_are_estimates": true,
+  "findings": [
+    "TICKET-006-v2: consolidation edge cases landed (repo-wide dedup, non-mutating dry-run, per-day numbering, 8-char bullet boundary, CRLF); 72 tests GREEN, provenance PASS, 9 cases 0 regressions",
+    "CLEAN COST POINT: 126,907 tok CLI (authoritative). Soft goal 106,513 MISSED by 19% \u2014 honest verdict per ticket preamble: pipeline fixed overhead dominates at this ticket size; memory-driven acceleration NOT demonstrated",
+    "implementer self-capture (2,379,260 tok / $6.11) EXCLUDED \u2014 token_count-event over-count ~18.7x, same phenomenon as T002/T005; its run.json overwritten by orchestrator capture",
+    "FIX-MINOR (agent-reported, accepted): AC2 required numbering test for previous-date-only state \u2014 agent self-routed as missing; orchestrator adds the test post-run",
+    "the 2,379,260 self-measurement inside run.json cost the implementer a misleading composite 0.8738; authoritative composite computed by orchestrator eval below",
+    "review chain: v2-001 3/8 -> v2-002 2/8 -> v2-003 8/8; T006 = clean run (no fixes chain), first measurement after scorer stabilization"
+  ]
+}

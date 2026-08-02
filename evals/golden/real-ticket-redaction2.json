@@ -1,0 +1,9 @@
+[
+  {"tool": "read"},
+  {"tool": "read"},
+  {"tool": "edit"},
+  {"tool": "edit"},
+  {"tool": "exec"},
+  {"tool": "write"},
+  {"tool": "exec"}
+]

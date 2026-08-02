@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
+use mini_agi_core::eval::{self, EvalError};
 use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
 
 /// Repository root: `AGENTIC_ROOT` env var, else current directory.
@@ -43,6 +44,32 @@ enum Command {
     Derive(DeriveArgs),
     /// Print the canonical fingerprint for the provenance gate.
     Provenance,
+    /// Four-dimensional eval scoring + regression gate (`PoC` harness).
+    Eval(EvalArgs),
+}
+
+#[derive(Args, Debug)]
+struct EvalArgs {
+    #[command(subcommand)]
+    action: EvalAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum EvalAction {
+    /// Score one `run.json` (`PoC` `score.py`; report JSON on stdout).
+    Score {
+        /// Path to the run file (evals/cases/<case>/run.json).
+        run: PathBuf,
+    },
+    /// Regression gate over all cases vs the committed baseline.
+    Gate {
+        /// Max allowed composite drop.
+        #[arg(long, default_value_t = 0.05)]
+        tolerance: f64,
+        /// Snapshot current results as the new baseline.
+        #[arg(long)]
+        write_baseline: bool,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -108,6 +135,76 @@ fn main() -> ExitCode {
             println!("canonical_sha256: {}", memory::canonical_fingerprint(&root));
             ExitCode::SUCCESS
         }
+        Command::Eval(EvalArgs { action }) => match action {
+            EvalAction::Score { run } => cmd_eval_score(&run),
+            EvalAction::Gate {
+                tolerance,
+                write_baseline,
+            } => cmd_eval_gate(tolerance, write_baseline),
+        },
+    }
+}
+
+fn cmd_eval_score(run: &Path) -> ExitCode {
+    let root = root();
+    match eval::score_run(run, &root, &root.join("evals/golden")) {
+        Ok(report) => {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            ExitCode::SUCCESS
+        }
+        Err(EvalError::Read(e)) => fail(&format!("cannot read run file: {e}")),
+        Err(EvalError::Json(e)) => fail(&format!("invalid run json: {e}")),
+        Err(EvalError::InvalidField(f)) => fail(&format!("invalid run field '{f}'")),
+        Err(EvalError::Metadata(m)) => fail(&m),
+    }
+}
+
+fn cmd_eval_gate(tolerance: f64, write_baseline: bool) -> ExitCode {
+    let root = root();
+    let cases_dir = root.join("evals/cases");
+    let golden_dir = root.join("evals/golden");
+    let baseline_path = root.join("evals/results/baseline.json");
+    let entries = match eval::score_all_cases(&cases_dir, &root, &golden_dir) {
+        Ok(entries) => entries,
+        Err(e) => return fail(&format!("eval gate: {e}")),
+    };
+    if entries.is_empty() {
+        return fail("no eval cases found in evals/cases/");
+    }
+    if write_baseline || !baseline_path.exists() {
+        if let Some(parent) = baseline_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let json = serde_json::to_string_pretty(&entries).unwrap();
+        if std::fs::write(&baseline_path, json).is_err() {
+            return fail("baseline write failed");
+        }
+        println!(
+            "baseline written: {} ({} cases)",
+            baseline_path.display(),
+            entries.len()
+        );
+        return ExitCode::SUCCESS;
+    }
+    let Ok(text) = std::fs::read_to_string(&baseline_path) else {
+        return fail("baseline unreadable");
+    };
+    let Ok(baseline) = serde_json::from_str::<Vec<eval::GateEntry>>(&text) else {
+        return fail("baseline malformed");
+    };
+    let result = eval::run_gate(&entries, &baseline, tolerance);
+    for message in &result.messages {
+        println!("{message}");
+    }
+    let verdict = if result.failures == 0 { "PASS" } else { "FAIL" };
+    println!(
+        "{verdict}: {} cases, {} regressions",
+        result.case_count, result.failures
+    );
+    if result.failures == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
     }
 }
 

@@ -1,0 +1,79 @@
+[
+  {
+    "case": "flailing",
+    "composite": 0.2851,
+    "outcome": 1.0,
+    "cost_usd": 0.61,
+    "tokens": 9200
+  },
+  {
+    "case": "harnessed",
+    "composite": 0.6141,
+    "outcome": 1.0,
+    "cost_usd": 0.18,
+    "tokens": 2750
+  },
+  {
+    "case": "reactive-loop",
+    "composite": 0.0,
+    "outcome": 0.0,
+    "cost_usd": 0.93,
+    "tokens": 14000
+  },
+  {
+    "case": "real-ticket-001-v2",
+    "composite": 0.2402,
+    "outcome": 1.0,
+    "cost_usd": 0.2772,
+    "tokens": 106513
+  },
+  {
+    "case": "real-ticket-002-v2",
+    "composite": 0.2945,
+    "outcome": 1.0,
+    "cost_usd": 0.2903,
+    "tokens": 112411
+  },
+  {
+    "case": "real-ticket-003-v2",
+    "composite": 0.3614,
+    "outcome": 1.0,
+    "cost_usd": 0.7732,
+    "tokens": 291156
+  },
+  {
+    "case": "real-ticket-004-v2",
+    "composite": 0.4122,
+    "outcome": 1.0,
+    "cost_usd": 0.3447,
+    "tokens": 134212
+  },
+  {
+    "case": "real-ticket-005-v2",
+    "composite": 0.4896,
+    "outcome": 1.0,
+    "cost_usd": 0.4179,
+    "tokens": 162500
+  },
+  {
+    "case": "real-ticket-006-v2",
+    "composite": 0.4437,
+    "outcome": 1.0,
+    "cost_usd": 0.3322,
+    "tokens": 126907
+  },
+  {
+    "case": "real-ticket-007-v2",
+    "composite": 0.522,
+    "outcome": 1.0,
+    "cost_usd": 1.3143,
+    "tokens": 1841123
+  },
+  {
+    "case": "real-ticket-008-v2",
+    "composite": 0.9774,
+    "outcome": 1.0,
+    "cost_usd": 0.6971,
+    "tokens": 265897
+  }
+]

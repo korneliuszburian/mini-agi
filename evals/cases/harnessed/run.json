@@ -1,0 +1,17 @@
+{
+  "goal": "Add rate limiting to auth endpoint",
+  "scope": ["src/auth.ts", "tests/auth.test.ts"],
+  "outcome": {"achieved": true, "tests_pass": true, "typecheck_pass": true, "lint_pass": true},
+  "tokens_total": 2750,
+  "cost_usd": 0.18,
+  "golden": "spec-driven-tdd.json",
+  "trajectory": [
+    {"step": 1, "action": "read spec", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 20},
+    {"step": 2, "action": "read auth.ts", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 400, "output_tokens": 30},
+    {"step": 3, "action": "write test", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 40},
+    {"step": 4, "action": "write impl", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 600, "output_tokens": 50},
+    {"step": 5, "action": "make verify", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 20},
+    {"step": 6, "action": "write retro", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 400, "output_tokens": 30},
+    {"step": 7, "action": "make eval", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 250, "output_tokens": 20}
+  ]
+}

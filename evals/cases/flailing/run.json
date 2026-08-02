@@ -1,0 +1,16 @@
+{
+  "goal": "Add rate limiting to auth endpoint",
+  "scope": ["src/auth.ts", "tests/auth.test.ts"],
+  "outcome": {"achieved": true, "tests_pass": true, "typecheck_pass": true, "lint_pass": true},
+  "tokens_total": 9200,
+  "cost_usd": 0.61,
+  "golden": null,
+  "trajectory": [
+    {"step": 1, "action": "glob everywhere", "tool": "glob", "ok": true, "goal_aligned": true, "tokens": 900, "output_tokens": 40},
+    {"step": 2, "action": "write wrong file", "tool": "write", "ok": true, "goal_aligned": false, "tokens": 700, "output_tokens": 30},
+    {"step": 3, "action": "exec runaway loop", "tool": "exec", "ok": null, "goal_aligned": true, "tokens": 1100, "output_tokens": 60},
+    {"step": 4, "action": "revert cascade", "tool": "edit", "ok": true, "goal_aligned": true, "reverted": true, "tokens": 500, "output_tokens": 20},
+    {"step": 5, "action": "write test", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 600, "output_tokens": 30},
+    {"step": 6, "action": "make verify", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 20}
+  ]
+}
