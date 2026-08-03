@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 5fdd6a16150630b6
-# canonical_entries: 27
+# canonical_sha256: eaee0ecd04273be6
+# canonical_entries: 28
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -33,3 +33,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `5304dccffe981053` run real-ticket-007-v2-rerun is a strong run (composite >= 0.9).
 - `963cdf65fd1ed26b` run codex-exp-002-rerun scored composite 1.0000 on 18400 tokens (0.0900 USD) with 0 scope violations and 0 tool mismatches.
 - `8e2215c3473b8233` run codex-exp-002-rerun is a strong run (composite >= 0.9).
+- `3fd394b3848b62d7` gap codex-exp-002 closed by rerun codex-exp-002-rerun (composite 1.0000, verifier verified) — failure reflection: none recorded — success evidence: deterministic gate passed
