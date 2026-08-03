@@ -154,7 +154,7 @@ pub fn analyze_run(run_path: &Path, root: &Path) -> Result<(String, Vec<FailureE
         .map(|(tool, action, count, steps)| FailureEntry {
             hash: fact_id(&format!("{}|{}", tool, normalize_action(&action))),
             tool,
-            action,
+            action: normalize_action(&action),
             count,
             steps,
             case: case.clone(),

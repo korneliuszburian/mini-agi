@@ -172,7 +172,83 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
             .push("eval gate: no scoreable cases — skipped".into()),
     }
 
+    // 5. Memory-load validation (Phase 9 slice 6, Anthropic
+    // containment): persistent memory is a post-exploitation vector —
+    // scan canonical/derived fact bodies for suspicious patterns
+    // (machine-specific absolute paths in actions, injection markers).
+    let memory_dirs = [
+        root.join("memory/canonical/entries"),
+        root.join("memory/derived"),
+    ];
+    let suspicious: &[&str] = &["/home/", "/Users/", "; rm ", "eval("];
+    for dir in memory_dirs {
+        if !dir.is_dir() {
+            continue;
+        }
+        for path in walk_md(&dir) {
+            let Ok(text) = fs::read_to_string(&path) else {
+                continue;
+            };
+            for (i, line) in text.lines().enumerate() {
+                if line.trim_start().starts_with('#') {
+                    continue;
+                }
+                if suspicious.iter().any(|s| line.contains(s)) {
+                    report.findings.push(Finding {
+                        severity: "warn".into(),
+                        message: format!(
+                            "memory-load: {}:{} contains suspicious pattern ({})",
+                            path.display(),
+                            i + 1,
+                            suspicious
+                                .iter()
+                                .find(|s| line.contains(**s))
+                                .unwrap_or(&"")
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
+    // 6. Verifier attribution (Phase 9 slice 6, NIST audit trail): the
+    // last executed verifier commands — audit attribution for commands
+    // the kernel has run in target repos.
+    let attribution = crate::verifier::read_attribution(root).unwrap_or_default();
+    if attribution.is_empty() {
+        report
+            .passed
+            .push("attribution: no verifier commands executed yet".into());
+    } else {
+        report.passed.push(format!(
+            "attribution: {} verifier command(s) executed (see memory/episodic/verify.log)",
+            attribution.len()
+        ));
+        for row in attribution.iter().rev().take(3).rev() {
+            report.passed.push(format!(
+                "  {} | {} | {} | {}",
+                row.at, row.case, row.status, row.command
+            ));
+        }
+    }
+
     Ok(report)
+}
+
+fn walk_md(dir: &Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            out.extend(walk_md(&path));
+        } else if path.extension().is_some_and(|e| e == "md") {
+            out.push(path);
+        }
+    }
+    out
 }
 
 fn baseline_path_for(root: &Path) -> std::path::PathBuf {
@@ -227,6 +303,67 @@ mod tests {
         let report = audit(&root).unwrap();
         assert_eq!(report.verdict(), "OK", "{:?}", report.findings);
         assert!(!report.passed.is_empty());
+        let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod memory_load_tests {
+    use super::*;
+    use std::env;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = env::temp_dir().join(format!("mag-ml-{}-{}", tag, std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn audit_flags_absolute_paths_in_fact_bodies() {
+        let root = tmp_root("abs");
+        fs::create_dir_all(root.join("memory/canonical/entries/2026-08-03")).unwrap();
+        fs::write(
+            root.join("memory/canonical/entries/2026-08-03/2026-08-03-001.md"),
+            "# Canonical entry\n\n- domain: eval\n\n## F-000 `aa`\n\nexec wrote /home/krn/proj/x.py\n",
+        )
+        .unwrap();
+        let report = audit(&root).unwrap();
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.message.contains("memory-load") && f.message.contains("/home/")),
+            "{:?}",
+            report.findings
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn attribution_log_reported_by_audit() {
+        let root = tmp_root("attr");
+        fs::create_dir_all(root.join("memory/episodic")).unwrap();
+        crate::verifier::append_attribution(
+            &root,
+            &crate::verifier::VerifyAttribution {
+                at: "2026-08-03T00:00:00Z".into(),
+                case: "case-a".into(),
+                command: "make verify".into(),
+                target: "/tmp/t".into(),
+                status: "verified".into(),
+            },
+        )
+        .unwrap();
+        let report = audit(&root).unwrap();
+        assert!(
+            report
+                .passed
+                .iter()
+                .any(|p| p.contains("attribution: 1 verifier command(s) executed")),
+            "{:?}",
+            report.passed
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

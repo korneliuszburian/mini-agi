@@ -8,3 +8,4 @@
 {"at":"2026-08-03T21:09:41Z","case":"codex-exp-002-rerun","status":"verified","claimed":true,"composite":1.0,"exit":0}
 {"at":"2026-08-03T21:10:03Z","case":"codex-exp-002-rerun","status":"verified","claimed":true,"composite":1.0,"exit":0}
 {"at":"2026-08-03T21:10:14Z","case":"codex-exp-002-rerun","status":"verified","claimed":true,"composite":1.0,"exit":0}
+{"at":"2026-08-03T21:19:35Z","case":"flailing-rerun","status":"verified","claimed":true,"composite":0.0,"exit":0}

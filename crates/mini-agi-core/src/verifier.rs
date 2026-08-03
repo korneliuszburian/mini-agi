@@ -197,6 +197,62 @@ pub fn append_calibration(root: &Path, row: &CalibrationRow) -> std::io::Result<
     fs::write(&path, out)
 }
 
+/// Attribution log (Phase 9 slice 6, NIST audit-attribution): one line
+/// per executed verifier command appended to
+/// `memory/episodic/verify.log`. `run verify --dry-run` skips this.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VerifyAttribution {
+    /// ISO timestamp.
+    pub at: String,
+    /// Case name.
+    pub case: String,
+    /// The executed command.
+    pub command: String,
+    /// Target repo.
+    pub target: String,
+    /// Verifier status.
+    pub status: String,
+}
+
+/// Append one attribution row (JSON line).
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error.
+pub fn append_attribution(root: &Path, row: &VerifyAttribution) -> std::io::Result<()> {
+    let path = root.join("memory/episodic/verify.log");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let line = serde_json::to_string(row).map_err(std::io::Error::other)?;
+    let mut out = String::new();
+    if path.exists() {
+        out.push_str(&fs::read_to_string(&path)?);
+    }
+    out.push_str(&line);
+    out.push('\n');
+    fs::write(&path, out)
+}
+
+/// Read the attribution log (absent file = empty).
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error on unreadable files.
+pub fn read_attribution(root: &Path) -> std::io::Result<Vec<VerifyAttribution>> {
+    let text = fs::read_to_string(root.join("memory/episodic/verify.log"))?;
+    let mut out = Vec::new();
+    for line in text.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(row) = serde_json::from_str::<VerifyAttribution>(line) {
+            out.push(row);
+        }
+    }
+    Ok(out)
+}
+
 /// Read the calibration corpus (absent file = empty).
 ///
 /// # Errors

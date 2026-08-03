@@ -1,0 +1,1 @@
+{"at":"2026-08-03T21:19:35Z","case":"flailing-rerun","command":"npx tsc && node --test 'dist/tests/*.test.js'","target":"/tmp/opencode/rate-limit-2","status":"verified"}

@@ -141,6 +141,9 @@ enum RunAction {
     Verify {
         /// Path to the run file (evals/cases/<case>/run.json).
         run: PathBuf,
+        /// Print the verifier command without executing it.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Register repeated failing actions from a run.json (Reflexion).
     Failures {
@@ -437,7 +440,7 @@ fn main() -> ExitCode {
         },
         Command::Run(RunArgs { action }) => match action {
             RunAction::Ingest { run, retro } => cmd_run_ingest(&run, retro.as_deref()),
-            RunAction::Verify { run } => cmd_run_verify(&run),
+            RunAction::Verify { run, dry_run } => cmd_run_verify(&run, dry_run),
             RunAction::Failures { run } => cmd_run_failures(&run),
         },
         Command::Insights => cmd_insights(),
@@ -792,8 +795,22 @@ fn cmd_run_ingest(run: &Path, retro: Option<&Path>) -> ExitCode {
     }
 }
 
-fn cmd_run_verify(run: &Path) -> ExitCode {
+fn cmd_run_verify(run: &Path, dry_run: bool) -> ExitCode {
     let root = root();
+    if dry_run {
+        let text = match std::fs::read_to_string(run) {
+            Ok(t) => t,
+            Err(e) => return fail(&format!("cannot read {}: {e}", run.display())),
+        };
+        let parsed: serde_json::Value = match serde_json::from_str(&text) {
+            Ok(v) => v,
+            Err(e) => return fail(&format!("invalid run json: {e}")),
+        };
+        let cmd = parsed["verify_command"].as_str().unwrap_or("");
+        let target = parsed["verify_target"].as_str().unwrap_or("");
+        println!("dry-run: would execute '{cmd}' in '{target}' (no execution, no attribution)");
+        return ExitCode::SUCCESS;
+    }
     match mini_agi_core::verifier::verify_run(&root, run) {
         Ok(v) => {
             let _ = mini_agi_core::verifier::append_calibration(
@@ -807,6 +824,18 @@ fn cmd_run_verify(run: &Path) -> ExitCode {
                     exit: v.exit_code,
                 },
             );
+            if let (Some(command), Some(target)) = (&v.command, &v.target) {
+                let _ = mini_agi_core::verifier::append_attribution(
+                    &root,
+                    &mini_agi_core::verifier::VerifyAttribution {
+                        at: mini_agi_core::memory::utc_now_stamp(),
+                        case: v.case.clone(),
+                        command: command.clone(),
+                        target: target.clone(),
+                        status: v.status.clone(),
+                    },
+                );
+            }
             println!(
                 "verify {}: {} (exit {})",
                 v.case,

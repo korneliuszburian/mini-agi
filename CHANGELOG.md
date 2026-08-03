@@ -294,3 +294,12 @@ Intelligence" direction)
   reduction / NEUTRAL / REJECT on regression); a claim of fixing a
   failure never observed before the edit is rejected with evidence
   (Phantom Guardrails 2607.13083). Original always restored.
+### Added (Phase 9 — memory-load validation + audit attribution, slice 6)
+- audit scans canonical/derived fact bodies for suspicious patterns
+  (machine-specific absolute paths, injection markers) — memory as a
+  post-exploitation surface (Anthropic containment); flags surfaced.
+- audit reports executed verifier commands from memory/episodic/verify.log
+  (NIST audit-trail attribution); `run verify` appends each execution.
+- `run verify --dry-run` prints the command without executing.
+- failure register now STORES normalized actions (not just hashed) —
+  regenerated; 0 machine paths remain (portability rot removed).
