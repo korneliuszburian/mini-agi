@@ -229,3 +229,7 @@ Intelligence" direction)
   cross-links; the brief lists linked (important) facts first —
   importance learned from cross-referencing, canonical stays append-only
   (A-MEM 2502.12110 semantics, derived-only).
+### Added (Phase 8 — harness evolution)
+- `mini-agi harness`: versioned spec snapshot (docs/harness/HARNESS-*)
+  + ledger row with the frozen-suite gate verdict — pairwise eval over
+  the frozen suite, accepted only when green (RHI 2607.15524).

@@ -88,6 +88,8 @@ enum Command {
     /// Codex integration (Phase 8 slice 4, EXP-003): run codex on a
     /// slice spec, capture the transcript, emit a truthful run.json.
     Codex(CodexArgs),
+    /// Harness evolution (Phase 8 slice 7): versioned spec + ledger.
+    Harness,
 }
 
 #[derive(Args, Debug)]
@@ -417,6 +419,7 @@ fn main() -> ExitCode {
             workdir,
             run_out,
         }) => cmd_codex(&spec, &workdir, run_out.as_deref()),
+        Command::Harness => cmd_harness(),
         Command::Loop(LoopArgs { action }) => match action {
             LoopAction::Status => cmd_loop_status(),
             LoopAction::Dispatch {
@@ -594,6 +597,18 @@ fn cmd_codex(spec: &Path, workdir: &Path, run_out: Option<&Path>) -> ExitCode {
         Err(e) => return fail(&format!("cannot write run draft: {e}")),
     }
     ExitCode::SUCCESS
+}
+
+fn cmd_harness() -> ExitCode {
+    match mini_agi_core::harness::snapshot(&root()) {
+        Ok((name, verdict)) => {
+            println!("harness snapshot: {name}");
+            println!("  frozen suite: {verdict}");
+            println!("  ledger: docs/harness/ledger.md");
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("harness snapshot: {e}")),
+    }
 }
 
 fn cmd_loop_status() -> ExitCode {

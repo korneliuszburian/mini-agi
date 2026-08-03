@@ -10,6 +10,7 @@ pub mod capture;
 pub mod contract;
 pub mod eval;
 pub mod failure;
+pub mod harness;
 pub mod hash;
 pub mod health;
 pub mod insights;
