@@ -8,6 +8,9 @@ plan of record for the Rust rewrite. Charter: `docs/CHALLENGE.md` (verbatim,
 founding user prompt — never lose). ADRs: `docs/adr/ADR-0001..0004` (+
 inherited PoC ADR-0001..0012 semantics).
 
+Roadmap after COMPLETE: Phase 6 below (intelligence loop closure,
+ADR-0005 failure-signal loop — gaps are the plan; last update 2026-08-03).
+
 Three generations, one lineage (ADR-0001):
 - v1 `agentic-core` — loop proof; canonical facts = knowledge source.
 - v2 `mini-agi` (tag `v1-spec-reference`) — FROZEN behavioral spec: 82
@@ -192,6 +195,38 @@ mini-agi-rs/  (Cargo workspace)
 ### Phase 5 — Dogfood + productize
 - mini-agi runs its OWN tickets through itself (memory in `memory/`).
 - CLI polish, install path (`cargo install`), README, demo, versioning.
+
+### Phase 6 — Intelligence loop closure (ROADMAP, ADR-0005 failure-signal loop)
+Derived 2026-08-03 from the system's own measurements (`mini-agi insights`,
+`mini-agi backlog`). The failure signal IS the roadmap; targets are measured,
+not aspirational.
+
+1. **Failure register (Reflexion)** — closes TICKET-9 (`reactive-loop`
+   composite 0.0000: agent repeats the identical failing action 3x — edit
+   same line -> verify fail -> repeat — with zero reflection). The
+   "past-failure register +4.6% SWE-bench" decision in the table above was
+   never implemented in v3. Product slice: per-run failure register
+   (file+line+tool+action hash) surfaced through `resume`/brief so a fresh
+   session never repeats a recorded failure; trajectory scorer flags
+   repeated identical actions. Target: reactive-loop composite > 0.5 on
+   rerun.
+2. **Tool-mismatch reduction** — real-ticket-001..008 carry 4-6 tool
+   mismatches/run at composite 0.24-0.52 (tool_parity 0.85 penalty). Slice:
+   score tool usage against the real MCP tool catalog, fix description/
+   schema drift, re-run. Target: mismatches <= 1 per run.
+3. **Sandbox-first (v3 pipeline)** — the biggest declared gap in the
+   decision table ("Sandbox-first — our biggest gap"). ADR first, then
+   slice: run agents in an isolated sandbox; gate requires sandbox
+   evidence. Target: CI gate runs in-sandbox on master.
+4. **Proactive composition (intelligence layer 2)** — after 1-3:
+   orchestrate reads `insights` gaps and auto-selects the skill per gap
+   without a human ticket. Target: gap -> ticket -> slice -> rerun loop
+   without human routing.
+
+Acceptance for Phase 6 as a whole: `mini-agi insights` shows composite avg
+>= 0.60, zero open capability gaps, gate ALL GREEN, and the whole loop
+(reingest -> insights -> backlog -> implement -> rerun) demonstrated end to
+end on one real gap.
 
 ## Rejected (with reason)
 - Python for the product (user decision; PoC = spec only).
