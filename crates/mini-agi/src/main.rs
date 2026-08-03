@@ -270,6 +270,12 @@ enum EvalAction {
         /// Path to the run file (evals/cases/<case>/run.json).
         run: PathBuf,
     },
+    /// Process supervision: per-step verdicts + suspicious steps where
+    /// the step-level signal contradicts the outcome claim.
+    Steps {
+        /// Path to the run file (evals/cases/<case>/run.json).
+        run: PathBuf,
+    },
     /// Regression gate over all cases vs the committed baseline.
     Gate {
         /// Max allowed composite drop.
@@ -355,6 +361,7 @@ fn main() -> ExitCode {
         }
         Command::Eval(EvalArgs { action }) => match action {
             EvalAction::Score { run } => cmd_eval_score(&run),
+            EvalAction::Steps { run } => cmd_eval_steps(&run),
             EvalAction::Gate {
                 tolerance,
                 mismatch_tolerance,
@@ -1242,6 +1249,51 @@ fn cmd_eval_score(run: &Path) -> ExitCode {
     match eval::score_run(run, &root, &root.join("evals/golden")) {
         Ok(report) => {
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            ExitCode::SUCCESS
+        }
+        Err(EvalError::Read(e)) => fail(&format!("cannot read run file: {e}")),
+        Err(EvalError::GoldenRead(e)) => fail(&format!("cannot read golden file: {e}")),
+        Err(EvalError::Json(e)) => fail(&format!("invalid run json: {e}")),
+        Err(EvalError::InvalidField(f)) => fail(&format!("invalid run field '{f}'")),
+        Err(EvalError::Metadata(m)) => fail(&m),
+    }
+}
+
+fn cmd_eval_steps(run: &Path) -> ExitCode {
+    let root = root();
+    match eval::score_run(run, &root, &root.join("evals/golden")) {
+        Ok(report) => {
+            println!(
+                "process supervision for {} (outcome {}):",
+                report.case, report.dims.outcome
+            );
+            let text = std::fs::read_to_string(run).unwrap_or_default();
+            let run: eval::Run =
+                serde_json::from_str(&text).unwrap_or_else(|_| panic!("invalid run json: {text}"));
+            let verdicts = eval::score_steps(&run);
+            let suspicious: Vec<_> = verdicts.iter().filter(|v| v.suspicious).collect();
+            for v in &verdicts {
+                let flag = if v.suspicious {
+                    "  <-- SUSPICIOUS (judge budget)"
+                } else {
+                    ""
+                };
+                println!(
+                    "  step {} [{}] score {:.2}{}",
+                    v.step, v.tool, v.score, flag
+                );
+            }
+            println!(
+                "{}",
+                if suspicious.is_empty() {
+                    "no suspicious steps — step-level signal agrees with the outcome".to_string()
+                } else {
+                    format!(
+                        "{} suspicious step(s) — step/outcome divergence, allocate judge budget",
+                        suspicious.len()
+                    )
+                }
+            );
             ExitCode::SUCCESS
         }
         Err(EvalError::Read(e)) => fail(&format!("cannot read run file: {e}")),

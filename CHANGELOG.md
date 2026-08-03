@@ -220,3 +220,7 @@ Intelligence" direction)
   run.json draft output.
 - capture.rs parser validated against the real EXP-002 transcript;
   EXP-003 documented in docs/EXPERIMENTS.md.
+### Added (Phase 8 — process supervision)
+- `eval steps <run>`: per-step verdicts (step_score) + suspicious flags
+  where the step-level signal contradicts the outcome claim — active
+  judge-budget selection (Let's Verify Step by Step 2305.20050).

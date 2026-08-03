@@ -216,6 +216,55 @@ pub struct TrajectoryReport {
     pub efficiency_tokens_per_step: u64,
 }
 
+/// One step's process-supervision verdict (Phase 8 slice 5).
+///
+/// `suspicious` = the step-level signal contradicts the outcome-level
+/// claim — where a judge should spend budget (2305.20050).
+#[derive(Debug, Clone, PartialEq)]
+pub struct StepVerdict {
+    /// 1-based step index.
+    pub step: u32,
+    /// Tool used.
+    pub tool: String,
+    /// `step_score` of this step (0.0-1.0).
+    pub score: f64,
+    /// Whether this step is flagged for judge attention.
+    pub suspicious: bool,
+}
+
+/// Per-step process supervision for a run.
+///
+/// Heuristic (testable, deterministic): a step is suspicious when
+/// (a) the run claims success but the step explicitly admits
+/// misalignment (`goal_aligned == Some(false)`), or (b) the run claims
+/// failure but every step is clean — the failure is unexplained at the
+/// step level.
+#[must_use]
+pub fn score_steps(run: &Run) -> Vec<StepVerdict> {
+    let outcome_ok = outcome_score(run) > 0.0;
+    let all_clean = run
+        .trajectory
+        .iter()
+        .all(|s| s.ok != Some(false) && s.goal_aligned != Some(false));
+    run.trajectory
+        .iter()
+        .map(|s| {
+            let score = step_score(s);
+            let suspicious = if outcome_ok {
+                s.goal_aligned == Some(false)
+            } else {
+                all_clean
+            };
+            StepVerdict {
+                step: s.step,
+                tool: s.tool.clone(),
+                score,
+                suspicious,
+            }
+        })
+        .collect()
+}
+
 /// Score a trajectory (`PoC` `score_trajectory`).
 #[must_use]
 #[allow(
@@ -853,5 +902,81 @@ mod tests {
         let baseline = [gate_entry("case-a", 0.9, 1)];
         let result = run_gate(&entries, &baseline, 0.05, 1);
         assert_eq!(result.failures, 0);
+    }
+}
+
+#[cfg(test)]
+mod process_supervision_tests {
+    use super::*;
+
+    fn run_with(outcome_ok: bool, aligned_flags: &[Option<bool>]) -> Run {
+        let trajectory: Vec<Step> = aligned_flags
+            .iter()
+            .enumerate()
+            .map(|(i, aligned)| Step {
+                step: u32::try_from(i + 1).unwrap(),
+                action: String::new(),
+                tool: "exec".into(),
+                ok: Some(true),
+                goal_aligned: *aligned,
+                tokens: 0,
+                output_tokens: 0,
+                reverted: false,
+                note: String::new(),
+                paths: Vec::new(),
+            })
+            .collect();
+        Run {
+            goal: "g".into(),
+            scope: vec!["x".into()],
+            outcome: Outcome {
+                achieved: outcome_ok,
+                tests_pass: Some(outcome_ok),
+                typecheck_pass: Some(outcome_ok),
+                lint_pass: Some(outcome_ok),
+            },
+            tokens_total: 0,
+            cost_usd: 0.0,
+            golden: None,
+            verify_command: None,
+            verify_target: None,
+            reflection: None,
+            mast: None,
+            trajectory,
+            extra: serde_json::Map::new(),
+        }
+    }
+
+    #[test]
+    fn successful_run_flags_misaligned_step() {
+        let run = run_with(true, &[Some(true), Some(false), Some(true)]);
+        let verdicts = score_steps(&run);
+        assert_eq!(verdicts.len(), 3);
+        assert!(!verdicts[0].suspicious);
+        assert!(
+            verdicts[1].suspicious,
+            "misaligned step in a successful run"
+        );
+        assert!(!verdicts[2].suspicious);
+    }
+
+    #[test]
+    fn failed_run_with_all_clean_steps_is_unexplained() {
+        let run = run_with(false, &[Some(true), Some(true)]);
+        let verdicts = score_steps(&run);
+        assert!(
+            verdicts.iter().all(|v| v.suspicious),
+            "failure unexplained at step level"
+        );
+    }
+
+    #[test]
+    fn failed_run_with_explicit_bad_step_is_explained() {
+        let run = run_with(false, &[Some(true), Some(false)]);
+        let verdicts = score_steps(&run);
+        assert!(
+            !verdicts.iter().any(|v| v.suspicious),
+            "the bad step explains the failure"
+        );
     }
 }
