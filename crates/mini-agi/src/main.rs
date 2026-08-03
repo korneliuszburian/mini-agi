@@ -81,6 +81,8 @@ enum Command {
     Resume,
     /// Runtime observability: load, memory, process zoo, journal, claims.
     Health,
+    /// Repo invariants: provenance drift, baseline freshness, tree state.
+    Audit,
     /// Proactive composition loop (Phase 6.4): status/dispatch/verify.
     Loop(LoopArgs),
 }
@@ -381,6 +383,7 @@ fn main() -> ExitCode {
         Command::Backlog => cmd_backlog(),
         Command::Resume => cmd_resume(),
         Command::Health => cmd_health(),
+        Command::Audit => cmd_audit(),
         Command::Loop(LoopArgs { action }) => match action {
             LoopAction::Status => cmd_loop_status(),
             LoopAction::Dispatch {
@@ -428,6 +431,26 @@ fn cmd_health() -> ExitCode {
             }
         }
         Err(e) => fail(&format!("health: {e}")),
+    }
+}
+
+fn cmd_audit() -> ExitCode {
+    match mini_agi_core::audit::audit(&root()) {
+        Ok(report) => {
+            println!("AUDIT CHECK — {}", report.verdict());
+            for line in &report.passed {
+                println!("  [ok] {line}");
+            }
+            for finding in &report.findings {
+                println!("  [{}] {}", finding.severity, finding.message);
+            }
+            match report.verdict() {
+                "OK" => ExitCode::SUCCESS,
+                "WARN" => ExitCode::from(1),
+                _ => ExitCode::from(2),
+            }
+        }
+        Err(e) => fail(&format!("audit: {e}")),
     }
 }
 

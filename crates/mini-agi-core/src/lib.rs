@@ -5,6 +5,7 @@
 //! Library-only, zero I/O dependencies beyond the filesystem; the binary
 //! crate (mini-agi) is a thin shell exposing CLI + MCP server.
 
+pub mod audit;
 pub mod contract;
 pub mod eval;
 pub mod failure;

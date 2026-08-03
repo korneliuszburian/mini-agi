@@ -989,3 +989,14 @@ fn cli_health_reports_and_exits_zero_on_healthy_repo() {
     assert!(text.contains("no findings") || text.contains("[warn]") || text.contains("[critical]"));
     wipe(&root);
 }
+
+#[test]
+fn cli_audit_reports_invariants() {
+    let root = tmp_root("c27");
+    wipe(&root);
+    let audit = run(&root, &["audit"]);
+    assert!(audit.status.success(), "{}", combined(&audit));
+    let text = stdout(&audit);
+    assert!(text.contains("AUDIT CHECK"));
+    wipe(&root);
+}
