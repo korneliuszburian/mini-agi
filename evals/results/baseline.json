@@ -21,6 +21,13 @@
     "tokens": 14000
   },
   {
+    "case": "reactive-loop-rerun",
+    "composite": 0.7225,
+    "outcome": 1.0,
+    "cost_usd": 0.05,
+    "tokens": 10300
+  },
+  {
     "case": "real-ticket-001-v2",
     "composite": 0.2402,
     "outcome": 1.0,

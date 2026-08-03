@@ -15,3 +15,5 @@
 2026-08-03T08:23:07Z VERIFY-PASS t9-rerun @ f7bd630
 2026-08-03T08:26:36Z BEGIN t-mismatch -> bf51f15 (clean)
 2026-08-03T08:30:53Z VERIFY-PASS t-mismatch @ bf51f15
+2026-08-03T08:33:29Z BEGIN edit-eq-write -> 4b10819 (clean)
+2026-08-03T08:37:23Z VERIFY-PASS edit-eq-write @ 4b10819

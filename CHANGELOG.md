@@ -26,6 +26,20 @@ Intelligence" direction)
   the register tail so a fresh session never repeats a recorded failure.
   Detected on the real evals: reactive-loop (edit "edit same line" x2) and
   8 more across real-ticket-001..005.
+- Live rerun proof (Phase 6.1, closes TICKET-9): `reactive-loop-rerun`
+  case — same task/scope as reactive-loop, executed with the register
+  discipline (plan first, tests first, no repeated failing actions);
+  composite 0.0 -> 0.7225 on a real scratch project (TS + node:test,
+  9/9 tests green).
+- `mini-agi eval score` reports per-step tool mismatches
+  (`tool_mismatches_detail`: step, run_tool, golden_tool) — additive
+  diagnostic (Phase 6.2); mismatch count, D3 and composite unchanged.
+- ADR-0006: tool parity compares tool families — `write`/`edit` both
+  normalize to `file-modify`. Prospective comparability fix: the harness
+  can never emit `edit`, so a future `write` step vs an `edit` golden
+  was an unfixable penalty. Measured impact on existing cases: 0/32
+  mismatches were pure `write`↔`edit` pairs; baseline refreshed (adds
+  only `reactive-loop-rerun`).
 
 ### Fixed
 - Ticket ids follow the PoC contract exactly (`^TICKET-[0-9]+` via

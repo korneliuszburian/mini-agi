@@ -416,8 +416,19 @@ pub struct ToolMismatch {
     pub golden_tool: String,
 }
 
+/// Tool family for parity comparison (ADR-0006): `write` and `edit` both
+/// mean "modify a file" and normalize to one family; everything else
+/// normalizes to itself.
+#[must_use]
+pub fn tool_family(tool: &str) -> &str {
+    match tool {
+        "write" | "edit" => "file-modify",
+        other => other,
+    }
+}
+
 /// `D3`: tool-use score (golden parity + scope violations) and mismatch
-/// count (`PoC` `tool_score`).
+/// count (`PoC` `tool_score`; families per ADR-0006).
 #[must_use]
 #[allow(
     clippy::cast_possible_truncation,
@@ -433,7 +444,10 @@ pub fn tool_score(
     let mut mismatches = 0;
     let mut detail = Vec::new();
     for (i, step) in steps.iter().enumerate() {
-        if golden.get(i).is_some_and(|g| step.tool != g.tool) {
+        if golden
+            .get(i)
+            .is_some_and(|g| tool_family(&step.tool) != tool_family(&g.tool))
+        {
             mismatches += 1;
             detail.push(ToolMismatch {
                 step: i + 1,

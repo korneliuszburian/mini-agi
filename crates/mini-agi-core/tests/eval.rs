@@ -33,7 +33,7 @@ fn step(tool: &str, ok: Option<bool>, goal_aligned: Option<bool>) -> Step {
 }
 
 #[test]
-fn scores_reproduce_poc_baseline_on_all_11_cases() {
+fn scores_reproduce_poc_baseline_on_all_cases() {
     let root = repo_root();
     let cases = root.join("evals/cases");
     let golden = root.join("evals/golden");
@@ -47,6 +47,7 @@ fn scores_reproduce_poc_baseline_on_all_11_cases() {
         "flailing",
         "harnessed",
         "reactive-loop",
+        "reactive-loop-rerun",
         "real-ticket-001-v2",
         "real-ticket-002-v2",
         "real-ticket-003-v2",
