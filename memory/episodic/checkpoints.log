@@ -38,4 +38,4 @@
 2026-08-03T18:35:01Z BEGIN audit-cmd -> a23bb18 (clean)
 2026-08-03T18:38:35Z VERIFY-PASS audit-cmd @ a23bb18
 2026-08-03T18:48:19Z CHECKPOINT-ABORT phase7-close disallowed dirty paths: CHANGELOG.md
-2026-08-03T18:48:30Z VERIFY-PASS phase7-close @ 30c21ef
+2026-08-03T18:49:00Z STATUS phase7-close orphan VERIFY-PASS replaced (begin aborted on allowlist: CHANGELOG.md) — repaired by polish-fix

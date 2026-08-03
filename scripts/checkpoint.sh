@@ -30,7 +30,7 @@ case "${1:-}" in
     rev="$(git -C "$ROOT" rev-parse --short HEAD)"
     if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
       dirty_paths="$(git -C "$ROOT" status --porcelain | sed 's/^...//')"
-      disallowed_paths="$(printf '%s\n' "$dirty_paths" | awk '!/^(tickets\/|scripts\/|tests\/|memory\/|evals\/|docs\/|adr\/|artifacts\/|knowledge\/|\.agents\/|crates\/|Makefile$|AGENTS\.md$|CLAUDE\.md$|Cargo\.toml$|Cargo\.lock$|opencode\.json$|\.gitignore$)/')"
+      disallowed_paths="$(printf '%s\n' "$dirty_paths" | awk '!/^(tickets\/|scripts\/|tests\/|memory\/|evals\/|docs\/|adr\/|artifacts\/|knowledge\/|\.agents\/|crates\/|Makefile$|AGENTS\.md$|CLAUDE\.md$|CHANGELOG\.md$|Cargo\.toml$|Cargo\.lock$|opencode\.json$|\.gitignore$)/')"
       if [ -n "$disallowed_paths" ]; then
         echo "$(ts) CHECKPOINT-ABORT $label disallowed dirty paths: $disallowed_paths" >> "$JOURNAL"
         echo "checkpoint aborted: dirty paths outside the allowlist:" >&2
@@ -58,6 +58,13 @@ case "${1:-}" in
     ;;
   verify)
     label="${2:-step}"
+    # A VERIFY needs an open BEGIN (T008): refuse when the label has no
+    # BEGIN without a later VERIFY — begin may have aborted (allowlist),
+    # and journaling an orphan VERIFY-PASS breaks the cascade.
+    if ! awk -v label="$label" 'BEGIN{open=0;closed=0} /BEGIN/{if ($3==label) open=1} /VERIFY-PASS|VERIFY-FAIL/{if ($3==label) closed=1} END{exit !(open && !closed)}' "$JOURNAL" 2>/dev/null; then
+      echo "error: no open BEGIN for '$label' — did checkpoint.sh begin abort? (journal repair may be needed)" >&2
+      exit 1
+    fi
     # Re-verifying an already closed label would journal a duplicate
     # VERIFY-PASS without an open BEGIN — an audit anomaly that cannot
     # heal. Guard: run the verifier anyway (a closed label must not mask
