@@ -292,6 +292,48 @@ fn tool_definitions() -> Vec<Value> {
             params: &[],
             required: &[],
         },
+        ToolDef {
+            name: "loop_status",
+            description: "Proactive loop status: cases below target, tickets, claims, reruns.",
+            params: &[],
+            required: &[],
+        },
+        ToolDef {
+            name: "health",
+            description: "Runtime observability: load, memory, process zoo, journal, claims.",
+            params: &[],
+            required: &[],
+        },
+        ToolDef {
+            name: "audit",
+            description: "Repo invariants: provenance drift, baseline, tree, eval gate.",
+            params: &[],
+            required: &[],
+        },
+        ToolDef {
+            name: "ticket_claim",
+            description: "Claim a ticket (lease).",
+            params: &[("id", "string"), ("claimant", "string")],
+            required: &["id", "claimant"],
+        },
+        ToolDef {
+            name: "ticket_release",
+            description: "Release a claim (holder only).",
+            params: &[("id", "string"), ("claimant", "string")],
+            required: &["id", "claimant"],
+        },
+        ToolDef {
+            name: "ticket_claims",
+            description: "List held claims.",
+            params: &[],
+            required: &[],
+        },
+        ToolDef {
+            name: "ticket_graph",
+            description: "Print the dependency graph.",
+            params: &[],
+            required: &[],
+        },
     ];
     TOOLS
         .iter()
@@ -533,6 +575,100 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         },
         "resume" => match insights::resume(root) {
             Ok(block) => block,
+            Err(e) => format!("error: {e}"),
+        },
+        "loop_status" => match mini_agi_core::loopcmd::status(root) {
+            Ok(report) => {
+                let mut lines = vec![format!(
+                    "{} runs, composite avg {:.4}, {} cases below target",
+                    report.runs,
+                    report.composite_avg,
+                    report.cases.len()
+                )];
+                for row in &report.cases {
+                    lines.push(format!(
+                        "  {:.4}  {:<24} ticket={:?} lease={:?} rerun={:?}",
+                        row.composite, row.case, row.ticket, row.claimant, row.rerun_composite
+                    ));
+                }
+                lines.join("\n")
+            }
+            Err(e) => format!("error: {e}"),
+        },
+        "health" => match mini_agi_core::health::health(root) {
+            Ok(report) => {
+                let mut lines = vec![format!("HEALTH CHECK — {}", report.verdict())];
+                if let Some(load1) = report.load1 {
+                    lines.push(format!("  load1: {load1:.2} on {} cores", report.nproc));
+                }
+                if report.findings.is_empty() {
+                    lines.push("  no findings".to_string());
+                }
+                for finding in &report.findings {
+                    lines.push(format!("  [{}] {}", finding.severity, finding.message));
+                }
+                lines.join("\n")
+            }
+            Err(e) => format!("error: {e}"),
+        },
+        "audit" => match mini_agi_core::audit::audit(root) {
+            Ok(report) => {
+                let mut lines = vec![format!("AUDIT CHECK — {}", report.verdict())];
+                for line in &report.passed {
+                    lines.push(format!("  [ok] {line}"));
+                }
+                for finding in &report.findings {
+                    lines.push(format!("  [{}] {}", finding.severity, finding.message));
+                }
+                lines.join("\n")
+            }
+            Err(e) => format!("error: {e}"),
+        },
+        "ticket_claim" => {
+            let id = arg!("id");
+            let claimant = arg!("claimant");
+            match ticket::claim_ticket(root, id, claimant, false) {
+                Ok(claim) => format!(
+                    "claimed: {} by {} since {}",
+                    claim.ticket, claim.claimant, claim.since
+                ),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "ticket_release" => {
+            let id = arg!("id");
+            let claimant = arg!("claimant");
+            match ticket::release_ticket(root, id, claimant) {
+                Ok(()) => format!("released: {id}"),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "ticket_claims" => match ticket::read_claims(root) {
+            Ok(claims) => {
+                if claims.is_empty() {
+                    "no claims held".to_string()
+                } else {
+                    claims
+                        .iter()
+                        .map(|c| {
+                            format!("{} claimed by {} since {}", c.ticket, c.claimant, c.since)
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                }
+            }
+            Err(e) => format!("error: {e}"),
+        },
+        "ticket_graph" => match ticket::list_tickets(root) {
+            Ok(tickets) => tickets
+                .iter()
+                .flat_map(|t| {
+                    t.blocked_by
+                        .iter()
+                        .map(move |dep| format!("{dep} -> {}", t.id))
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
             Err(e) => format!("error: {e}"),
         },
         "ticket_show" | "ticket_validate" => {

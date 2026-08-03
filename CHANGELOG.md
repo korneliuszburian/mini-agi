@@ -233,3 +233,9 @@ Intelligence" direction)
 - `mini-agi harness`: versioned spec snapshot (docs/harness/HARNESS-*)
   + ledger row with the frozen-suite gate verdict — pairwise eval over
   the frozen suite, accepted only when green (RHI 2607.15524).
+### Added (Phase 8 — MCP completion)
+- MCP mirrors the full tool surface: loop_status, health, audit,
+  ticket_claim, ticket_release, ticket_claims, ticket_graph (29 tools).
+- Multi-root (AGENTIC_ROOT list) remains the open sub-item of slice 8:
+  deep refactor of root() across every command — deferred to keep the
+  marathon green; documented in PLAN.md.
