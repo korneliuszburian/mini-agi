@@ -87,6 +87,29 @@ fn claimant_for(root: &Path, ticket_id: &str) -> Option<String> {
         .map(|c| c.claimant)
 }
 
+/// Published time series (Phase 8 slice 3, Compounding-Test discipline):
+/// one row per closed gap appended to `docs/METRICS.md`.
+fn append_metrics(root: &Path, case: &str, composite: f64, tokens: u64) {
+    let path = root.join("docs/METRICS.md");
+    let _ = fs::create_dir_all(path.parent().unwrap_or(root));
+    let header = "| date | case | composite | tokens |\n| --- | --- | --- | --- |\n";
+    let row = format!(
+        "| {} | {} | {composite:.4} | {tokens} |\n",
+        crate::memory::utc_now_date(),
+        case
+    );
+    let existing = fs::read_to_string(&path).unwrap_or_default();
+    let body = if existing.contains("| date |") {
+        existing
+    } else {
+        header.to_string()
+    };
+    if body.contains(&format!("| {case} |")) {
+        return;
+    }
+    let _ = fs::write(&path, format!("{body}{row}"));
+}
+
 /// Composite of the rerun case `<case>-rerun`, when it exists.
 #[must_use]
 pub fn rerun_composite(root: &Path, case: &str) -> Option<f64> {
@@ -419,7 +442,28 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<String, String>
             ),
         }
     }
-    let closed = if report.composite >= TARGET_COMPOSITE && verified {
+    // Best-state regression bound (Phase 8 slice 3): the gate must have
+    // ZERO regressions for a close — a slice never displaces the frozen
+    // suite state (RSIBench-Data 2607.25886: preserve strong checkpoints).
+    let gate = crate::eval::run_gate(
+        &crate::eval::score_all_cases(&root.join("evals/cases"), root, &root.join("evals/golden"))
+            .map_err(|e| e.to_string())?,
+        &serde_json::from_str::<Vec<crate::eval::GateEntry>>(
+            &fs::read_to_string(root.join("evals/results/baseline.json"))
+                .map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?,
+        0.05,
+        1,
+    );
+    let gate_clean = gate.failures == 0;
+    if !gate_clean {
+        lines.push(format!(
+            "  gate regressions: {} — close blocked (best-state bound)",
+            gate.failures
+        ));
+    }
+    let closed = if report.composite >= TARGET_COMPOSITE && verified && gate_clean {
         if let Some(ticket) = ticket_for_case(root, base) {
             if claimant_for(root, &ticket.id).as_deref() == Some(claimant) {
                 ticket::release_ticket(root, &ticket.id, claimant)
@@ -435,26 +479,19 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<String, String>
                 ));
             }
         }
+        // Compounding-Test discipline: publish the measurement.
+        append_metrics(root, case, report.composite, report.tokens_total);
         true
     } else {
-        lines.push(if verified {
-            format!("  gap open: composite below {TARGET_COMPOSITE} — keep working")
-        } else {
+        lines.push(if !verified {
             "  gap open: deterministic verifier disagrees — outcome untrusted, keep working".into()
+        } else if !gate_clean {
+            "  gap open: gate regressions — best-state bound holds".into()
+        } else {
+            format!("  gap open: composite below {TARGET_COMPOSITE} — keep working")
         });
         false
     };
-    let gate = crate::eval::run_gate(
-        &crate::eval::score_all_cases(&root.join("evals/cases"), root, &root.join("evals/golden"))
-            .map_err(|e| e.to_string())?,
-        &serde_json::from_str::<Vec<crate::eval::GateEntry>>(
-            &fs::read_to_string(root.join("evals/results/baseline.json"))
-                .map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?,
-        0.05,
-        1,
-    );
     lines.push(format!(
         "  eval gate: {} regressions across {} cases",
         gate.failures, gate.case_count

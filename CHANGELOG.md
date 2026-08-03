@@ -207,3 +207,9 @@ Intelligence" direction)
   the case with reflections and classifications.
 - reactive-loop fixture now carries its reflection + FM-1.3
   classification (the canonical Reflexion example).
+### Added (Phase 8 — best-state regression bound + metrics series)
+- `loop verify` closes a gap only when composite >= 0.5 AND the
+  verifier passes AND the eval gate has ZERO regressions — a slice never
+  displaces the frozen suite state (RSIBench-Data discipline).
+- Every close appends a row to docs/METRICS.md (date, case, composite,
+  tokens) — the published Compounding-Test time series.
