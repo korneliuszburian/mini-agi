@@ -193,9 +193,18 @@ enum EvalAction {
         /// Max allowed composite drop.
         #[arg(long, default_value_t = 0.05)]
         tolerance: f64,
+        /// Max allowed tool-mismatch growth per case vs baseline.
+        #[arg(long, default_value_t = 1)]
+        mismatch_tolerance: usize,
         /// Snapshot current results as the new baseline.
         #[arg(long)]
         write_baseline: bool,
+    },
+    /// Record tool mismatches vs the golden into the mismatch register
+    /// (one run, or all cases under evals/cases when omitted).
+    Mismatches {
+        /// Path to the run file (defaults to every case).
+        run: Option<PathBuf>,
     },
 }
 
@@ -266,8 +275,10 @@ fn main() -> ExitCode {
             EvalAction::Score { run } => cmd_eval_score(&run),
             EvalAction::Gate {
                 tolerance,
+                mismatch_tolerance,
                 write_baseline,
-            } => cmd_eval_gate(tolerance, write_baseline),
+            } => cmd_eval_gate(tolerance, mismatch_tolerance, write_baseline),
+            EvalAction::Mismatches { run } => cmd_eval_mismatches(run.as_deref()),
         },
         Command::Skill(SkillArgs { action }) => match action {
             SkillAction::List => cmd_skill_list(),
@@ -371,6 +382,65 @@ fn cmd_run_failures(run: &Path) -> ExitCode {
         }
         Err(msg) => fail(&msg),
     }
+}
+
+fn cmd_eval_mismatches(run: Option<&Path>) -> ExitCode {
+    let root = root();
+    let golden = root.join("evals/golden");
+    let mut runs: Vec<std::path::PathBuf> = Vec::new();
+    if let Some(run) = run {
+        runs.push(run.to_path_buf());
+    } else {
+        match std::fs::read_dir(root.join("evals/cases")) {
+            Ok(entries) => {
+                let mut dirs: Vec<_> = entries
+                    .filter_map(Result::ok)
+                    .map(|e| e.path().join("run.json"))
+                    .filter(|p| p.exists())
+                    .collect();
+                dirs.sort();
+                runs = dirs;
+            }
+            Err(e) => return fail(&format!("cannot list evals/cases: {e}")),
+        }
+    }
+    if runs.is_empty() {
+        return fail("no run.json files found");
+    }
+    let mut any = false;
+    for run_path in runs {
+        match mini_agi_core::mismatch::analyze_run(&run_path, &golden, &root) {
+            Ok((case, entries)) => {
+                if entries.is_empty() {
+                    println!("no tool mismatches in {case}");
+                    continue;
+                }
+                any = true;
+                for e in &entries {
+                    println!(
+                        "{} step {}: golden expects {}, used {} ({})",
+                        e.case, e.step, e.golden_tool, e.run_tool, e.hash
+                    );
+                }
+                match mini_agi_core::mismatch::update_register(&root, &entries) {
+                    Ok(total) => {
+                        println!(
+                            "recorded {} tool mismatches in {case} (register: {}, {} total)",
+                            entries.len(),
+                            mini_agi_core::mismatch::register_path(&root).display(),
+                            total
+                        );
+                    }
+                    Err(e) => return fail(&format!("cannot update mismatch register: {e}")),
+                }
+            }
+            Err(msg) => return fail(&msg),
+        }
+    }
+    if !any {
+        println!("no tool mismatches in any case");
+    }
+    ExitCode::SUCCESS
 }
 
 /// Shared by the CLI and the MCP server (no stdout pollution in server
@@ -689,14 +759,15 @@ fn cmd_eval_score(run: &Path) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(EvalError::Read(e)) => fail(&format!("cannot read run file: {e}")),
+        Err(EvalError::GoldenRead(e)) => fail(&format!("cannot read golden file: {e}")),
         Err(EvalError::Json(e)) => fail(&format!("invalid run json: {e}")),
         Err(EvalError::InvalidField(f)) => fail(&format!("invalid run field '{f}'")),
         Err(EvalError::Metadata(m)) => fail(&m),
     }
 }
 
-fn cmd_eval_gate(tolerance: f64, write_baseline: bool) -> ExitCode {
-    match eval_gate_text(&root(), tolerance, write_baseline) {
+fn cmd_eval_gate(tolerance: f64, mismatch_tolerance: usize, write_baseline: bool) -> ExitCode {
+    match eval_gate_text(&root(), tolerance, mismatch_tolerance, write_baseline) {
         Ok(text) => {
             println!("{text}");
             ExitCode::SUCCESS
@@ -708,7 +779,12 @@ fn cmd_eval_gate(tolerance: f64, write_baseline: bool) -> ExitCode {
     }
 }
 
-fn eval_gate_text(root: &Path, tolerance: f64, write_baseline: bool) -> Result<String, String> {
+fn eval_gate_text(
+    root: &Path,
+    tolerance: f64,
+    mismatch_tolerance: usize,
+    write_baseline: bool,
+) -> Result<String, String> {
     let cases_dir = root.join("evals/cases");
     let golden_dir = root.join("evals/golden");
     let baseline_path = root.join("evals/results/baseline.json");
@@ -740,7 +816,7 @@ fn eval_gate_text(root: &Path, tolerance: f64, write_baseline: bool) -> Result<S
     })?;
     let baseline: Vec<eval::GateEntry> =
         serde_json::from_str(&text).map_err(|_| "baseline malformed".to_string())?;
-    let result = eval::run_gate(&entries, &baseline, tolerance);
+    let result = eval::run_gate(&entries, &baseline, tolerance, mismatch_tolerance);
     let mut lines = result.messages.clone();
     let verdict = if result.failures == 0 { "PASS" } else { "FAIL" };
     lines.push(format!(

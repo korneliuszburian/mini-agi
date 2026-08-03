@@ -381,8 +381,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         }
         "eval_gate" => {
             let tolerance = arg_f64(args, "tolerance").unwrap_or(0.05);
+            let mismatch_tolerance =
+                usize::try_from(arg_u64(args, "mismatch_tolerance").unwrap_or(1)).unwrap_or(1);
             let write_baseline = arg_bool(args, "write_baseline");
-            match super::eval_gate_text(root, tolerance, write_baseline) {
+            match super::eval_gate_text(root, tolerance, mismatch_tolerance, write_baseline) {
                 Ok(text) => text,
                 Err(msg) => format!("error: {msg}"),
             }

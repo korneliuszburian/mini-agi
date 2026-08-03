@@ -34,6 +34,9 @@ pub enum EvalError {
     /// The run file could not be read.
     #[error("cannot read run file: {0}")]
     Read(#[from] std::io::Error),
+    /// The golden trajectory file could not be read.
+    #[error("cannot read golden file: {0}")]
+    GoldenRead(std::io::Error),
     /// The run JSON failed to parse.
     #[error("invalid run json: {0}")]
     Json(#[from] serde_json::Error),
@@ -510,7 +513,7 @@ fn round4(value: f64) -> f64 {
 ///
 /// Returns [`EvalError`] when the file is missing or malformed.
 pub fn load_golden(golden_dir: &Path, name: &str) -> Result<Vec<Step>, EvalError> {
-    let text = fs::read_to_string(golden_dir.join(name))?;
+    let text = fs::read_to_string(golden_dir.join(name)).map_err(EvalError::GoldenRead)?;
     Ok(serde_json::from_str(&text)?)
 }
 
@@ -589,6 +592,10 @@ pub struct GateEntry {
     pub cost_usd: f64,
     /// Tokens.
     pub tokens: u64,
+    /// Tool mismatches vs the golden trajectory (absent in baselines
+    /// written before ADR-0006's gate wiring; defaults to 0).
+    #[serde(default)]
+    pub tool_mismatches: usize,
 }
 
 /// Score every case under `cases_dir` for the gate (sorted by name).
@@ -619,6 +626,7 @@ pub fn score_all_cases(
             outcome: report.dims.outcome,
             cost_usd: report.cost_usd,
             tokens: report.tokens_total,
+            tool_mismatches: report.tool_mismatches_vs_golden,
         });
     }
     Ok(entries)
@@ -627,7 +635,8 @@ pub fn score_all_cases(
 /// Result of a gate run.
 #[derive(Debug)]
 pub struct GateResult {
-    /// One message per case: NEW CASE, REGRESSION, or COST REGRESSION.
+    /// One message per case: NEW CASE, REGRESSION, TOOL REGRESSION, or
+    /// COST REGRESSION.
     pub messages: Vec<String>,
     /// Number of regressions found.
     pub failures: usize,
@@ -636,8 +645,17 @@ pub struct GateResult {
 }
 
 /// Run the regression gate against a committed baseline (`PoC` `gate.py`).
+///
+/// `mismatch_tolerance` allows tool mismatches to grow by up to that many
+/// before the gate fails (ADR-0006 wiring; Phase 6.2: mismatch regression
+/// is a hard signal).
 #[must_use]
-pub fn run_gate(entries: &[GateEntry], baseline: &[GateEntry], tolerance: f64) -> GateResult {
+pub fn run_gate(
+    entries: &[GateEntry],
+    baseline: &[GateEntry],
+    tolerance: f64,
+    mismatch_tolerance: usize,
+) -> GateResult {
     let mut messages = Vec::new();
     let mut failures = 0;
     let base: std::collections::HashMap<&str, &GateEntry> =
@@ -651,6 +669,13 @@ pub fn run_gate(entries: &[GateEntry], baseline: &[GateEntry], tolerance: f64) -
                     messages.push(format!(
                         "REGRESSION {}: composite {} -> {}",
                         entry.case, b.composite, entry.composite
+                    ));
+                    failures += 1;
+                }
+                if entry.tool_mismatches > b.tool_mismatches + mismatch_tolerance {
+                    messages.push(format!(
+                        "TOOL REGRESSION {}: mismatches {} -> {}",
+                        entry.case, b.tool_mismatches, entry.tool_mismatches
                     ));
                     failures += 1;
                 }
@@ -767,5 +792,35 @@ mod tests {
             "outside/unowned.py",
             &["artifacts/TICKET-004-v2".to_string()]
         ));
+    }
+
+    fn gate_entry(case: &str, composite: f64, mismatches: usize) -> GateEntry {
+        GateEntry {
+            case: case.to_string(),
+            composite,
+            outcome: 1.0,
+            cost_usd: 0.1,
+            tokens: 1000,
+            tool_mismatches: mismatches,
+        }
+    }
+
+    #[test]
+    fn gate_flags_tool_mismatch_growth_beyond_tolerance() {
+        let entries = [gate_entry("case-a", 0.9, 4)];
+        let baseline = [gate_entry("case-a", 0.9, 1)];
+        let bad = run_gate(&entries, &baseline, 0.05, 1);
+        assert_eq!(bad.failures, 1);
+        assert!(bad.messages[0].starts_with("TOOL REGRESSION case-a: mismatches 1 -> 4"));
+        let zero_tolerance = run_gate(&entries, &baseline, 0.05, 0);
+        assert_eq!(zero_tolerance.failures, 1);
+    }
+
+    #[test]
+    fn gate_tolerates_grown_mismatches_within_tolerance() {
+        let entries = [gate_entry("case-a", 0.9, 2)];
+        let baseline = [gate_entry("case-a", 0.9, 1)];
+        let result = run_gate(&entries, &baseline, 0.05, 1);
+        assert_eq!(result.failures, 0);
     }
 }

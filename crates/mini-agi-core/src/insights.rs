@@ -447,6 +447,27 @@ pub fn resume(root: &Path) -> Result<String, io::Error> {
             );
         }
     }
+    if let Ok(mismatches) = crate::mismatch::read_register(root)
+        && !mismatches.is_empty()
+    {
+        use std::fmt::Write as _;
+        let cases: std::collections::BTreeSet<&str> =
+            mismatches.iter().map(|e| e.case.as_str()).collect();
+        let _ = writeln!(
+            out,
+            "tool mismatch register: {} divergences in {} cases — golden expects ({}) — match the golden step shape:",
+            mismatches.len(),
+            cases.len(),
+            crate::mismatch::register_path(root).display()
+        );
+        for entry in mismatches.iter().rev().take(5).rev() {
+            let _ = writeln!(
+                out,
+                "  {} step {}: golden expects {}, used {}",
+                entry.case, entry.step, entry.golden_tool, entry.run_tool
+            );
+        }
+    }
     Ok(out)
 }
 

@@ -4,83 +4,95 @@
     "composite": 0.2851,
     "outcome": 1.0,
     "cost_usd": 0.61,
-    "tokens": 9200
+    "tokens": 9200,
+    "tool_mismatches": 0
   },
   {
     "case": "harnessed",
     "composite": 0.6141,
     "outcome": 1.0,
     "cost_usd": 0.18,
-    "tokens": 2750
+    "tokens": 2750,
+    "tool_mismatches": 0
   },
   {
     "case": "reactive-loop",
     "composite": 0.0,
     "outcome": 0.0,
     "cost_usd": 0.93,
-    "tokens": 14000
+    "tokens": 14000,
+    "tool_mismatches": 0
   },
   {
     "case": "reactive-loop-rerun",
     "composite": 0.7225,
     "outcome": 1.0,
     "cost_usd": 0.05,
-    "tokens": 10300
+    "tokens": 10300,
+    "tool_mismatches": 0
   },
   {
     "case": "real-ticket-001-v2",
     "composite": 0.2402,
     "outcome": 1.0,
     "cost_usd": 0.2772,
-    "tokens": 106513
+    "tokens": 106513,
+    "tool_mismatches": 4
   },
   {
     "case": "real-ticket-002-v2",
     "composite": 0.2945,
     "outcome": 1.0,
     "cost_usd": 0.2903,
-    "tokens": 112411
+    "tokens": 112411,
+    "tool_mismatches": 4
   },
   {
     "case": "real-ticket-003-v2",
     "composite": 0.3614,
     "outcome": 1.0,
     "cost_usd": 0.7732,
-    "tokens": 291156
+    "tokens": 291156,
+    "tool_mismatches": 6
   },
   {
     "case": "real-ticket-004-v2",
     "composite": 0.4122,
     "outcome": 1.0,
     "cost_usd": 0.3447,
-    "tokens": 134212
+    "tokens": 134212,
+    "tool_mismatches": 5
   },
   {
     "case": "real-ticket-005-v2",
     "composite": 0.4896,
     "outcome": 1.0,
     "cost_usd": 0.4179,
-    "tokens": 162500
+    "tokens": 162500,
+    "tool_mismatches": 4
   },
   {
     "case": "real-ticket-006-v2",
     "composite": 0.4437,
     "outcome": 1.0,
     "cost_usd": 0.3322,
-    "tokens": 126907
+    "tokens": 126907,
+    "tool_mismatches": 5
   },
   {
     "case": "real-ticket-007-v2",
     "composite": 0.522,
     "outcome": 1.0,
     "cost_usd": 1.3143,
-    "tokens": 1841123
+    "tokens": 1841123,
+    "tool_mismatches": 4
   },
   {
     "case": "real-ticket-008-v2",
     "composite": 0.9774,
     "outcome": 1.0,
     "cost_usd": 0.6971,
-    "tokens": 265897
+    "tokens": 265897,
+    "tool_mismatches": 0
   }
 ]

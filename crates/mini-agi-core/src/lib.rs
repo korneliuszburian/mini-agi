@@ -13,6 +13,7 @@ pub mod insights;
 pub mod journal;
 pub mod memory;
 pub mod metrics;
+pub mod mismatch;
 pub mod skills;
 pub mod store;
 pub mod ticket;

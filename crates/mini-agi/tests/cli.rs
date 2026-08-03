@@ -808,3 +808,48 @@ fn cli_run_failures_writes_register_and_resume_shows_block() {
     assert!(resume_text.contains("do not repeat"));
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_mismatches_writes_register_and_resume_shows_block() {
+    let root = tmp_root("c23");
+    wipe(&root);
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    std::fs::create_dir_all(root.join("evals/cases/real-ticket-001-v2")).unwrap();
+    std::fs::copy(
+        repo.join("evals/cases/real-ticket-001-v2/run.json"),
+        root.join("evals/cases/real-ticket-001-v2/run.json"),
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::copy(
+        repo.join("evals/golden/real-ticket-validate.json"),
+        root.join("evals/golden/real-ticket-validate.json"),
+    )
+    .unwrap();
+    let run_path = root.join("evals/cases/real-ticket-001-v2/run.json");
+    let first = run(&root, &["eval", "mismatches", run_path.to_str().unwrap()]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let text = stdout(&first);
+    assert!(text.contains("real-ticket-001-v2 step 2: golden expects write, used exec"));
+    assert!(text.contains("recorded 4 tool mismatches"));
+    let register = root.join("memory/derived/mismatches.md");
+    assert!(register.is_file());
+    let second = run(&root, &["eval", "mismatches", run_path.to_str().unwrap()]);
+    assert!(second.status.success());
+    assert!(stdout(&second).contains("recorded 4 tool mismatches"));
+    let resume = run(&root, &["resume"]);
+    assert!(resume.status.success());
+    let resume_text = stdout(&resume);
+    assert!(resume_text.contains("tool mismatch register: 4 divergences in 1 cases"));
+    assert!(resume_text.contains("golden expects write, used exec"));
+    wipe(&root);
+}

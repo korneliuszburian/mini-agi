@@ -40,6 +40,18 @@ Intelligence" direction)
   was an unfixable penalty. Measured impact on existing cases: 0/32
   mismatches were pure `write`↔`edit` pairs; baseline refreshed (adds
   only `reactive-loop-rerun`).
+- Tool-mismatch loop closure (Phase 6.2): `mini-agi eval mismatches
+  [<run>]` records per-step divergences (case, step, run_tool,
+  golden_tool) into `memory/derived/mismatches.md` (deterministic,
+  idempotent, derived — never hand-edited); `resume` shows the register
+  tail so the next session matches the golden step shape. Generated from
+  the real evals: 32 divergences across 7 cases.
+- The eval gate now fails on tool-mismatch growth: `GateEntry` carries
+  `tool_mismatches`, `run_gate` flags `TOOL REGRESSION` beyond
+  `--mismatch-tolerance` (default 1); `baseline.json` refreshed with the
+  column (old baselines default to 0).
+- `eval score`/`eval mismatches` distinguish a missing golden file:
+  `cannot read golden file` instead of the misleading run-file error.
 
 ### Fixed
 - Ticket ids follow the PoC contract exactly (`^TICKET-[0-9]+` via
