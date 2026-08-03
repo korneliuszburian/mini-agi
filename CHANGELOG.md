@@ -7,6 +7,17 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ### Added (intelligence layer, ADR-0005 — Sequoia "From Hierarchy to
 Intelligence" direction)
+- Work graph (ADR-0008, Yegge "Shape of Things to Come" direction):
+  tickets gain optional `blocked_by` deps (frontmatter/JSON/bullet
+  forms); `ticket validate-graph` checks dangling edges + cycles;
+  `ticket graph` prints the edge set; `ticket claim/release/claims`
+  implement lease semantics in `tickets/claims.md` — claim fails when
+  another claimant holds the ticket or an open dependency blocks it
+  (unless `--force`).
+- Yegge essay (Shape of Things to Come Part 1 + Gas Town) ingested into
+  canonical memory (domain: strategy): convergent harness shape,
+  Beads-ledger primitives, CI/CD pigeonhole collapse, Land Rush,
+  agentic review, model welfare. 9 facts.
 - `mini-agi run ingest <run.json> [--retro]` — scored runs compound into
   canonical memory (idempotent); retro bullets become facts.
 - `mini-agi insights` — compounding report (runs, tokens/cost, per-case

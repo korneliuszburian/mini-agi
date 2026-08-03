@@ -124,6 +124,31 @@ enum TicketAction {
         /// Ticket id.
         id: String,
     },
+    /// Validate the dependency graph (edges resolve, no cycles).
+    ValidateGraph,
+    /// Print the dependency graph (ADR-0008 work graph).
+    Graph,
+    /// Claim a ticket (lease; fails if blocked by an open ticket).
+    Claim {
+        /// Ticket id.
+        id: String,
+        /// Claimant name (default: current user).
+        #[arg(long, default_value = "local")]
+        claimant: String,
+        /// Claim even with open `blocked_by` deps.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Release a claim (only the holder can release).
+    Release {
+        /// Ticket id.
+        id: String,
+        /// Claimant name.
+        #[arg(long, default_value = "local")]
+        claimant: String,
+    },
+    /// List all held claims.
+    Claims,
 }
 
 #[derive(Args, Debug)]
@@ -303,6 +328,15 @@ fn main() -> ExitCode {
             TicketAction::List => cmd_ticket_list(),
             TicketAction::Show { id } => cmd_ticket_show(&id),
             TicketAction::Validate { id } => cmd_ticket_validate(&id),
+            TicketAction::ValidateGraph => cmd_ticket_validate_graph(),
+            TicketAction::Graph => cmd_ticket_graph(),
+            TicketAction::Claim {
+                id,
+                claimant,
+                force,
+            } => cmd_ticket_claim(&id, &claimant, force),
+            TicketAction::Release { id, claimant } => cmd_ticket_release(&id, &claimant),
+            TicketAction::Claims => cmd_ticket_claims(),
         },
         Command::Run(RunArgs { action }) => match action {
             RunAction::Ingest { run, retro } => cmd_run_ingest(&run, retro.as_deref()),
@@ -496,7 +530,24 @@ fn cmd_ticket_list() -> ExitCode {
     match ticket::list_tickets(&root()) {
         Ok(tickets) => {
             for t in &tickets {
-                println!("{}  {}  scope: {}", t.id, t.title, t.scope.join(", "));
+                let deps = if t.blocked_by.is_empty() {
+                    String::new()
+                } else {
+                    format!("  blocked_by: {}", t.blocked_by.join(", "))
+                };
+                let status = if t.status == "OPEN" {
+                    String::new()
+                } else {
+                    format!("  [{}]", t.status)
+                };
+                println!(
+                    "{}  {}{}  scope: {}{}",
+                    t.id,
+                    t.title,
+                    status,
+                    t.scope.join(", "),
+                    deps
+                );
             }
             ExitCode::SUCCESS
         }
@@ -511,6 +562,8 @@ fn cmd_ticket_show(id: &str) -> ExitCode {
             println!("title: {}", t.title);
             println!("goal: {}", t.goal);
             println!("scope: {}", t.scope.join(", "));
+            println!("status: {}", t.status);
+            println!("blocked_by: {}", t.blocked_by.join(", "));
             ExitCode::SUCCESS
         }
         Err(e) => fail(&e.to_string()),
@@ -527,6 +580,100 @@ fn cmd_ticket_validate(id: &str) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => fail(&e.to_string()),
+    }
+}
+
+fn cmd_ticket_validate_graph() -> ExitCode {
+    let root = root();
+    let mut problems = Vec::new();
+    if let Ok(tickets) = ticket::list_tickets(&root) {
+        for t in &tickets {
+            if t.status != "OPEN" && t.status != "CLOSED" {
+                problems.push(format!("{}: unknown status '{}'", t.id, t.status));
+            }
+        }
+    }
+    match ticket::validate_graph(&root) {
+        Ok(graph_problems) => {
+            problems.extend(graph_problems);
+            if problems.is_empty() {
+                println!("ok: dependency graph valid ({} tickets)", {
+                    ticket::list_tickets(&root).map_or(0, |v| v.len())
+                });
+                ExitCode::SUCCESS
+            } else {
+                for p in &problems {
+                    println!("problem: {p}");
+                }
+                ExitCode::from(1)
+            }
+        }
+        Err(e) => fail(&format!("cannot validate graph: {e}")),
+    }
+}
+
+fn cmd_ticket_graph() -> ExitCode {
+    let root = root();
+    match ticket::list_tickets(&root) {
+        Ok(tickets) => {
+            let mut edges = 0;
+            for t in &tickets {
+                for dep in &t.blocked_by {
+                    println!("{dep} -> {}", t.id);
+                    edges += 1;
+                }
+            }
+            println!(
+                "graph: {} tickets, {} edges{}",
+                tickets.len(),
+                edges,
+                if edges == 0 { " (no dependencies)" } else { "" }
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot list tickets: {e}")),
+    }
+}
+
+fn cmd_ticket_claim(id: &str, claimant: &str, force: bool) -> ExitCode {
+    let root = root();
+    match ticket::claim_ticket(&root, id, claimant, force) {
+        Ok(claim) => {
+            println!(
+                "claimed: {} by {} since {}",
+                claim.ticket, claim.claimant, claim.since
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&e.to_string()),
+    }
+}
+
+fn cmd_ticket_release(id: &str, claimant: &str) -> ExitCode {
+    let root = root();
+    match ticket::release_ticket(&root, id, claimant) {
+        Ok(()) => {
+            println!("released: {id}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&e.to_string()),
+    }
+}
+
+fn cmd_ticket_claims() -> ExitCode {
+    let root = root();
+    match ticket::read_claims(&root) {
+        Ok(claims) => {
+            if claims.is_empty() {
+                println!("no claims held");
+            } else {
+                for c in &claims {
+                    println!("{} claimed by {} since {}", c.ticket, c.claimant, c.since);
+                }
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot read claims: {e}")),
     }
 }
 

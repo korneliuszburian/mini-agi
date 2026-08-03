@@ -29,6 +29,16 @@ pub struct Ticket {
     pub goal: String,
     /// Scope entries (path prefixes/globs the work may touch).
     pub scope: Vec<String>,
+    /// Ids of tickets this one depends on (ADR-0008 work graph).
+    #[serde(default)]
+    pub blocked_by: Vec<String>,
+    /// Lifecycle status: OPEN (default) or CLOSED (parsed from the file).
+    #[serde(default = "default_status")]
+    pub status: String,
+}
+
+fn default_status() -> String {
+    "OPEN".into()
 }
 
 /// Ticket lifecycle errors.
@@ -199,7 +209,9 @@ fn parse_frontmatter_ticket(text: &str) -> Result<Ticket, TicketError> {
     let frontmatter = &rest[..block];
     let mut fields = std::collections::HashMap::new();
     let mut scope_items: Vec<String> = Vec::new();
+    let mut blocked_items: Vec<String> = Vec::new();
     let mut in_scope_list = false;
+    let mut in_blocked_list = false;
     for line in frontmatter.lines() {
         if in_scope_list {
             if let Some(item) = line.trim_start().strip_prefix("- ") {
@@ -211,6 +223,16 @@ fn parse_frontmatter_ticket(text: &str) -> Result<Ticket, TicketError> {
             }
             in_scope_list = false;
         }
+        if in_blocked_list {
+            if let Some(item) = line.trim_start().strip_prefix("- ") {
+                let item = item.trim().to_string();
+                if !item.is_empty() {
+                    blocked_items.push(item);
+                }
+                continue;
+            }
+            in_blocked_list = false;
+        }
         let Some((k, v)) = line.split_once(':') else {
             continue;
         };
@@ -218,6 +240,10 @@ fn parse_frontmatter_ticket(text: &str) -> Result<Ticket, TicketError> {
         let v = v.trim().to_string();
         if k == "scope" && v.is_empty() {
             in_scope_list = true;
+            continue;
+        }
+        if k == "blocked_by" && v.is_empty() {
+            in_blocked_list = true;
             continue;
         }
         fields.insert(k, v);
@@ -240,11 +266,25 @@ fn parse_frontmatter_ticket(text: &str) -> Result<Ticket, TicketError> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or(scope_items);
+    let blocked_by = fields
+        .get("blocked_by")
+        .map(|s| {
+            s.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or(blocked_items);
+    let status = fields
+        .get("status")
+        .map_or_else(|| "OPEN".to_string(), |s| s.trim().to_uppercase());
     Ok(Ticket {
         id: id.clone(),
         title: title.clone(),
         goal: goal.clone(),
         scope,
+        blocked_by,
+        status,
     })
 }
 
@@ -255,6 +295,8 @@ fn parse_bullet_ticket(text: &str) -> Result<Ticket, TicketError> {
     let mut title = None;
     let mut goal = None;
     let mut scope: Vec<String> = Vec::new();
+    let mut blocked_by: Vec<String> = Vec::new();
+    let mut status: Option<String> = None;
     let mut in_scope_block = false;
     for line in text.lines() {
         let line = line.trim();
@@ -301,6 +343,33 @@ fn parse_bullet_ticket(text: &str) -> Result<Ticket, TicketError> {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
+        } else if k == "blocked_by" {
+            blocked_by = v
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        } else if k == "status" {
+            // Also matched from plain body lines (`Status: CLOSED` form).
+            if status.is_none() {
+                status = v.split_whitespace().next().map(str::to_uppercase);
+            }
+        }
+    }
+    if status.is_none() {
+        // Plain body scan: `Status: CLOSED` lines (no dash prefix).
+        for line in text.lines() {
+            let line = line.trim();
+            if let Some(v) = line
+                .strip_prefix("Status:")
+                .or_else(|| line.strip_prefix("status:"))
+            {
+                let v = v.trim();
+                if !v.is_empty() {
+                    status = v.split_whitespace().next().map(str::to_uppercase);
+                    break;
+                }
+            }
         }
     }
     Ok(Ticket {
@@ -308,7 +377,211 @@ fn parse_bullet_ticket(text: &str) -> Result<Ticket, TicketError> {
         title: title.ok_or_else(|| TicketError::Parse("missing - title: line".into()))?,
         goal: goal.ok_or_else(|| TicketError::Parse("missing - goal line".into()))?,
         scope,
+        blocked_by,
+        status: status.unwrap_or_else(|| "OPEN".to_string()),
     })
+}
+
+/// Claims registry path (ADR-0008): `tickets/claims.md`, written only by
+/// `claim_ticket`/`release_ticket`, never hand-edited.
+#[must_use]
+pub fn claims_path(root: &Path) -> PathBuf {
+    root.join("tickets/claims.md")
+}
+
+/// One held claim: a lease on a ticket by a named claimant.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Claim {
+    /// `TICKET-<n>` id (unique in the registry).
+    pub ticket: String,
+    /// Claimant identity (session, agent name, or human).
+    pub claimant: String,
+    /// ISO timestamp of the claim.
+    pub since: String,
+}
+
+/// Read the claims registry; an absent file is an empty registry.
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error on unreadable files.
+pub fn read_claims(root: &Path) -> io::Result<Vec<Claim>> {
+    let text = fs::read_to_string(claims_path(root))?;
+    let mut out = Vec::new();
+    for line in text.lines() {
+        if line.starts_with('#') || line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(claim) = serde_json::from_str::<Claim>(line) {
+            out.push(claim);
+        }
+    }
+    Ok(out)
+}
+
+/// Claim a ticket (lease semantics, ADR-0008). Fails when the ticket is
+/// already claimed by another claimant, or (unless `force`) when the
+/// ticket has unresolved `blocked_by` deps.
+///
+/// # Errors
+///
+/// Returns [`TicketError::Invalid`] for lease violations or
+/// [`TicketError::Io`] for registry failures.
+pub fn claim_ticket(
+    root: &Path,
+    id: &str,
+    claimant: &str,
+    force: bool,
+) -> Result<Claim, TicketError> {
+    let ticket = find_ticket(root, id)?;
+    let mut claims = read_claims(root).unwrap_or_default();
+    if let Some(existing) = claims.iter().find(|c| c.ticket == ticket.id) {
+        if existing.claimant != claimant {
+            return Err(TicketError::Invalid(format!(
+                "ticket {} already claimed by {} since {}",
+                ticket.id, existing.claimant, existing.since
+            )));
+        }
+        return Ok(existing.clone());
+    }
+    if !force {
+        for dep in &ticket.blocked_by {
+            let dep_ticket = find_ticket(root, dep)?;
+            if dep_ticket.status != "CLOSED" {
+                return Err(TicketError::Invalid(format!(
+                    "ticket {} is blocked by {} (status {}) — close the dependency first or --force",
+                    ticket.id, dep, dep_ticket.status
+                )));
+            }
+        }
+    }
+    let claim = Claim {
+        ticket: ticket.id,
+        claimant: claimant.to_string(),
+        since: crate::memory::utc_now_stamp(),
+    };
+    claims.push(claim.clone());
+    claims.sort_by(|a, b| a.ticket.cmp(&b.ticket));
+    write_claims(root, &claims).map_err(TicketError::Io)?;
+    Ok(claim)
+}
+
+/// Release a claim; releasing a ticket you do not hold fails.
+///
+/// # Errors
+///
+/// Returns [`TicketError::Invalid`] for lease violations or
+/// [`TicketError::Io`] for registry failures.
+pub fn release_ticket(root: &Path, id: &str, claimant: &str) -> Result<(), TicketError> {
+    let ticket = find_ticket(root, id)?;
+    let mut claims = read_claims(root).unwrap_or_default();
+    let Some(pos) = claims.iter().position(|c| c.ticket == ticket.id) else {
+        return Err(TicketError::Invalid(format!(
+            "ticket {} is not claimed",
+            ticket.id
+        )));
+    };
+    if claims[pos].claimant != claimant {
+        return Err(TicketError::Invalid(format!(
+            "ticket {} is claimed by {}, not {claimant}",
+            ticket.id, claims[pos].claimant
+        )));
+    }
+    claims.remove(pos);
+    write_claims(root, &claims).map_err(TicketError::Io)?;
+    Ok(())
+}
+
+fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
+    let path = claims_path(root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut out = String::from(
+        "# CLAIMS REGISTRY (ADR-0008 — written by `ticket claim`/`ticket release`, never hand-edit)\n",
+    );
+    for claim in claims {
+        let line = serde_json::to_string(claim).map_err(io::Error::other)?;
+        out.push_str(&line);
+        out.push('\n');
+    }
+    fs::write(&path, out)
+}
+
+/// Validate the dependency graph: every `blocked_by` id must resolve and
+/// the graph must be acyclic. Returns one message per problem.
+///
+/// # Errors
+///
+/// Returns [`TicketError::Io`] when the tickets directory cannot be read.
+pub fn validate_graph(root: &Path) -> Result<Vec<String>, TicketError> {
+    let tickets = list_tickets(root)?;
+    let by_id: std::collections::HashMap<&str, &Ticket> =
+        tickets.iter().map(|t| (t.id.as_str(), t)).collect();
+    let mut problems = Vec::new();
+    for ticket in &tickets {
+        for dep in &ticket.blocked_by {
+            let dep_id = dep
+                .strip_prefix("TICKET-")
+                .or_else(|| dep.strip_prefix("ticket-"))
+                .unwrap_or(dep);
+            let prefix: String = dep_id.chars().take_while(char::is_ascii_digit).collect();
+            let resolved = by_id.keys().find(|id| {
+                id.strip_prefix("TICKET-")
+                    .is_some_and(|rest| rest.starts_with(&prefix))
+            });
+            match resolved {
+                None => problems.push(format!(
+                    "{}: blocked_by {} does not resolve to any ticket",
+                    ticket.id, dep
+                )),
+                Some(dep_full) if *dep_full == ticket.id => {
+                    problems.push(format!("{}: blocked_by itself (self-cycle)", ticket.id));
+                }
+                _ => {}
+            }
+        }
+    }
+    // DFS cycle detection over the resolved edge set.
+    let mut edges: Vec<(String, String)> = Vec::new();
+    for t in &tickets {
+        for dep in &t.blocked_by {
+            let dep_id = dep
+                .strip_prefix("TICKET-")
+                .or_else(|| dep.strip_prefix("ticket-"))
+                .unwrap_or(dep);
+            let prefix: String = dep_id.chars().take_while(char::is_ascii_digit).collect();
+            if let Some(dep_full) = by_id.keys().find(|id| {
+                id.strip_prefix("TICKET-")
+                    .is_some_and(|rest| rest.starts_with(&prefix))
+            }) {
+                edges.push((dep_full.to_string(), t.id.clone()));
+            }
+        }
+    }
+    let mut adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    for (from, to) in &edges {
+        adj.entry(from.as_str()).or_default().push(to.as_str());
+    }
+    for ticket in &tickets {
+        let mut visited = std::collections::HashSet::new();
+        let mut stack = vec![ticket.id.as_str()];
+        while let Some(node) = stack.pop() {
+            if !visited.insert(node) {
+                continue;
+            }
+            for next in adj.get(node).into_iter().flatten() {
+                if *next == ticket.id.as_str() {
+                    problems.push(format!("{}: dependency cycle detected", ticket.id));
+                    break;
+                }
+                stack.push(next);
+            }
+        }
+    }
+    problems.sort();
+    problems.dedup();
+    Ok(problems)
 }
 
 #[cfg(test)]
@@ -381,6 +654,127 @@ Body.
         assert_eq!(found.title, "memory derive");
         let by_number = find_ticket(&root, "001").unwrap();
         assert_eq!(by_number.id, "TICKET-001");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn parses_blocked_by_and_status_from_frontmatter_and_body() {
+        let md = r"---
+id: TICKET-003
+title: dep work
+goal: depends on 002
+blocked_by: TICKET-002, TICKET-001
+status: OPEN
+---
+";
+        let t = parse_ticket(md).unwrap();
+        assert_eq!(t.blocked_by, vec!["TICKET-002", "TICKET-001"]);
+        assert_eq!(t.status, "OPEN");
+        let bullet = r"- id: TICKET-004
+- title: body status
+- goal: g
+- blocked_by: TICKET-003
+Body line.
+
+Status: CLOSED (evidence above).
+";
+        let t = parse_ticket(bullet).unwrap();
+        assert_eq!(t.blocked_by, vec!["TICKET-003"]);
+        assert_eq!(t.status, "CLOSED");
+    }
+
+    #[test]
+    fn json_ticket_accepts_blocked_by_and_defaults_status() {
+        let json = r#"{"id":"TICKET-005","title":"g","goal":"g","scope":["src/"],"blocked_by":["TICKET-001"]}"#;
+        let t = parse_ticket(json).unwrap();
+        assert_eq!(t.blocked_by, vec!["TICKET-001"]);
+        assert_eq!(t.status, "OPEN");
+    }
+
+    #[test]
+    fn graph_validation_flags_dangling_and_cycles() {
+        let root = std::env::temp_dir().join(format!("mag-graph-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::write(
+            root.join("tickets/TICKET-001.md"),
+            r"- id: TICKET-001
+- title: a
+- goal: g
+- blocked_by: TICKET-999
+",
+        )
+        .unwrap();
+        fs::write(
+            root.join("tickets/TICKET-002.md"),
+            r"- id: TICKET-002
+- title: b
+- goal: g
+- blocked_by: TICKET-003
+",
+        )
+        .unwrap();
+        fs::write(
+            root.join("tickets/TICKET-003.md"),
+            r"- id: TICKET-003
+- title: c
+- goal: g
+- blocked_by: TICKET-002
+",
+        )
+        .unwrap();
+        let problems = validate_graph(&root).unwrap();
+        let text = problems.join("\n");
+        assert!(text.contains("TICKET-001: blocked_by TICKET-999 does not resolve"));
+        assert!(text.contains("cycle"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn claims_have_lease_semantics() {
+        let root = std::env::temp_dir().join(format!("mag-claims-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::write(root.join("tickets/TICKET-001.md"), JSON_TICKET).unwrap();
+        let claim = claim_ticket(&root, "TICKET-001", "agent-a", false).unwrap();
+        assert_eq!(claim.claimant, "agent-a");
+        let again = claim_ticket(&root, "TICKET-001", "agent-a", false).unwrap();
+        assert_eq!(again.since, claim.since);
+        let err = claim_ticket(&root, "TICKET-001", "agent-b", false).unwrap_err();
+        assert!(err.to_string().contains("already claimed by agent-a"));
+        let released = release_ticket(&root, "TICKET-001", "agent-b");
+        assert!(released.is_err());
+        release_ticket(&root, "TICKET-001", "agent-a").unwrap();
+        assert!(read_claims(&root).unwrap().is_empty());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn claim_refuses_open_dependency_unless_forced() {
+        let root = std::env::temp_dir().join(format!("mag-claimdep-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::write(
+            root.join("tickets/TICKET-001.md"),
+            r"- id: TICKET-001
+- title: dep
+- goal: g
+",
+        )
+        .unwrap();
+        fs::write(
+            root.join("tickets/TICKET-002.md"),
+            r"- id: TICKET-002
+- title: blocked
+- goal: g
+- blocked_by: TICKET-001
+",
+        )
+        .unwrap();
+        let err = claim_ticket(&root, "TICKET-002", "agent-a", false).unwrap_err();
+        assert!(err.to_string().contains("blocked by TICKET-001"));
+        let claim = claim_ticket(&root, "TICKET-002", "agent-a", true).unwrap();
+        assert_eq!(claim.ticket, "TICKET-002");
         let _ = fs::remove_dir_all(&root);
     }
 }

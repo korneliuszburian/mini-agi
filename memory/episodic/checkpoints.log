@@ -19,3 +19,5 @@
 2026-08-03T08:37:23Z VERIFY-PASS edit-eq-write @ 4b10819
 2026-08-03T08:46:43Z BEGIN gate-mismatch -> b85cc0e (clean)
 2026-08-03T08:56:50Z VERIFY-PASS gate-mismatch @ b85cc0e
+2026-08-03T09:00:18Z BEGIN yegge-workgraph -> bd1d0e6 (clean)
+2026-08-03T16:46:37Z VERIFY-PASS yegge-workgraph @ bd1d0e6

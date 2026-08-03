@@ -19,6 +19,12 @@ fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 
+fn combined(output: &Output) -> String {
+    let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
+    text.push_str(&String::from_utf8_lossy(&output.stderr));
+    text
+}
+
 fn tmp_root(tag: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!("mag-cli-test-{tag}-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
@@ -725,6 +731,68 @@ fn cli_ticket_lifecycle() {
     assert!(stdout(&validate).contains("validates"));
     let missing = run(&root, &["ticket", "show", "TICKET-999"]);
     assert_eq!(missing.status.code(), Some(1));
+    wipe(&root);
+}
+
+#[test]
+fn cli_ticket_work_graph_claims_and_validation() {
+    let root = tmp_root("c24");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("tickets")).unwrap();
+    std::fs::write(
+        root.join("tickets/TICKET-001.md"),
+        r#"{"id":"TICKET-001","title":"gates","goal":"wire gates","scope":["scripts/"]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("tickets/TICKET-002.md"),
+        "- id: TICKET-002\n- title: dep work\n- goal: g\n- blocked_by: TICKET-001\n",
+    )
+    .unwrap();
+    let graph = run(&root, &["ticket", "graph"]);
+    assert!(graph.status.success());
+    assert!(stdout(&graph).contains("TICKET-001 -> TICKET-002"));
+    let blocked = run(
+        &root,
+        &["ticket", "claim", "TICKET-002", "--claimant", "agent-a"],
+    );
+    assert_eq!(blocked.status.code(), Some(1));
+    assert!(combined(&blocked).contains("blocked by TICKET-001"));
+    let forced = run(
+        &root,
+        &[
+            "ticket",
+            "claim",
+            "TICKET-002",
+            "--claimant",
+            "agent-a",
+            "--force",
+        ],
+    );
+    assert!(forced.status.success());
+    let conflict = run(
+        &root,
+        &["ticket", "claim", "TICKET-002", "--claimant", "agent-b"],
+    );
+    assert_eq!(conflict.status.code(), Some(1));
+    assert!(combined(&conflict).contains("already claimed by agent-a"));
+    let claims = run(&root, &["ticket", "claims"]);
+    assert!(stdout(&claims).contains("TICKET-002 claimed by agent-a"));
+    let wrong = run(
+        &root,
+        &["ticket", "release", "TICKET-002", "--claimant", "agent-b"],
+    );
+    assert_eq!(wrong.status.code(), Some(1));
+    let release = run(
+        &root,
+        &["ticket", "release", "TICKET-002", "--claimant", "agent-a"],
+    );
+    assert!(release.status.success());
+    let claims_after = run(&root, &["ticket", "claims"]);
+    assert!(stdout(&claims_after).contains("no claims held"));
+    let vg = run(&root, &["ticket", "validate-graph"]);
+    assert!(vg.status.success());
+    assert!(stdout(&vg).contains("dependency graph valid"));
     wipe(&root);
 }
 
