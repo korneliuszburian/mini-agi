@@ -216,7 +216,11 @@ struct LoopArgs {
 #[derive(Subcommand, Debug)]
 enum LoopAction {
     /// Cases below the loop target with tickets and claims.
-    Status,
+    Status {
+        /// Show rerun-attempt counts per case (pilot-before-scale).
+        #[arg(long)]
+        attempts: bool,
+    },
     /// Pick the worst open case, claim it, and write its slice spec.
     Dispatch {
         /// Case name (default: worst open case below the target).
@@ -468,7 +472,7 @@ fn main() -> ExitCode {
             claims,
         } => cmd_harness_verify(&target, &candidate, claims.as_deref()),
         Command::Loop(LoopArgs { action }) => match action {
-            LoopAction::Status => cmd_loop_status(),
+            LoopAction::Status { attempts } => cmd_loop_status(attempts),
             LoopAction::Dispatch {
                 case,
                 below,
@@ -688,7 +692,7 @@ fn cmd_harness() -> ExitCode {
     }
 }
 
-fn cmd_loop_status() -> ExitCode {
+fn cmd_loop_status(attempts: bool) -> ExitCode {
     match mini_agi_core::loopcmd::status(&root()) {
         Ok(report) => {
             println!(
@@ -711,9 +715,21 @@ fn cmd_loop_status() -> ExitCode {
                     Some(c) => format!("rerun {c:.4}"),
                     None => "no rerun".to_string(),
                 };
+                if attempts {
+                    println!(
+                        "  {:.4}  {:<24} attempts={}  {}  lease: {}  {}",
+                        row.composite, row.case, row.attempts, ticket, claim, rerun
+                    );
+                } else {
+                    println!(
+                        "  {:.4}  {:<24} {}  lease: {}  {}",
+                        row.composite, row.case, ticket, claim, rerun
+                    );
+                }
+            }
+            if attempts {
                 println!(
-                    "  {:.4}  {:<24} {}  lease: {}  {}",
-                    row.composite, row.case, ticket, claim, rerun
+                    "  (Ringelmann 2606.02646: a 5-attempt pilot predicts the N=30 ceiling — before scaling retries, compare attempts vs gains)"
                 );
             }
             ExitCode::SUCCESS

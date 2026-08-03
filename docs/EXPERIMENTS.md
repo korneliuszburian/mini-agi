@@ -124,3 +124,28 @@ valuable as a passed one.
 - Learning: the reviewer caught 2 real correctness holes (harness
   false-green, best-state bypass) the test suite could not — the
   pairwise review loop works; gate independence matters.
+
+## EXP-005 — pilot-before-scale: resampling-control design (2026-08-03)
+
+Motivation (Ringelmann 2606.02646 + "What Drives Interactive Improvement"
+2606.30774): measured loop gains are confounded by test-time compute and
+re-evaluation. Two failure modes: (a) scaling retries hits a structural
+ceiling that a 5-attempt pilot predicts; (b) "improvement from failure
+memory" may be just resampling noise.
+
+Design (MUST ship with every future loop improvement):
+
+1. Resampling control: for any candidate improvement, run the gap at
+   equal attempt count with failure-memory-conditioned retries vs plain
+   resampling (no reflection injection). If the delta is near zero, the
+   bottleneck is feedback quality, not loop iterations.
+2. Pilot rule: before scaling a gap's retries beyond 5, run a 5-attempt
+   pilot; it predicts the N=30 ceiling (Ringelmann hard-ceiling regime).
+3. Heterogeneity: to escape the hard ceiling, vary the attempt
+   configuration (different verifier/harness variant per attempt) instead
+   of adding copies of the same one.
+4. Instrument: `loop status --attempts` exposes the per-case attempt
+   count (1 original + reruns) — the numerator for the pilot.
+
+Status: design documented; instrument shipped (loop status --attempts);
+no experiment executed yet (needs real attempt-vs-gain measurement).

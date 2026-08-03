@@ -303,3 +303,10 @@ Intelligence" direction)
 - `run verify --dry-run` prints the command without executing.
 - failure register now STORES normalized actions (not just hashed) —
   regenerated; 0 machine paths remain (portability rot removed).
+### Added (Phase 9 — pilot-before-scale instrument, slice 7)
+- `loop status --attempts`: per-case rerun-attempt counts (1 original +
+  reruns) — the pilot numerator (Ringelmann 2606.02646: a 5-attempt
+  pilot predicts the N=30 ceiling).
+- EXP-005 documented: resampling-control experiment design (failure-
+  memory-conditioned retries vs plain resampling at equal attempts) —
+  must ship with every future loop improvement.
