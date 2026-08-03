@@ -2,3 +2,4 @@
 2026-08-02T18:39:18Z VERIFY-PASS dogfood-ticket @ 96fc29d
 2026-08-03T05:41:42Z BEGIN gate-fix -> 2217fe0 (clean)
 2026-08-03T05:42:34Z VERIFY-PASS gate-fix @ 2217fe0
+2026-08-03T06:48:34Z VERIFY-FAIL failure-register @ dee9860 -> ROLLBACK to dee9860
