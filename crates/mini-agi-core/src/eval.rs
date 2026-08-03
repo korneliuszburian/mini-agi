@@ -404,6 +404,18 @@ pub fn find_scope_violations(
     violations
 }
 
+/// One tool-use mismatch between a run step and the golden trajectory
+/// (additive diagnostic; the mismatch count and D3 score are unchanged).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ToolMismatch {
+    /// 1-based step number in the run trajectory.
+    pub step: usize,
+    /// Tool the run used at this step.
+    pub run_tool: String,
+    /// Tool the golden trajectory expects at this step.
+    pub golden_tool: String,
+}
+
 /// `D3`: tool-use score (golden parity + scope violations) and mismatch
 /// count (`PoC` `tool_score`).
 #[must_use]
@@ -417,17 +429,24 @@ pub fn tool_score(
     golden: &[Step],
     scope: &[String],
     metadata: &TicketMetadata,
-) -> (f64, usize) {
+) -> (f64, usize, Vec<ToolMismatch>) {
     let mut mismatches = 0;
+    let mut detail = Vec::new();
     for (i, step) in steps.iter().enumerate() {
         if golden.get(i).is_some_and(|g| step.tool != g.tool) {
             mismatches += 1;
+            detail.push(ToolMismatch {
+                step: i + 1,
+                run_tool: step.tool.clone(),
+                golden_tool: golden[i].tool.clone(),
+            });
         }
     }
     let violations = find_scope_violations(steps, scope, metadata).len();
     (
         TOOL_PARITY_PENALTY.powi((mismatches + violations) as i32),
         mismatches,
+        detail,
     )
 }
 
@@ -442,6 +461,8 @@ pub struct ScoreReport {
     pub trajectory_detail: TrajectoryReport,
     /// Tool mismatches vs the golden trajectory.
     pub tool_mismatches_vs_golden: usize,
+    /// Per-step tool mismatches vs the golden trajectory (additive detail).
+    pub tool_mismatches_detail: Vec<ToolMismatch>,
     /// Scope violations found.
     pub scope_violations: Vec<String>,
     /// Run cost in USD (floored at 0.0001).
@@ -500,7 +521,7 @@ pub fn score_run(
         None => Vec::new(),
     };
     let metadata = ticket_metadata_for_run(&run.goal, &root.join("tickets"));
-    let (tscore, mism) = tool_score(&run.trajectory, &golden, &run.scope, &metadata);
+    let (tscore, mism, mism_detail) = tool_score(&run.trajectory, &golden, &run.scope, &metadata);
     let violations = find_scope_violations(&run.trajectory, &run.scope, &metadata);
     let cost = if run.cost_usd <= 0.0 {
         COST_FLOOR
@@ -528,6 +549,7 @@ pub fn score_run(
         },
         trajectory_detail: traj,
         tool_mismatches_vs_golden: mism,
+        tool_mismatches_detail: mism_detail,
         scope_violations: violations,
         cost_usd: round4(cost),
         tokens_total: tokens,

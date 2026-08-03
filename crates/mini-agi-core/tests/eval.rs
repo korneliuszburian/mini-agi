@@ -4,8 +4,8 @@
 use std::path::PathBuf;
 
 use mini_agi_core::eval::{
-    Step, TicketMetadata, find_scope_violations, load_ticket_metadata, path_is_in_scope, score_run,
-    score_trajectory, step_score, ticket_metadata_for_run, tool_score,
+    Step, TicketMetadata, ToolMismatch, find_scope_violations, load_ticket_metadata,
+    path_is_in_scope, score_run, score_trajectory, step_score, ticket_metadata_for_run, tool_score,
 };
 
 fn repo_root() -> PathBuf {
@@ -106,6 +106,43 @@ fn reactive_loop_has_zero_composite() {
     .unwrap();
     assert!((report.composite - 0.0).abs() < 1e-12);
     assert!((report.dims.outcome - 0.0).abs() < 1e-12);
+}
+
+#[test]
+fn tool_mismatch_detail_lists_exact_steps_vs_golden() {
+    let root = repo_root();
+    let report = score_run(
+        &root.join("evals/cases/real-ticket-001-v2/run.json"),
+        &root,
+        &root.join("evals/golden"),
+    )
+    .unwrap();
+    assert_eq!(report.tool_mismatches_vs_golden, 4);
+    assert_eq!(
+        report.tool_mismatches_detail,
+        vec![
+            ToolMismatch {
+                step: 2,
+                run_tool: "exec".into(),
+                golden_tool: "write".into()
+            },
+            ToolMismatch {
+                step: 3,
+                run_tool: "exec".into(),
+                golden_tool: "write".into()
+            },
+            ToolMismatch {
+                step: 4,
+                run_tool: "exec".into(),
+                golden_tool: "write".into()
+            },
+            ToolMismatch {
+                step: 6,
+                run_tool: "read".into(),
+                golden_tool: "write".into()
+            },
+        ]
+    );
 }
 
 #[test]
@@ -215,7 +252,8 @@ fn scope_violation_penalizes_tool_score_but_allows_carve_outs() {
     steps[2].paths = vec!["memory/derived/context-brief.md".to_string()];
     steps[3].paths = vec!["AGENTS.md".to_string()];
     let meta = TicketMetadata::default();
-    let (value, mismatches) = tool_score(&steps, &[], &["scripts/owned.py".to_string()], &meta);
+    let (value, mismatches, _detail) =
+        tool_score(&steps, &[], &["scripts/owned.py".to_string()], &meta);
     assert_eq!(mismatches, 0);
     assert!((value - 0.85f64.powi(3)).abs() < 1e-9);
 }
