@@ -58,13 +58,18 @@ case "${1:-}" in
     ;;
   verify)
     label="${2:-step}"
-    # Re-verifying an already closed label would journal a VERIFY-PASS
-    # without an open BEGIN — an audit anomaly that cannot heal (the label
-    # is already closed). Guard: closed labels are a no-op. Labels must be
-    # unique per checkpoint.
+    # Re-verifying an already closed label would journal a duplicate
+    # VERIFY-PASS without an open BEGIN — an audit anomaly that cannot
+    # heal. Guard: run the verifier anyway (a closed label must not mask
+    # a red gate), skip only the journal write, exit with the verifier's
+    # status.
     if grep -qE "(VERIFY-PASS|VERIFY-FAIL) $label([ @]|$)" "$JOURNAL" 2>/dev/null; then
-      echo "already verified: $label (no-op — label must be unique per checkpoint)"
-      exit 0
+      if scripts/verify.sh >/dev/null 2>&1; then
+        echo "already verified: $label — gate green (no journal write)"
+        exit 0
+      fi
+      echo "already verified: $label — gate RED (no journal write)" >&2
+      exit 1
     fi
     prev="$(git -C "$ROOT" rev-parse --short HEAD)"
     if scripts/verify.sh >/dev/null 2>&1; then

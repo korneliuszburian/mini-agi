@@ -806,6 +806,20 @@ mod tests {
     }
 
     #[test]
+    fn tool_family_merges_write_and_edit() {
+        let meta = TicketMetadata::default();
+        let steps = [step("write"), step("edit")];
+        let golden = [step("edit"), step("write")];
+        let (_, mismatches, detail) = tool_score(&steps, &golden, &[], &meta);
+        assert_eq!(mismatches, 0, "write vs edit must not mismatch (ADR-0006)");
+        assert!(detail.is_empty());
+        let steps = [step("exec"), step("write")];
+        let golden = [step("write"), step("exec")];
+        let (_, mismatches, _) = tool_score(&steps, &golden, &[], &meta);
+        assert_eq!(mismatches, 2, "exec vs write stays a real mismatch");
+    }
+
+    #[test]
     fn gate_flags_tool_mismatch_growth_beyond_tolerance() {
         let entries = [gate_entry("case-a", 0.9, 4)];
         let baseline = [gate_entry("case-a", 0.9, 1)];

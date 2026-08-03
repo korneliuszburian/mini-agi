@@ -49,7 +49,7 @@ pub struct LoopStatus {
 
 /// Find the ticket whose goal/title references `case` (backlog dedup rule)
 /// or whose id corresponds to the case (`real-ticket-001-v2` ->
-/// `TICKET-001-v2`).
+/// `TICKET-001-v2`), with a digit boundary on the id match.
 #[must_use]
 pub fn ticket_for_case(root: &Path, case: &str) -> Option<Ticket> {
     let case_lower = case.to_lowercase();
@@ -57,12 +57,24 @@ pub fn ticket_for_case(root: &Path, case: &str) -> Option<Ticket> {
         .unwrap_or_default()
         .into_iter()
         .find(|t| {
-            t.goal.contains(case) || t.title.contains(case) || {
-                t.id.to_lowercase()
-                    .strip_prefix("ticket-")
-                    .is_some_and(|rest| case_lower.contains(&format!("ticket-{rest}")))
-            }
+            t.goal.contains(case) || t.title.contains(case) || id_matches_case(&t.id, &case_lower)
         })
+}
+
+/// Id-to-case match with a digit boundary: `ticket-001` must not match a
+/// case containing `ticket-0012`.
+fn id_matches_case(id: &str, case_lower: &str) -> bool {
+    let id_lower = id.to_lowercase();
+    let Some(rest) = id_lower.strip_prefix("ticket-") else {
+        return false;
+    };
+    let needle = format!("ticket-{rest}");
+    case_lower.match_indices(&needle).any(|(pos, _)| {
+        case_lower[pos + needle.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !c.is_ascii_digit())
+    })
 }
 
 /// Claimant of a ticket, if any.
@@ -141,6 +153,14 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
         let run = root.join("evals/cases").join(case).join("run.json");
         if !run.is_file() {
             return Err(format!("no run.json for case '{case}'"));
+        }
+        if let Some(ticket) = ticket_for_case(root, case)
+            && ticket.status == "CLOSED"
+        {
+            return Err(format!(
+                "case '{case}' is already closed by ticket {}",
+                ticket.id
+            ));
         }
         return Ok(case.to_string());
     }
@@ -300,6 +320,7 @@ pub fn dispatch(
 fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
     let dir = ticket::tickets_dir(root);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let _lock = ticket::lock_claims(root).map_err(|e| e.to_string())?;
     let existing = ticket::list_tickets(root).unwrap_or_default();
     let next_number = existing
         .iter()
@@ -401,6 +422,37 @@ mod tests {
             .unwrap()
     }
 
+    /// A disposable repo with one case (`real-ticket-008-v2`, composite
+    /// 0.9774), its golden, its ticket, and an empty gate baseline. Each
+    /// test passes a unique tag: parallel tests share the process, and a
+    /// shared dir would race.
+    fn tmp_case_root(tag: &str) -> PathBuf {
+        let root = env::temp_dir().join(format!("mag-loop-{}-{tag}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let repo = repo();
+        fs::create_dir_all(root.join("evals/cases/real-ticket-008-v2")).unwrap();
+        fs::copy(
+            repo.join("evals/cases/real-ticket-008-v2/run.json"),
+            root.join("evals/cases/real-ticket-008-v2/run.json"),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("evals/golden")).unwrap();
+        fs::copy(
+            repo.join("evals/golden/real-ticket-compact.json"),
+            root.join("evals/golden/real-ticket-compact.json"),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("evals/results")).unwrap();
+        fs::write(root.join("evals/results/baseline.json"), "[]").unwrap();
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::copy(
+            repo.join("tickets/TICKET-008.md"),
+            root.join("tickets/TICKET-008.md"),
+        )
+        .unwrap();
+        root
+    }
+
     #[test]
     fn status_lists_low_cases_with_ticket_mapping() {
         let root = repo();
@@ -418,26 +470,70 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_writes_spec_and_claims_then_verify_releases() {
-        let root = repo();
+    fn dispatch_writes_spec_and_claims_in_tmp_repo() {
+        let root = tmp_case_root("dispatch");
         let claimant = "loop-test";
-        let outcome = dispatch(&root, Some("real-ticket-001-v2"), 0.5, claimant)
-            .expect("dispatch real-ticket-001-v2");
+        let outcome = dispatch(&root, Some("real-ticket-008-v2"), 0.5, claimant)
+            .expect("dispatch real-ticket-008-v2");
         assert!(!outcome.ticket_created);
-        assert_eq!(outcome.ticket, "TICKET-001-v2");
+        assert_eq!(outcome.ticket, "TICKET-008-v2");
         assert!(outcome.spec.is_file());
         let spec_text = fs::read_to_string(&outcome.spec).unwrap();
-        assert!(spec_text.contains("real-ticket-001-v2-rerun"));
+        assert!(spec_text.contains("real-ticket-008-v2-rerun"));
         assert!(spec_text.contains("composite >= 0.5"));
         let claims = ticket::read_claims(&root).unwrap();
         assert!(
             claims
                 .iter()
-                .any(|c| c.ticket == "TICKET-001-v2" && c.claimant == claimant)
+                .any(|c| c.ticket == "TICKET-008-v2" && c.claimant == claimant)
         );
-        ticket::release_ticket(&root, "TICKET-001-v2", claimant).unwrap();
-        let _ = fs::remove_file(&outcome.spec);
-        let _ = fs::remove_dir_all(root.join("artifacts/TICKET-001-v2"));
+        ticket::release_ticket(&root, "TICKET-008-v2", claimant).unwrap();
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_releases_claim_only_at_target_and_keeps_it_below() {
+        // Passing rerun: real-ticket-008-v2-rerun carries the 0.9774
+        // fixture run -> the claim on TICKET-008 is released.
+        let root = tmp_case_root("verify");
+        let rerun = root.join("evals/cases/real-ticket-008-v2-rerun");
+        fs::create_dir_all(&rerun).unwrap();
+        fs::copy(
+            repo().join("evals/cases/real-ticket-008-v2/run.json"),
+            rerun.join("run.json"),
+        )
+        .unwrap();
+        let claimant = "loop-verify";
+        ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
+        let text = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        assert!(text.contains("CLOSED"), "{text}");
+        assert!(
+            ticket::read_claims(&root).unwrap().is_empty(),
+            "claim must be released at the target"
+        );
+        let _ = fs::remove_dir_all(&root);
+
+        // Failing rerun: a weak run (composite 0) below the target keeps
+        // the claim held.
+        let root = tmp_case_root("verify");
+        let weak = root.join("evals/cases/real-ticket-008-v2-rerun");
+        fs::create_dir_all(&weak).unwrap();
+        fs::write(
+            weak.join("run.json"),
+            r#"{"goal":"TICKET-008","scope":["x"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.01,"golden":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
+        let text = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        assert!(text.contains("OPEN"), "{text}");
+        assert!(
+            ticket::read_claims(&root)
+                .unwrap()
+                .iter()
+                .any(|c| c.ticket == "TICKET-008-v2" && c.claimant == claimant),
+            "claim must stay held below the target"
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -445,5 +541,17 @@ mod tests {
         let root = repo();
         let err = pick_target(&root, None, 0.5).expect_err("all gaps are closed by rerun");
         assert!(err.contains("no case below the target is dispatchable"));
+    }
+
+    #[test]
+    fn ticket_for_case_requires_digit_boundary() {
+        let root = tmp_case_root("boundary");
+        // "real-ticket-008-v2" must match TICKET-008-v2-style ids, but a
+        // case named "real-ticket-0089" must NOT match id TICKET-008.
+        let case_ok = ticket_for_case(&root, "real-ticket-008-v2");
+        assert_eq!(case_ok.map(|t| t.id), Some("TICKET-008-v2".to_string()));
+        let case_no = ticket_for_case(&root, "real-ticket-0089-v2");
+        assert!(case_no.is_none(), "digit boundary must not match");
+        let _ = fs::remove_dir_all(&root);
     }
 }

@@ -389,6 +389,65 @@ pub fn claims_path(root: &Path) -> PathBuf {
     root.join("tickets/claims.md")
 }
 
+const LOCK_STALE_SECS: u64 = 30;
+const LOCK_MAX_WAIT_MS: u64 = 10_000;
+
+/// Exclusive lock over the claims registry: `O_EXCL` create + retry +
+/// stale-steal, so parallel agents cannot lose a lease (`TOCTOU`
+/// review finding). Removed on drop.
+#[derive(Debug)]
+pub struct ClaimsLock {
+    path: PathBuf,
+}
+
+impl Drop for ClaimsLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+/// Acquire the claims lock, retrying until `LOCK_MAX_WAIT_MS`; a stale
+/// lock (mtime older than `LOCK_STALE_SECS`) is stolen.
+///
+/// # Errors
+///
+/// Returns an io error when the lock cannot be acquired in time.
+pub fn lock_claims(root: &Path) -> io::Result<ClaimsLock> {
+    let path = root.join("tickets/.claims.lock");
+    let started = std::time::Instant::now();
+    loop {
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(_) => return Ok(ClaimsLock { path }),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                let stale = fs::metadata(&path).is_ok_and(|m| {
+                    m.modified().is_ok_and(|mt| {
+                        mt.elapsed().map_or(true, |d| d.as_secs() > LOCK_STALE_SECS)
+                    })
+                });
+                if stale {
+                    let _ = fs::remove_file(&path);
+                    continue;
+                }
+                if started.elapsed().as_millis() > LOCK_MAX_WAIT_MS.into() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::WouldBlock,
+                        format!(
+                            "claims lock {} busy (held > {LOCK_MAX_WAIT_MS}ms)",
+                            path.display()
+                        ),
+                    ));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
 /// One held claim: a lease on a ticket by a named claimant.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Claim {
@@ -434,6 +493,7 @@ pub fn claim_ticket(
     force: bool,
 ) -> Result<Claim, TicketError> {
     let ticket = find_ticket(root, id)?;
+    let _lock = lock_claims(root).map_err(TicketError::Io)?;
     let mut claims = read_claims(root).unwrap_or_default();
     if let Some(existing) = claims.iter().find(|c| c.ticket == ticket.id) {
         if existing.claimant != claimant {
@@ -474,6 +534,7 @@ pub fn claim_ticket(
 /// [`TicketError::Io`] for registry failures.
 pub fn release_ticket(root: &Path, id: &str, claimant: &str) -> Result<(), TicketError> {
     let ticket = find_ticket(root, id)?;
+    let _lock = lock_claims(root).map_err(TicketError::Io)?;
     let mut claims = read_claims(root).unwrap_or_default();
     let Some(pos) = claims.iter().position(|c| c.ticket == ticket.id) else {
         return Err(TicketError::Invalid(format!(
@@ -508,6 +569,30 @@ fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
     fs::write(&path, out)
 }
 
+/// Resolve a `blocked_by` reference to a ticket id deterministically:
+/// exact `TICKET-<digits>` first, then the first `TICKET-<digits>-...`
+/// suffix in sorted order (`find_ticket` semantics; a bare prefix match
+/// would resolve `TICKET-1` to `TICKET-10` — review finding).
+fn resolve_dep<'a>(tickets: &'a [Ticket], dep: &str) -> Option<&'a str> {
+    let dep_id = dep
+        .strip_prefix("TICKET-")
+        .or_else(|| dep.strip_prefix("ticket-"))
+        .unwrap_or(dep);
+    let digits: String = dep_id.chars().take_while(char::is_ascii_digit).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let exact = format!("TICKET-{digits}");
+    if let Some(t) = tickets.iter().find(|t| t.id == exact) {
+        return Some(t.id.as_str());
+    }
+    let suffix = format!("TICKET-{digits}-");
+    tickets
+        .iter()
+        .find(|t| t.id.starts_with(&suffix))
+        .map(|t| t.id.as_str())
+}
+
 /// Validate the dependency graph: every `blocked_by` id must resolve and
 /// the graph must be acyclic. Returns one message per problem.
 ///
@@ -516,26 +601,16 @@ fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
 /// Returns [`TicketError::Io`] when the tickets directory cannot be read.
 pub fn validate_graph(root: &Path) -> Result<Vec<String>, TicketError> {
     let tickets = list_tickets(root)?;
-    let by_id: std::collections::HashMap<&str, &Ticket> =
-        tickets.iter().map(|t| (t.id.as_str(), t)).collect();
     let mut problems = Vec::new();
     for ticket in &tickets {
         for dep in &ticket.blocked_by {
-            let dep_id = dep
-                .strip_prefix("TICKET-")
-                .or_else(|| dep.strip_prefix("ticket-"))
-                .unwrap_or(dep);
-            let prefix: String = dep_id.chars().take_while(char::is_ascii_digit).collect();
-            let resolved = by_id.keys().find(|id| {
-                id.strip_prefix("TICKET-")
-                    .is_some_and(|rest| rest.starts_with(&prefix))
-            });
+            let resolved = resolve_dep(&tickets, dep);
             match resolved {
                 None => problems.push(format!(
                     "{}: blocked_by {} does not resolve to any ticket",
                     ticket.id, dep
                 )),
-                Some(dep_full) if *dep_full == ticket.id => {
+                Some(dep_full) if dep_full == ticket.id => {
                     problems.push(format!("{}: blocked_by itself (self-cycle)", ticket.id));
                 }
                 _ => {}
@@ -546,15 +621,7 @@ pub fn validate_graph(root: &Path) -> Result<Vec<String>, TicketError> {
     let mut edges: Vec<(String, String)> = Vec::new();
     for t in &tickets {
         for dep in &t.blocked_by {
-            let dep_id = dep
-                .strip_prefix("TICKET-")
-                .or_else(|| dep.strip_prefix("ticket-"))
-                .unwrap_or(dep);
-            let prefix: String = dep_id.chars().take_while(char::is_ascii_digit).collect();
-            if let Some(dep_full) = by_id.keys().find(|id| {
-                id.strip_prefix("TICKET-")
-                    .is_some_and(|rest| rest.starts_with(&prefix))
-            }) {
+            if let Some(dep_full) = resolve_dep(&tickets, dep) {
                 edges.push((dep_full.to_string(), t.id.clone()));
             }
         }
@@ -689,6 +756,45 @@ Status: CLOSED (evidence above).
         let t = parse_ticket(json).unwrap();
         assert_eq!(t.blocked_by, vec!["TICKET-001"]);
         assert_eq!(t.status, "OPEN");
+    }
+
+    #[test]
+    fn resolve_dep_exact_before_suffix_and_never_prefix_only() {
+        let t = |id: &str| Ticket {
+            id: id.to_string(),
+            title: String::new(),
+            goal: String::new(),
+            scope: Vec::new(),
+            blocked_by: Vec::new(),
+            status: "OPEN".into(),
+        };
+        let tickets = vec![t("TICKET-1"), t("TICKET-10")];
+        // exact TICKET-1 wins, never TICKET-10 (prefix-only laxness).
+        assert_eq!(resolve_dep(&tickets, "TICKET-1"), Some("TICKET-1"));
+        assert_eq!(resolve_dep(&tickets, "TICKET-10"), Some("TICKET-10"));
+        let tickets = vec![t("TICKET-001-gates"), t("TICKET-001-v2")];
+        // suffix scan picks the first in list order, deterministically.
+        assert_eq!(
+            resolve_dep(&tickets, "TICKET-001"),
+            Some("TICKET-001-gates")
+        );
+        assert_eq!(resolve_dep(&tickets, "TICKET-999"), None);
+    }
+
+    #[test]
+    fn claims_lock_is_exclusive_and_recoverable() {
+        let root = std::env::temp_dir().join(format!("mag-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        let first = lock_claims(&root).unwrap();
+        let err = lock_claims(&root).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::WouldBlock);
+        drop(first);
+        let second = lock_claims(&root).unwrap();
+        assert!(root.join("tickets/.claims.lock").is_file());
+        drop(second);
+        assert!(!root.join("tickets/.claims.lock").exists());
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
