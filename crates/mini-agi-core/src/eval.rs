@@ -430,6 +430,22 @@ pub fn path_is_in_scope(path: &str, scope: &[String]) -> bool {
     })
 }
 
+/// Case family for capability telemetry (Phase 9 slice 4): the case
+/// name minus trailing `-<digits><suffix>` and `-rerun` parts —
+/// `real-ticket-001-v2(-rerun)` groups under `real-ticket`.
+#[must_use]
+pub fn family_of(case: &str) -> String {
+    let base = case.strip_suffix("-rerun").unwrap_or(case);
+    let digit_pos = base
+        .char_indices()
+        .find(|(_, c)| c.is_ascii_digit())
+        .map(|(i, _)| i);
+    match digit_pos {
+        Some(i) if i > 0 => base[..i].trim_end_matches('-').to_string(),
+        _ => base.to_string(),
+    }
+}
+
 /// `fnmatch`-style glob: `*` matches any run, `?` exactly one char.
 #[must_use]
 fn glob_match(pattern: &str, text: &str) -> bool {
@@ -993,5 +1009,20 @@ mod process_supervision_tests {
             !verdicts.iter().any(|v| v.suspicious),
             "the bad step explains the failure"
         );
+    }
+}
+
+#[cfg(test)]
+mod family_tests {
+    use super::family_of;
+
+    #[test]
+    fn families_group_suffix_variants() {
+        assert_eq!(family_of("real-ticket-001-v2"), "real-ticket");
+        assert_eq!(family_of("real-ticket-001-v2-rerun"), "real-ticket");
+        assert_eq!(family_of("codex-exp-002"), "codex-exp");
+        assert_eq!(family_of("reactive-loop"), "reactive-loop");
+        assert_eq!(family_of("flailing"), "flailing");
+        assert_eq!(family_of("harnessed"), "harnessed");
     }
 }

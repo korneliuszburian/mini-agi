@@ -1,0 +1,13 @@
+{
+  "goal": "Design a retry policy for the loop: first two attempts failing with the same gate signature should halt and spend budget elsewhere (SARA 2607.26253 early stopping). Document the policy.",
+  "scope": ["docs/PLAN.md"],
+  "outcome": {"achieved": true, "tests": true, "typecheck": true},
+  "tokens_total": 1200,
+  "cost_usd": 0.01,
+  "golden": null,
+  "trajectory": [
+    {"step": 1, "action": "read: loop retry semantics (attempts share gate signature)", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 400, "output_tokens": 60},
+    {"step": 2, "action": "write: retry policy — halt after 2 same-signature gate failures (SARA early stopping), reallocate to fresh work", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 50, "paths": ["docs/PLAN.md"]},
+    {"step": 3, "action": "exec: gate check — policy documented and consistent", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 40}
+  ]
+}

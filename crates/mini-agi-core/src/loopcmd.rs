@@ -97,18 +97,51 @@ fn claimant_for(root: &Path, ticket_id: &str) -> Option<String> {
 fn append_metrics(root: &Path, case: &str, composite: f64, tokens: u64) -> std::io::Result<()> {
     let path = root.join("docs/METRICS.md");
     fs::create_dir_all(path.parent().unwrap_or(root))?;
-    let header = "| date | case | composite | tokens |\n| --- | --- | --- | --- |\n";
+    let family = crate::eval::family_of(case);
+    let header = "| date | case | family | composite | tokens |\n| --- | --- | --- | --- | --- |\n";
     let row = format!(
-        "| {} | {} | {composite:.4} | {tokens} |\n",
+        "| {} | {} | {} | {composite:.4} | {tokens} |\n",
         crate::memory::utc_now_date(),
-        case
+        case,
+        family
     );
     let existing = fs::read_to_string(&path).unwrap_or_default();
-    let body = if existing.contains("| date |") {
+    let old_format = existing.contains("| date |") && !existing.contains("| family |");
+    let body = if old_format {
+        let mut migrated = header.to_string();
+        for line in existing.lines() {
+            let cols: Vec<&str> = line.split('|').map(str::trim).collect();
+            if cols.len() >= 6
+                && !cols[1].is_empty()
+                && cols[1] != "date"
+                && !cols[1].starts_with('-')
+            {
+                let case = cols[2];
+                let _ = writeln!(
+                    migrated,
+                    "| {} | {} | {} | {} | {} |",
+                    cols[1],
+                    case,
+                    crate::eval::family_of(case),
+                    cols[3],
+                    cols[4]
+                );
+            }
+        }
+        migrated
+    } else if existing.contains("| date |") {
         existing
     } else {
         header.to_string()
     };
+    // A migrated file is always written back so the header lands; the
+    // dedup guard applies only to new-format rows.
+    if old_format {
+        if !body.contains(&format!("| {case} |")) {
+            return fs::write(&path, format!("{body}{row}"));
+        }
+        return fs::write(&path, body);
+    }
     if body.contains(&format!("| {case} |")) {
         return Ok(());
     }
@@ -891,6 +924,37 @@ mod reflection_diff_tests {
                 .iter()
                 .any(|b| b.contains("success evidence: deterministic gate passed")),
             "{bodies:?}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod metrics_migration_tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn old_format_metrics_migrates_to_family_columns() {
+        let root = env::temp_dir().join(format!("mag-migm-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::write(
+            root.join("docs/METRICS.md"),
+            "| date | case | composite | tokens |\n| --- | --- | --- | --- |\n| 2026-08-03 | codex-exp-002-rerun | 1.0000 | 18400 |\n",
+        )
+        .unwrap();
+        append_metrics(&root, "codex-exp-002-rerun", 1.0, 18400).unwrap();
+        let text = fs::read_to_string(root.join("docs/METRICS.md")).unwrap();
+        assert!(text.contains("| family |"), "{text}");
+        assert!(
+            text.contains("| codex-exp-002-rerun | codex-exp |"),
+            "{text}"
+        );
+        assert_eq!(
+            text.matches("codex-exp-002-rerun").count(),
+            1,
+            "no duplicate row"
         );
         let _ = fs::remove_dir_all(&root);
     }

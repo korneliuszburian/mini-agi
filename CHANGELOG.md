@@ -280,3 +280,11 @@ Intelligence" direction)
 - On gap close, loop verify consolidates a canonical contrast fact:
   failure reflection (from the register) paired with the verified
   success evidence (GRSD-style success-vs-failure pairs).
+### Added (Phase 9 — capability telemetry, slice 4)
+- eval gate reports per-family composite averages (real-ticket,
+  codex-exp, flailing, reactive-loop, harnessed) — the Compounding-Test
+  time series per family, not just all-green-or-red.
+- `eval hidden [dir]`: scores held-out cases in evals/hidden/ (not in
+  the baseline, not gated) — contamination-safe capability measurement.
+- METRICS.md gains a family column (auto-migrated from the old format;
+  migration falsifier).

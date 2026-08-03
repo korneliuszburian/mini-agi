@@ -290,6 +290,12 @@ enum EvalAction {
     /// Verifier-vs-judged drift: precision of the judged outcome
     /// against the deterministic layer (Phase 9 slice 2).
     JudgeDrift,
+    /// Score held-out cases in `evals/hidden/` (not in the baseline,
+    /// not gated) — contamination-safe capability measurement.
+    Hidden {
+        /// Subdirectory under evals/hidden (default: all).
+        dir: Option<String>,
+    },
     /// Regression gate over all cases vs the committed baseline.
     Gate {
         /// Max allowed composite drop.
@@ -377,6 +383,7 @@ fn main() -> ExitCode {
             EvalAction::Score { run } => cmd_eval_score(&run),
             EvalAction::Steps { run } => cmd_eval_steps(&run),
             EvalAction::JudgeDrift => cmd_eval_judge_drift(),
+            EvalAction::Hidden { dir } => cmd_eval_hidden(dir.as_deref()),
             EvalAction::Gate {
                 tolerance,
                 mismatch_tolerance,
@@ -1387,6 +1394,43 @@ fn cmd_eval_steps(run: &Path) -> ExitCode {
     }
 }
 
+fn cmd_eval_hidden(dir: Option<&str>) -> ExitCode {
+    let root = root();
+    let hidden = root.join("evals/hidden");
+    let scan_dir = dir.map_or_else(|| hidden.clone(), |d| hidden.join(d));
+    if !scan_dir.is_dir() {
+        return fail(&format!("no hidden cases in {}", scan_dir.display()));
+    }
+    let mut composites = Vec::new();
+    let Ok(entries_dir) = std::fs::read_dir(&scan_dir) else {
+        return fail(&format!("cannot read {}", scan_dir.display()));
+    };
+    for entry in entries_dir.flatten() {
+        let run = entry.path().join("run.json");
+        if !run.is_file() {
+            continue;
+        }
+        let case = entry.file_name().to_string_lossy().into_owned();
+        match eval::score_run(&run, &root, &root.join("evals/golden")) {
+            Ok(report) => {
+                println!("hidden {case}: {:.4}", report.composite);
+                composites.push((case, report.composite));
+            }
+            Err(e) => println!("hidden {case}: error {e}"),
+        }
+    }
+    if composites.is_empty() {
+        return fail(&format!("no run.json files under {}", scan_dir.display()));
+    }
+    let avg = composites.iter().map(|(_, c)| c).sum::<f64>()
+        / f64::from(u32::try_from(composites.len()).unwrap_or(1));
+    println!(
+        "hidden avg: {avg:.4} across {} cases (not gated, not in baseline)",
+        composites.len()
+    );
+    ExitCode::SUCCESS
+}
+
 fn cmd_eval_judge_drift() -> ExitCode {
     let drift = mini_agi_core::verifier::judge_drift(&root());
     let precision = drift.precision();
@@ -1468,6 +1512,23 @@ fn eval_gate_text(
         "{verdict}: {} cases, {} regressions",
         result.case_count, result.failures
     ));
+    // Capability telemetry (Phase 9 slice 4): per-family composite
+    // averages (Sequoia/Karpathy compounding discipline — the gate is
+    // the time series, per family, not just all-green-or-red).
+    let mut by_family: std::collections::BTreeMap<String, (f64, usize)> =
+        std::collections::BTreeMap::new();
+    for entry in &entries {
+        let fam = eval::family_of(&entry.case);
+        let cell = by_family.entry(fam).or_insert((0.0, 0));
+        cell.0 += entry.composite;
+        cell.1 += 1;
+    }
+    for (fam, (sum, count)) in &by_family {
+        lines.push(format!(
+            "family {fam}: avg {:.4} ({count} cases)",
+            sum / f64::from(u32::try_from(*count).unwrap_or(1))
+        ));
+    }
     if result.failures == 0 {
         Ok(lines.join("\n"))
     } else {
