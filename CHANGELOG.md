@@ -213,3 +213,10 @@ Intelligence" direction)
   displaces the frozen suite state (RSIBench-Data discipline).
 - Every close appends a row to docs/METRICS.md (date, case, composite,
   tokens) — the published Compounding-Test time series.
+### Added (Phase 8 — codex integration, EXP-003)
+- `mini-agi codex <spec> <workdir>`: completion protocol
+  (`<promise>COMPLETE</promise>` + `<result>` JSON), transcript capture,
+  truthful trajectory parsing (exec/write/read with line provenance),
+  run.json draft output.
+- capture.rs parser validated against the real EXP-002 transcript;
+  EXP-003 documented in docs/EXPERIMENTS.md.

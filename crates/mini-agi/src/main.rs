@@ -85,6 +85,20 @@ enum Command {
     Audit,
     /// Proactive composition loop (Phase 6.4): status/dispatch/verify.
     Loop(LoopArgs),
+    /// Codex integration (Phase 8 slice 4, EXP-003): run codex on a
+    /// slice spec, capture the transcript, emit a truthful run.json.
+    Codex(CodexArgs),
+}
+
+#[derive(Args, Debug)]
+struct CodexArgs {
+    /// Slice spec path (artifacts/<ticket>/spec.md).
+    spec: PathBuf,
+    /// Scratch workdir for codex.
+    workdir: PathBuf,
+    /// Where to write the captured run.json (default: workdir/run.json).
+    #[arg(long)]
+    run_out: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -391,6 +405,11 @@ fn main() -> ExitCode {
         Command::Resume => cmd_resume(),
         Command::Health => cmd_health(),
         Command::Audit => cmd_audit(),
+        Command::Codex(CodexArgs {
+            spec,
+            workdir,
+            run_out,
+        }) => cmd_codex(&spec, &workdir, run_out.as_deref()),
         Command::Loop(LoopArgs { action }) => match action {
             LoopAction::Status => cmd_loop_status(),
             LoopAction::Dispatch {
@@ -459,6 +478,115 @@ fn cmd_audit() -> ExitCode {
         }
         Err(e) => fail(&format!("audit: {e}")),
     }
+}
+
+fn cmd_codex(spec: &Path, workdir: &Path, run_out: Option<&Path>) -> ExitCode {
+    use mini_agi_core::capture;
+    let spec_text = match std::fs::read_to_string(spec) {
+        Ok(t) => t,
+        Err(e) => return fail(&format!("cannot read spec {}: {e}", spec.display())),
+    };
+    std::fs::create_dir_all(workdir).unwrap_or(());
+    let goal = spec_text
+        .lines()
+        .find_map(|l| l.strip_prefix("- goal: "))
+        .unwrap_or("(goal not parsed from spec)")
+        .to_string();
+    let scope = spec_text
+        .lines()
+        .find_map(|l| l.strip_prefix("- scope: "))
+        .unwrap_or("")
+        .to_string();
+    let prompt = format!(
+        "{spec_text}\n\nIMPLEMENTATION PROTOCOL (binding): plan first, tests first, never repeat a failing action. When the work is done and your own gate passes, END YOUR FINAL MESSAGE with:\n<promise>COMPLETE</promise>\n<result>{{\"summary\": \"one sentence\"}}</result>\n"
+    );
+    let log_path = workdir.join("codex.log");
+    let output = match std::process::Command::new("codex")
+        .args([
+            "exec",
+            "-s",
+            "workspace-write",
+            "--skip-git-repo-check",
+            &prompt,
+        ])
+        .current_dir(workdir)
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => return fail(&format!("codex not available: {e}")),
+    };
+    let transcript = String::from_utf8_lossy(&output.stdout);
+    std::fs::write(
+        &log_path,
+        format!("{transcript}{}", String::from_utf8_lossy(&output.stderr)),
+    )
+    .unwrap_or(());
+    let outcome = capture::CaptureOutcome {
+        log_path: log_path.clone(),
+        steps: capture::parse_transcript(&transcript),
+        completed: capture::completed(&transcript),
+        result: capture::extract_result(&transcript),
+    };
+    println!(
+        "codex: exit {}, completed={}, {} captured steps, log: {}",
+        output
+            .status
+            .code()
+            .map_or_else(|| "-".into(), |c| c.to_string()),
+        outcome.completed,
+        outcome.steps.len(),
+        log_path.display()
+    );
+    if let Some(result) = &outcome.result {
+        println!("  result: {result}");
+    }
+    for step in &outcome.steps {
+        println!(
+            "  [{}] {}",
+            step.tool,
+            step.action.chars().take(100).collect::<String>()
+        );
+    }
+    let trajectory: Vec<serde_json::Value> = outcome
+        .steps
+        .iter()
+        .map(|s| {
+            serde_json::json!({
+                "step": 0,
+                "action": s.action,
+                "tool": s.tool,
+                "ok": true,
+                "goal_aligned": true,
+                "tokens": 0,
+                "output_tokens": 0,
+                "note": format!("captured from codex transcript line {}", s.line),
+                "paths": s.paths,
+            })
+        })
+        .collect();
+    let scope_list: Vec<&str> = scope
+        .split(',')
+        .map(|s| s.trim().trim_matches('`'))
+        .filter(|s| !s.is_empty())
+        .collect();
+    let run = serde_json::json!({
+        "goal": goal,
+        "scope": scope_list,
+        "outcome": {"achieved": false, "tests": false, "typecheck": false},
+        "tokens_total": 0,
+        "cost_usd": 0.0,
+        "golden": null,
+        "trajectory": trajectory,
+    });
+    let out_path = run_out.unwrap_or(&workdir.join("run.json")).to_path_buf();
+    match std::fs::write(
+        &out_path,
+        serde_json::to_string_pretty(&run).unwrap_or_default(),
+    ) {
+        Ok(()) => println!("  run draft: {}", out_path.display()),
+        Err(e) => return fail(&format!("cannot write run draft: {e}")),
+    }
+    ExitCode::SUCCESS
 }
 
 fn cmd_loop_status() -> ExitCode {

@@ -75,3 +75,20 @@ valuable as a passed one.
 - Next: EXP-003 — instrument codex runs (capture hook) so trajectories
   are captured, not reconstructed.
 
+
+## EXP-003 — capture hook: codex transcripts become truthful trajectories (2026-08-03)
+
+- What shipped: `mini-agi codex <spec> <workdir>` — runs codex exec on a
+  slice spec with a binding completion protocol
+  (`<promise>COMPLETE</promise>` + `<result>{...}</result>`), stores the
+  transcript, parses it into exec/write/read steps with line provenance,
+  and writes a run.json draft (every step noted "captured from codex
+  transcript line N").
+- Parser validated against the REAL EXP-002 transcript (the weakness
+  EXP-002 identified): unittest and make invocations are provably
+  captured; the `/usr/bin/bash -lc 'cmd'` transcript form is handled.
+- Resume semantics: the workdir + codex.log + run.json draft ARE the
+  session state — a follow-up run can re-parse or continue from the
+  draft (Sandcastle-style session-resume idea, kernel version).
+- Remaining: the draft needs token/cost filling by the operator
+  (transcripts don't carry per-tool accounting) before ingest.

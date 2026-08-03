@@ -6,6 +6,7 @@
 //! crate (mini-agi) is a thin shell exposing CLI + MCP server.
 
 pub mod audit;
+pub mod capture;
 pub mod contract;
 pub mod eval;
 pub mod failure;
