@@ -164,3 +164,18 @@ Intelligence" direction)
 - stdio MCP server (14 tools) + codex/opencode adapters.
 - `scripts/verify.sh` (deterministic gate) + `scripts/checkpoint.sh` (ECC).
 - Dogfooding: the repo runs on its own kernel (memory, journal, gate).
+
+### Added (Phase 7 — senior-like runtime quality)
+- `mini-agi health` — runtime observability: load1 vs cores, memory,
+  swap, process zoo (thresholds catch the 2026-08-03 OOM incident class:
+  500 agent-browser, load 21), checkpoint journal health (T008
+  semantics), stale claims. Verdict OK/WARN/CRITICAL, exit 0/1/2.
+- `mini-agi audit` — repo invariants: provenance drift vs brief,
+  gate-baseline freshness, working-tree state, the eval gate itself.
+- docs/EXPERIMENTS.md — EXP-001: codex exec implemented a loop-style
+  slice (green, 8/8 tests, 365s wall); learnings recorded; codex needs
+  a trusted repo (.codex/config.toml) or --skip-git-repo-check.
+- `mini-agi init` onboarding: writes `.codex/config.toml` (trusted),
+  AGENTS.md documents the intelligence layer (resume/insights/loop/
+  health/audit), and prints a ready-summary (verify.sh, health, audit,
+  resume).
