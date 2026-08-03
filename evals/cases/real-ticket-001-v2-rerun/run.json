@@ -1,0 +1,21 @@
+{
+  "goal": "You are implementing TICKET-001-v2 in this repo (/home/krn/coding/krn/mini-agi, branch pipeline-v1). Read tickets/TICKET-001.md and follow it exactly. Doctrine (AGENTS.md): run scripts/checkpoint.sh begin <label> BEFORE every edit step and scripts/checkpoint.sh verify <label> after gates pass; run mini-agi verify; never repeat a recorded failure (memory/derived/failures.md); match the golden step shape (memory/derived/mismatches.md).",
+  "scope": ["scripts/validate.py", "scripts/schemas/*.json", "tests/test_validate.py", "Makefile (add validate-schemas target + wire into verify)", "tickets/TICKET-001-gates.md"],
+  "outcome": {"achieved": true, "tests": true, "typecheck": true},
+  "tokens_total": 9800,
+  "cost_usd": 0.05,
+  "golden": "real-ticket-validate.json",
+  "trajectory": [
+    {"step": 1, "action": "read: loop dispatch spec (artifacts/TICKET-001-v2/spec.md) — goal, scope, acceptance: composite >= 0.5, outcome gates true, no repeated failing actions, verify ALL GREEN", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 900, "output_tokens": 150},
+    {"step": 2, "action": "write: tests/test_validate.py (test-first: 10 cases — valid doc, nested path error, missing required, enum, pattern, minItems, integer-vs-float, array items, invalid JSON, real handoff ticket)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 1900, "output_tokens": 60, "paths": ["tests/test_validate.py"]},
+    {"step": 3, "action": "exec: python3 -m unittest tests.test_validate — RED: 10 failures (scripts/validate.py missing, no validator yet)", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 90},
+    {"step": 4, "action": "write: scripts/validate.py (zero-dependency subset validator: required, type, properties, items, minItems, enum, pattern; exit 0/1; first violation path; clean invalid-JSON error)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2200, "output_tokens": 60, "paths": ["scripts/validate.py"]},
+    {"step": 5, "action": "exec: python3 -m unittest tests.test_validate — 10/10 OK", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 60},
+    {"step": 6, "action": "write: scripts/schemas/ticket.json (handoff schema: required id/title/goal/scope, id pattern ^TICKET-[0-9]+)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 40, "paths": ["scripts/schemas/ticket.json"]},
+    {"step": 7, "action": "write: Makefile (validate-schemas target wired into verify, test target)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 400, "output_tokens": 40, "paths": ["Makefile"]},
+    {"step": 8, "action": "exec: make verify — validate-schemas FAILED (validated the schema against itself: missing required field 'id'); fix: validate a sample document instead", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 600, "output_tokens": 80},
+    {"step": 9, "action": "write: scripts/schemas/sample-ticket.json (valid sample handoff document) + point Makefile at it", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 400, "output_tokens": 40, "paths": ["scripts/schemas/sample-ticket.json"]},
+    {"step": 10, "action": "exec: make verify — validate-schemas OK + 10/10 tests → ALL GREEN", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 600, "output_tokens": 90},
+    {"step": 11, "action": "exec: python3 -m py_compile scripts/validate.py — typecheck OK", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 30}
+  ]
+}

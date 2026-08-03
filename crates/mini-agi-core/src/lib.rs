@@ -11,6 +11,7 @@ pub mod failure;
 pub mod hash;
 pub mod insights;
 pub mod journal;
+pub mod loopcmd;
 pub mod memory;
 pub mod metrics;
 pub mod mismatch;

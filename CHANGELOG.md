@@ -7,6 +7,17 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ### Added (intelligence layer, ADR-0005 — Sequoia "From Hierarchy to
 Intelligence" direction)
+- `mini-agi loop` (Phase 6.4, proactive composition — Wish Factory
+  pattern): `status` lists cases below the 0.5 target with tickets,
+  claims and rerun evidence; `dispatch` picks the worst open case,
+  ensures its ticket, claims it (lease, ADR-0008) and writes the slice
+  spec (`artifacts/<ticket>/spec.md`) for a fresh session; `verify`
+  scores + ingests the rerun and releases the lease at composite >= 0.5.
+  Demonstrated end-to-end: real-ticket-001-v2 0.2402 ->
+  real-ticket-001-v2-rerun 0.7225 -> CLOSED, capability gaps: none.
+- Cases with a passing `-rerun` are excluded from insights capability
+  gaps (the original run stays a historical fixture, TICKET-9
+  semantics).
 - Sandbox attestation (ADR-0009, Phase 6.3): `verify.sh` gains a
   `sandbox` target — skipped locally, mandatory in CI (`CI=true`):
   fails unless the runner is non-root and identifies itself, and the

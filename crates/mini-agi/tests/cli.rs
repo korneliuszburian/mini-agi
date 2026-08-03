@@ -797,6 +797,62 @@ fn cli_ticket_work_graph_claims_and_validation() {
 }
 
 #[test]
+fn cli_loop_dispatch_writes_spec_and_claim() {
+    let root = tmp_root("c25");
+    wipe(&root);
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    std::fs::create_dir_all(root.join("evals/cases/real-ticket-001-v2")).unwrap();
+    std::fs::copy(
+        repo.join("evals/cases/real-ticket-001-v2/run.json"),
+        root.join("evals/cases/real-ticket-001-v2/run.json"),
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::copy(
+        repo.join("evals/golden/real-ticket-validate.json"),
+        root.join("evals/golden/real-ticket-validate.json"),
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("tickets")).unwrap();
+    std::fs::copy(
+        repo.join("tickets/TICKET-001.md"),
+        root.join("tickets/TICKET-001.md"),
+    )
+    .unwrap();
+    let status = run(&root, &["loop", "status"]);
+    assert!(status.status.success());
+    assert!(stdout(&status).contains("real-ticket-001-v2"));
+    let dispatch = run(
+        &root,
+        &[
+            "loop",
+            "dispatch",
+            "real-ticket-001-v2",
+            "--claimant",
+            "cli-test",
+        ],
+    );
+    assert!(dispatch.status.success(), "{}", combined(&dispatch));
+    let text = stdout(&dispatch);
+    assert!(text.contains("real-ticket-001-v2 -> TICKET-001-v2"));
+    let spec = root.join("artifacts/TICKET-001-v2/spec.md");
+    assert!(spec.is_file());
+    assert!(
+        std::fs::read_to_string(&spec)
+            .unwrap()
+            .contains("composite >= 0.5")
+    );
+    let claims = run(&root, &["ticket", "claims"]);
+    assert!(stdout(&claims).contains("TICKET-001-v2 claimed by cli-test"));
+    wipe(&root);
+}
+
+#[test]
 fn cli_run_ingest_and_insights() {
     let root = tmp_root("c21");
     wipe(&root);

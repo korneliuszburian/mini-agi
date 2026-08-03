@@ -221,10 +221,16 @@ not aspirational.
    that fails in CI unless the runner is non-root and identifies itself.
    Deferred: local-agent sandboxing (bwrap/firejail) — revisit when 6.4
    dispatches untrusted work.
-4. **Proactive composition (intelligence layer 2)** — after 1-3:
-   orchestrate reads `insights` gaps and auto-selects the skill per gap
-   without a human ticket. Target: gap -> ticket -> slice -> rerun loop
-   without human routing.
+4. **Proactive composition (intelligence layer 2)** — DONE (2026-08-03):
+   `mini-agi loop status|dispatch|verify` closes the loop without human
+   routing — dispatch picks the worst open case (below 0.5, unclaimed,
+   no passing rerun), ensures its ticket (work graph ADR-0008), claims
+   it (lease), and writes the slice spec; verify scores + ingests the
+   rerun, releases the lease at composite >= 0.5. Demonstrated
+   end-to-end: real-ticket-001-v2 (0.2402) -> TICKET-001-v2 ->
+   real-ticket-001-v2-rerun composite 0.7225 -> CLOSED; insights gaps:
+   none; composite avg 0.4469 -> 0.4681. Cases with a passing rerun are
+   excluded from insights capability gaps (fixture stays historical).
 
 Acceptance for Phase 6 as a whole: `mini-agi insights` shows composite avg
 >= 0.60, zero open capability gaps, gate ALL GREEN, and the whole loop

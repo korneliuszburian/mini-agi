@@ -79,6 +79,8 @@ enum Command {
     Backlog,
     /// Resume block for a fresh session.
     Resume,
+    /// Proactive composition loop (Phase 6.4): status/dispatch/verify.
+    Loop(LoopArgs),
 }
 
 #[derive(Args, Debug)]
@@ -157,6 +159,37 @@ struct ValidateArgs {
     contract: String,
     /// JSON document file to validate.
     document: PathBuf,
+}
+
+#[derive(Args, Debug)]
+struct LoopArgs {
+    #[command(subcommand)]
+    action: LoopAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum LoopAction {
+    /// Cases below the loop target with tickets and claims.
+    Status,
+    /// Pick the worst open case, claim it, and write its slice spec.
+    Dispatch {
+        /// Case name (default: worst open case below the target).
+        case: Option<String>,
+        /// Composite floor for dispatchability.
+        #[arg(long, default_value_t = 0.5)]
+        below: f64,
+        /// Claimant name.
+        #[arg(long, default_value = "local")]
+        claimant: String,
+    },
+    /// Score + ingest a rerun; at the target, release the claim.
+    Verify {
+        /// Rerun case name (e.g. real-ticket-001-v2-rerun).
+        case: String,
+        /// Claimant name.
+        #[arg(long, default_value = "local")]
+        claimant: String,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -345,6 +378,79 @@ fn main() -> ExitCode {
         Command::Insights => cmd_insights(),
         Command::Backlog => cmd_backlog(),
         Command::Resume => cmd_resume(),
+        Command::Loop(LoopArgs { action }) => match action {
+            LoopAction::Status => cmd_loop_status(),
+            LoopAction::Dispatch {
+                case,
+                below,
+                claimant,
+            } => cmd_loop_dispatch(case.as_deref(), below, &claimant),
+            LoopAction::Verify { case, claimant } => cmd_loop_verify(&case, &claimant),
+        },
+    }
+}
+
+fn cmd_loop_status() -> ExitCode {
+    match mini_agi_core::loopcmd::status(&root()) {
+        Ok(report) => {
+            println!(
+                "loop status: {} runs, composite avg {:.4}, {} cases below target {:.2}",
+                report.runs,
+                report.composite_avg,
+                report.cases.len(),
+                mini_agi_core::loopcmd::TARGET_COMPOSITE
+            );
+            for row in &report.cases {
+                let ticket = row.ticket.as_ref().map_or_else(
+                    || "no ticket".to_string(),
+                    |id| format!("{id} [{}]", row.status.as_deref().unwrap_or("?")),
+                );
+                let claim = row.claimant.as_deref().unwrap_or("unclaimed");
+                let rerun = match row.rerun_composite {
+                    Some(c) if c >= mini_agi_core::loopcmd::TARGET_COMPOSITE => {
+                        format!("rerun {c:.4} — CLOSED")
+                    }
+                    Some(c) => format!("rerun {c:.4}"),
+                    None => "no rerun".to_string(),
+                };
+                println!(
+                    "  {:.4}  {:<24} {}  lease: {}  {}",
+                    row.composite, row.case, ticket, claim, rerun
+                );
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("loop status: {e}")),
+    }
+}
+
+fn cmd_loop_dispatch(case: Option<&str>, below: f64, claimant: &str) -> ExitCode {
+    match mini_agi_core::loopcmd::dispatch(&root(), case, below, claimant) {
+        Ok(outcome) => {
+            println!(
+                "dispatched: {} -> {} ({}claimed) — spec: {}",
+                outcome.case,
+                outcome.ticket,
+                if outcome.ticket_created {
+                    "ticket created, "
+                } else {
+                    ""
+                },
+                outcome.spec.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("loop dispatch: {e}")),
+    }
+}
+
+fn cmd_loop_verify(case: &str, claimant: &str) -> ExitCode {
+    match mini_agi_core::loopcmd::verify(&root(), case, claimant) {
+        Ok(text) => {
+            println!("{text}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("loop verify: {e}")),
     }
 }
 

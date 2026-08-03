@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 20cf64abb3377a32
-# canonical_entries: 16
+# canonical_sha256: ffbcd675fbfa8463
+# canonical_entries: 17
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -40,3 +40,4 @@ Read this before starting any session. Canonical wins over this file.
 - `d19c336052dadbb8` [strategy] Wish Factory (Guy Podjarny/Tessl): an agent accepts only issues, never PRs, and implements them; Yegge's Sage/Herald auto-grant player "wishes" with guardrails and triage — the failure signal and user wishes ARE the roadmap, work lands without the human in the loop.
 - `dace75359570fa28` [strategy] Model welfare becomes an engineering input: treating agents like people produces empirically better results; a mature agentic project accretes law, mail, courts, doctrine and named rulings that cite their own case history — rules written by the workers they govern.
 - `0ff9b686f9e72fc3` [strategy] Beads ledger semantics (Gas Town): each unit of work is a bead (atomic, durable, version-controlled); polecats are workers with persistent identity and ephemeral sessions; a witness patrols each rig; a refinery serializes merges so nothing collides; a mayor coordinates across rigs; stamps are multi-dimensional attestations (quality/reliability/creativity) from validators that accrue into a portable character sheet — reputation derived from real work, not self-reported.
+- `b4276acdfd6cc4e8` [eval] run real-ticket-001-v2-rerun scored composite 0.7225 on 9800 tokens (0.0500 USD) with 0 scope violations and 2 tool mismatches.

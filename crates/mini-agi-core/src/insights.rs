@@ -170,7 +170,7 @@ pub fn insights(root: &Path) -> Result<InsightsReport, io::Error> {
             if let Ok(report) = eval::score_run(&run, root, &golden_dir) {
                 tokens_total += report.tokens_total;
                 cost_total += report.cost_usd;
-                if report.composite <= 0.05 {
+                if report.composite <= 0.05 && !crate::loopcmd::case_closed_by_rerun(root, &case) {
                     gaps.push(format!("{case} (composite {:.4})", report.composite));
                 }
                 cases.push(CaseInsight {
