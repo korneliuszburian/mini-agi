@@ -285,3 +285,16 @@ enforced, evals run on real sessions, skills verified in CI).
   exec (trusted repo via init onboarding) → reconstructed rerun 1.0000 →
   verify CLOSED; learnings in docs/EXPERIMENTS.md; capture-hook (EXP-003)
   is the next step.
+
+### Phase 8 — breakthrough pipeline (candidates from deep research, 2026-08-03)
+Full synthesis in docs/RESEARCH-2026-08.md (5 parallel research tracks,
+~40 primary sources). Ranked candidates: (1) verifiable-reward layer
+(kernel runs target-repo gates; judge-vs-verifier calibration), (2)
+Reflexion register upgrade (reflections + MAST taxonomy injected into
+reruns), (3) Sandcastle-style codex integration (completion protocol,
+structured output, branch semantics — EXP-003), (4) process supervision
+(step-level verdicts, active budget), (5) best-state regression bound +
+published time series, (6) memory evolution (fact linking, importance
+retrieval, supersede consolidation), (7) harness evolution (mini-agi
+improving mini-agi, journal as evolution ledger), (8) multi-repo + MCP
+completion.
