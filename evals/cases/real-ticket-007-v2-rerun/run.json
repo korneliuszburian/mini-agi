@@ -1,0 +1,17 @@
+{
+  "goal": "You are implementing TICKET-007-v2 in this repo (/home/krn/coding/krn/mini-agi, branch pipeline-v1). Read tickets/TICKET-007.md and follow it exactly — the CONTEXT-BUDGET RULES section is binding. Doc",
+  "scope": ["scripts/capture-trajectory.py", "tests/test_capture_trajectory.py", "tickets/TICKET-007-gates.md", "artifacts/TICKET-007-v2/"],
+  "outcome": {"achieved": true, "tests": true, "typecheck": true},
+  "tokens_total": 8600,
+  "cost_usd": 0.04,
+  "golden": "real-ticket-redaction2.json",
+  "trajectory": [
+    {"step": 1, "action": "read: tickets/TICKET-007.md (CONTEXT-BUDGET rules: single read per file; review v2-001 #5: incomplete redactor — sshpass/cookies/private keys/credential keys; deny-by-default driver: fact 4cf21e40f7f4e2d2)", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 1200, "output_tokens": 180, "note": "closes review finding v2-001 #5; fact 4cf21e40f7f4e2d2 (deterministic gates, not declarations) drives deny-by-default"},
+    {"step": 2, "action": "read: scripts/capture-trajectory.py (existing redactor — incomplete; one read only per CONTEXT-BUDGET, later lookups via grep)", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 800, "output_tokens": 140},
+    {"step": 3, "action": "write: tests/test_capture_trajectory.py (test-first: 13 parametrized leak fixtures — sshpass -p, -p pw, password=/passwd=, secret=, api_key, apikey, token=, Cookie:, Authorization: Bearer/Basic, PEM block, unknown cred keys, plain text survives, JSON payload)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2300, "output_tokens": 80, "paths": ["tests/test_capture_trajectory.py"]},
+    {"step": 4, "action": "write: scripts/capture-trajectory.py (v1: explicit patterns sshpass -p, -p, password=/passwd=, secret=, api_key/apikey, token=, Cookie:/Authorization: header values, PEM private-key blocks; deny-by-default credential-key regex)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 1700, "output_tokens": 70, "paths": ["scripts/capture-trajectory.py"]},
+    {"step": 5, "action": "exec: python3 -m unittest — RED: 2 leaks (x-api-key: colon-header form; JSON-quoted values \"key\": \"secret\")", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 90},
+    {"step": 6, "action": "write: scripts/capture-trajectory.py (v2: credential-key regex handles `:` separators and JSON-quoted values, optional key quote)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 50, "paths": ["scripts/capture-trajectory.py"]},
+    {"step": 7, "action": "exec: python3 -m unittest — 5/5 OK; python3 -m py_compile — typecheck OK", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 60}
+  ]
+}

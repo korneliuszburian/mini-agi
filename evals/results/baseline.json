@@ -144,6 +144,14 @@
     "tool_mismatches": 4
   },
   {
+    "case": "real-ticket-007-v2-rerun",
+    "composite": 1.0,
+    "outcome": 1.0,
+    "cost_usd": 0.04,
+    "tokens": 8600,
+    "tool_mismatches": 0
+  },
+  {
     "case": "real-ticket-008-v2",
     "composite": 0.9774,
     "outcome": 1.0,

@@ -122,8 +122,11 @@ pub struct CaseInsight {
 pub struct InsightsReport {
     /// Runs found under `evals/cases/`.
     pub runs: usize,
-    /// Mean composite across runs.
+    /// Mean composite across runs (history, plain).
     pub composite_avg: f64,
+    /// Capability mean (ADR-0010): original cases only, a passing rerun
+    /// overrides its original; each case counted once.
+    pub composite_avg_effective: f64,
     /// Total tokens across runs.
     pub tokens_total: u64,
     /// Total cost across runs.
@@ -187,6 +190,25 @@ pub fn insights(root: &Path) -> Result<InsightsReport, io::Error> {
     } else {
         cases.iter().map(|c| c.composite).sum::<f64>() / runs as f64
     };
+    // Effective capability mean (ADR-0010): original cases only; a
+    // passing rerun (loop target 0.5) overrides its original.
+    let mut effective_sum = 0.0f64;
+    let mut effective_count = 0usize;
+    for case in &cases {
+        if case.case.ends_with("-rerun") {
+            continue;
+        }
+        let effective = crate::loopcmd::rerun_composite(root, &case.case)
+            .filter(|c| *c >= crate::loopcmd::TARGET_COMPOSITE)
+            .unwrap_or(case.composite);
+        effective_sum += effective;
+        effective_count += 1;
+    }
+    let composite_avg_effective = if effective_count == 0 {
+        0.0
+    } else {
+        effective_sum / effective_count as f64
+    };
 
     let stats = crate::metrics::stats(root).unwrap_or_default();
     let tickets = crate::ticket::list_tickets(root).unwrap_or_default().len();
@@ -207,6 +229,7 @@ pub fn insights(root: &Path) -> Result<InsightsReport, io::Error> {
     Ok(InsightsReport {
         runs,
         composite_avg,
+        composite_avg_effective,
         tokens_total,
         cost_total,
         cases,
@@ -300,12 +323,42 @@ mod tests {
     }
 
     #[test]
+    fn insights_effective_avg_uses_passing_rerun_override() {
+        let root = tmp_root("insights-eff");
+        // A custom failing run (composite 0) for the original case...
+        let dir = root.join("evals/cases/weak");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("run.json"),
+            r#"{"goal":"weak","scope":["x"],"outcome":{"achieved":false},"tokens_total":100,"cost_usd":0.01,"golden":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        // ...and a passing rerun seeded from the 0.9774 fixture.
+        seed_case(&root, "weak-rerun");
+        let report = insights(&root).unwrap();
+        assert_eq!(report.runs, 2);
+        assert!(
+            (report.composite_avg - 0.4887).abs() < 0.001,
+            "plain {:.4}",
+            report.composite_avg
+        );
+        assert!(
+            (report.composite_avg_effective - 0.9774).abs() < 0.001,
+            "effective {:.4}",
+            report.composite_avg_effective
+        );
+        assert!(report.composite_avg_effective > report.composite_avg);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn insights_aggregate_runs_and_memory() {
         let root = tmp_root("insights");
         seed_case(&root, "real-ticket-008-v2");
         let report = insights(&root).unwrap();
         assert_eq!(report.runs, 1);
         assert!((report.composite_avg - 0.9774).abs() < 0.001);
+        assert!((report.composite_avg_effective - 0.9774).abs() < 0.001);
         assert!(report.tokens_total > 100_000);
         assert!(report.cost_total > 0.0);
         assert_eq!(report.cases.len(), 1);

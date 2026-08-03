@@ -603,8 +603,12 @@ fn cmd_insights() -> ExitCode {
         Ok(report) => {
             println!("SYSTEM INTELLIGENCE REPORT");
             println!(
-                "  runs: {} (composite avg {:.4}, {} tokens, {:.4} USD)",
-                report.runs, report.composite_avg, report.tokens_total, report.cost_total
+                "  runs: {} (composite avg {:.4} history | {:.4} effective, {} tokens, {:.4} USD)",
+                report.runs,
+                report.composite_avg,
+                report.composite_avg_effective,
+                report.tokens_total,
+                report.cost_total
             );
             for case in &report.cases {
                 println!("    {}: {:.4}", case.case, case.composite);

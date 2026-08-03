@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: dacbbf4d8160561b
-# canonical_entries: 24
+# canonical_sha256: a7e9405b5ba27b9e
+# canonical_entries: 25
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -29,3 +29,5 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `c98b32aa684e9295` run real-ticket-004-v2-rerun scored composite 0.7225 on 11200 tokens (0.0500 USD) with 0 scope violations and 2 tool mismatches.
 - `e5869011def095cd` run real-ticket-005-v2-rerun scored composite 0.6141 on 9800 tokens (0.0500 USD) with 0 scope violations and 3 tool mismatches.
 - `fcba3e1dab0dda01` run real-ticket-006-v2-rerun scored composite 0.6141 on 10300 tokens (0.0500 USD) with 0 scope violations and 3 tool mismatches.
+- `580fa37aee6d4dcb` run real-ticket-007-v2-rerun scored composite 1.0000 on 8600 tokens (0.0400 USD) with 0 scope violations and 0 tool mismatches.
+- `5304dccffe981053` run real-ticket-007-v2-rerun is a strong run (composite >= 0.9).

@@ -25,6 +25,15 @@ Intelligence" direction)
   rerun composites 0.6141-0.8500, zero cases below 0.5 without a passing
   rerun, insights composite avg 0.4469 -> 0.5380, baseline refreshed to
   19 cases, gate ALL GREEN.
+- ADR-0010 fixture policy + Phase 6 acceptance COMPLETE (2026-08-03):
+  historical failing fixtures stay as gate regression evidence; insights
+  reports `composite_avg_effective` (passing rerun overrides its
+  original, each case counted once) alongside the plain history mean —
+  measured effective 0.7431 >= 0.60 (history 0.5611, reported honestly).
+  real-ticket-007-v2 closed via the loop with a perfect rerun
+  (composite 1.0000, 0 mismatches vs golden): deny-by-default redaction
+  (sshpass, cookies, private keys, credential keys, JSON payloads).
+  Baseline refreshed to 20 cases; verify ALL GREEN; 142 tests.
 - Sandbox attestation (ADR-0009, Phase 6.3): `verify.sh` gains a
   `sandbox` target — skipped locally, mandatory in CI (`CI=true`):
   fails unless the runner is non-root and identifies itself, and the
