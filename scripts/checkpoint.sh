@@ -74,7 +74,12 @@ case "${1:-}" in
         mkdir -p "$ROOT/memory/episodic"
         # Journal AFTER the reset: reset --hard restores the journal to the
         # checkpoint commit's version, which would swallow a line journaled
-        # before it. The journal must record the outcome.
+        # before it. The journal must record the outcome. The BEGIN line is
+        # re-journaled first: it was appended after the begin-commit and the
+        # reset wiped it, so the VERIFY-FAIL must pair with a restored BEGIN
+        # or the audit deadlocks (orphan VERIFY-FAIL -> gate red -> rollback
+        # -> another orphan; 2026-08-03 journal-repair).
+        echo "$(ts) BEGIN $label -> $last_green (restored by rollback)" >> "$JOURNAL"
         echo "$(ts) VERIFY-FAIL $label @ $prev -> ROLLBACK to $last_green" >> "$JOURNAL"
         echo "RED: $label @ $prev — rolled back to green checkpoint $last_green"
       else
