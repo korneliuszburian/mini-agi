@@ -3,3 +3,4 @@
 2026-08-03T05:41:42Z BEGIN gate-fix -> 2217fe0 (clean)
 2026-08-03T05:42:34Z VERIFY-PASS gate-fix @ 2217fe0
 2026-08-03T06:48:34Z VERIFY-FAIL failure-register @ dee9860 -> ROLLBACK to dee9860
+2026-08-03T06:51:47Z VERIFY-FAIL failure-register-2 @ bad99a5 -> ROLLBACK to bad99a5
