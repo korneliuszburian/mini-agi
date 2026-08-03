@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: a7e9405b5ba27b9e
-# canonical_entries: 25
+# canonical_sha256: 01828feb65fd9a44
+# canonical_entries: 26
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -20,3 +20,22 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `d19c336052dadbb8` Wish Factory (Guy Podjarny/Tessl): an agent accepts only issues, never PRs, and implements them; Yegge's Sage/Herald auto-grant player "wishes" with guardrails and triage — the failure signal and user wishes ARE the roadmap, work lands without the human in the loop.
 - `dace75359570fa28` Model welfare becomes an engineering input: treating agents like people produces empirically better results; a mature agentic project accretes law, mail, courts, doctrine and named rulings that cite their own case history — rules written by the workers they govern.
 - `0ff9b686f9e72fc3` Beads ledger semantics (Gas Town): each unit of work is a bead (atomic, durable, version-controlled); polecats are workers with persistent identity and ephemeral sessions; a witness patrols each rig; a refinery serializes merges so nothing collides; a mayor coordinates across rigs; stamps are multi-dimensional attestations (quality/reliability/creativity) from validators that accrue into a portable character sheet — reputation derived from real work, not self-reported.
+- `9cf6af3d7d744da7` D1: Tool parity treats `write`/`edit` as one family (ADR-0006).
+- `144ef8576bb7622e` D2: Tool-mismatch signal closed as a loop (Phase 6.2): gate
+- `0bcee47092412e6c` D3: Work graph (ADR-0008): tickets carry `blocked_by` edges; claims
+- `cb2ce921cfe88cea` D4: Sandbox attestation (ADR-0009): verify.sh `sandbox` target —
+- `b12eb24657e56781` D5: Proactive composition (Phase 6.4): `mini-agi loop status|dispatch|
+- `884021c45935bdf5` D6: Rerun semantics: a passing `<case>-rerun` (>= 0.5) closes the gap;
+- `f4491eb884521013` D7: Fixture policy (ADR-0010): insights reports
+- `f840e928415fa051` D8: Gate baseline is refreshed via `eval gate --write-baseline` after
+- `0d7dd4cfacab9117` D9: Claims/leases recorded only by CLI commands, never hand-edited;
+- `0f35beac0db18d9e` R1: Scorer semantics changes without ADR — rejected by contract
+- `4a2eedc0f1879c97` R2: Land Rush megabatch + swarm diagnosis (Yegge CI/CD) — deferred;
+- `3c5086bb32d081fb` R3: Local agent sandboxing (bwrap/firejail) — deferred to Phase 6.4+
+- `3ecb0588a93e26c7` R4: Stamps / portable reputation — deferred; composite is the current
+- `f4b002f6ac6123e7` R5: Deleting or moving failing fixtures out of evals/cases/ — rejected
+- `f21cd7b5b3c48eb1` Phase 6 complete: 6.1 failure register, 6.2 mismatch loop, 6.3
+- `93838f49f75ed388` 8 reruns created: reactive-loop (0.7225), real-ticket-001..007-v2
+- `1ff9a1f840eadafe` 142 tests, 20 baseline cases, 42 canonical facts, 20 runs ingested.
+- `10442347209cddee` Operational incidents: OOM pressure from 500 agent-browser processes
+- `33d27d200a99d5c1` Dogfood evidence: scratch checkpoint.sh rolled back the scratch repo

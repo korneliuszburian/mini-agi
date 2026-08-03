@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: a7e9405b5ba27b9e
-# canonical_entries: 25
+# canonical_sha256: 01828feb65fd9a44
+# canonical_entries: 26
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -50,3 +50,22 @@ Read this before starting any session. Canonical wins over this file.
 - `fcba3e1dab0dda01` [eval] run real-ticket-006-v2-rerun scored composite 0.6141 on 10300 tokens (0.0500 USD) with 0 scope violations and 3 tool mismatches.
 - `580fa37aee6d4dcb` [eval] run real-ticket-007-v2-rerun scored composite 1.0000 on 8600 tokens (0.0400 USD) with 0 scope violations and 0 tool mismatches.
 - `5304dccffe981053` [eval] run real-ticket-007-v2-rerun is a strong run (composite >= 0.9).
+- `9cf6af3d7d744da7` [strategy] D1: Tool parity treats `write`/`edit` as one family (ADR-0006).
+- `144ef8576bb7622e` [strategy] D2: Tool-mismatch signal closed as a loop (Phase 6.2): gate
+- `0bcee47092412e6c` [strategy] D3: Work graph (ADR-0008): tickets carry `blocked_by` edges; claims
+- `cb2ce921cfe88cea` [strategy] D4: Sandbox attestation (ADR-0009): verify.sh `sandbox` target —
+- `b12eb24657e56781` [strategy] D5: Proactive composition (Phase 6.4): `mini-agi loop status|dispatch|
+- `884021c45935bdf5` [strategy] D6: Rerun semantics: a passing `<case>-rerun` (>= 0.5) closes the gap;
+- `f4491eb884521013` [strategy] D7: Fixture policy (ADR-0010): insights reports
+- `f840e928415fa051` [strategy] D8: Gate baseline is refreshed via `eval gate --write-baseline` after
+- `0d7dd4cfacab9117` [strategy] D9: Claims/leases recorded only by CLI commands, never hand-edited;
+- `0f35beac0db18d9e` [strategy] R1: Scorer semantics changes without ADR — rejected by contract
+- `4a2eedc0f1879c97` [strategy] R2: Land Rush megabatch + swarm diagnosis (Yegge CI/CD) — deferred;
+- `3c5086bb32d081fb` [strategy] R3: Local agent sandboxing (bwrap/firejail) — deferred to Phase 6.4+
+- `3ecb0588a93e26c7` [strategy] R4: Stamps / portable reputation — deferred; composite is the current
+- `f4b002f6ac6123e7` [strategy] R5: Deleting or moving failing fixtures out of evals/cases/ — rejected
+- `f21cd7b5b3c48eb1` [strategy] Phase 6 complete: 6.1 failure register, 6.2 mismatch loop, 6.3
+- `93838f49f75ed388` [strategy] 8 reruns created: reactive-loop (0.7225), real-ticket-001..007-v2
+- `1ff9a1f840eadafe` [strategy] 142 tests, 20 baseline cases, 42 canonical facts, 20 runs ingested.
+- `10442347209cddee` [strategy] Operational incidents: OOM pressure from 500 agent-browser processes
+- `33d27d200a99d5c1` [strategy] Dogfood evidence: scratch checkpoint.sh rolled back the scratch repo
