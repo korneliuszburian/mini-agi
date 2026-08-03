@@ -769,7 +769,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         }
         "run_failures" => {
             let run = arg!("run");
-            match mini_agi_core::failure::analyze_run(std::path::Path::new(run)) {
+            match mini_agi_core::failure::analyze_run(std::path::Path::new(run), root) {
                 Ok((case, entries)) => {
                     if entries.is_empty() {
                         format!("no repeated failing actions in {case}")

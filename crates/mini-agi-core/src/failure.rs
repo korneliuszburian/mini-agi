@@ -69,6 +69,11 @@ pub struct FailureEntry {
     /// MAST classification (e.g. `FM-1.3 step repetition`).
     #[serde(default)]
     pub mast: Option<String>,
+    /// Verifier status of the run, recorded when the run declares a
+    /// verifier (Phase 9 slice 3 — evidence-gated memory: entries
+    /// carry executable evidence, not speculation).
+    #[serde(default)]
+    pub verifier: Option<String>,
 }
 
 /// Register file path under a repo root.
@@ -119,7 +124,7 @@ pub fn repeated_failing_actions(run: &Run) -> Vec<(String, String, usize, Vec<u3
 ///
 /// Returns a message when the file is missing, malformed, or fails run
 /// validation.
-pub fn analyze_run(run_path: &Path) -> Result<(String, Vec<FailureEntry>), String> {
+pub fn analyze_run(run_path: &Path, root: &Path) -> Result<(String, Vec<FailureEntry>), String> {
     let text = fs::read_to_string(run_path)
         .map_err(|e| format!("cannot read {}: {e}", run_path.display()))?;
     let run: Run = serde_json::from_str(&text).map_err(|e| format!("invalid run json: {e}"))?;
@@ -137,6 +142,13 @@ pub fn analyze_run(run_path: &Path) -> Result<(String, Vec<FailureEntry>), Strin
         || "unknown".to_string(),
         |n| n.to_string_lossy().into_owned(),
     );
+    let verifier = if run.verify_command.is_some() {
+        crate::verifier::verify_run(root, run_path)
+            .ok()
+            .map(|v| v.status)
+    } else {
+        None
+    };
     let entries = repeated_failing_actions(&run)
         .into_iter()
         .map(|(tool, action, count, steps)| FailureEntry {
@@ -148,6 +160,7 @@ pub fn analyze_run(run_path: &Path) -> Result<(String, Vec<FailureEntry>), Strin
             case: case.clone(),
             reflection: run.reflection.clone(),
             mast: run.mast.clone(),
+            verifier: verifier.clone(),
         })
         .collect();
     Ok((case, entries))
@@ -205,13 +218,21 @@ pub fn update_register(root: &Path, new_entries: &[FailureEntry]) -> io::Result<
 mod tests {
     use super::*;
     use std::env;
+    use std::path::Path;
 
     fn case_run(case: &str) -> (String, Vec<FailureEntry>) {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../evals/cases")
             .join(case)
             .join("run.json");
-        analyze_run(&path).unwrap()
+        analyze_run(
+            &path,
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../")
+                .canonicalize()
+                .unwrap(),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -246,6 +267,7 @@ mod tests {
             case: "reactive-loop".into(),
             reflection: Some("repeated the identical failing edit three times without reading the verifier output — plan the fix before editing".into()),
             mast: Some("FM-1.3 step repetition".into()),
+            verifier: Some("unverified".into()),
         };
         assert_eq!(update_register(&root, std::slice::from_ref(&e)).unwrap(), 1);
         assert_eq!(update_register(&root, std::slice::from_ref(&e)).unwrap(), 1);
@@ -258,6 +280,7 @@ mod tests {
             case: "reactive-loop".into(),
             reflection: None,
             mast: Some("FM-3.2 no or incomplete verification".into()),
+            verifier: None,
         };
         assert_eq!(update_register(&root, &[other]).unwrap(), 2);
         let read = read_register(&root).unwrap();

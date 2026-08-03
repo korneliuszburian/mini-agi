@@ -273,3 +273,10 @@ Intelligence" direction)
 - `eval judge-drift`: precision of the judged outcome against the
   deterministic layer + disagreement count; insights prints the drift
   line; SIGNAL warning when precision < 100%.
+### Added (Phase 9 — evidence-gated memory + reflection-diff, slice 3)
+- Failure entries record the run's verifier status (evidence-gated
+  memory, ErrorProbe discipline — no speculation without executable
+  evidence).
+- On gap close, loop verify consolidates a canonical contrast fact:
+  failure reflection (from the register) paired with the verified
+  success evidence (GRSD-style success-vs-failure pairs).

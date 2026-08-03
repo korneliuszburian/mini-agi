@@ -797,7 +797,7 @@ fn cmd_run_verify(run: &Path) -> ExitCode {
 
 fn cmd_run_failures(run: &Path) -> ExitCode {
     let root = root();
-    match mini_agi_core::failure::analyze_run(run) {
+    match mini_agi_core::failure::analyze_run(run, &root) {
         Ok((case, entries)) => {
             if entries.is_empty() {
                 println!("no repeated failing actions in {case}");

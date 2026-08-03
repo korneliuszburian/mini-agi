@@ -610,6 +610,7 @@ mod backlog_tests {
             case: "reactive-loop".into(),
             reflection: None,
             mast: None,
+            verifier: None,
         };
         crate::failure::update_register(&root, std::slice::from_ref(&entry)).unwrap();
         let block = resume(&root).unwrap();

@@ -526,6 +526,34 @@ pub fn verify(
         if let Err(e) = append_metrics(root, case, report.composite, report.tokens_total) {
             lines.push(format!("  warning: metrics not published — {e}"));
         }
+        // Reflection-diff (Phase 9 slice 3, GRSD 2607.28076): on close,
+        // consolidate a canonical contrast fact pairing the failure
+        // reflection (from the register) with the verified success
+        // evidence — future runs condition on the contrast, not just
+        // the failure lesson.
+        let failure_reflection = crate::failure::read_register(root)
+            .unwrap_or_default()
+            .iter()
+            .find(|e| e.case == base)
+            .and_then(|e| e.reflection.clone())
+            .unwrap_or_else(|| "none recorded".to_string());
+        let contrast = format!(
+            "FACT: gap {base} closed by rerun {case} (composite {:.4}, verifier {}) — failure reflection: {failure_reflection} — success evidence: deterministic gate passed",
+            report.composite,
+            verification
+                .as_ref()
+                .map_or_else(|| "none".to_string(), |v| v.status.clone())
+        );
+        let _ = crate::memory::consolidate(
+            root,
+            &contrast,
+            &format!("loop-verify-{case}"),
+            &crate::memory::ConsolidateOptions {
+                domain: "eval".into(),
+                require_signoff: false,
+                dry_run: false,
+            },
+        );
         true
     } else {
         lines.push(if !verified {
@@ -779,6 +807,7 @@ mod reflexion_tests {
                 "repeated the identical failing edit three times — plan before editing".into(),
             ),
             mast: Some("FM-1.3 step repetition".into()),
+            verifier: None,
         };
         crate::failure::update_register(&root, std::slice::from_ref(&entry)).unwrap();
         let outcome = dispatch(&root, Some("reactive-loop"), 0.5, "refl-test").unwrap();
@@ -790,6 +819,79 @@ mod reflexion_tests {
         assert!(spec.contains("FM-1.3 step repetition"), "{spec}");
         assert!(spec.contains("plan before editing"), "{spec}");
         ticket::release_ticket(&root, "TICKET-9", "refl-test").unwrap();
+        let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod reflection_diff_tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn close_writes_contrast_fact_with_failure_reflection() {
+        let root = env::temp_dir().join(format!("mag-contrast-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../")
+            .canonicalize()
+            .unwrap();
+        fs::create_dir_all(root.join("evals/cases/real-ticket-008-v2-rerun")).unwrap();
+        fs::copy(
+            repo.join("evals/cases/real-ticket-008-v2/run.json"),
+            root.join("evals/cases/real-ticket-008-v2-rerun/run.json"),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("evals/cases/real-ticket-008-v2")).unwrap();
+        fs::copy(
+            repo.join("evals/cases/real-ticket-008-v2/run.json"),
+            root.join("evals/cases/real-ticket-008-v2/run.json"),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("evals/golden")).unwrap();
+        fs::copy(
+            repo.join("evals/golden/real-ticket-compact.json"),
+            root.join("evals/golden/real-ticket-compact.json"),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("evals/results")).unwrap();
+        fs::write(root.join("evals/results/baseline.json"), "[]").unwrap();
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::write(
+            root.join("tickets/TICKET-008.md"),
+            "- id: TICKET-008-v2\n- title: t\n- goal: g\n",
+        )
+        .unwrap();
+        // Seed the failure register with a reflective entry for the base.
+        let entry = crate::failure::FailureEntry {
+            hash: crate::hash::fact_id("exec|make verify"),
+            tool: "exec".into(),
+            action: "make verify".into(),
+            count: 2,
+            steps: vec![3, 5],
+            case: "real-ticket-008-v2".into(),
+            reflection: Some("ran the gate without reading the diff — check the diff first".into()),
+            mast: Some("FM-3.2 no or incomplete verification".into()),
+            verifier: Some("disagrees".into()),
+        };
+        crate::failure::update_register(&root, std::slice::from_ref(&entry)).unwrap();
+        let (text, closed) = verify(&root, "real-ticket-008-v2-rerun", "contrast", true).unwrap();
+        assert!(closed, "{text}");
+        // The contrast fact must exist in canonical with both sides.
+        let facts = crate::memory::canonical_facts(&root);
+        let bodies: Vec<&str> = facts.iter().map(|(b, _)| b.as_str()).collect();
+        assert!(
+            bodies
+                .iter()
+                .any(|b| b.contains("failure reflection: ran the gate without reading the diff")),
+            "{bodies:?}"
+        );
+        assert!(
+            bodies
+                .iter()
+                .any(|b| b.contains("success evidence: deterministic gate passed")),
+            "{bodies:?}"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }
