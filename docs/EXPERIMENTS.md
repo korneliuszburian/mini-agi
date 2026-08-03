@@ -149,3 +149,28 @@ Design (MUST ship with every future loop improvement):
 
 Status: design documented; instrument shipped (loop status --attempts);
 no experiment executed yet (needs real attempt-vs-gain measurement).
+
+## EXP-006 — codex review of Phase 9 (2026-08-03)
+
+- Setup: `codex exec -s read-only` on a058291..f222757, adversarial brief;
+  7m38s. Verdict: REWORK.
+- Findings and disposition (all fixed, 77d2ae2):
+  - CRITICAL verifier-error bypass (loop verify closed on verifier
+    error) -> error now blocks close.
+  - CRITICAL run failures executed declared verifiers (ADR-0011
+    boundary) -> records 'declared' only.
+  - CRITICAL harness could delete an unreadable target; the gate could
+    self-validate -> unreadable targets error; scripts/verify.sh refused
+    as counterfactual subject; markerless gate failure counted broken.
+  - MAJOR ingest-before-verification -> ingest after, skipped on
+    disagreement; honest contrast trust-path; timeout = disagreement;
+    calibration precision excludes unverified + dedup by
+    (case, command, target); attribution in loop verify + failures
+    reported + audit distinguishes absent vs unreadable; eval hidden
+    escape refused + partial-success non-zero; memory-load now IN the
+    gate (verify.sh runs audit); attempts counts all rerun dirs.
+- Verified correct by codex: score/gate never execute verifiers; a
+  normal disagreement blocks close; hidden excluded from baseline;
+  family_of correct; dry-run never executes.
+- Note: codex's own sandbox could not run the gate (read-only lock);
+  our local gate ran independently and is ALL GREEN.
