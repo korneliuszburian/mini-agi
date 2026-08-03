@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn budget_measures_chain_skills_and_leverage() {
-        let root = root_with("c", &[("a.md", "general", &["e".repeat(16)])]);
+        let root = root_with("c-budget", &[("a.md", "general", &["e".repeat(16)])]);
         fs::write(root.join("AGENTS.md"), "agents instructions here").unwrap();
         fs::write(root.join("CLAUDE.md"), "shim").unwrap();
         let skills = root.join(".agents/skills/demo");

@@ -243,6 +243,27 @@ mod tests {
         fs::copy(&gsrc, golden.join("real-ticket-compact.json")).unwrap();
     }
 
+    fn first_entry_text(root: &std::path::Path) -> String {
+        let entries = root.join("memory/canonical/entries");
+        let mut days: Vec<std::path::PathBuf> = fs::read_dir(&entries)
+            .unwrap()
+            .flatten()
+            .map(|e| e.path())
+            .collect();
+        days.sort();
+        days.into_iter()
+            .find_map(|day| {
+                let mut files: Vec<std::path::PathBuf> = fs::read_dir(&day)
+                    .unwrap()
+                    .flatten()
+                    .map(|e| e.path())
+                    .collect();
+                files.sort();
+                files.first().and_then(|f| fs::read_to_string(f).ok())
+            })
+            .unwrap_or_default()
+    }
+
     #[test]
     fn ingest_run_writes_world_model_facts_and_is_idempotent() {
         let root = tmp_root("ingest");
@@ -255,9 +276,7 @@ mod tests {
         let second = ingest_run(&root, &run, None).unwrap();
         assert_eq!(second.new_facts, 0);
         assert!(second.skipped >= 1);
-        let text =
-            fs::read_to_string(root.join("memory/canonical/entries/2026-08-02/2026-08-02-001.md"))
-                .unwrap_or_default();
+        let text = first_entry_text(&root);
         assert!(text.contains("composite"));
         let _ = fs::remove_dir_all(&root);
     }
@@ -274,9 +293,7 @@ mod tests {
         let run = root.join("evals/cases/real-ticket-008-v2/run.json");
         let report = ingest_run(&root, &run, Some(&root.join("retro.md"))).unwrap();
         assert!(report.new_facts >= 2);
-        let text =
-            fs::read_to_string(root.join("memory/canonical/entries/2026-08-02/2026-08-02-001.md"))
-                .unwrap_or_default();
+        let text = first_entry_text(&root);
         assert!(text.contains("batching amortized"));
         assert!(text.contains("checkpoint discipline held"));
         let _ = fs::remove_dir_all(&root);
