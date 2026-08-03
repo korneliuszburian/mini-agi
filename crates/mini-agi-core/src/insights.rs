@@ -608,6 +608,8 @@ mod backlog_tests {
             count: 2,
             steps: vec![4, 6],
             case: "reactive-loop".into(),
+            reflection: None,
+            mast: None,
         };
         crate::failure::update_register(&root, std::slice::from_ref(&entry)).unwrap();
         let block = resume(&root).unwrap();

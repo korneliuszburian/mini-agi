@@ -198,3 +198,12 @@ Intelligence" direction)
   PASS against their scratch repos (executable proof of outcomes).
 - ADR-0011 documents the trust boundary (exec only on explicit verify,
   score/gate stay pure).
+### Added (Phase 8 — Reflexion upgrade)
+- Failure register entries gain `reflection` (verbal self-assessment)
+  and `mast` (one of the 14 MAST modes, arXiv 2503.13657; validated
+  fail-loud by `run failures`).
+- `loop dispatch` injects a "Failure context (Reflexion — do not
+  repeat)" section into every slice spec: top-K recorded failures for
+  the case with reflections and classifications.
+- reactive-loop fixture now carries its reflection + FM-1.3
+  classification (the canonical Reflexion example).

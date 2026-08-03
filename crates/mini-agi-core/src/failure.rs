@@ -15,6 +15,26 @@ use serde::{Deserialize, Serialize};
 use crate::eval::Run;
 use crate::hash::fact_id;
 
+/// MAST failure taxonomy (arXiv 2503.13657): 14 empirically grounded
+/// failure modes in 3 categories. `loop dispatch` injects classified
+/// failures into rerun context; `run failures` validates against this.
+pub const MAST_MODES: &[(&str, &str)] = &[
+    ("FM-1.1", "disobey task specification"),
+    ("FM-1.2", "disobey role specification"),
+    ("FM-1.3", "step repetition"),
+    ("FM-1.4", "loss of conversation history"),
+    ("FM-1.5", "unaware of stopping conditions"),
+    ("FM-2.1", "conversation reset"),
+    ("FM-2.2", "fail to ask for clarification"),
+    ("FM-2.3", "task derailment"),
+    ("FM-2.4", "information withholding"),
+    ("FM-2.5", "ignored other agent's input"),
+    ("FM-2.6", "reasoning-action mismatch"),
+    ("FM-3.1", "premature termination"),
+    ("FM-3.2", "no or incomplete verification"),
+    ("FM-3.3", "incorrect verification"),
+];
+
 /// One recorded repeated failing action.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FailureEntry {
@@ -30,6 +50,13 @@ pub struct FailureEntry {
     pub steps: Vec<u32>,
     /// Case name (parent dir of the run file).
     pub case: String,
+    /// Verbal self-reflection on the failure (Reflexion; absent in
+    /// entries recorded before Phase 8).
+    #[serde(default)]
+    pub reflection: Option<String>,
+    /// MAST classification (e.g. `FM-1.3 step repetition`).
+    #[serde(default)]
+    pub mast: Option<String>,
 }
 
 /// Register file path under a repo root.
@@ -85,6 +112,15 @@ pub fn analyze_run(run_path: &Path) -> Result<(String, Vec<FailureEntry>), Strin
         .map_err(|e| format!("cannot read {}: {e}", run_path.display()))?;
     let run: Run = serde_json::from_str(&text).map_err(|e| format!("invalid run json: {e}"))?;
     Run::validate(&run).map_err(|e| format!("invalid run: {e}"))?;
+    if let Some(mast) = &run.mast
+        && !MAST_MODES.iter().any(|(id, name)| {
+            mast == *id || mast.eq_ignore_ascii_case(name) || mast == &format!("{id} {name}")
+        })
+    {
+        return Err(format!(
+            "invalid run: mast '{mast}' is not one of the 14 MAST modes (arXiv 2503.13657)"
+        ));
+    }
     let case = run_path.parent().and_then(|p| p.file_name()).map_or_else(
         || "unknown".to_string(),
         |n| n.to_string_lossy().into_owned(),
@@ -98,6 +134,8 @@ pub fn analyze_run(run_path: &Path) -> Result<(String, Vec<FailureEntry>), Strin
             count,
             steps,
             case: case.clone(),
+            reflection: run.reflection.clone(),
+            mast: run.mast.clone(),
         })
         .collect();
     Ok((case, entries))
@@ -194,6 +232,8 @@ mod tests {
             count: 2,
             steps: vec![4, 6],
             case: "reactive-loop".into(),
+            reflection: Some("repeated the identical failing edit three times without reading the verifier output — plan the fix before editing".into()),
+            mast: Some("FM-1.3 step repetition".into()),
         };
         assert_eq!(update_register(&root, std::slice::from_ref(&e)).unwrap(), 1);
         assert_eq!(update_register(&root, std::slice::from_ref(&e)).unwrap(), 1);
@@ -204,6 +244,8 @@ mod tests {
             count: 3,
             steps: vec![3, 5, 7],
             case: "reactive-loop".into(),
+            reflection: None,
+            mast: Some("FM-3.2 no or incomplete verification".into()),
         };
         assert_eq!(update_register(&root, &[other]).unwrap(), 2);
         let read = read_register(&root).unwrap();
@@ -211,6 +253,11 @@ mod tests {
         let mut actions: Vec<&str> = read.iter().map(|e| e.action.as_str()).collect();
         actions.sort_unstable();
         assert_eq!(actions, vec!["edit same line", "make verify"]);
+        assert!(
+            read.iter()
+                .any(|e| e.mast.as_deref() == Some("FM-1.3 step repetition"))
+        );
+        assert!(read.iter().any(|e| e.reflection.is_some()));
         let _ = fs::remove_dir_all(&root);
     }
 }

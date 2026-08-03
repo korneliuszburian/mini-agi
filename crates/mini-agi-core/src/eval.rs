@@ -129,6 +129,14 @@ pub struct Run {
     /// `verify_command` runs — the target repo of the work.
     #[serde(default)]
     pub verify_target: Option<String>,
+    /// Verbal self-reflection on the run's failures (Reflexion, Phase 8
+    /// slice 2): injected into rerun context via the failure register.
+    #[serde(default)]
+    pub reflection: Option<String>,
+    /// MAST failure classification (one of the 14 modes, arXiv
+    /// 2503.13657): what kind of failure this run exemplifies.
+    #[serde(default)]
+    pub mast: Option<String>,
     /// Steps of the run.
     pub trajectory: Vec<Step>,
     /// Extra metadata (ignored by scoring).

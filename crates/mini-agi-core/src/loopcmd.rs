@@ -268,6 +268,37 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
         &mut body,
         &format!("- Then run: `mini-agi run ingest`, `mini-agi loop verify {case}-rerun`.\n"),
     )?;
+    // Reflexion context (Phase 8 slice 2): top-K recorded failures for
+    // this case, with verbal reflections and MAST classifications — a
+    // fresh session starts knowing what went wrong and how to avoid it.
+    let register = crate::failure::read_register(root).unwrap_or_default();
+    let mut related: Vec<_> = register
+        .iter()
+        .filter(|e| e.case == case || e.case == format!("{case}-rerun"))
+        .collect();
+    related.sort_by_key(|e| std::cmp::Reverse(e.count));
+    related.truncate(3);
+    if !related.is_empty() {
+        w(
+            &mut body,
+            "\n## Failure context (Reflexion — do not repeat)\n\n",
+        )?;
+        for e in related {
+            w(
+                &mut body,
+                &format!(
+                    "- `{}` tool={} action=\"{}\" count={} steps={:?} case={}\n",
+                    e.hash, e.tool, e.action, e.count, e.steps, e.case
+                ),
+            )?;
+            if let Some(mast) = &e.mast {
+                w(&mut body, &format!("  mast: {mast}\n"))?;
+            }
+            if let Some(refl) = &e.reflection {
+                w(&mut body, &format!("  reflection: {refl}\n"))?;
+            }
+        }
+    }
     fs::write(&path, body)?;
     Ok(path)
 }
@@ -607,6 +638,59 @@ mod tests {
         assert_eq!(case_ok.map(|t| t.id), Some("TICKET-008-v2".to_string()));
         let case_no = ticket_for_case(&root, "real-ticket-0089-v2");
         assert!(case_no.is_none(), "digit boundary must not match");
+        let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod reflexion_tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn dispatch_spec_injects_failure_context_with_reflection_and_mast() {
+        let root = env::temp_dir().join(format!("mag-refl-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../")
+            .canonicalize()
+            .unwrap();
+        fs::create_dir_all(root.join("evals/cases/reactive-loop")).unwrap();
+        fs::copy(
+            repo.join("evals/cases/reactive-loop/run.json"),
+            root.join("evals/cases/reactive-loop/run.json"),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::write(
+            root.join("tickets/TICKET-9.md"),
+            "- id: TICKET-9\n- title: reactive-loop gap\n- goal: fix reactive-loop\n",
+        )
+        .unwrap();
+        // Seed the register with the reflective entry (as the real
+        // register now has it).
+        let entry = crate::failure::FailureEntry {
+            hash: crate::hash::fact_id("edit|edit same line"),
+            tool: "edit".into(),
+            action: "edit same line".into(),
+            count: 2,
+            steps: vec![4, 6],
+            case: "reactive-loop".into(),
+            reflection: Some(
+                "repeated the identical failing edit three times — plan before editing".into(),
+            ),
+            mast: Some("FM-1.3 step repetition".into()),
+        };
+        crate::failure::update_register(&root, std::slice::from_ref(&entry)).unwrap();
+        let outcome = dispatch(&root, Some("reactive-loop"), 0.5, "refl-test").unwrap();
+        let spec = fs::read_to_string(&outcome.spec).unwrap();
+        assert!(
+            spec.contains("## Failure context (Reflexion — do not repeat)"),
+            "{spec}"
+        );
+        assert!(spec.contains("FM-1.3 step repetition"), "{spec}");
+        assert!(spec.contains("plan before editing"), "{spec}");
+        ticket::release_ticket(&root, "TICKET-9", "refl-test").unwrap();
         let _ = fs::remove_dir_all(&root);
     }
 }
