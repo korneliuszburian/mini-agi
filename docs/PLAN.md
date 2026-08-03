@@ -237,6 +237,16 @@ Acceptance for Phase 6 as a whole: `mini-agi insights` shows composite avg
 (reingest -> insights -> backlog -> implement -> rerun) demonstrated end to
 end on one real gap.
 
+Phase 6 acceptance status (2026-08-03): the loop was run over ALL
+remaining gaps — flailing, real-ticket-002-v2, -003-v2, -004-v2, -005-v2,
+-006-v2 each got a real implementation rerun (0.6141-0.8500), every case
+below 0.5 now has a passing rerun (zero open gaps), gate ALL GREEN,
+composite avg 0.4469 -> 0.5380. The >= 0.60 stretch remains: 19 runs are
+dragged down by historical failing fixtures (reactive-loop 0.0, flailing
+0.2851, real-ticket-001..006 at 0.24-0.49) which are intentionally kept
+as regression evidence; avg 0.60 requires either more high-scoring runs
+or a documented fixture policy (ADR).
+
 ## Rejected (with reason)
 - Python for the product (user decision; PoC = spec only).
 - tokio/async v1, rmcp, orm, sqlite — YAGNI for a stdio tool; kernel stays

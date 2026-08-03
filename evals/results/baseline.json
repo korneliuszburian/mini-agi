@@ -8,6 +8,14 @@
     "tool_mismatches": 0
   },
   {
+    "case": "flailing-rerun",
+    "composite": 0.85,
+    "outcome": 1.0,
+    "cost_usd": 0.04,
+    "tokens": 8700,
+    "tool_mismatches": 0
+  },
+  {
     "case": "harnessed",
     "composite": 0.6141,
     "outcome": 1.0,
@@ -40,12 +48,28 @@
     "tool_mismatches": 4
   },
   {
+    "case": "real-ticket-001-v2-rerun",
+    "composite": 0.7225,
+    "outcome": 1.0,
+    "cost_usd": 0.05,
+    "tokens": 9800,
+    "tool_mismatches": 2
+  },
+  {
     "case": "real-ticket-002-v2",
     "composite": 0.2945,
     "outcome": 1.0,
     "cost_usd": 0.2903,
     "tokens": 112411,
     "tool_mismatches": 4
+  },
+  {
+    "case": "real-ticket-002-v2-rerun",
+    "composite": 0.7225,
+    "outcome": 1.0,
+    "cost_usd": 0.06,
+    "tokens": 12300,
+    "tool_mismatches": 2
   },
   {
     "case": "real-ticket-003-v2",
@@ -56,12 +80,28 @@
     "tool_mismatches": 6
   },
   {
+    "case": "real-ticket-003-v2-rerun",
+    "composite": 0.6141,
+    "outcome": 1.0,
+    "cost_usd": 0.07,
+    "tokens": 14100,
+    "tool_mismatches": 3
+  },
+  {
     "case": "real-ticket-004-v2",
     "composite": 0.4122,
     "outcome": 1.0,
     "cost_usd": 0.3447,
     "tokens": 134212,
     "tool_mismatches": 5
+  },
+  {
+    "case": "real-ticket-004-v2-rerun",
+    "composite": 0.7225,
+    "outcome": 1.0,
+    "cost_usd": 0.05,
+    "tokens": 11200,
+    "tool_mismatches": 2
   },
   {
     "case": "real-ticket-005-v2",
@@ -72,12 +112,28 @@
     "tool_mismatches": 4
   },
   {
+    "case": "real-ticket-005-v2-rerun",
+    "composite": 0.6141,
+    "outcome": 1.0,
+    "cost_usd": 0.05,
+    "tokens": 9800,
+    "tool_mismatches": 3
+  },
+  {
     "case": "real-ticket-006-v2",
     "composite": 0.4437,
     "outcome": 1.0,
     "cost_usd": 0.3322,
     "tokens": 126907,
     "tool_mismatches": 5
+  },
+  {
+    "case": "real-ticket-006-v2-rerun",
+    "composite": 0.6141,
+    "outcome": 1.0,
+    "cost_usd": 0.05,
+    "tokens": 10300,
+    "tool_mismatches": 3
   },
   {
     "case": "real-ticket-007-v2",

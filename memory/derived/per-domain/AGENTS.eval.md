@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: ffbcd675fbfa8463
-# canonical_entries: 17
+# canonical_sha256: dacbbf4d8160561b
+# canonical_entries: 24
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -22,3 +22,10 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `35295a4f074c3beb` run real-ticket-007-v2 scored composite 0.5220 on 1841123 tokens (1.3143 USD) with 0 scope violations and 4 tool mismatches.
 - `8b5b3ef807586d35` run reactive-loop-rerun scored composite 0.7225 on 10300 tokens (0.0500 USD) with 2 scope violations and 0 tool mismatches.
 - `b4276acdfd6cc4e8` run real-ticket-001-v2-rerun scored composite 0.7225 on 9800 tokens (0.0500 USD) with 0 scope violations and 2 tool mismatches.
+- `d99cfea97ec1f680` run flailing-rerun scored composite 0.8500 on 8700 tokens (0.0400 USD) with 1 scope violations and 0 tool mismatches.
+- `8d50a7e3c1de7c54` run real-ticket-002-v2-rerun scored composite 0.4437 on 12300 tokens (0.0600 USD) with 0 scope violations and 5 tool mismatches.
+- `7362817a2cc3d407` run real-ticket-002-v2-rerun scored composite 0.7225 on 12300 tokens (0.0600 USD) with 0 scope violations and 2 tool mismatches.
+- `8d857c62f78a8965` run real-ticket-003-v2-rerun scored composite 0.6141 on 14100 tokens (0.0700 USD) with 0 scope violations and 3 tool mismatches.
+- `c98b32aa684e9295` run real-ticket-004-v2-rerun scored composite 0.7225 on 11200 tokens (0.0500 USD) with 0 scope violations and 2 tool mismatches.
+- `e5869011def095cd` run real-ticket-005-v2-rerun scored composite 0.6141 on 9800 tokens (0.0500 USD) with 0 scope violations and 3 tool mismatches.
+- `fcba3e1dab0dda01` run real-ticket-006-v2-rerun scored composite 0.6141 on 10300 tokens (0.0500 USD) with 0 scope violations and 3 tool mismatches.

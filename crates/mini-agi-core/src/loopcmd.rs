@@ -441,9 +441,9 @@ mod tests {
     }
 
     #[test]
-    fn pick_target_skips_claimed_and_closed() {
+    fn pick_target_reports_nothing_left_when_all_closed() {
         let root = repo();
-        let case = pick_target(&root, None, 0.5).expect("a target exists");
-        assert!(!case.is_empty());
+        let err = pick_target(&root, None, 0.5).expect_err("all gaps are closed by rerun");
+        assert!(err.contains("no case below the target is dispatchable"));
     }
 }

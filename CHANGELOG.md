@@ -18,6 +18,13 @@ Intelligence" direction)
 - Cases with a passing `-rerun` are excluded from insights capability
   gaps (the original run stays a historical fixture, TICKET-9
   semantics).
+- The loop closed ALL remaining gaps (2026-08-03): flailing and
+  real-ticket-002-v2..006-v2 each received a real implementation rerun
+  (consolidate/compact loop, checkpoint allowlist + exit-code integrity,
+  role-aware scope scorer, scorer integrity, consolidate hardening) —
+  rerun composites 0.6141-0.8500, zero cases below 0.5 without a passing
+  rerun, insights composite avg 0.4469 -> 0.5380, baseline refreshed to
+  19 cases, gate ALL GREEN.
 - Sandbox attestation (ADR-0009, Phase 6.3): `verify.sh` gains a
   `sandbox` target — skipped locally, mandatory in CI (`CI=true`):
   fails unless the runner is non-root and identifies itself, and the

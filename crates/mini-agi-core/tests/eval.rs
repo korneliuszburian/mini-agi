@@ -45,15 +45,22 @@ fn scores_reproduce_poc_baseline_on_all_cases() {
     let mut scored = Vec::new();
     for case in &[
         "flailing",
+        "flailing-rerun",
         "harnessed",
         "reactive-loop",
         "reactive-loop-rerun",
         "real-ticket-001-v2",
+        "real-ticket-001-v2-rerun",
         "real-ticket-002-v2",
+        "real-ticket-002-v2-rerun",
         "real-ticket-003-v2",
+        "real-ticket-003-v2-rerun",
         "real-ticket-004-v2",
+        "real-ticket-004-v2-rerun",
         "real-ticket-005-v2",
+        "real-ticket-005-v2-rerun",
         "real-ticket-006-v2",
+        "real-ticket-006-v2-rerun",
         "real-ticket-007-v2",
         "real-ticket-008-v2",
     ] {

@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: ffbcd675fbfa8463
-# canonical_entries: 17
+# canonical_sha256: dacbbf4d8160561b
+# canonical_entries: 24
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -41,3 +41,10 @@ Read this before starting any session. Canonical wins over this file.
 - `dace75359570fa28` [strategy] Model welfare becomes an engineering input: treating agents like people produces empirically better results; a mature agentic project accretes law, mail, courts, doctrine and named rulings that cite their own case history — rules written by the workers they govern.
 - `0ff9b686f9e72fc3` [strategy] Beads ledger semantics (Gas Town): each unit of work is a bead (atomic, durable, version-controlled); polecats are workers with persistent identity and ephemeral sessions; a witness patrols each rig; a refinery serializes merges so nothing collides; a mayor coordinates across rigs; stamps are multi-dimensional attestations (quality/reliability/creativity) from validators that accrue into a portable character sheet — reputation derived from real work, not self-reported.
 - `b4276acdfd6cc4e8` [eval] run real-ticket-001-v2-rerun scored composite 0.7225 on 9800 tokens (0.0500 USD) with 0 scope violations and 2 tool mismatches.
+- `d99cfea97ec1f680` [eval] run flailing-rerun scored composite 0.8500 on 8700 tokens (0.0400 USD) with 1 scope violations and 0 tool mismatches.
+- `8d50a7e3c1de7c54` [eval] run real-ticket-002-v2-rerun scored composite 0.4437 on 12300 tokens (0.0600 USD) with 0 scope violations and 5 tool mismatches.
+- `7362817a2cc3d407` [eval] run real-ticket-002-v2-rerun scored composite 0.7225 on 12300 tokens (0.0600 USD) with 0 scope violations and 2 tool mismatches.
+- `8d857c62f78a8965` [eval] run real-ticket-003-v2-rerun scored composite 0.6141 on 14100 tokens (0.0700 USD) with 0 scope violations and 3 tool mismatches.
+- `c98b32aa684e9295` [eval] run real-ticket-004-v2-rerun scored composite 0.7225 on 11200 tokens (0.0500 USD) with 0 scope violations and 2 tool mismatches.
+- `e5869011def095cd` [eval] run real-ticket-005-v2-rerun scored composite 0.6141 on 9800 tokens (0.0500 USD) with 0 scope violations and 3 tool mismatches.
+- `fcba3e1dab0dda01` [eval] run real-ticket-006-v2-rerun scored composite 0.6141 on 10300 tokens (0.0500 USD) with 0 scope violations and 3 tool mismatches.

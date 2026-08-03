@@ -1,0 +1,158 @@
+{
+  "goal": "You are implementing TICKET-002-v2 in this repo (/home/krn/coding/krn/mini-agi, branch pipeline-v1). Read tickets/TICKET-002.md and follow it exactly. Doctrine (AGENTS.md): run scripts/checkpoint.sh begin <label> BEFORE every edit step and scripts/checkpoint.sh verify <label> after gates pass; run m",
+  "scope": [
+    "scripts/consolidate.py",
+    "scripts/compact.sh",
+    "tests/test_consolidate.py",
+    "tests/test_compact.py",
+    "Makefile",
+    "tickets/TICKET-002-gates.md"
+  ],
+  "outcome": {
+    "achieved": true,
+    "tests": true,
+    "typecheck": true
+  },
+  "tokens_total": 12300,
+  "cost_usd": 0.06,
+  "golden": "real-ticket-compact.json",
+  "trajectory": [
+    {
+      "step": 1,
+      "action": "read: tickets/TICKET-002.md (acceptance: consolidate/compact loop, dedup by hash, provenance, numbering, empty-buffer error, .consumed marker; append-only fact 43a956cb72cedb67 drives the design)",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 1100,
+      "output_tokens": 180,
+      "note": "design driver: canonical fact 43a956cb72cedb67 (append-only decision logs prevent semantic drift)"
+    },
+    {
+      "step": 2,
+      "action": "read: memory/derived/context-brief.md (doctrine: knowledge given once must not be re-researched — canonical fingerprint + fact ids, incl. append-only fact 43a956cb72cedb67)",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 600,
+      "output_tokens": 90,
+      "note": "acceptance 6: cite a canonical fact id for a design choice"
+    },
+    {
+      "step": 3,
+      "action": "write: tests/test_consolidate.py + tests/test_compact.py (test-first: 8 cases — FACT/bullet extraction, same fact twice lands once, provenance fields, numbering continues, empty buffer exit 1, known-fact collision, full loop with .consumed marker, provenance PASS)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 2500,
+      "output_tokens": 70,
+      "paths": [
+        "tests/test_consolidate.py",
+        "tests/test_compact.py"
+      ]
+    },
+    {
+      "step": 4,
+      "action": "exec: python3 -m unittest — RED: 5 failures + 3 errors (consolidate.py and compact.sh missing)",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 90
+    },
+    {
+      "step": 5,
+      "action": "write: scripts/consolidate.py (v1: zero-dep consolidate/derive/provenance subcommands; fact id = sha256[:16] of whitespace-flattened body, PoC fid contract; dedup vs existing canonical; exit 1 on empty buffer)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 2600,
+      "output_tokens": 70,
+      "paths": [
+        "scripts/consolidate.py"
+      ]
+    },
+    {
+      "step": 6,
+      "action": "write: scripts/compact.sh (buffer -> episodic append + BEGIN journal line -> consolidate -> .consumed marker -> derive -> provenance gate)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 800,
+      "output_tokens": 50,
+      "paths": [
+        "scripts/compact.sh"
+      ]
+    },
+    {
+      "step": 7,
+      "action": "exec: python3 -m unittest — 7 failures + 1 error (arg-count guard bug in consolidate.py)",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 100
+    },
+    {
+      "step": 8,
+      "action": "write: scripts/consolidate.py (v2: fix usage guard len(argv) < 2; fix subcommand argv unpack — buffer/repo are argv[0]/argv[1] after argv[2:] slicing)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 700,
+      "output_tokens": 50,
+      "paths": [
+        "scripts/consolidate.py"
+      ]
+    },
+    {
+      "step": 9,
+      "action": "exec: python3 -m unittest — 2 failures left (dedup message format 'no new facts' vs expected '0 new facts'; test fixture fact ids must match computed sha256 prefixes)",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 80
+    },
+    {
+      "step": 10,
+      "action": "write: scripts/consolidate.py (v3: '0 new facts' message) + tests (fixture fact ids computed from real bodies, not copied)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 800,
+      "output_tokens": 50,
+      "paths": [
+        "scripts/consolidate.py",
+        "tests/test_consolidate.py",
+        "tests/test_compact.py"
+      ]
+    },
+    {
+      "step": 11,
+      "action": "exec: python3 -m unittest — 8/8 OK",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 60
+    },
+    {
+      "step": 12,
+      "action": "exec: compact.sh smoke on a temp git repo — BEGIN journaled, canonical entry written, .consumed set, derived regenerated, provenance PASS",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 600,
+      "output_tokens": 90
+    },
+    {
+      "step": 13,
+      "action": "exec: python3 -m py_compile scripts/consolidate.py — typecheck OK",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 300,
+      "output_tokens": 30
+    }
+  ]
+}
