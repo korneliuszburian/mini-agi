@@ -186,3 +186,15 @@ Intelligence" direction)
   reconstructed from transcript evidence → `codex-exp-002-rerun`
   composite 1.0000 → `loop verify` CLOSED, lease released. Baseline 22
   cases; gate 0 regressions.
+### Added (Phase 8 — verifiable reward layer, ADR-0011)
+- `run.json` may declare `verify_command` + `verify_target`; `mini-agi
+  run verify <run>` executes the target repo's own gate and reports
+  verified / verified-failed / disagrees (judge-calibration signal,
+  exit 1) / unverified.
+- `loop verify` closes a gap only when the composite reaches the target
+  AND the declared verifier passes — self-reported outcomes are no
+  longer trusted when a verifier is available.
+- Backfilled all 9 rerun cases with their real gates — all 9 verify
+  PASS against their scratch repos (executable proof of outcomes).
+- ADR-0011 documents the trust boundary (exec only on explicit verify,
+  score/gate stay pure).

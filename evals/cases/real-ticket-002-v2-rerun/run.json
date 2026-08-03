@@ -154,5 +154,7 @@
       "tokens": 300,
       "output_tokens": 30
     }
-  ]
+  ],
+  "verify_command": "python3 -m unittest discover -s tests",
+  "verify_target": "/tmp/opencode/compact-loop"
 }

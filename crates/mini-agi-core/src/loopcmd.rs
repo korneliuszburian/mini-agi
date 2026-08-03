@@ -364,7 +364,31 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<String, String>
             report.tool_mismatches_vs_golden
         ),
     ];
-    let closed = if report.composite >= TARGET_COMPOSITE {
+    // Verifiable reward layer (ADR-0011): when the run declares a
+    // deterministic verifier, CLOSED requires it to pass — a self-
+    // reported outcome is not trusted.
+    let verification = crate::verifier::verify_run(root, &run_path).ok();
+    let mut verified = true;
+    if let Some(v) = &verification {
+        match v.status.as_str() {
+            "verified" => lines.push(format!(
+                "  deterministic verifier: PASS ({})",
+                v.command.as_deref().unwrap_or("")
+            )),
+            "disagrees" => {
+                verified = false;
+                lines.push(format!(
+                    "  deterministic verifier: DISAGREES with the claimed outcome ({} exit {}) — judge-calibration signal",
+                    v.command.as_deref().unwrap_or(""),
+                    v.exit_code.map_or_else(|| "-".into(), |c| c.to_string())
+                ));
+            }
+            _ => lines.push(
+                "  deterministic verifier: not declared — outcome is the run's own claim".into(),
+            ),
+        }
+    }
+    let closed = if report.composite >= TARGET_COMPOSITE && verified {
         if let Some(ticket) = ticket_for_case(root, base) {
             if claimant_for(root, &ticket.id).as_deref() == Some(claimant) {
                 ticket::release_ticket(root, &ticket.id, claimant)
@@ -382,9 +406,11 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<String, String>
         }
         true
     } else {
-        lines.push(format!(
-            "  gap open: composite below {TARGET_COMPOSITE} — keep working"
-        ));
+        lines.push(if verified {
+            format!("  gap open: composite below {TARGET_COMPOSITE} — keep working")
+        } else {
+            "  gap open: deterministic verifier disagrees — outcome untrusted, keep working".into()
+        });
         false
     };
     let gate = crate::eval::run_gate(
@@ -515,7 +541,7 @@ mod tests {
 
         // Failing rerun: a weak run (composite 0) below the target keeps
         // the claim held.
-        let root = tmp_case_root("verify");
+        let root = tmp_case_root("verify-open");
         let weak = root.join("evals/cases/real-ticket-008-v2-rerun");
         fs::create_dir_all(&weak).unwrap();
         fs::write(
@@ -532,6 +558,35 @@ mod tests {
                 .iter()
                 .any(|c| c.ticket == "TICKET-008-v2" && c.claimant == claimant),
             "claim must stay held below the target"
+        );
+        let _ = fs::remove_dir_all(&root);
+
+        // Verifier disagreement: composite above target but the declared
+        // gate fails -> the gap stays OPEN (outcome untrusted, ADR-0011).
+        let root = tmp_case_root("verify-disagree");
+        let target = root.join("target");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("fail.sh"), "#!/bin/sh\nexit 1\n").unwrap();
+        let rerun = root.join("evals/cases/real-ticket-008-v2-rerun");
+        fs::create_dir_all(&rerun).unwrap();
+        fs::write(
+            rerun.join("run.json"),
+            format!(
+                r#"{{"goal":"TICKET-008","scope":["x"],"outcome":{{"achieved":true}},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":"sh fail.sh","verify_target":{},"trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}}]}}"#,
+                serde_json::to_string(&target.to_string_lossy()).unwrap()
+            ),
+        )
+        .unwrap();
+        ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
+        let text = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        assert!(text.contains("OPEN"), "{text}");
+        assert!(text.contains("DISAGREES"), "{text}");
+        assert!(
+            ticket::read_claims(&root)
+                .unwrap()
+                .iter()
+                .any(|c| c.ticket == "TICKET-008-v2" && c.claimant == claimant),
+            "claim must stay held when the verifier disagrees"
         );
         let _ = fs::remove_dir_all(&root);
     }

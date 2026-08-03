@@ -120,6 +120,15 @@ pub struct Run {
     /// Golden trajectory file name (relative to evals/golden/), if any.
     #[serde(default)]
     pub golden: Option<String>,
+    /// Deterministic verification command (verifiable reward layer,
+    /// ADR-0011): executed by `run verify` IN `verify_target` to prove
+    /// the outcome. Absent = the outcome is unverified by the kernel.
+    #[serde(default)]
+    pub verify_command: Option<String>,
+    /// Directory (absolute or relative to the kernel root) where
+    /// `verify_command` runs — the target repo of the work.
+    #[serde(default)]
+    pub verify_target: Option<String>,
     /// Steps of the run.
     pub trajectory: Vec<Step>,
     /// Extra metadata (ignored by scoring).

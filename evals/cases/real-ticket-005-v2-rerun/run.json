@@ -1,16 +1,85 @@
 {
   "goal": "You are implementing TICKET-005-v2 in this repo (/home/krn/coding/krn/mini-agi, branch pipeline-v1). Read tickets/TICKET-005.md and follow it exactly",
-  "scope": ["evals/harness/score.py", "evals/harness/gate.py", "evals/harness/trajectory.py", "tests/test_score.py", "docs/evals.md", "tickets/TICKET-005-gates.md", "artifacts/TICKET-005-v2/"],
-  "outcome": {"achieved": true, "tests": true, "typecheck": true},
+  "scope": [
+    "evals/harness/score.py",
+    "evals/harness/gate.py",
+    "evals/harness/trajectory.py",
+    "tests/test_score.py",
+    "docs/evals.md",
+    "tickets/TICKET-005-gates.md",
+    "artifacts/TICKET-005-v2/"
+  ],
+  "outcome": {
+    "achieved": true,
+    "tests": true,
+    "typecheck": true
+  },
   "tokens_total": 9800,
   "cost_usd": 0.05,
   "golden": "real-ticket-integrity.json",
   "trajectory": [
-    {"step": 1, "action": "read: tickets/TICKET-005.md (3 integrity findings v2-002 #1-#3: unvalidated exception entries, traceback on malformed runs, implicit allowlist silently changing scores; fail-loud driver: fact 4cf21e40f7f4e2d2)", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 1200, "output_tokens": 180, "note": "closes findings v2-002 #1 (exception validation), #2 (run validation), #3 (implicit allowlist removed); fact 4cf21e40f7f4e2d2 drives the fail-loud rules"},
-    {"step": 2, "action": "write: tests/test_score.py (extend with 6 integrity cases: wildcard exception rejected, absolute path rejected, dotdot traversal rejected, trajectory 'not-a-list' clean error naming the field, undecared episodic write violates — no implicit allowlist, declared artifact allowed)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2100, "output_tokens": 70, "paths": ["tests/test_score.py"]},
-    {"step": 3, "action": "exec: python3 -m unittest — RED: 4 failures (validations not implemented)", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 80},
-    {"step": 4, "action": "write: evals/harness/score.py (v2: validate_exception rejects wildcard/absolute/traversal/empty naming ticket+entry; validate_run checks trajectory/scope/outcome types with controlled errors; implicit allowlist removed — allowance only from declared scope + exceptions + orchestrator artifacts)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2200, "output_tokens": 70, "paths": ["evals/harness/score.py"]},
-    {"step": 5, "action": "exec: python3 -m unittest — 15/15 OK (9 role-aware from TICKET-004-v2 + 6 integrity)", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 60},
-    {"step": 6, "action": "exec: python3 -m py_compile evals/harness/score.py — typecheck OK", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 30}
-  ]
+    {
+      "step": 1,
+      "action": "read: tickets/TICKET-005.md (3 integrity findings v2-002 #1-#3: unvalidated exception entries, traceback on malformed runs, implicit allowlist silently changing scores; fail-loud driver: fact 4cf21e40f7f4e2d2)",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 1200,
+      "output_tokens": 180,
+      "note": "closes findings v2-002 #1 (exception validation), #2 (run validation), #3 (implicit allowlist removed); fact 4cf21e40f7f4e2d2 drives the fail-loud rules"
+    },
+    {
+      "step": 2,
+      "action": "write: tests/test_score.py (extend with 6 integrity cases: wildcard exception rejected, absolute path rejected, dotdot traversal rejected, trajectory 'not-a-list' clean error naming the field, undecared episodic write violates — no implicit allowlist, declared artifact allowed)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 2100,
+      "output_tokens": 70,
+      "paths": [
+        "tests/test_score.py"
+      ]
+    },
+    {
+      "step": 3,
+      "action": "exec: python3 -m unittest — RED: 4 failures (validations not implemented)",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 80
+    },
+    {
+      "step": 4,
+      "action": "write: evals/harness/score.py (v2: validate_exception rejects wildcard/absolute/traversal/empty naming ticket+entry; validate_run checks trajectory/scope/outcome types with controlled errors; implicit allowlist removed — allowance only from declared scope + exceptions + orchestrator artifacts)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 2200,
+      "output_tokens": 70,
+      "paths": [
+        "evals/harness/score.py"
+      ]
+    },
+    {
+      "step": 5,
+      "action": "exec: python3 -m unittest — 15/15 OK (9 role-aware from TICKET-004-v2 + 6 integrity)",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 60
+    },
+    {
+      "step": 6,
+      "action": "exec: python3 -m py_compile evals/harness/score.py — typecheck OK",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 300,
+      "output_tokens": 30
+    }
+  ],
+  "verify_command": "python3 -m unittest discover -s tests",
+  "verify_target": "/tmp/opencode/scorer-005"
 }

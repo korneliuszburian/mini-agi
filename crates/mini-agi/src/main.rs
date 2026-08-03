@@ -103,6 +103,12 @@ enum RunAction {
         #[arg(long)]
         retro: Option<PathBuf>,
     },
+    /// Deterministically verify a run's outcome in its target repo
+    /// (ADR-0011 verifiable reward layer).
+    Verify {
+        /// Path to the run file (evals/cases/<case>/run.json).
+        run: PathBuf,
+    },
     /// Register repeated failing actions from a run.json (Reflexion).
     Failures {
         /// Path to the run file (evals/cases/<case>/run.json).
@@ -377,6 +383,7 @@ fn main() -> ExitCode {
         },
         Command::Run(RunArgs { action }) => match action {
             RunAction::Ingest { run, retro } => cmd_run_ingest(&run, retro.as_deref()),
+            RunAction::Verify { run } => cmd_run_verify(&run),
             RunAction::Failures { run } => cmd_run_failures(&run),
         },
         Command::Insights => cmd_insights(),
@@ -554,6 +561,36 @@ fn cmd_run_ingest(run: &Path, retro: Option<&Path>) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(msg) => fail(&msg),
+    }
+}
+
+fn cmd_run_verify(run: &Path) -> ExitCode {
+    let root = root();
+    match mini_agi_core::verifier::verify_run(&root, run) {
+        Ok(v) => {
+            println!(
+                "verify {}: {} (exit {})",
+                v.case,
+                v.status,
+                v.exit_code
+                    .map_or_else(|| "-".to_string(), |c| c.to_string())
+            );
+            if let Some(cmd) = &v.command {
+                println!("  command: {cmd}");
+            }
+            if let Some(target) = &v.target {
+                println!("  target: {target}");
+            }
+            if !v.output_excerpt.is_empty() {
+                println!("  last output: {}", v.output_excerpt);
+            }
+            if v.status == "disagrees" {
+                ExitCode::from(1)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(e) => fail(&format!("run verify: {e}")),
     }
 }
 

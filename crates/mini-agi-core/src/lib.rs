@@ -20,3 +20,4 @@ pub mod mismatch;
 pub mod skills;
 pub mod store;
 pub mod ticket;
+pub mod verifier;

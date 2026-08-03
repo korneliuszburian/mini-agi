@@ -1,21 +1,129 @@
 {
   "goal": "Implement scripts/checksum.py — a zero-dependency Python CLI that prints the sha256 hex digest of a file (usage: checksum.py <path>; exit 0 on success, exit 1 with a clear message on a missing/unreadable file). Add a Makefile target `checksum` that validates the script against a known fixture, wired into `verify`. Tests in tests/test_checksum.py (unittest, no dependencies) covering: known digest value, missing file error, directory path error.",
-  "scope": ["scripts/checksum.py", "tests/test_checksum.py", "Makefile"],
-  "outcome": {"achieved": true, "tests": true, "typecheck": true},
+  "scope": [
+    "scripts/checksum.py",
+    "tests/test_checksum.py",
+    "Makefile"
+  ],
+  "outcome": {
+    "achieved": true,
+    "tests": true,
+    "typecheck": true
+  },
   "tokens_total": 18400,
   "cost_usd": 0.09,
   "golden": null,
   "trajectory": [
-    {"step": 1, "action": "read: repo scaffold (mini-agi init: AGENTS.md, scripts/checkpoint.sh, verify.sh) — codex transcript lines 401-472 show it reading the scaffold", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 1500, "output_tokens": 300, "note": "trajectory reconstructed from the codex exec transcript (codex.log) + final worktree state; every step traceable to evidence"},
-    {"step": 2, "action": "write: tests/test_checksum.py (3 unittest cases: known sha256 digest vs fixture, missing file error, directory path error) + tests/fixtures/checksum-fixture.txt", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2800, "output_tokens": 80, "paths": ["tests/test_checksum.py"]},
-    {"step": 3, "action": "write: scripts/checksum.py (zero-dep CLI: sha256 over 1MB chunks; usage error, FileNotFoundError, IsADirectoryError, OSError handled, exit 0/1)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2600, "output_tokens": 80, "paths": ["scripts/checksum.py"]},
-    {"step": 4, "action": "write: Makefile (checksum target validating against the fixture digest, test target, verify wiring)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 1800, "output_tokens": 60, "paths": ["Makefile"]},
-    {"step": 5, "action": "exec: make verify — checksum target Error 1 (first iteration, digest mismatch) [transcript line 1987]", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 120},
-    {"step": 6, "action": "exec: python3 -m unittest discover -s tests — RED iteration [transcript line 1997]", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 120},
-    {"step": 7, "action": "exec: make verify — checksum Error 1 again [transcript line 2005]", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 120},
-    {"step": 8, "action": "exec: python3 -m unittest discover -s tests — GREEN iteration [transcript line 2944]", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 100},
-    {"step": 9, "action": "exec: git status --short — file inventory [transcript line 3849]", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 90},
-    {"step": 10, "action": "exec: python3 -m unittest discover -s tests — GREEN [transcript line 3876]", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 100},
-    {"step": 11, "action": "exec: make verify — ALL GREEN (3 tests + checksum OK); independently re-verified by the pipeline operator", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 100}
-  ]
+    {
+      "step": 1,
+      "action": "read: repo scaffold (mini-agi init: AGENTS.md, scripts/checkpoint.sh, verify.sh) — codex transcript lines 401-472 show it reading the scaffold",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 1500,
+      "output_tokens": 300,
+      "note": "trajectory reconstructed from the codex exec transcript (codex.log) + final worktree state; every step traceable to evidence"
+    },
+    {
+      "step": 2,
+      "action": "write: tests/test_checksum.py (3 unittest cases: known sha256 digest vs fixture, missing file error, directory path error) + tests/fixtures/checksum-fixture.txt",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 2800,
+      "output_tokens": 80,
+      "paths": [
+        "tests/test_checksum.py"
+      ]
+    },
+    {
+      "step": 3,
+      "action": "write: scripts/checksum.py (zero-dep CLI: sha256 over 1MB chunks; usage error, FileNotFoundError, IsADirectoryError, OSError handled, exit 0/1)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 2600,
+      "output_tokens": 80,
+      "paths": [
+        "scripts/checksum.py"
+      ]
+    },
+    {
+      "step": 4,
+      "action": "write: Makefile (checksum target validating against the fixture digest, test target, verify wiring)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 1800,
+      "output_tokens": 60,
+      "paths": [
+        "Makefile"
+      ]
+    },
+    {
+      "step": 5,
+      "action": "exec: make verify — checksum target Error 1 (first iteration, digest mismatch) [transcript line 1987]",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 700,
+      "output_tokens": 120
+    },
+    {
+      "step": 6,
+      "action": "exec: python3 -m unittest discover -s tests — RED iteration [transcript line 1997]",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 700,
+      "output_tokens": 120
+    },
+    {
+      "step": 7,
+      "action": "exec: make verify — checksum Error 1 again [transcript line 2005]",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 700,
+      "output_tokens": 120
+    },
+    {
+      "step": 8,
+      "action": "exec: python3 -m unittest discover -s tests — GREEN iteration [transcript line 2944]",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 700,
+      "output_tokens": 100
+    },
+    {
+      "step": 9,
+      "action": "exec: git status --short — file inventory [transcript line 3849]",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 90
+    },
+    {
+      "step": 10,
+      "action": "exec: python3 -m unittest discover -s tests — GREEN [transcript line 3876]",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 700,
+      "output_tokens": 100
+    },
+    {
+      "step": 11,
+      "action": "exec: make verify — ALL GREEN (3 tests + checksum OK); independently re-verified by the pipeline operator",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 700,
+      "output_tokens": 100
+    }
+  ],
+  "verify_command": "make verify",
+  "verify_target": "/tmp/opencode/codex-exp2"
 }

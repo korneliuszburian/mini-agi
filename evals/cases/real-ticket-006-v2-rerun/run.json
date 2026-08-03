@@ -1,16 +1,81 @@
 {
   "goal": "TICKET-006",
-  "scope": ["scripts/consolidate.py", "tests/test_consolidate.py", "tickets/TICKET-006-gates.md", "artifacts/TICKET-006-v2/"],
-  "outcome": {"achieved": true, "tests": true, "typecheck": true},
+  "scope": [
+    "scripts/consolidate.py",
+    "tests/test_consolidate.py",
+    "tickets/TICKET-006-gates.md",
+    "artifacts/TICKET-006-v2/"
+  ],
+  "outcome": {
+    "achieved": true,
+    "tests": true,
+    "typecheck": true
+  },
   "tokens_total": 10300,
   "cost_usd": 0.05,
   "golden": "real-ticket-consolidate.json",
   "trajectory": [
-    {"step": 1, "action": "read: tickets/TICKET-006.md (edge-case hardening: cross-date dedup, per-day numbering, dry-run, extraction boundaries, robustness)", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 1000, "output_tokens": 160},
-    {"step": 2, "action": "write: tests/test_consolidate.py (test-first: 8 cases — cross-date dedup skips old fact, per-day numbering 001 then 002, dry-run writes nothing, empty FACT lines skipped, bullet length boundary 7-skip/8-keep, prose/headers never extracted, missing buffer fails loud, CRLF equals LF)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2400, "output_tokens": 80, "paths": ["tests/test_consolidate.py"]},
-    {"step": 3, "action": "exec: python3 -m unittest — RED: 3 failures (bullet length rule, --dry-run, missing-buffer error)", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 80},
-    {"step": 4, "action": "write: scripts/consolidate.py (v2 hardening: extract_facts strips CR, skips empty FACT lines, bullets only when stripped length > 8; --dry-run prints would-be path and counts writing nothing; missing buffer clean exit 1; per-day numbering already correct)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2000, "output_tokens": 70, "paths": ["scripts/consolidate.py"]},
-    {"step": 5, "action": "exec: python3 -m unittest — 8/8 OK", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 500, "output_tokens": 60},
-    {"step": 6, "action": "exec: python3 -m py_compile scripts/consolidate.py — typecheck OK", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 30}
-  ]
+    {
+      "step": 1,
+      "action": "read: tickets/TICKET-006.md (edge-case hardening: cross-date dedup, per-day numbering, dry-run, extraction boundaries, robustness)",
+      "tool": "read",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 1000,
+      "output_tokens": 160
+    },
+    {
+      "step": 2,
+      "action": "write: tests/test_consolidate.py (test-first: 8 cases — cross-date dedup skips old fact, per-day numbering 001 then 002, dry-run writes nothing, empty FACT lines skipped, bullet length boundary 7-skip/8-keep, prose/headers never extracted, missing buffer fails loud, CRLF equals LF)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 2400,
+      "output_tokens": 80,
+      "paths": [
+        "tests/test_consolidate.py"
+      ]
+    },
+    {
+      "step": 3,
+      "action": "exec: python3 -m unittest — RED: 3 failures (bullet length rule, --dry-run, missing-buffer error)",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 80
+    },
+    {
+      "step": 4,
+      "action": "write: scripts/consolidate.py (v2 hardening: extract_facts strips CR, skips empty FACT lines, bullets only when stripped length > 8; --dry-run prints would-be path and counts writing nothing; missing buffer clean exit 1; per-day numbering already correct)",
+      "tool": "write",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 2000,
+      "output_tokens": 70,
+      "paths": [
+        "scripts/consolidate.py"
+      ]
+    },
+    {
+      "step": 5,
+      "action": "exec: python3 -m unittest — 8/8 OK",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 500,
+      "output_tokens": 60
+    },
+    {
+      "step": 6,
+      "action": "exec: python3 -m py_compile scripts/consolidate.py — typecheck OK",
+      "tool": "exec",
+      "ok": true,
+      "goal_aligned": true,
+      "tokens": 300,
+      "output_tokens": 30
+    }
+  ],
+  "verify_command": "python3 -m unittest discover -s tests",
+  "verify_target": "/tmp/opencode/consolidate-006"
 }
