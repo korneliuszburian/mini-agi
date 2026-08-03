@@ -253,3 +253,16 @@ Intelligence" direction)
   are suspicious in successful runs.
 - MCP: 36 tools — full surface incl. loop_dispatch/loop_verify/
   eval_steps/run_verify/run_failures/harness.
+### Added (Phase 9 — trust enforcement, slice 1)
+- loop verify close requires a deterministic verifier: unverified runs
+  close only with explicit --allow-unverified (warned); a verifier
+  error or disagreement blocks close.
+- verifier timeout (120s): a hung gate is killed and reported as
+  disagreement.
+- codex capture draft: carries verify_command/verify_target (--verify/
+  --target flags), honest goal_aligned: null (never invented true).
+- failure register normalizes absolute path prefixes before hashing —
+  fact ids stable across hosts.
+### Fixed (Phase 9 — checkpoint.sh)
+- rollback no longer journals a duplicate BEGIN when the label's BEGIN
+  survived (duplicate orphaned the audit); journal repaired with STATUS.

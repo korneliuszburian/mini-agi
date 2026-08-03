@@ -95,11 +95,15 @@ case "${1:-}" in
         # Journal AFTER the reset: reset --hard restores the journal to the
         # checkpoint commit's version, which would swallow a line journaled
         # before it. The journal must record the outcome. The BEGIN line is
-        # re-journaled first: it was appended after the begin-commit and the
-        # reset wiped it, so the VERIFY-FAIL must pair with a restored BEGIN
-        # or the audit deadlocks (orphan VERIFY-FAIL -> gate red -> rollback
-        # -> another orphan; 2026-08-03 journal-repair).
-        echo "$(ts) BEGIN $label -> $last_green (restored by rollback)" >> "$JOURNAL"
+        # re-journaled first IF the label has no BEGIN already: it was
+        # appended after the begin-commit and the reset wiped it, so the
+        # VERIFY-FAIL must pair with a restored BEGIN or the audit
+        # deadlocks (orphan VERIFY-FAIL -> gate red -> rollback -> another
+        # orphan; 2026-08-03 journal-repair). A label whose BEGIN survived
+        # (re-verify after a red gate) must NOT get a duplicate.
+        if ! grep -q "BEGIN $label" "$JOURNAL" 2>/dev/null; then
+            echo "$(ts) BEGIN $label -> $last_green (restored by rollback)" >> "$JOURNAL"
+        fi
         echo "$(ts) VERIFY-FAIL $label @ $prev -> ROLLBACK to $last_green" >> "$JOURNAL"
         echo "RED: $label @ $prev — rolled back to green checkpoint $last_green"
       else

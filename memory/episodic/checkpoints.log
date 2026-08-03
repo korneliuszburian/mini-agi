@@ -46,3 +46,5 @@
 2026-08-03T19:39:23Z BEGIN research-synth -> aaeb1b8
 2026-08-03T19:39:34Z VERIFY-PASS research-synth @ aaeb1b8
 2026-08-03T19:44:51Z BEGIN phase8-marathon -> df14a73 (clean)
+2026-08-03T20:47:31Z STATUS phase8-marathon duplicate restored-BEGIN removed (original BEGIN survived; rollback duplicate fixed in checkpoint.sh)
+2026-08-03T20:47:31Z VERIFY-FAIL phase8-marathon @ fd96278 -> ROLLBACK to fd96278
