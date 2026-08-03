@@ -310,3 +310,30 @@ Intelligence" direction)
 - EXP-005 documented: resampling-control experiment design (failure-
   memory-conditioned retries vs plain resampling at equal attempts) —
   must ship with every future loop improvement.
+### Fixed (Phase 9 — codex review EXP-006, all findings dispositioned)
+- CRITICAL verifier-error bypass: a verifier error now blocks close
+  (verified=false, not just a message).
+- CRITICAL trust boundary: run failures no longer EXECUTES declared
+  verifiers — records status "declared"; execution stays in run/loop
+  verify (ADR-0011).
+- CRITICAL harness could delete the target on unreadable content:
+  unreadable-existing target errors instead of being treated as absent;
+  the gate itself (scripts/verify.sh) is refused as a counterfactual
+  subject; a gate that fails with no [FAIL] markers is counted as
+  broken, not green.
+- MAJOR evidence-before-verification: ingest now happens AFTER the
+  verifier and is skipped on disagreement; contrast facts use the real
+  trust path ("deterministic gate passed" vs "explicit trust") and
+  persist failures are reported.
+- MAJOR verifier timeout is now a disagreement (not an error).
+- MAJOR calibration: precision excludes unverified claims from the
+  denominator; rows dedup by (case, command, target) so repeated
+  re-verification cannot inflate the corpus.
+- MAJOR attribution: loop verify appends attribution; append failures
+  are reported; audit distinguishes absent vs unreadable verify.log.
+- MAJOR eval hidden: escaping evals/hidden is refused; failed hidden
+  cases exit non-zero.
+- MAJOR memory-load validation is now IN the deterministic gate
+  (verify.sh runs mini-agi audit).
+- attempts counter counts all `<case>-rerun*` dirs (multi-attempt
+  pilots representable).

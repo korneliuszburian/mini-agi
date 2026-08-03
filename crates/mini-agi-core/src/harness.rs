@@ -170,7 +170,29 @@ pub fn verify_candidate(
     } else {
         root.join(target)
     };
-    let original = fs::read_to_string(&target).ok();
+    // Distinguish absent vs unreadable (codex review): a target that
+    // EXISTS but cannot be read must error, not be treated as absent —
+    // otherwise restore() would delete it on a rejected claim.
+    let original = match fs::read_to_string(&target) {
+        Ok(t) => Some(t),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("target {} exists but is unreadable: {e}", target.display()),
+            ));
+        }
+    };
+    // The gate must never be its own counterfactual subject (codex
+    // review): swapping scripts/verify.sh self-validates.
+    if target.file_name().is_some_and(|n| n == "verify.sh")
+        && target.components().any(|c| c.as_os_str() == "scripts")
+    {
+        return Ok(
+            "REJECT: refusing to counterfactually validate the gate itself (scripts/verify.sh)"
+                .into(),
+        );
+    }
     let before = gate_failures_text(root);
     // Phantom-guardrail check: claims must name failures observed BEFORE.
     if let Some(claims) = claims {
@@ -212,7 +234,19 @@ fn gate_failures_text(root: &Path) -> Vec<String> {
         Ok(out) => {
             let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
             text.push_str(&String::from_utf8_lossy(&out.stderr));
-            gate_failures(&text)
+            let mut failures = gate_failures(&text);
+            // A gate that FAILS without emitting [FAIL] markers is itself
+            // broken — a marker-less failure must not look green (codex
+            // review).
+            if !out.status.success() && failures.is_empty() {
+                failures.push(format!(
+                    "gate exited {} without [FAIL] markers",
+                    out.status
+                        .code()
+                        .map_or_else(|| "-".into(), |c| c.to_string())
+                ));
+            }
+            failures
         }
         Err(_) => vec!["gate unavailable".to_string()],
     }
@@ -237,8 +271,18 @@ mod counterfactual_tests {
         let root = env::temp_dir().join(format!("mag-hv-{}-{}", tag, std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("scripts")).unwrap();
+        fs::create_dir_all(root.join("candidate")).unwrap();
         fs::write(root.join("scripts/verify.sh"), gate_body).unwrap();
         root
+    }
+
+    /// A fake gate that READS an `ok.marker` data file — the
+    /// counterfactual target is the marker, never the gate itself.
+    fn marker_gate_root(tag: &str) -> std::path::PathBuf {
+        tmp_gate_root(
+            tag,
+            "#!/bin/sh\nif [ \"$(cat ok.marker 2>/dev/null)\" = \"x\" ]; then echo \"[ok] build\"; exit 0; else echo \"[FAIL] marker-missing:\"; exit 1; fi\n",
+        )
     }
 
     #[test]
@@ -250,37 +294,51 @@ mod counterfactual_tests {
     }
 
     #[test]
-    fn candidate_reducing_failures_is_accepted() {
-        // Target gate: one observed failure. Candidate file makes the
-        // gate emit none -> observed reduction -> ACCEPT; original kept.
-        let root = tmp_gate_root("reduce", "#!/bin/sh\necho \"[FAIL] tests:\"\nexit 1\n");
-        fs::write(
-            root.join("candidate.sh"),
-            "#!/bin/sh\necho \"[ok] build\"\nexit 0\n",
-        )
-        .unwrap();
+    fn refuses_to_counterfactually_validate_the_gate_itself() {
+        let root = tmp_gate_root("self", "#!/bin/sh\nexit 0\n");
         let verdict = verify_candidate(
             &root,
             &root.join("scripts/verify.sh"),
-            &root.join("candidate.sh"),
+            &root.join("scripts/verify.sh"),
+            None,
+        )
+        .unwrap();
+        assert!(verdict.starts_with("REJECT"), "{verdict}");
+        assert!(verdict.contains("gate itself"), "{verdict}");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn candidate_reducing_failures_is_accepted() {
+        // Marker absent -> gate fails. Candidate makes it present ->
+        // observed reduction -> ACCEPT; original (absent) restored.
+        let root = marker_gate_root("reduce");
+        fs::write(root.join("candidate/ok.marker"), "x").unwrap();
+        let verdict = verify_candidate(
+            &root,
+            &root.join("ok.marker"),
+            &root.join("candidate/ok.marker"),
             None,
         )
         .unwrap();
         assert!(verdict.starts_with("ACCEPT"), "{verdict}");
-        let restored = fs::read_to_string(root.join("scripts/verify.sh")).unwrap();
-        assert!(restored.contains("exit 1"), "original must be restored");
+        assert!(
+            !root.join("ok.marker").exists(),
+            "original (absent) restored"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
     fn phantom_claim_rejected_with_evidence() {
-        // Gate before observes only 'build'; the edit claims to fix
-        // 'tests' -> fabricated guardrail -> REJECT with evidence.
-        let root = tmp_gate_root("phantom", "#!/bin/sh\necho \"[FAIL] build:\"\nexit 1\n");
+        // Gate before observes only 'marker-missing'; the edit claims
+        // to fix 'tests' -> fabricated guardrail -> REJECT with evidence.
+        let root = marker_gate_root("phantom");
+        fs::write(root.join("candidate/ok.marker"), "x").unwrap();
         let verdict = verify_candidate(
             &root,
-            &root.join("scripts/verify.sh"),
-            &root.join("scripts/verify.sh"),
+            &root.join("ok.marker"),
+            &root.join("candidate/ok.marker"),
             Some("tests"),
         )
         .unwrap();
@@ -291,21 +349,37 @@ mod counterfactual_tests {
 
     #[test]
     fn regressing_candidate_rejected() {
-        // Gate before: clean. Candidate introduces an observed failure.
-        let root = tmp_gate_root("regress", "#!/bin/sh\necho \"[ok] build\"\nexit 0\n");
+        // Before: marker present -> gate clean. Candidate replaces the
+        // marker with a broken gate-copy -> the gate's failure set grows.
+        let root = marker_gate_root("regress");
+        fs::write(root.join("ok.marker"), "x").unwrap();
         fs::write(
-            root.join("candidate.sh"),
+            root.join("candidate/ok.marker"),
             "#!/bin/sh\necho \"[FAIL] clippy:\"\nexit 1\n",
         )
         .unwrap();
         let verdict = verify_candidate(
             &root,
-            &root.join("scripts/verify.sh"),
-            &root.join("candidate.sh"),
+            &root.join("ok.marker"),
+            &root.join("candidate/ok.marker"),
             None,
         )
         .unwrap();
         assert!(verdict.starts_with("REJECT"), "{verdict}");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn markerless_failing_gate_is_not_green() {
+        // A gate that exits non-zero with no [FAIL] markers is broken —
+        // the counterfactual must not count it as clean.
+        let root = tmp_gate_root("silentfail", "#!/bin/sh\nexit 1\n");
+        let failures = gate_failures_text(&root);
+        assert!(!failures.is_empty(), "markerless failure must be detected");
+        assert!(
+            failures.iter().any(|f| f.contains("without [FAIL]")),
+            "{failures:?}"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

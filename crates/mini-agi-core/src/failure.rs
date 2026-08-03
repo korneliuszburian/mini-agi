@@ -124,7 +124,7 @@ pub fn repeated_failing_actions(run: &Run) -> Vec<(String, String, usize, Vec<u3
 ///
 /// Returns a message when the file is missing, malformed, or fails run
 /// validation.
-pub fn analyze_run(run_path: &Path, root: &Path) -> Result<(String, Vec<FailureEntry>), String> {
+pub fn analyze_run(run_path: &Path, _root: &Path) -> Result<(String, Vec<FailureEntry>), String> {
     let text = fs::read_to_string(run_path)
         .map_err(|e| format!("cannot read {}: {e}", run_path.display()))?;
     let run: Run = serde_json::from_str(&text).map_err(|e| format!("invalid run json: {e}"))?;
@@ -142,13 +142,11 @@ pub fn analyze_run(run_path: &Path, root: &Path) -> Result<(String, Vec<FailureE
         || "unknown".to_string(),
         |n| n.to_string_lossy().into_owned(),
     );
-    let verifier = if run.verify_command.is_some() {
-        crate::verifier::verify_run(root, run_path)
-            .ok()
-            .map(|v| v.status)
-    } else {
-        None
-    };
+    // Evidence-gating without executing (codex review, ADR-0011 trust
+    // boundary: only `run verify`/`loop verify` execute verifiers):
+    // record the DECLARED verifier; actual verification happens in the
+    // verify commands, not in `run failures`.
+    let verifier = run.verify_command.is_some().then(|| "declared".to_string());
     let entries = repeated_failing_actions(&run)
         .into_iter()
         .map(|(tool, action, count, steps)| FailureEntry {

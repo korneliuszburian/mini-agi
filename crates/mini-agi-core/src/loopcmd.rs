@@ -150,6 +150,24 @@ fn append_metrics(root: &Path, case: &str, composite: f64, tokens: u64) -> std::
     fs::write(&path, format!("{body}{row}"))
 }
 
+/// Count of rerun attempt dirs for a case (`<case>-rerun`, `<case>-rerun-2`,
+/// ...) — the pilot-before-scale numerator (Ringelmann 2606.02646).
+#[must_use]
+pub fn count_reruns(root: &Path, case: &str) -> usize {
+    let cases_dir = root.join("evals/cases");
+    let Ok(entries) = fs::read_dir(&cases_dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .filter(|e| {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            name.starts_with(&format!("{case}-rerun")) && e.path().join("run.json").is_file()
+        })
+        .count()
+}
+
 /// Composite of the rerun case `<case>-rerun`, when it exists.
 #[must_use]
 pub fn rerun_composite(root: &Path, case: &str) -> Option<f64> {
@@ -193,11 +211,12 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
             )
         });
         let rerun = rerun_composite(root, &case.case);
+        let attempts = 1 + count_reruns(root, &case.case);
         rows.push(LoopRow {
             case: case.case.clone(),
             composite: case.composite,
             rerun_composite: rerun,
-            attempts: 1 + usize::from(rerun.is_some()),
+            attempts,
             ticket: ticket_id,
             status: status_,
             claimant,
@@ -459,13 +478,8 @@ pub fn verify(
     let run_path = root.join("evals/cases").join(case).join("run.json");
     let report = eval::score_run(&run_path, root, &root.join("evals/golden"))
         .map_err(|e| format!("cannot score {case}: {e}"))?;
-    let ingest = crate::insights::ingest_run(root, &run_path, None)
-        .map_err(|e| format!("cannot ingest {case}: {e}"))?;
     let mut lines = vec![
-        format!(
-            "verify {case}: composite {:.4} (ingested: {} new facts)",
-            report.composite, ingest.new_facts
-        ),
+        format!("verify {case}: composite {:.4}", report.composite),
         format!("  outcome: {}", report.dims.outcome),
         format!(
             "  mismatches vs golden: {}",
@@ -476,18 +490,19 @@ pub fn verify(
     // deterministic verifier, CLOSED requires it to pass — a self-
     // reported outcome is not trusted. A verifier ERROR (e.g. missing
     // target repo) also blocks close (codex review finding).
+    let mut verified = true;
     let verification = match crate::verifier::verify_run(root, &run_path) {
         Ok(v) => Some(v),
         Err(e) => {
+            verified = false;
             lines.push(format!(
                 "  deterministic verifier: ERROR — {e} (close blocked)"
             ));
             None
         }
     };
-    let mut verified = true;
     if let Some(v) = &verification {
-        let _ = crate::verifier::append_calibration(
+        if let Err(e) = crate::verifier::append_calibration(
             root,
             &crate::verifier::CalibrationRow {
                 at: crate::memory::utc_now_stamp(),
@@ -496,8 +511,26 @@ pub fn verify(
                 claimed: v.claimed,
                 composite: report.composite,
                 exit: v.exit_code,
+                command: v.command.clone(),
+                target: v.target.clone(),
             },
-        );
+        ) {
+            lines.push(format!("  warning: calibration row not persisted — {e}"));
+        }
+        if let (Some(command), Some(target)) = (&v.command, &v.target)
+            && let Err(e) = crate::verifier::append_attribution(
+                root,
+                &crate::verifier::VerifyAttribution {
+                    at: crate::memory::utc_now_stamp(),
+                    case: case.to_string(),
+                    command: command.clone(),
+                    target: target.clone(),
+                    status: v.status.clone(),
+                },
+            )
+        {
+            lines.push(format!("  warning: attribution not persisted — {e}"));
+        }
         match v.status.as_str() {
             "verified" => lines.push(format!(
                 "  deterministic verifier: PASS ({})",
@@ -519,6 +552,14 @@ pub fn verify(
                     lines.push("  deterministic verifier: not declared — close requires a verifier or --allow-unverified".into());
                 }
             }
+        }
+    }
+    // Evidence enters the world model only when trusted (codex review):
+    // ingest AFTER verification, skipped when the verifier disagrees.
+    if verified {
+        match crate::insights::ingest_run(root, &run_path, None) {
+            Ok(ingest) => lines.push(format!("  ingested: {} new facts", ingest.new_facts)),
+            Err(e) => lines.push(format!("  warning: ingest failed — {e}")),
         }
     }
     // Best-state regression bound (Phase 8 slice 3): the gate must have
@@ -574,14 +615,21 @@ pub fn verify(
             .find(|e| e.case == base)
             .and_then(|e| e.reflection.clone())
             .unwrap_or_else(|| "none recorded".to_string());
+        // The success-evidence phrase must reflect the ACTUAL trust path
+        // (codex review): a verifier pass says "deterministic gate
+        // passed"; an --allow-unverified close says "explicit trust".
+        let trust_path = match verification.as_ref().map(|v| v.status.as_str()) {
+            Some("verified") => "deterministic gate passed",
+            _ => "explicit trust (no deterministic verifier)",
+        };
         let contrast = format!(
-            "FACT: gap {base} closed by rerun {case} (composite {:.4}, verifier {}) — failure reflection: {failure_reflection} — success evidence: deterministic gate passed",
+            "FACT: gap {base} closed by rerun {case} (composite {:.4}, verifier {}) — failure reflection: {failure_reflection} — success evidence: {trust_path}",
             report.composite,
             verification
                 .as_ref()
                 .map_or_else(|| "none".to_string(), |v| v.status.clone())
         );
-        let _ = crate::memory::consolidate(
+        match crate::memory::consolidate(
             root,
             &contrast,
             &format!("loop-verify-{case}"),
@@ -590,7 +638,10 @@ pub fn verify(
                 require_signoff: false,
                 dry_run: false,
             },
-        );
+        ) {
+            Ok(_) => {}
+            Err(e) => lines.push(format!("  warning: contrast fact not persisted — {e}")),
+        }
         true
     } else {
         lines.push(if !verified {
@@ -926,7 +977,7 @@ mod reflection_diff_tests {
         assert!(
             bodies
                 .iter()
-                .any(|b| b.contains("success evidence: deterministic gate passed")),
+                .any(|b| b.contains("success evidence:") && b.contains("explicit trust")),
             "{bodies:?}"
         );
         let _ = fs::remove_dir_all(&root);

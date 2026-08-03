@@ -214,7 +214,20 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
     // 6. Verifier attribution (Phase 9 slice 6, NIST audit trail): the
     // last executed verifier commands — audit attribution for commands
     // the kernel has run in target repos.
-    let attribution = crate::verifier::read_attribution(root).unwrap_or_default();
+    let attribution_path = root.join("memory/episodic/verify.log");
+    let attribution = match crate::verifier::read_attribution(root) {
+        Ok(rows) => rows,
+        Err(_) if !attribution_path.exists() => Vec::new(),
+        Err(e) => {
+            report.findings.push(Finding {
+                severity: "fail".into(),
+                message: format!(
+                    "attribution: verify.log exists but is unreadable/malformed — {e}"
+                ),
+            });
+            Vec::new()
+        }
+    };
     if attribution.is_empty() {
         report
             .passed

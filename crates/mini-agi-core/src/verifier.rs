@@ -102,10 +102,11 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
                     let _ = child.kill();
                     let _ = child.wait();
                     timed_out = true;
-                    break Err(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        format!("verifier exceeded {VERIFY_TIMEOUT_SECS}s"),
-                    ));
+                    break Ok(std::process::Output {
+                        status: std::process::ExitStatus::default(),
+                        stdout: Vec::new(),
+                        stderr: Vec::new(),
+                    });
                 }
                 std::thread::sleep(std::time::Duration::from_millis(200));
             }
@@ -173,6 +174,12 @@ pub struct CalibrationRow {
     pub composite: f64,
     /// Verifier exit code.
     pub exit: Option<i32>,
+    /// Verifier command (for dedup of repeated re-verifications).
+    #[serde(default)]
+    pub command: Option<String>,
+    /// Verifier target repo (for dedup).
+    #[serde(default)]
+    pub target: Option<String>,
 }
 
 /// Append one calibration row.
@@ -185,14 +192,27 @@ pub fn append_calibration(root: &Path, row: &CalibrationRow) -> std::io::Result<
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let line = serde_json::to_string(row).map_err(std::io::Error::other)?;
     let mut out = String::new();
     if path.exists() {
         out.push_str(&fs::read_to_string(&path)?);
     } else {
         out.push_str("# JUDGE CALIBRATION (derived — appended by run verify / loop verify, never hand-edit)\n");
     }
-    out.push_str(&line);
+    // Dedup by (case, command, target) keeping the latest row — repeated
+    // re-verification of the same run must not inflate the corpus (codex
+    // review).
+    let mut kept: Vec<CalibrationRow> = read_calibration(root).unwrap_or_default();
+    kept.retain(|r| !(r.case == row.case && r.command == row.command && r.target == row.target));
+    kept.push(row.clone());
+    let lines: Vec<String> = kept
+        .iter()
+        .map(|r| serde_json::to_string(r).map_err(std::io::Error::other))
+        .collect::<std::io::Result<Vec<_>>>()?;
+    out.clear();
+    out.push_str(
+        "# JUDGE CALIBRATION (derived — appended by run verify / loop verify, never hand-edit)\n",
+    );
+    out.push_str(&lines.join("\n"));
     out.push('\n');
     fs::write(&path, out)
 }
@@ -287,14 +307,18 @@ pub struct JudgeDrift {
 
 impl JudgeDrift {
     /// Precision of the judged outcome against the verifier:
-    /// verified-successes / claimed-successes. NaN when none claimed.
+    /// verified-successes / conclusive-claimed-successes, where
+    /// conclusive = verified or disagreed (an `unverified` claim has no
+    /// verifier verdict and must not dilute the denominator — codex
+    /// review).
     #[must_use]
     pub fn precision(&self) -> f64 {
-        if self.claimed_successes == 0 {
+        let conclusive = self.verified_successes + self.disagreements;
+        if conclusive == 0 {
             f64::NAN
         } else {
             f64::from(u32::try_from(self.verified_successes).unwrap_or(0))
-                / f64::from(u32::try_from(self.claimed_successes).unwrap_or(0))
+                / f64::from(u32::try_from(conclusive).unwrap_or(0))
         }
     }
 }
@@ -441,6 +465,8 @@ mod calibration_tests {
             claimed,
             composite: 0.5,
             exit: Some(0),
+            command: Some("make verify".into()),
+            target: Some("/tmp/t".into()),
         }
     }
 
@@ -457,7 +483,17 @@ mod calibration_tests {
         assert_eq!(drift.claimed_successes, 3);
         assert_eq!(drift.verified_successes, 1);
         assert_eq!(drift.disagreements, 1);
-        assert!((drift.precision() - 1.0 / 3.0).abs() < 1e-9);
+        // Precision excludes the unverified claim from the denominator.
+        assert!((drift.precision() - 1.0 / 2.0).abs() < 1e-9);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn calibration_dedups_same_run_reverification() {
+        let root = tmp_root("dedup");
+        append_calibration(&root, &row("a", "verified", true)).unwrap();
+        append_calibration(&root, &row("a", "verified", true)).unwrap();
+        assert_eq!(read_calibration(&root).unwrap().len(), 1);
         let _ = fs::remove_dir_all(&root);
     }
 

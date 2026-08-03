@@ -829,7 +829,7 @@ fn cmd_run_verify(run: &Path, dry_run: bool) -> ExitCode {
     }
     match mini_agi_core::verifier::verify_run(&root, run) {
         Ok(v) => {
-            let _ = mini_agi_core::verifier::append_calibration(
+            if let Err(e) = mini_agi_core::verifier::append_calibration(
                 &root,
                 &mini_agi_core::verifier::CalibrationRow {
                     at: mini_agi_core::memory::utc_now_stamp(),
@@ -838,10 +838,14 @@ fn cmd_run_verify(run: &Path, dry_run: bool) -> ExitCode {
                     claimed: v.claimed,
                     composite: 0.0,
                     exit: v.exit_code,
+                    command: v.command.clone(),
+                    target: v.target.clone(),
                 },
-            );
-            if let (Some(command), Some(target)) = (&v.command, &v.target) {
-                let _ = mini_agi_core::verifier::append_attribution(
+            ) {
+                eprintln!("warning: calibration row not persisted — {e}");
+            }
+            if let (Some(command), Some(target)) = (&v.command, &v.target)
+                && let Err(e) = mini_agi_core::verifier::append_attribution(
                     &root,
                     &mini_agi_core::verifier::VerifyAttribution {
                         at: mini_agi_core::memory::utc_now_stamp(),
@@ -850,7 +854,9 @@ fn cmd_run_verify(run: &Path, dry_run: bool) -> ExitCode {
                         target: target.clone(),
                         status: v.status.clone(),
                     },
-                );
+                )
+            {
+                eprintln!("warning: attribution not persisted — {e}");
             }
             println!(
                 "verify {}: {} (exit {})",
