@@ -7,6 +7,11 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ### Added (intelligence layer, ADR-0005 — Sequoia "From Hierarchy to
 Intelligence" direction)
+- Sandbox attestation (ADR-0009, Phase 6.3): `verify.sh` gains a
+  `sandbox` target — skipped locally, mandatory in CI (`CI=true`):
+  fails unless the runner is non-root and identifies itself, and the
+  evidence line lands in the gate log. The master CI gate (GH Actions,
+  running since Phase 5) is now provably sandboxed.
 - Work graph (ADR-0008, Yegge "Shape of Things to Come" direction):
   tickets gain optional `blocked_by` deps (frontmatter/JSON/bullet
   forms); `ticket validate-graph` checks dangling edges + cycles;

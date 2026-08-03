@@ -214,10 +214,13 @@ not aspirational.
    mismatches/run at composite 0.24-0.52 (tool_parity 0.85 penalty). Slice:
    score tool usage against the real MCP tool catalog, fix description/
    schema drift, re-run. Target: mismatches <= 1 per run.
-3. **Sandbox-first (v3 pipeline)** — the biggest declared gap in the
-   decision table ("Sandbox-first — our biggest gap"). ADR first, then
-   slice: run agents in an isolated sandbox; gate requires sandbox
-   evidence. Target: CI gate runs in-sandbox on master.
+3. **Sandbox-first (v3 pipeline)** — DONE (2026-08-03, ADR-0009): the
+   CI gate runs in-sandbox on master since Phase 5
+   (`.github/workflows/ci.yml`, GH Actions runner, pinned 1.97.1); the
+   gate now *attests* isolation — `verify.sh` gains a `sandbox` target
+   that fails in CI unless the runner is non-root and identifies itself.
+   Deferred: local-agent sandboxing (bwrap/firejail) — revisit when 6.4
+   dispatches untrusted work.
 4. **Proactive composition (intelligence layer 2)** — after 1-3:
    orchestrate reads `insights` gaps and auto-selects the skill per gap
    without a human ticket. Target: gap -> ticket -> slice -> rerun loop

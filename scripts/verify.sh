@@ -75,6 +75,22 @@ else
     fi
 fi
 
+# Sandbox attestation (ADR-0009): outside CI this is skipped — the local
+# gate stays portable by design. Inside CI the gate FAILS unless the
+# runner attests isolation: non-root user and a runner identity marker.
+# A workflow running the gate without isolation markers is therefore red.
+if [ "${CI:-}" = "true" ]; then
+    evidence="user=$(id -u) runner=${RUNNER_NAME:-<unset>} kernel=$(uname -sr) container=${container:-none}"
+    if [ "$(id -u)" -eq 0 ] || [ -z "${RUNNER_NAME:-}" ]; then
+        echo "[FAIL] sandbox: no isolation evidence ($evidence)"
+        fail=1
+    else
+        echo "[ok] sandbox: $evidence"
+    fi
+else
+    skip "sandbox" "CI-only isolation attestation (ADR-0009)"
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "verify: ALL GREEN"
 else
