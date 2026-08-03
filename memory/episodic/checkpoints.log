@@ -41,3 +41,5 @@
 2026-08-03T18:49:00Z STATUS phase7-close orphan VERIFY-PASS replaced (begin aborted on allowlist: CHANGELOG.md) — repaired by polish-fix
 2026-08-03T18:56:53Z BEGIN phase7-final -> ba52975
 2026-08-03T18:57:16Z VERIFY-PASS phase7-final @ ba52975
+2026-08-03T18:59:17Z BEGIN exp002 -> 178dabf (clean)
+2026-08-03T19:08:08Z VERIFY-PASS exp002 @ 178dabf

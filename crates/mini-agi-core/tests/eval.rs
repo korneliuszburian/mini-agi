@@ -44,6 +44,8 @@ fn scores_reproduce_poc_baseline_on_all_cases() {
 
     let mut scored = Vec::new();
     for case in &[
+        "codex-exp-002",
+        "codex-exp-002-rerun",
         "flailing",
         "flailing-rerun",
         "harnessed",

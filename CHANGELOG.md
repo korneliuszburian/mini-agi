@@ -179,3 +179,10 @@ Intelligence" direction)
   AGENTS.md documents the intelligence layer (resume/insights/loop/
   health/audit), and prints a ready-summary (verify.sh, health, audit,
   resume).
+### Added (Phase 7 — EXP-002)
+- EXP-002 (docs/EXPERIMENTS.md): codex as a full pipeline participant —
+  new gap case `codex-exp-002` → `loop dispatch` (TICKET-10, lease) →
+  `codex exec` (trusted repo via `mini-agi init`, no flags) → trajectory
+  reconstructed from transcript evidence → `codex-exp-002-rerun`
+  composite 1.0000 → `loop verify` CLOSED, lease released. Baseline 22
+  cases; gate 0 regressions.

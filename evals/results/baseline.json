@@ -1,5 +1,21 @@
 [
   {
+    "case": "codex-exp-002",
+    "composite": 0.0,
+    "outcome": 0.0,
+    "cost_usd": 0.001,
+    "tokens": 100,
+    "tool_mismatches": 0
+  },
+  {
+    "case": "codex-exp-002-rerun",
+    "composite": 1.0,
+    "outcome": 1.0,
+    "cost_usd": 0.09,
+    "tokens": 18400,
+    "tool_mismatches": 0
+  },
+  {
     "case": "flailing",
     "composite": 0.2851,
     "outcome": 1.0,

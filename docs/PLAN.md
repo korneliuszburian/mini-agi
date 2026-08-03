@@ -281,3 +281,7 @@ enforced, evals run on real sessions, skills verified in CI).
   (verify refuses a label without an open BEGIN; allowlist +
   CHANGELOG.md) shipped e6c3d5c after CI caught an orphan VERIFY-PASS.
   CI green.
+- EXP-002 (DONE): codex as the loop's implementer — dispatch → codex
+  exec (trusted repo via init onboarding) → reconstructed rerun 1.0000 →
+  verify CLOSED; learnings in docs/EXPERIMENTS.md; capture-hook (EXP-003)
+  is the next step.

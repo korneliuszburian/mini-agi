@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 01828feb65fd9a44
-# canonical_entries: 26
+# canonical_sha256: 5fdd6a16150630b6
+# canonical_entries: 27
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -69,3 +69,5 @@ Read this before starting any session. Canonical wins over this file.
 - `1ff9a1f840eadafe` [strategy] 142 tests, 20 baseline cases, 42 canonical facts, 20 runs ingested.
 - `10442347209cddee` [strategy] Operational incidents: OOM pressure from 500 agent-browser processes
 - `33d27d200a99d5c1` [strategy] Dogfood evidence: scratch checkpoint.sh rolled back the scratch repo
+- `963cdf65fd1ed26b` [eval] run codex-exp-002-rerun scored composite 1.0000 on 18400 tokens (0.0900 USD) with 0 scope violations and 0 tool mismatches.
+- `8e2215c3473b8233` [eval] run codex-exp-002-rerun is a strong run (composite >= 0.9).

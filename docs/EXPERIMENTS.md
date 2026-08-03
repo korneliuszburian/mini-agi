@@ -37,3 +37,41 @@ valuable as a passed one.
 - Next steps: EXP-002 — run codex on a REAL loop-dispatched slice
   (spec from `mini-agi loop dispatch`) and capture a truthy trajectory
   for ingestion; measure tokens/cost via codex session logs.
+
+## EXP-002 — codex in the loop: dispatch → codex → rerun → verify (2026-08-03)
+
+- Question: does the full pipeline close a gap when CODEX is the
+  implementer — spec from `mini-agi loop dispatch`, `codex exec` as the
+  worker, trajectory reconstructed from observed evidence, `loop verify`
+  as the judge?
+- Setup: new eval case `codex-exp-002` (open gap: checksum CLI task
+  defined, outcome achieved=false, composite 0.0) → `mini-agi loop
+  dispatch codex-exp-002` created TICKET-10 + claimed it + wrote the
+  slice spec. Scratch repo onboarded with `mini-agi init` (dogfood: the
+  generated `.codex/config.toml` made it trusted — `codex exec` ran
+  WITHOUT `--skip-git-repo-check`). Prompt = the spec verbatim.
+- Result: `codex exec` exit 0, wall 348s. Independently verified:
+  `make verify` ALL GREEN (3 unittest cases + fixture digest check),
+  checksum.py handles usage/FileNotFound/IsADirectory/OSError, tests
+  first, Makefile target wired into verify. Rerun trajectory
+  reconstructed from the transcript (11 steps, each traceable to a log
+  line or the final worktree) → `codex-exp-002-rerun` composite
+  **1.0000** (0 mismatches, no golden) → `loop verify` CLOSED, lease on
+  TICKET-10 released, gate 0 regressions across 22 cases.
+- Learnings:
+  1. The loop is implementer-agnostic: dispatch+spec+verify ran codex
+     exactly as it runs an in-session agent; the lease and registers
+     protected the flow (claim released only at the target).
+  2. `mini-agi init` onboarding made codex trusted — one command, no
+     flags; the earlier `--skip-git-repo-check` workaround is obsolete.
+  3. Codex iterated like a human: 2 failed `make verify` rounds before
+     green (transcript lines 1987/2005) — reconstructed honestly in the
+     trajectory; the failure register found no REPEATED failing actions
+     (different attempts each time).
+  4. Trajectory reconstruction is the weak link: token/cost figures are
+     estimates (no per-tool accounting in the transcript). A capture
+     hook (like the redactor from TICKET-007-v2) is the honest next
+     step for codex runs.
+- Next: EXP-003 — instrument codex runs (capture hook) so trajectories
+  are captured, not reconstructed.
+

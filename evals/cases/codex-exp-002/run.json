@@ -1,0 +1,11 @@
+{
+  "goal": "Implement scripts/checksum.py — a zero-dependency Python CLI that prints the sha256 hex digest of a file (usage: checksum.py <path>; exit 0 on success, exit 1 with a clear message on a missing/unreadable file). Add a Makefile target `checksum` that validates the script against a known fixture, wired into `verify`. Tests in tests/test_checksum.py (unittest, no dependencies) covering: known digest value, missing file error, directory path error.",
+  "scope": ["scripts/checksum.py", "tests/test_checksum.py", "Makefile"],
+  "outcome": {"achieved": false, "tests": false, "typecheck": false},
+  "tokens_total": 100,
+  "cost_usd": 0.001,
+  "golden": null,
+  "trajectory": [
+    {"step": 1, "action": "read: slice spec (artifacts/TICKET-N/spec.md) — task defined, not yet implemented", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 100, "output_tokens": 20}
+  ]
+}
