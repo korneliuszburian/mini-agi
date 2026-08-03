@@ -19,6 +19,10 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+/// Timeout guard (Phase 9 slice 1): a hung gate must not block the loop
+/// forever — 120s then kill and report as disagreement.
+const VERIFY_TIMEOUT_SECS: u64 = 120;
+
 /// Outcome of the deterministic verification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verification {
@@ -75,12 +79,45 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
             target_path.display()
         ));
     }
-    let output = Command::new("sh")
+    let mut child = Command::new("sh")
         .arg("-c")
         .arg(&command)
         .current_dir(&target_path)
-        .output()
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
         .map_err(|e| format!("cannot execute verifier in {}: {e}", target_path.display()))?;
+    let mut timed_out = false;
+    let started = std::time::Instant::now();
+    let output = loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break child.wait_with_output(),
+            Ok(None) => {
+                if started.elapsed().as_secs() > VERIFY_TIMEOUT_SECS {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    timed_out = true;
+                    break Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        format!("verifier exceeded {VERIFY_TIMEOUT_SECS}s"),
+                    ));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            Err(e) => break Err(e),
+        }
+    }
+    .map_err(|e| format!("verifier failed: {e}"))?;
+    if timed_out {
+        return Ok(Verification {
+            case,
+            status: "disagrees".into(),
+            command: Some(command),
+            target: Some(target),
+            exit_code: None,
+            output_excerpt: "verifier timed out (>120s) — treated as disagreement".into(),
+        });
+    }
     let exit_code = output.status.code();
     let excerpt = String::from_utf8_lossy(&output.stderr)
         .lines()

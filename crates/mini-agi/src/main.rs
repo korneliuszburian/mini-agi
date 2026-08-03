@@ -101,6 +101,12 @@ struct CodexArgs {
     /// Where to write the captured run.json (default: workdir/run.json).
     #[arg(long)]
     run_out: Option<PathBuf>,
+    /// Deterministic verifier command for the draft run.json.
+    #[arg(long)]
+    verify: Option<String>,
+    /// Target repo for the verifier (defaults to the workdir).
+    #[arg(long)]
+    target: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -215,6 +221,9 @@ enum LoopAction {
         /// Claimant name.
         #[arg(long, default_value = "local")]
         claimant: String,
+        /// Close even without a declared deterministic verifier.
+        #[arg(long)]
+        allow_unverified: bool,
     },
 }
 
@@ -418,7 +427,15 @@ fn main() -> ExitCode {
             spec,
             workdir,
             run_out,
-        }) => cmd_codex(&spec, &workdir, run_out.as_deref()),
+            verify,
+            target,
+        }) => cmd_codex(
+            &spec,
+            &workdir,
+            run_out.as_deref(),
+            verify.as_deref(),
+            target.as_deref(),
+        ),
         Command::Harness => cmd_harness(),
         Command::Loop(LoopArgs { action }) => match action {
             LoopAction::Status => cmd_loop_status(),
@@ -427,7 +444,11 @@ fn main() -> ExitCode {
                 below,
                 claimant,
             } => cmd_loop_dispatch(case.as_deref(), below, &claimant),
-            LoopAction::Verify { case, claimant } => cmd_loop_verify(&case, &claimant),
+            LoopAction::Verify {
+                case,
+                claimant,
+                allow_unverified,
+            } => cmd_loop_verify(&case, &claimant, allow_unverified),
         },
     }
 }
@@ -490,7 +511,13 @@ fn cmd_audit() -> ExitCode {
     }
 }
 
-fn cmd_codex(spec: &Path, workdir: &Path, run_out: Option<&Path>) -> ExitCode {
+fn cmd_codex(
+    spec: &Path,
+    workdir: &Path,
+    run_out: Option<&Path>,
+    verify: Option<&str>,
+    target: Option<&str>,
+) -> ExitCode {
     use mini_agi_core::capture;
     let spec_text = match std::fs::read_to_string(spec) {
         Ok(t) => t,
@@ -567,7 +594,7 @@ fn cmd_codex(spec: &Path, workdir: &Path, run_out: Option<&Path>) -> ExitCode {
                 "action": s.action,
                 "tool": s.tool,
                 "ok": true,
-                "goal_aligned": true,
+                "goal_aligned": null,
                 "tokens": 0,
                 "output_tokens": 0,
                 "note": format!("captured from codex transcript line {}", s.line),
@@ -587,6 +614,10 @@ fn cmd_codex(spec: &Path, workdir: &Path, run_out: Option<&Path>) -> ExitCode {
         "tokens_total": 0,
         "cost_usd": 0.0,
         "golden": null,
+        "verify_command": verify,
+        "verify_target": target
+            .map(str::to_string)
+            .or_else(|| Some(workdir.to_string_lossy().into_owned())),
         "trajectory": trajectory,
     });
     let out_path = run_out.unwrap_or(&workdir.join("run.json")).to_path_buf();
@@ -666,8 +697,8 @@ fn cmd_loop_dispatch(case: Option<&str>, below: f64, claimant: &str) -> ExitCode
     }
 }
 
-fn cmd_loop_verify(case: &str, claimant: &str) -> ExitCode {
-    match mini_agi_core::loopcmd::verify(&root(), case, claimant) {
+fn cmd_loop_verify(case: &str, claimant: &str, allow_unverified: bool) -> ExitCode {
+    match mini_agi_core::loopcmd::verify(&root(), case, claimant, allow_unverified) {
         Ok((text, closed)) => {
             println!("{text}");
             if closed {

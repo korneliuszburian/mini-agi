@@ -35,6 +35,18 @@ pub const MAST_MODES: &[(&str, &str)] = &[
     ("FM-3.3", "incorrect verification"),
 ];
 
+/// Normalize machine-specific absolute path prefixes in an action text
+/// so fact ids are stable across hosts (Phase 9 slice 1). The stored
+/// action keeps the original text for display.
+#[must_use]
+pub fn normalize_action(action: &str) -> String {
+    let mut out = action.to_string();
+    for prefix in ["/home/krn/", "/mnt/storage/", "/tmp/opencode/", "/tmp/"] {
+        out = out.replace(prefix, "<abs>/");
+    }
+    out
+}
+
 /// One recorded repeated failing action.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FailureEntry {
@@ -128,7 +140,7 @@ pub fn analyze_run(run_path: &Path) -> Result<(String, Vec<FailureEntry>), Strin
     let entries = repeated_failing_actions(&run)
         .into_iter()
         .map(|(tool, action, count, steps)| FailureEntry {
-            hash: fact_id(&format!("{tool}|{action}")),
+            hash: fact_id(&format!("{}|{}", tool, normalize_action(&action))),
             tool,
             action,
             count,
@@ -259,5 +271,22 @@ mod tests {
         );
         assert!(read.iter().any(|e| e.reflection.is_some()));
         let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod normalization_tests {
+    use super::*;
+
+    #[test]
+    fn absolute_paths_normalize_for_hashing() {
+        let a = "write: const patch = \"/home/krn/proj/src/main.rs\"";
+        let b = "write: const patch = \"/tmp/opencode/proj/src/main.rs\"";
+        assert_eq!(normalize_action(a), normalize_action(b));
+        assert_eq!(
+            fact_id(&format!("write|{}", normalize_action(a))),
+            fact_id(&format!("write|{}", normalize_action(b)))
+        );
+        assert_eq!(normalize_action("edit same line"), "edit same line");
     }
 }

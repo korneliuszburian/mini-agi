@@ -724,7 +724,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         "loop_verify" => {
             let case = arg!("case");
             let claimant = arg!("claimant");
-            match mini_agi_core::loopcmd::verify(root, case, claimant) {
+            match mini_agi_core::loopcmd::verify(root, case, claimant, false) {
                 Ok((text, _)) => text,
                 Err(e) => format!("error: {e}"),
             }

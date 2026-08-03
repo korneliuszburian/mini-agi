@@ -412,7 +412,12 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
 /// # Errors
 ///
 /// Returns a message when the case cannot be scored or ingested.
-pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<(String, bool), String> {
+pub fn verify(
+    root: &Path,
+    case: &str,
+    claimant: &str,
+    allow_unverified: bool,
+) -> Result<(String, bool), String> {
     let base = case.strip_suffix("-rerun").unwrap_or(case);
     let run_path = root.join("evals/cases").join(case).join("run.json");
     let report = eval::score_run(&run_path, root, &root.join("evals/golden"))
@@ -458,9 +463,14 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<(String, bool),
                     v.exit_code.map_or_else(|| "-".into(), |c| c.to_string())
                 ));
             }
-            _ => lines.push(
-                "  deterministic verifier: not declared — outcome is the run's own claim".into(),
-            ),
+            _ => {
+                if allow_unverified {
+                    lines.push("  deterministic verifier: not declared — closing on --allow-unverified (self-reported outcome trusted explicitly)".into());
+                } else {
+                    verified = false;
+                    lines.push("  deterministic verifier: not declared — close requires a verifier or --allow-unverified".into());
+                }
+            }
         }
     }
     // Best-state regression bound (Phase 8 slice 3): the gate must have
@@ -508,7 +518,8 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<(String, bool),
         true
     } else {
         lines.push(if !verified {
-            "  gap open: deterministic verifier disagrees — outcome untrusted, keep working".into()
+            "  gap open: deterministic verifier not satisfied — outcome untrusted, keep working"
+                .into()
         } else if !gate_clean {
             "  gap open: gate regressions — best-state bound holds".into()
         } else {
@@ -623,12 +634,28 @@ mod tests {
         .unwrap();
         let claimant = "loop-verify";
         ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
-        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant, true).unwrap();
         assert!(text.contains("CLOSED"), "{text}");
         assert!(
             ticket::read_claims(&root).unwrap().is_empty(),
             "claim must be released at the target"
         );
+        let _ = fs::remove_dir_all(&root);
+
+        // Unverified close refusal (Phase 9 trust enforcement): no
+        // verifier declared and no --allow-unverified -> gap stays OPEN.
+        let root = tmp_case_root("verify-refuse");
+        let rerun = root.join("evals/cases/real-ticket-008-v2-rerun");
+        fs::create_dir_all(&rerun).unwrap();
+        fs::copy(
+            repo().join("evals/cases/real-ticket-008-v2/run.json"),
+            rerun.join("run.json"),
+        )
+        .unwrap();
+        ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
+        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant, false).unwrap();
+        assert!(text.contains("OPEN"), "{text}");
+        assert!(text.contains("--allow-unverified"), "{text}");
         let _ = fs::remove_dir_all(&root);
 
         // Failing rerun: a weak run (composite 0) below the target keeps
@@ -642,7 +669,7 @@ mod tests {
         )
         .unwrap();
         ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
-        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant, false).unwrap();
         assert!(text.contains("OPEN"), "{text}");
         assert!(
             ticket::read_claims(&root)
@@ -670,7 +697,7 @@ mod tests {
         )
         .unwrap();
         ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
-        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant, false).unwrap();
         assert!(text.contains("OPEN"), "{text}");
         assert!(text.contains("DISAGREES"), "{text}");
         assert!(
