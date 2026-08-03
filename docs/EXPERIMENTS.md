@@ -92,3 +92,35 @@ valuable as a passed one.
   draft (Sandcastle-style session-resume idea, kernel version).
 - Remaining: the draft needs token/cost filling by the operator
   (transcripts don't carry per-tool accounting) before ingest.
+
+## EXP-004 — codex as reviewer of Phase 8 (2026-08-03)
+
+- Setup: `codex exec -s read-only` on commits 77f7cd8..HEAD with an
+  adversarial review brief; 5m57s, exit 0.
+- Verdict: REWORK 4/8 (correctness 0/2 — honest; security 2/2 within
+  the ADR-0011 trusted-corpus boundary; tests 0/2; scope 2/2).
+- Findings (10) and disposition:
+  - CRITICAL harness false-green on unreadable baseline → FIXED
+    (errors propagate, no fabricated green ledger row).
+  - MAJOR loopcmd drops verifier errors via .ok() → FIXED (verifier
+    error blocks close).
+  - MAJOR capture test hard-depends on /tmp transcript → FIXED
+    (conditional skip on clean hosts).
+  - MAJOR codex capture parses stdout only + invents step fields +
+    exit 0 regardless → FIXED (combined stdout+stderr parse, real step
+    numbering, exit 1 on codex failure or missing completion marker).
+  - MAJOR loop verify exits 0 on OPEN → FIXED ((text, closed); exit 1).
+  - MINOR metrics write errors swallowed → FIXED (Result + warning).
+  - MAJOR best-state bound bypassable by removing baseline cases →
+    FIXED (run_gate flags vanished baseline cases as regressions).
+  - MAJOR EXP-003 completion protocol unenforced → FIXED (exit 1).
+  - MAJOR MCP not a full mirror → FIXED (7 more tools: loop_dispatch,
+    loop_verify, eval_steps, run_verify, run_failures, harness — 36
+    total).
+  - MINOR process supervision blind spots → FIXED (full-success
+    threshold + ok:false/reverted suspicious).
+- Note: codex's own gate run failed in its read-only sandbox (target
+  lock); our local gate was run independently and observed ALL GREEN.
+- Learning: the reviewer caught 2 real correctness holes (harness
+  false-green, best-state bypass) the test suite could not — the
+  pairwise review loop works; gate independence matters.

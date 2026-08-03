@@ -168,6 +168,15 @@ Weaknesses found (with file:line):
    AlphaEvolve endgame)
 8. **Multi-repo + MCP completion** — multi-root support, full tool mirror.
 
+Phase 8 status (2026-08-03): slices 1-8 implemented (verifiable
+reward layer ADR-0011, Reflexion+MAST, regression bound+METRICS, codex
+capture hook EXP-003, process supervision, fact-linking, harness
+evolution, MCP completion); codex review of the delta (EXP-004) returned
+REWORK 4/8 — all 10 findings dispositioned and fixed (harness
+false-green, verifier-error bypass, best-state bypass, capture honesty,
+exit codes, MCP mirror). Multi-root (AGENTIC_ROOT list) remains the only
+open sub-item of slice 8.
+
 Sources ledger: all arXiv IDs verified against primary pages; AlphaEvolve
 = 2506.13131 (2506.13120 is an unrelated PDE paper); OpenAI agent-practices
 post removed from the web (characterizations flagged); Sequoia

@@ -241,7 +241,10 @@ pub struct StepVerdict {
 /// step level.
 #[must_use]
 pub fn score_steps(run: &Run) -> Vec<StepVerdict> {
-    let outcome_ok = outcome_score(run) > 0.0;
+    // A run counts as a clean success only when the outcome score is
+    // full (achieved AND no failed outcome gates) — a gated failure is
+    // not "success" for supervision purposes (codex review finding).
+    let outcome_ok = outcome_score(run) >= 1.0;
     let all_clean = run
         .trajectory
         .iter()
@@ -251,7 +254,7 @@ pub fn score_steps(run: &Run) -> Vec<StepVerdict> {
         .map(|s| {
             let score = step_score(s);
             let suspicious = if outcome_ok {
-                s.goal_aligned == Some(false)
+                s.goal_aligned == Some(false) || s.ok == Some(false) || s.reverted
             } else {
                 all_clean
             };
@@ -753,6 +756,18 @@ pub fn run_gate(
                     failures += 1;
                 }
             }
+        }
+    }
+    // Best-state bound (Phase 8 slice 3, codex review): a baseline case
+    // that VANISHED from evals/cases is a regression — silently removing
+    // a case must not shrink the frozen suite to green.
+    for baseline_entry in baseline {
+        if !entries.iter().any(|e| e.case == baseline_entry.case) {
+            messages.push(format!(
+                "REGRESSION {}: case missing from evals/cases (frozen suite shrank)",
+                baseline_entry.case
+            ));
+            failures += 1;
         }
     }
     GateResult {

@@ -239,3 +239,17 @@ Intelligence" direction)
 - Multi-root (AGENTIC_ROOT list) remains the open sub-item of slice 8:
   deep refactor of root() across every command — deferred to keep the
   marathon green; documented in PLAN.md.
+### Fixed (Phase 8 — codex review EXP-004, all 10 findings)
+- harness snapshot: unreadable baseline/cases now error — no fabricated
+  green ledger row (was CRITICAL).
+- loop verify: verifier errors block close; OPEN exits 1; metrics write
+  failures reported.
+- run_gate: baseline cases vanished from evals/cases are regressions —
+  the best-state bound can no longer be bypassed by removing cases.
+- codex capture: parses stdout+stderr, real step numbers, exit 1 when
+  codex fails or the completion marker is missing (binding protocol).
+- capture test: conditional on the transcript file (clean-host safe).
+- process supervision: full-success threshold; ok:false/reverted steps
+  are suspicious in successful runs.
+- MCP: 36 tools — full surface incl. loop_dispatch/loop_verify/
+  eval_steps/run_verify/run_failures/harness.

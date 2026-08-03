@@ -40,17 +40,27 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
     if !path.exists() {
         fs::write(&path, spec_text())?;
     }
-    // Frozen-suite verdict with this revision.
-    let gate = crate::eval::run_gate(
-        &crate::eval::score_all_cases(&root.join("evals/cases"), root, &root.join("evals/golden"))
-            .unwrap_or_default(),
-        &serde_json::from_str::<Vec<crate::eval::GateEntry>>(
-            &fs::read_to_string(root.join("evals/results/baseline.json")).unwrap_or_default(),
+    // Frozen-suite verdict with this revision. Errors propagate — a
+    // corrupt or missing baseline must NEVER record a fabricated green
+    // (codex review finding, Phase 8).
+    let entries =
+        crate::eval::score_all_cases(&root.join("evals/cases"), root, &root.join("evals/golden"))
+            .map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("cannot score the frozen suite: {e}"),
+            )
+        })?;
+    let baseline: Vec<crate::eval::GateEntry> = serde_json::from_str(&fs::read_to_string(
+        root.join("evals/results/baseline.json"),
+    )?)
+    .map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("cannot read the frozen baseline: {e}"),
         )
-        .unwrap_or_default(),
-        0.05,
-        1,
-    );
+    })?;
+    let gate = crate::eval::run_gate(&entries, &baseline, 0.05, 1);
     let ledger = dir.join("ledger.md");
     let header = "| rev | date | spec | gate |\n| --- | --- | --- | --- |\n";
     let existing = fs::read_to_string(&ledger).unwrap_or_default();

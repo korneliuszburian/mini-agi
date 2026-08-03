@@ -89,9 +89,14 @@ fn claimant_for(root: &Path, ticket_id: &str) -> Option<String> {
 
 /// Published time series (Phase 8 slice 3, Compounding-Test discipline):
 /// one row per closed gap appended to `docs/METRICS.md`.
-fn append_metrics(root: &Path, case: &str, composite: f64, tokens: u64) {
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error — callers report, never
+/// silently swallow.
+fn append_metrics(root: &Path, case: &str, composite: f64, tokens: u64) -> std::io::Result<()> {
     let path = root.join("docs/METRICS.md");
-    let _ = fs::create_dir_all(path.parent().unwrap_or(root));
+    fs::create_dir_all(path.parent().unwrap_or(root))?;
     let header = "| date | case | composite | tokens |\n| --- | --- | --- | --- |\n";
     let row = format!(
         "| {} | {} | {composite:.4} | {tokens} |\n",
@@ -105,9 +110,9 @@ fn append_metrics(root: &Path, case: &str, composite: f64, tokens: u64) {
         header.to_string()
     };
     if body.contains(&format!("| {case} |")) {
-        return;
+        return Ok(());
     }
-    let _ = fs::write(&path, format!("{body}{row}"));
+    fs::write(&path, format!("{body}{row}"))
 }
 
 /// Composite of the rerun case `<case>-rerun`, when it exists.
@@ -399,8 +404,15 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
 ///
 /// # Errors
 ///
+/// `loop verify`: score + ingest a rerun; at/above the target (with the
+/// verifier passing and zero gate regressions) the claim is released and
+/// the gap reports closed. Returns `(text, closed)` so callers can exit
+/// non-zero on an open gap (codex review finding).
+///
+/// # Errors
+///
 /// Returns a message when the case cannot be scored or ingested.
-pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<String, String> {
+pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<(String, bool), String> {
     let base = case.strip_suffix("-rerun").unwrap_or(case);
     let run_path = root.join("evals/cases").join(case).join("run.json");
     let report = eval::score_run(&run_path, root, &root.join("evals/golden"))
@@ -420,8 +432,17 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<String, String>
     ];
     // Verifiable reward layer (ADR-0011): when the run declares a
     // deterministic verifier, CLOSED requires it to pass — a self-
-    // reported outcome is not trusted.
-    let verification = crate::verifier::verify_run(root, &run_path).ok();
+    // reported outcome is not trusted. A verifier ERROR (e.g. missing
+    // target repo) also blocks close (codex review finding).
+    let verification = match crate::verifier::verify_run(root, &run_path) {
+        Ok(v) => Some(v),
+        Err(e) => {
+            lines.push(format!(
+                "  deterministic verifier: ERROR — {e} (close blocked)"
+            ));
+            None
+        }
+    };
     let mut verified = true;
     if let Some(v) = &verification {
         match v.status.as_str() {
@@ -479,8 +500,11 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<String, String>
                 ));
             }
         }
-        // Compounding-Test discipline: publish the measurement.
-        append_metrics(root, case, report.composite, report.tokens_total);
+        // Compounding-Test discipline: publish the measurement. A
+        // metrics write failure is reported, not silently dropped.
+        if let Err(e) = append_metrics(root, case, report.composite, report.tokens_total) {
+            lines.push(format!("  warning: metrics not published — {e}"));
+        }
         true
     } else {
         lines.push(if !verified {
@@ -501,7 +525,7 @@ pub fn verify(root: &Path, case: &str, claimant: &str) -> Result<String, String>
         0,
         format!("loop verify: {}", if closed { "CLOSED" } else { "OPEN" }),
     );
-    Ok(lines.join("\n"))
+    Ok((lines.join("\n"), closed))
 }
 
 #[cfg(test)]
@@ -599,7 +623,7 @@ mod tests {
         .unwrap();
         let claimant = "loop-verify";
         ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
-        let text = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
         assert!(text.contains("CLOSED"), "{text}");
         assert!(
             ticket::read_claims(&root).unwrap().is_empty(),
@@ -618,7 +642,7 @@ mod tests {
         )
         .unwrap();
         ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
-        let text = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
         assert!(text.contains("OPEN"), "{text}");
         assert!(
             ticket::read_claims(&root)
@@ -646,7 +670,7 @@ mod tests {
         )
         .unwrap();
         ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
-        let text = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
+        let (text, _) = verify(&root, "real-ticket-008-v2-rerun", claimant).unwrap();
         assert!(text.contains("OPEN"), "{text}");
         assert!(text.contains("DISAGREES"), "{text}");
         assert!(

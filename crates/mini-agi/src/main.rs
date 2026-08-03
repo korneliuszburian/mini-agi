@@ -560,9 +560,10 @@ fn cmd_codex(spec: &Path, workdir: &Path, run_out: Option<&Path>) -> ExitCode {
     let trajectory: Vec<serde_json::Value> = outcome
         .steps
         .iter()
-        .map(|s| {
+        .enumerate()
+        .map(|(i, s)| {
             serde_json::json!({
-                "step": 0,
+                "step": i + 1,
                 "action": s.action,
                 "tool": s.tool,
                 "ok": true,
@@ -667,9 +668,13 @@ fn cmd_loop_dispatch(case: Option<&str>, below: f64, claimant: &str) -> ExitCode
 
 fn cmd_loop_verify(case: &str, claimant: &str) -> ExitCode {
     match mini_agi_core::loopcmd::verify(&root(), case, claimant) {
-        Ok(text) => {
+        Ok((text, closed)) => {
             println!("{text}");
-            ExitCode::SUCCESS
+            if closed {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
         }
         Err(e) => fail(&format!("loop verify: {e}")),
     }

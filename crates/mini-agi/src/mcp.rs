@@ -334,6 +334,42 @@ fn tool_definitions() -> Vec<Value> {
             params: &[],
             required: &[],
         },
+        ToolDef {
+            name: "loop_dispatch",
+            description: "Dispatch the worst open case (claim + spec).",
+            params: &[("claimant", "string"), ("case", "string")],
+            required: &["claimant"],
+        },
+        ToolDef {
+            name: "loop_verify",
+            description: "Verify a rerun; close the gap at the target.",
+            params: &[("case", "string"), ("claimant", "string")],
+            required: &["case", "claimant"],
+        },
+        ToolDef {
+            name: "eval_steps",
+            description: "Process supervision: per-step verdicts.",
+            params: &[("run", "string")],
+            required: &["run"],
+        },
+        ToolDef {
+            name: "run_verify",
+            description: "Deterministic verification of a run's outcome.",
+            params: &[("run", "string")],
+            required: &["run"],
+        },
+        ToolDef {
+            name: "run_failures",
+            description: "Register repeated failing actions (Reflexion).",
+            params: &[("run", "string")],
+            required: &["run"],
+        },
+        ToolDef {
+            name: "harness",
+            description: "Versioned harness snapshot + gate ledger row.",
+            params: &[],
+            required: &[],
+        },
     ];
     TOOLS
         .iter()
@@ -669,6 +705,89 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 })
                 .collect::<Vec<_>>()
                 .join("\n"),
+            Err(e) => format!("error: {e}"),
+        },
+        "loop_dispatch" => {
+            let claimant = arg!("claimant");
+            let case = arg!("case");
+            let case = if case.is_empty() { None } else { Some(case) };
+            match mini_agi_core::loopcmd::dispatch(root, case, 0.5, claimant) {
+                Ok(outcome) => format!(
+                    "dispatched: {} -> {} (spec: {})",
+                    outcome.case,
+                    outcome.ticket,
+                    outcome.spec.display()
+                ),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "loop_verify" => {
+            let case = arg!("case");
+            let claimant = arg!("claimant");
+            match mini_agi_core::loopcmd::verify(root, case, claimant) {
+                Ok((text, _)) => text,
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "eval_steps" => {
+            let run = arg!("run");
+            match std::fs::read_to_string(run) {
+                Ok(text) => match serde_json::from_str::<mini_agi_core::eval::Run>(&text) {
+                    Ok(run) => {
+                        let verdicts = mini_agi_core::eval::score_steps(&run);
+                        verdicts
+                            .iter()
+                            .map(|v| {
+                                format!(
+                                    "step {} [{}] score {:.2}{}",
+                                    v.step,
+                                    v.tool,
+                                    v.score,
+                                    if v.suspicious { "  <-- SUSPICIOUS" } else { "" }
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    }
+                    Err(e) => format!("error: invalid run json: {e}"),
+                },
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "run_verify" => {
+            let run = arg!("run");
+            match mini_agi_core::verifier::verify_run(root, std::path::Path::new(run)) {
+                Ok(v) => format!(
+                    "verify {}: {} (exit {})",
+                    v.case,
+                    v.status,
+                    v.exit_code
+                        .map_or_else(|| "-".to_string(), |c| c.to_string())
+                ),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "run_failures" => {
+            let run = arg!("run");
+            match mini_agi_core::failure::analyze_run(std::path::Path::new(run)) {
+                Ok((case, entries)) => {
+                    if entries.is_empty() {
+                        format!("no repeated failing actions in {case}")
+                    } else {
+                        match mini_agi_core::failure::update_register(root, &entries) {
+                            Ok(total) => format!(
+                                "recorded {} repeated failing actions in {case} (register total {total})",
+                                entries.len()
+                            ),
+                            Err(e) => format!("error: {e}"),
+                        }
+                    }
+                }
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "harness" => match mini_agi_core::harness::snapshot(root) {
+            Ok((name, verdict)) => format!("harness snapshot: {name}\n  {verdict}"),
             Err(e) => format!("error: {e}"),
         },
         "ticket_show" | "ticket_validate" => {
