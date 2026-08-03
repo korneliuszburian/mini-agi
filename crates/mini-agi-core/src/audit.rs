@@ -117,23 +117,42 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
         report.passed.push("baseline: no evals/cases yet".into());
     }
 
-    // 3. Uncommitted changes.
+    // 3. Uncommitted changes. Kernel-owned artifacts (the checkpoint
+    // journal, derived views, calibration/attribution logs, METRICS,
+    // harness ledger) are written by the kernel/checkpoint flow and are
+    // legitimately dirty during verify — only source/config drift counts.
     let status = std::process::Command::new("git")
         .args(["status", "--porcelain"])
         .current_dir(root)
         .output();
     match status {
         Ok(out) if out.status.success() => {
+            let kernel_owned: &[&str] = &["memory/", "docs/METRICS.md", "docs/harness/ledger.md"];
             let dirty = String::from_utf8_lossy(&out.stdout);
-            let count = dirty.lines().count();
-            if count == 0 {
-                report.passed.push("working tree: clean".into());
+            // porcelain is "XY path" (or "?? path" untracked): the status
+            // block is exactly 2 chars + 1 space; renames have " -> ".
+            let drift: Vec<&str> = dirty
+                .lines()
+                .map(|l| {
+                    let after_status = if l.len() > 3 { l[3..].trim() } else { "" };
+                    match after_status.split_once(" -> ") {
+                        Some((_, new_path)) => new_path.trim(),
+                        None => after_status,
+                    }
+                })
+                .filter(|p| !p.is_empty() && !kernel_owned.iter().any(|k| p.starts_with(k)))
+                .collect();
+            if drift.is_empty() {
+                report
+                    .passed
+                    .push("working tree: clean (kernel-owned artifacts excluded)".into());
             } else {
                 report.findings.push(Finding {
                     severity: "warn".into(),
                     message: format!(
-                        "working tree: {count} uncommitted change(s) (first: {})",
-                        dirty.lines().next().unwrap_or("")
+                        "working tree: {} uncommitted source/config change(s) (first: {})",
+                        drift.len(),
+                        drift.first().unwrap_or(&"")
                     ),
                 });
             }
