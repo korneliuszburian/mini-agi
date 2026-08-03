@@ -19,6 +19,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use serde::Serialize;
+
 /// Timeout guard (Phase 9 slice 1): a hung gate must not block the loop
 /// forever — 120s then kill and report as disagreement.
 const VERIFY_TIMEOUT_SECS: u64 = 120;
@@ -36,6 +38,8 @@ pub struct Verification {
     pub target: Option<String>,
     /// Exit code of the verifier (when executed).
     pub exit_code: Option<i32>,
+    /// Whether the run claims `achieved`.
+    pub claimed: bool,
     /// Last line of the verifier output (excerpt).
     pub output_excerpt: String,
 }
@@ -63,6 +67,7 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
             command: None,
             target: None,
             exit_code: None,
+            claimed: run.outcome.achieved,
             output_excerpt: "no deterministic verifier declared (outcome is the run's own claim)"
                 .into(),
         });
@@ -115,6 +120,7 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
             command: Some(command),
             target: Some(target),
             exit_code: None,
+            claimed: run.outcome.achieved,
             output_excerpt: "verifier timed out (>120s) — treated as disagreement".into(),
         });
     }
@@ -145,8 +151,115 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
         command: Some(command),
         target: Some(target),
         exit_code,
+        claimed: run.outcome.achieved,
         output_excerpt: excerpt,
     })
+}
+
+/// Judge-calibration record (Phase 9 slice 2): one JSON line per
+/// verification, appended to `memory/derived/calibration.md` — the
+/// verifier-vs-judged disagreement corpus. Never hand-edited.
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct CalibrationRow {
+    /// ISO timestamp.
+    pub at: String,
+    /// Case name.
+    pub case: String,
+    /// `verified` | `disagrees` | `unverified`.
+    pub status: String,
+    /// Whether the run claimed achieved.
+    pub claimed: bool,
+    /// Composite of the run (0.0 when not scored).
+    pub composite: f64,
+    /// Verifier exit code.
+    pub exit: Option<i32>,
+}
+
+/// Append one calibration row.
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error.
+pub fn append_calibration(root: &Path, row: &CalibrationRow) -> std::io::Result<()> {
+    let path = root.join("memory/derived/calibration.md");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let line = serde_json::to_string(row).map_err(std::io::Error::other)?;
+    let mut out = String::new();
+    if path.exists() {
+        out.push_str(&fs::read_to_string(&path)?);
+    } else {
+        out.push_str("# JUDGE CALIBRATION (derived — appended by run verify / loop verify, never hand-edit)\n");
+    }
+    out.push_str(&line);
+    out.push('\n');
+    fs::write(&path, out)
+}
+
+/// Read the calibration corpus (absent file = empty).
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error on unreadable files.
+pub fn read_calibration(root: &Path) -> std::io::Result<Vec<CalibrationRow>> {
+    let text = fs::read_to_string(root.join("memory/derived/calibration.md"))?;
+    let mut out = Vec::new();
+    for line in text.lines() {
+        if line.starts_with('#') || line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(row) = serde_json::from_str::<CalibrationRow>(line) {
+            out.push(row);
+        }
+    }
+    Ok(out)
+}
+
+/// Verifier-vs-judged drift statistics (Phase 9 slice 2).
+#[derive(Debug, Default)]
+pub struct JudgeDrift {
+    /// Total verifications recorded.
+    pub total: usize,
+    /// Runs claiming achieved.
+    pub claimed_successes: usize,
+    /// Claimed successes the verifier confirmed.
+    pub verified_successes: usize,
+    /// Disagreements (verifier and claim differ).
+    pub disagreements: usize,
+}
+
+impl JudgeDrift {
+    /// Precision of the judged outcome against the verifier:
+    /// verified-successes / claimed-successes. NaN when none claimed.
+    #[must_use]
+    pub fn precision(&self) -> f64 {
+        if self.claimed_successes == 0 {
+            f64::NAN
+        } else {
+            f64::from(u32::try_from(self.verified_successes).unwrap_or(0))
+                / f64::from(u32::try_from(self.claimed_successes).unwrap_or(0))
+        }
+    }
+}
+
+/// Compute drift statistics over the calibration corpus.
+#[must_use]
+pub fn judge_drift(root: &Path) -> JudgeDrift {
+    let mut drift = JudgeDrift::default();
+    for row in read_calibration(root).unwrap_or_default() {
+        drift.total += 1;
+        if row.claimed {
+            drift.claimed_successes += 1;
+            if row.status == "verified" {
+                drift.verified_successes += 1;
+            }
+        }
+        if row.status == "disagrees" {
+            drift.disagreements += 1;
+        }
+    }
+    drift
 }
 
 #[cfg(test)]
@@ -248,6 +361,56 @@ mod tests {
         );
         let v = verify_run(&root, &run).unwrap();
         assert_eq!(v.status, "disagrees", "{v:?}");
+        let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod calibration_tests {
+    use super::*;
+    use std::env;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = env::temp_dir().join(format!("mag-cal-{}-{}", tag, std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    fn row(case: &str, status: &str, claimed: bool) -> CalibrationRow {
+        CalibrationRow {
+            at: "2026-08-03T00:00:00Z".into(),
+            case: case.into(),
+            status: status.into(),
+            claimed,
+            composite: 0.5,
+            exit: Some(0),
+        }
+    }
+
+    #[test]
+    fn calibration_roundtrip_and_drift_stats() {
+        let root = tmp_root("stats");
+        append_calibration(&root, &row("a", "verified", true)).unwrap();
+        append_calibration(&root, &row("b", "disagrees", true)).unwrap();
+        append_calibration(&root, &row("c", "unverified", true)).unwrap();
+        let read = read_calibration(&root).unwrap();
+        assert_eq!(read.len(), 3);
+        let drift = judge_drift(&root);
+        assert_eq!(drift.total, 3);
+        assert_eq!(drift.claimed_successes, 3);
+        assert_eq!(drift.verified_successes, 1);
+        assert_eq!(drift.disagreements, 1);
+        assert!((drift.precision() - 1.0 / 3.0).abs() < 1e-9);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn empty_corpus_is_zero_drift() {
+        let root = tmp_root("empty");
+        let drift = judge_drift(&root);
+        assert_eq!(drift.total, 0);
+        assert!(drift.precision().is_nan());
         let _ = fs::remove_dir_all(&root);
     }
 }

@@ -287,6 +287,9 @@ enum EvalAction {
         /// Path to the run file (evals/cases/<case>/run.json).
         run: PathBuf,
     },
+    /// Verifier-vs-judged drift: precision of the judged outcome
+    /// against the deterministic layer (Phase 9 slice 2).
+    JudgeDrift,
     /// Regression gate over all cases vs the committed baseline.
     Gate {
         /// Max allowed composite drop.
@@ -373,6 +376,7 @@ fn main() -> ExitCode {
         Command::Eval(EvalArgs { action }) => match action {
             EvalAction::Score { run } => cmd_eval_score(&run),
             EvalAction::Steps { run } => cmd_eval_steps(&run),
+            EvalAction::JudgeDrift => cmd_eval_judge_drift(),
             EvalAction::Gate {
                 tolerance,
                 mismatch_tolerance,
@@ -754,6 +758,17 @@ fn cmd_run_verify(run: &Path) -> ExitCode {
     let root = root();
     match mini_agi_core::verifier::verify_run(&root, run) {
         Ok(v) => {
+            let _ = mini_agi_core::verifier::append_calibration(
+                &root,
+                &mini_agi_core::verifier::CalibrationRow {
+                    at: mini_agi_core::memory::utc_now_stamp(),
+                    case: v.case.clone(),
+                    status: v.status.clone(),
+                    claimed: v.claimed,
+                    composite: 0.0,
+                    exit: v.exit_code,
+                },
+            );
             println!(
                 "verify {}: {} (exit {})",
                 v.case,
@@ -909,6 +924,23 @@ fn cmd_insights() -> ExitCode {
                 "  journal: {} begins, {} passes, {} fails, {} status",
                 report.journal[0], report.journal[1], report.journal[2], report.journal[3]
             );
+            let drift = mini_agi_core::verifier::judge_drift(&root());
+            if drift.total > 0 {
+                let precision = drift.precision();
+                if precision.is_nan() {
+                    println!(
+                        "  judge drift: {} verifications, {} disagreements (no claimed successes)",
+                        drift.total, drift.disagreements
+                    );
+                } else {
+                    println!(
+                        "  judge drift: {} verifications, {} disagreements — precision {:.1}%",
+                        drift.total,
+                        drift.disagreements,
+                        precision * 100.0
+                    );
+                }
+            }
             if report.gaps.is_empty() {
                 println!("  capability gaps: none — no failing runs");
             } else {
@@ -1353,6 +1385,30 @@ fn cmd_eval_steps(run: &Path) -> ExitCode {
         Err(EvalError::InvalidField(f)) => fail(&format!("invalid run field '{f}'")),
         Err(EvalError::Metadata(m)) => fail(&m),
     }
+}
+
+fn cmd_eval_judge_drift() -> ExitCode {
+    let drift = mini_agi_core::verifier::judge_drift(&root());
+    let precision = drift.precision();
+    println!(
+        "judge drift: {} verifications, {} disagreements",
+        drift.total, drift.disagreements
+    );
+    println!(
+        "  claimed successes: {} — verified by the deterministic layer: {}",
+        drift.claimed_successes, drift.verified_successes
+    );
+    if precision.is_nan() {
+        println!("  precision: n/a (no claimed successes recorded)");
+    } else {
+        println!("  verifier-vs-judged precision: {:.1}%", precision * 100.0);
+        if precision < 1.0 {
+            println!(
+                "  SIGNAL: the judged outcome overstates success — calibration data is accumulating"
+            );
+        }
+    }
+    ExitCode::SUCCESS
 }
 
 fn cmd_eval_gate(tolerance: f64, mismatch_tolerance: usize, write_baseline: bool) -> ExitCode {

@@ -266,3 +266,10 @@ Intelligence" direction)
 ### Fixed (Phase 9 — checkpoint.sh)
 - rollback no longer journals a duplicate BEGIN when the label's BEGIN
   survived (duplicate orphaned the audit); journal repaired with STATUS.
+### Added (Phase 9 — judge calibration, slice 2)
+- Every verification appends a row to memory/derived/calibration.md
+  (case, status, claimed, composite, exit) — the verifier-vs-judged
+  disagreement corpus.
+- `eval judge-drift`: precision of the judged outcome against the
+  deterministic layer + disagreement count; insights prints the drift
+  line; SIGNAL warning when precision < 100%.

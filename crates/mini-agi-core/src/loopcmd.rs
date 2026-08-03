@@ -450,6 +450,17 @@ pub fn verify(
     };
     let mut verified = true;
     if let Some(v) = &verification {
+        let _ = crate::verifier::append_calibration(
+            root,
+            &crate::verifier::CalibrationRow {
+                at: crate::memory::utc_now_stamp(),
+                case: case.to_string(),
+                status: v.status.clone(),
+                claimed: v.claimed,
+                composite: report.composite,
+                exit: v.exit_code,
+            },
+        );
         match v.status.as_str() {
             "verified" => lines.push(format!(
                 "  deterministic verifier: PASS ({})",
