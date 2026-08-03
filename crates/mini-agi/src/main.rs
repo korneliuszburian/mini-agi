@@ -90,6 +90,17 @@ enum Command {
     Codex(CodexArgs),
     /// Harness evolution (Phase 8 slice 7): versioned spec + ledger.
     Harness,
+    /// Counterfactual harness gate (Phase 9 slice 5): swaps a candidate
+    /// file in, runs the gate, reports the failure delta.
+    HarnessVerify {
+        /// Target file to be edited.
+        target: PathBuf,
+        /// Candidate file with the new content.
+        candidate: PathBuf,
+        /// Comma-separated failure(s) the edit claims to fix.
+        #[arg(long)]
+        claims: Option<String>,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -448,6 +459,11 @@ fn main() -> ExitCode {
             target.as_deref(),
         ),
         Command::Harness => cmd_harness(),
+        Command::HarnessVerify {
+            target,
+            candidate,
+            claims,
+        } => cmd_harness_verify(&target, &candidate, claims.as_deref()),
         Command::Loop(LoopArgs { action }) => match action {
             LoopAction::Status => cmd_loop_status(),
             LoopAction::Dispatch {
@@ -640,6 +656,21 @@ fn cmd_codex(
         Err(e) => return fail(&format!("cannot write run draft: {e}")),
     }
     ExitCode::SUCCESS
+}
+
+fn cmd_harness_verify(target: &Path, candidate: &Path, claims: Option<&str>) -> ExitCode {
+    let root = root();
+    match mini_agi_core::harness::verify_candidate(&root, target, candidate, claims) {
+        Ok(verdict) => {
+            println!("{verdict}");
+            if verdict.starts_with("ACCEPT") {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Err(e) => fail(&format!("harness verify: {e}")),
+    }
 }
 
 fn cmd_harness() -> ExitCode {

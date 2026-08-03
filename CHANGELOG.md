@@ -288,3 +288,9 @@ Intelligence" direction)
   the baseline, not gated) — contamination-safe capability measurement.
 - METRICS.md gains a family column (auto-migrated from the old format;
   migration falsifier).
+### Added (Phase 9 — harness counterfactual gate, slice 5)
+- `harness verify <target> <candidate> [--claims]`: swaps the candidate
+  in, runs the full gate, reports the failure delta (ACCEPT on observed
+  reduction / NEUTRAL / REJECT on regression); a claim of fixing a
+  failure never observed before the edit is rejected with evidence
+  (Phantom Guardrails 2607.13083). Original always restored.
