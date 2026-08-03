@@ -97,6 +97,11 @@ enum RunAction {
         #[arg(long)]
         retro: Option<PathBuf>,
     },
+    /// Register repeated failing actions from a run.json (Reflexion).
+    Failures {
+        /// Path to the run file (evals/cases/<case>/run.json).
+        run: PathBuf,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -290,6 +295,7 @@ fn main() -> ExitCode {
         },
         Command::Run(RunArgs { action }) => match action {
             RunAction::Ingest { run, retro } => cmd_run_ingest(&run, retro.as_deref()),
+            RunAction::Failures { run } => cmd_run_failures(&run),
         },
         Command::Insights => cmd_insights(),
         Command::Backlog => cmd_backlog(),
@@ -331,6 +337,37 @@ fn cmd_run_ingest(run: &Path, retro: Option<&Path>) -> ExitCode {
         Ok(text) => {
             println!("{text}");
             ExitCode::SUCCESS
+        }
+        Err(msg) => fail(&msg),
+    }
+}
+
+fn cmd_run_failures(run: &Path) -> ExitCode {
+    let root = root();
+    match mini_agi_core::failure::analyze_run(run) {
+        Ok((case, entries)) => {
+            if entries.is_empty() {
+                println!("no repeated failing actions in {case}");
+                return ExitCode::SUCCESS;
+            }
+            for e in &entries {
+                println!(
+                    "`{}` tool={} action=\"{}\" count={} steps={:?} case={}",
+                    e.hash, e.tool, e.action, e.count, e.steps, e.case
+                );
+            }
+            match mini_agi_core::failure::update_register(&root, &entries) {
+                Ok(total) => {
+                    println!(
+                        "recorded {} repeated failing actions (register: {}, {} total)",
+                        entries.len(),
+                        mini_agi_core::failure::register_path(&root).display(),
+                        total
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(e) => fail(&format!("cannot update failure register: {e}")),
+            }
         }
         Err(msg) => fail(&msg),
     }

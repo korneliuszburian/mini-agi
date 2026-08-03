@@ -7,6 +7,7 @@
 
 pub mod contract;
 pub mod eval;
+pub mod failure;
 pub mod hash;
 pub mod insights;
 pub mod journal;

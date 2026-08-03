@@ -429,6 +429,24 @@ pub fn resume(root: &Path) -> Result<String, io::Error> {
             let _ = writeln!(out, "  {line}");
         }
     }
+    if let Ok(failures) = crate::failure::read_register(root)
+        && !failures.is_empty()
+    {
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            out,
+            "failure register: {} recorded failures — do not repeat ({}):",
+            failures.len(),
+            crate::failure::register_path(root).display()
+        );
+        for entry in failures.iter().rev().take(5).rev() {
+            let _ = writeln!(
+                out,
+                "  `{}` tool={} action=\"{}\" count={} case={}",
+                entry.hash, entry.tool, entry.action, entry.count, entry.case
+            );
+        }
+    }
     Ok(out)
 }
 
@@ -502,6 +520,25 @@ mod backlog_tests {
         assert!(block.contains("resume:"));
         assert!(block.contains("VERIFY-PASS step"));
         assert!(block.contains("fact one"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resume_block_includes_failure_register() {
+        let root = tmp_root("resume-register");
+        fs::create_dir_all(root.join("memory/derived")).unwrap();
+        let entry = crate::failure::FailureEntry {
+            hash: crate::hash::fact_id("edit|edit same line"),
+            tool: "edit".into(),
+            action: "edit same line".into(),
+            count: 2,
+            steps: vec![4, 6],
+            case: "reactive-loop".into(),
+        };
+        crate::failure::update_register(&root, std::slice::from_ref(&entry)).unwrap();
+        let block = resume(&root).unwrap();
+        assert!(block.contains("failure register: 1 recorded failures"));
+        assert!(block.contains("edit same line"));
         let _ = fs::remove_dir_all(&root);
     }
 }

@@ -124,9 +124,9 @@ pub fn violations(events: &[JournalEvent], since: &str) -> JournalViolations {
         for (index, event) in items.iter().enumerate() {
             match event.kind {
                 JournalKind::VerifyPass | JournalKind::VerifyFail => {
-                    let has_earlier_begin = items[..index]
-                        .iter()
-                        .any(|e| e.kind == JournalKind::Begin && e.ts.as_str() < event.ts.as_str());
+                    let has_earlier_begin = items[..index].iter().any(|e| {
+                        e.kind == JournalKind::Begin && e.ts.as_str() <= event.ts.as_str()
+                    });
                     if !has_earlier_begin {
                         unresolved.push((index, event.ts.as_str()));
                     }
@@ -266,6 +266,16 @@ mod tests {
     #[test]
     fn begin_before_verify_passes() {
         let v = audit(GOOD);
+        assert!(v.bad.is_empty());
+        assert!(v.historical.is_empty());
+    }
+
+    #[test]
+    fn same_second_begin_resolves_verify_by_line_order() {
+        let text = "2026-08-02T19:00:00Z BEGIN t002 -> 57ce2c7
+2026-08-02T19:00:00Z VERIFY-PASS t002 @ 57ce2c7
+";
+        let v = audit(text);
         assert!(v.bad.is_empty());
         assert!(v.historical.is_empty());
     }

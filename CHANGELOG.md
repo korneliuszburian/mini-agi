@@ -19,11 +19,30 @@ Intelligence" direction)
 - MCP tools: run_ingest, insights, backlog, resume (21 tools total).
 - Sequoia thesis ingested into canonical memory (domain: strategy);
   ADR-0005 records the direction.
+- `mini-agi run failures <run.json>` — failure register (Reflexion,
+  Phase 6.1, closes TICKET-9): repeated failing actions (same tool+action,
+  >=2 occurrences, at least one with a failure signal) are hashed into
+  `memory/derived/failures.md` (deterministic, idempotent); `resume` prints
+  the register tail so a fresh session never repeats a recorded failure.
+  Detected on the real evals: reactive-loop (edit "edit same line" x2) and
+  8 more across real-ticket-001..005.
 
 ### Fixed
 - Ticket ids follow the PoC contract exactly (`^TICKET-[0-9]+` via
   re.search): `TICKET-001-v2` accepted, `TICKET-x` rejected; v2 lookup
   via prefix scan, traversal-safe.
+- Checkpoint audit: a same-second `BEGIN`/`VERIFY` pair now resolves by
+  line order (`ts <=`); the strict `<` flagged a fast begin+verify as
+  "VERIFY without BEGIN" (latent; surfaced by gate-fix round).
+- Checkpoint rollback re-journals the wiped `BEGIN` before `VERIFY-FAIL`:
+  the reset discarded the uncommitted BEGIN line, leaving an orphan
+  VERIFY-FAIL the audit could never heal (gate red -> rollback -> new
+  orphan = deadlock). The 2026-08-03 journal was repaired by restoring the
+  two true BEGIN lines (documented in the journal via STATUS); the script
+  now keeps rollbacks paired.
+- `checkpoint.sh verify` is a no-op for an already-closed label: re-running
+  it journaled a second VERIFY-PASS without an open BEGIN (operational
+  duplicate removed from the journal; guard added).
 
 ## [0.3.0] — 2026-08-02
 

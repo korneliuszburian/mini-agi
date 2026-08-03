@@ -9,3 +9,5 @@
 2026-08-03T06:51:47Z VERIFY-FAIL failure-register-2 @ bad99a5 -> ROLLBACK to bad99a5
 2026-08-03T06:53:52Z BEGIN journal-repair -> 606c190
 2026-08-03T06:54:39Z VERIFY-PASS journal-repair @ 606c190
+2026-08-03T06:54:46Z BEGIN failure-register -> c77346a
+2026-08-03T06:56:10Z VERIFY-PASS failure-register @ c77346a

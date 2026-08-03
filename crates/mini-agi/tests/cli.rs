@@ -772,3 +772,39 @@ fn cli_run_ingest_and_insights() {
     assert!(text.contains("capability gaps: none"));
     wipe(&root);
 }
+
+#[test]
+fn cli_run_failures_writes_register_and_resume_shows_block() {
+    let root = tmp_root("c22");
+    wipe(&root);
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("evals/cases/reactive-loop/run.json");
+    std::fs::create_dir_all(root.join("evals/cases/reactive-loop")).unwrap();
+    std::fs::copy(&src, root.join("evals/cases/reactive-loop/run.json")).unwrap();
+    let run_path = root.join("evals/cases/reactive-loop/run.json");
+    let first = run(&root, &["run", "failures", run_path.to_str().unwrap()]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let text = stdout(&first);
+    assert!(text.contains("tool=edit action=\"edit same line\" count=2"));
+    assert!(text.contains("recorded 1 repeated failing actions"));
+    let register = root.join("memory/derived/failures.md");
+    assert!(register.is_file());
+    let second = run(&root, &["run", "failures", run_path.to_str().unwrap()]);
+    assert!(second.status.success());
+    assert!(stdout(&second).contains("recorded 1 repeated failing actions"));
+    let resume = run(&root, &["resume"]);
+    assert!(resume.status.success());
+    let resume_text = stdout(&resume);
+    assert!(resume_text.contains("failure register: 1 recorded failures"));
+    assert!(resume_text.contains("edit same line"));
+    assert!(resume_text.contains("do not repeat"));
+    wipe(&root);
+}
