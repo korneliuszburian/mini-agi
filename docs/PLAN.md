@@ -265,7 +265,7 @@ mini-agi's own memory/ + skills/ are first-class users of the kernel. Every
 phase lands with the product's own state maintained through itself (facts
 enforced, evals run on real sessions, skills verified in CI).
 
-### Phase 7 — senior-like runtime quality (2026-08-03, in progress)
+### Phase 7 — senior-like runtime quality (2026-08-03, DONE)
 - `mini-agi health` — runtime observability (load/memory/swap/process
   zoo thresholds tuned to the 2026-08-03 OOM incident class; journal +
   claims consistency). Done.
@@ -273,8 +273,11 @@ enforced, evals run on real sessions, skills verified in CI).
   freshness, working tree, eval gate). Done.
 - Codex experiments — EXP-001 (codex exec as implementer: green, 8/8,
   365s) recorded in docs/EXPERIMENTS.md. EXP-002 (codex on a real loop
-  slice) next.
+  slice) is the next phase.
 - Onboarding — `mini-agi init` now wires .codex/config.toml (trusted),
   AGENTS.md covers the intelligence layer, ready-summary. Demoed on a
   fresh repo.
-- CI polish: LAST (per user decision).
+- CI polish (LAST, per user) — done: the checkpoint gate hardening
+  (verify refuses a label without an open BEGIN; allowlist +
+  CHANGELOG.md) shipped e6c3d5c after CI caught an orphan VERIFY-PASS.
+  CI green.
