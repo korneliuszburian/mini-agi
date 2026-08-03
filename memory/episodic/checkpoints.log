@@ -50,3 +50,5 @@
 2026-08-03T20:47:31Z VERIFY-FAIL phase8-marathon @ fd96278 -> ROLLBACK to fd96278
 2026-08-03T21:45:31Z BEGIN phase9-marathon -> aa8f44a (restored by rollback)
 2026-08-03T21:45:31Z VERIFY-FAIL phase9-marathon @ aa8f44a -> ROLLBACK to aa8f44a
+2026-08-03T21:50:24Z BEGIN phase9-close -> 109142d (clean)
+2026-08-03T21:50:35Z VERIFY-PASS phase9-close @ 109142d

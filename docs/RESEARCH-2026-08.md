@@ -168,6 +168,18 @@ Weaknesses found (with file:line):
    AlphaEvolve endgame)
 8. **Multi-repo + MCP completion** — multi-root support, full tool mirror.
 
+Phase 9 status (2026-08-03, round-2 research): trust enforcement
+(verified-close + --allow-unverified, verifier timeout, honest codex
+draft, cross-host hashes), judge calibration corpus + eval judge-drift,
+evidence-gated memory + reflection-diff contrast facts, capability
+telemetry (per-family + eval hidden + METRICS family), harness
+counterfactual gate (Phantom Guardrails), memory-load validation +
+verifier attribution + dry-run, pilot-before-scale (loop status
+--attempts + EXP-005). Codex review EXP-006: REWORK — all findings
+dispositioned and fixed (2 CRITICAL + 8 MAJOR). Gate now includes
+audit; working-tree check excludes kernel-owned artifacts. Multi-root
+stays follow_up (YAGNI).
+
 Phase 8 status (2026-08-03): slices 1-8 implemented (verifiable
 reward layer ADR-0011, Reflexion+MAST, regression bound+METRICS, codex
 capture hook EXP-003, process supervision, fact-linking, harness

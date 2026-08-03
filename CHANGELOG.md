@@ -337,3 +337,8 @@ Intelligence" direction)
   (verify.sh runs mini-agi audit).
 - attempts counter counts all `<case>-rerun*` dirs (multi-attempt
   pilots representable).
+### Phase 9 complete (2026-08-03)
+- All 7 round-2 slices shipped (trust, calibration, reflection-diff,
+  telemetry, counterfactual gate, memory-load/attribution, pilot
+  instrument); codex review EXP-006 REWORK fully dispositioned; audit
+  in the gate; multi-root documented follow_up.
