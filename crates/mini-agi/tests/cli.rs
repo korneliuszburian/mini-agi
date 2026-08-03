@@ -977,3 +977,15 @@ fn cli_eval_mismatches_writes_register_and_resume_shows_block() {
     assert!(resume_text.contains("golden expects write, used exec"));
     wipe(&root);
 }
+
+#[test]
+fn cli_health_reports_and_exits_zero_on_healthy_repo() {
+    let root = tmp_root("c26");
+    wipe(&root);
+    let health = run(&root, &["health"]);
+    assert!(health.status.success(), "{}", combined(&health));
+    let text = stdout(&health);
+    assert!(text.contains("HEALTH CHECK"));
+    assert!(text.contains("no findings") || text.contains("[warn]") || text.contains("[critical]"));
+    wipe(&root);
+}

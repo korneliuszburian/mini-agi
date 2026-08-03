@@ -9,6 +9,7 @@ pub mod contract;
 pub mod eval;
 pub mod failure;
 pub mod hash;
+pub mod health;
 pub mod insights;
 pub mod journal;
 pub mod loopcmd;

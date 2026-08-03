@@ -79,6 +79,8 @@ enum Command {
     Backlog,
     /// Resume block for a fresh session.
     Resume,
+    /// Runtime observability: load, memory, process zoo, journal, claims.
+    Health,
     /// Proactive composition loop (Phase 6.4): status/dispatch/verify.
     Loop(LoopArgs),
 }
@@ -378,6 +380,7 @@ fn main() -> ExitCode {
         Command::Insights => cmd_insights(),
         Command::Backlog => cmd_backlog(),
         Command::Resume => cmd_resume(),
+        Command::Health => cmd_health(),
         Command::Loop(LoopArgs { action }) => match action {
             LoopAction::Status => cmd_loop_status(),
             LoopAction::Dispatch {
@@ -387,6 +390,44 @@ fn main() -> ExitCode {
             } => cmd_loop_dispatch(case.as_deref(), below, &claimant),
             LoopAction::Verify { case, claimant } => cmd_loop_verify(&case, &claimant),
         },
+    }
+}
+
+fn cmd_health() -> ExitCode {
+    match mini_agi_core::health::health(&root()) {
+        Ok(report) => {
+            println!("HEALTH CHECK — {}", report.verdict());
+            if let Some(load1) = report.load1 {
+                println!("  load1: {load1:.2} on {} cores", report.nproc);
+            }
+            if let Some(frac) = report.mem_available_frac {
+                println!("  memory available: {:.0}%", frac * 100.0);
+            }
+            if let Some(frac) = report.swap_used_frac {
+                println!("  swap used: {:.0}%", frac * 100.0);
+            }
+            if let Some(largest) = report.zoo_largest {
+                println!("  largest process zoo: {largest} processes per command");
+            }
+            if let Some(j) = report.journal {
+                println!(
+                    "  journal: {} begins, {} passes, {} fails, {} status",
+                    j[0], j[1], j[2], j[3]
+                );
+            }
+            if report.findings.is_empty() {
+                println!("  no findings");
+            }
+            for finding in &report.findings {
+                println!("  [{}] {}", finding.severity, finding.message);
+            }
+            match report.verdict() {
+                "OK" => ExitCode::SUCCESS,
+                "WARN" => ExitCode::from(1),
+                _ => ExitCode::from(2),
+            }
+        }
+        Err(e) => fail(&format!("health: {e}")),
     }
 }
 
