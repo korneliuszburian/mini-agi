@@ -224,3 +224,8 @@ Intelligence" direction)
 - `eval steps <run>`: per-step verdicts (step_score) + suspicious flags
   where the step-level signal contradicts the outcome claim — active
   judge-budget selection (Let's Verify Step by Step 2305.20050).
+### Added (Phase 8 — memory evolution)
+- Fact-linking pass in derived views: facts sharing >= 2 keywords get
+  cross-links; the brief lists linked (important) facts first —
+  importance learned from cross-referencing, canonical stays append-only
+  (A-MEM 2502.12110 semantics, derived-only).

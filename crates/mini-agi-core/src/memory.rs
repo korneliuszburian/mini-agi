@@ -437,11 +437,67 @@ pub fn provenance_block(root: &Path) -> String {
 
 /// Render the derived context brief (`PoC` `render_brief`).
 #[must_use]
+/// Keyword index of a fact body: words of 5+ chars, lowercased
+/// (fact-linking pass, Phase 8 slice 6 — derived views only).
+fn keywords(text: &str) -> std::collections::HashSet<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .map(str::to_lowercase)
+        .filter(|w| w.len() >= 5)
+        .collect()
+}
+
+/// Cross-fact links (Phase 8 slice 6): facts sharing >= 2 keywords.
+/// Deterministic, computed in DERIVED views only — canonical facts stay
+/// append-only (A-MEM 2502.12110, supersede-never semantics).
+#[must_use]
+pub fn fact_links(
+    facts: &[(String, String, String)],
+) -> std::collections::BTreeMap<String, Vec<String>> {
+    let index: Vec<(String, std::collections::HashSet<String>)> = facts
+        .iter()
+        .map(|(fid, _, text)| (fid.clone(), keywords(text)))
+        .collect();
+    let mut links: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for i in 0..index.len() {
+        for j in (i + 1)..index.len() {
+            let shared = index[i].1.intersection(&index[j].1).count();
+            if shared >= 2 {
+                links
+                    .entry(index[i].0.clone())
+                    .or_default()
+                    .push(index[j].0.clone());
+                links
+                    .entry(index[j].0.clone())
+                    .or_default()
+                    .push(index[i].0.clone());
+            }
+        }
+    }
+    links
+}
+
+/// Render the context brief with importance-ordered facts + links
+/// (Phase 8 slice 6). Linked facts come first — importance learned
+/// from cross-referencing, not hand-assigned.
+#[must_use]
 pub fn render_brief(root: &Path, facts: &[(String, String, String)]) -> String {
+    let links = fact_links(facts);
+    let mut ordered: Vec<(String, String, String, usize)> = facts
+        .iter()
+        .map(|(fid, domain, text)| {
+            let importance = links.get(fid).map_or(0, Vec::len);
+            (fid.clone(), domain.clone(), text.clone(), importance)
+        })
+        .collect();
+    ordered.sort_by(|a, b| b.3.cmp(&a.3).then_with(|| a.0.cmp(&b.0)));
     let mut out = provenance_block(root);
     out.push_str("# CONTEXT BRIEF (derived)\n\nRead this before starting any session. Canonical wins over this file.\n\n");
-    for (fid, domain, text) in facts {
+    for (fid, domain, text, importance) in &ordered {
         let _ = writeln!(out, "- `{fid}` [{domain}] {text}");
+        if *importance > 0 {
+            let _ = writeln!(out, "  links: {}", links[fid].join(", "));
+        }
     }
     out
 }
@@ -554,5 +610,72 @@ mod tests {
         let date = utc_now_date();
         assert_eq!(date.len(), 10);
         assert!(stamp.starts_with(&date));
+    }
+}
+
+#[cfg(test)]
+mod fact_link_tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn links_facts_sharing_two_keywords() {
+        let facts = vec![
+            (
+                "aaa".into(),
+                "strategy".into(),
+                "failure register prevents repeated failing actions across runs".into(),
+            ),
+            (
+                "bbb".into(),
+                "strategy".into(),
+                "the register records failing actions before every rerun".into(),
+            ),
+            (
+                "ccc".into(),
+                "eval".into(),
+                "composite scoring measures outcome trajectory tool use".into(),
+            ),
+        ];
+        let links = fact_links(&facts);
+        assert_eq!(
+            links["aaa"],
+            vec!["bbb"],
+            "shared: failure/register/actions/rerun"
+        );
+        assert!(!links.contains_key("ccc"), "no shared keywords");
+    }
+
+    #[test]
+    fn brief_orders_by_importance_and_lists_links() {
+        let root = env::temp_dir().join(format!("mag-links-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let facts = vec![
+            (
+                "aaa".into(),
+                "s".into(),
+                "failure register prevents repeated failing actions across runs".into(),
+            ),
+            (
+                "bbb".into(),
+                "s".into(),
+                "the register records failing actions before every rerun".into(),
+            ),
+            (
+                "ccc".into(),
+                "e".into(),
+                "composite scoring measures outcome trajectory tool use".into(),
+            ),
+        ];
+        let brief = render_brief(&root, &facts);
+        let pos_a = brief.find("`aaa`").unwrap();
+        let pos_b = brief.find("`bbb`").unwrap();
+        let pos_c = brief.find("`ccc`").unwrap();
+        assert!(
+            pos_a < pos_c && pos_b < pos_c,
+            "linked facts come before isolated ones"
+        );
+        assert!(brief.contains("links: bbb"));
+        let _ = fs::remove_dir_all(&root);
     }
 }
