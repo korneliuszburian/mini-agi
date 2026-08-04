@@ -2,7 +2,6 @@
 {"at":"2026-08-04T05:50:33Z","case":"codex-exp-002","status":"unverified","claimed":false,"composite":0.0,"exit":null,"command":null,"target":null}
 {"at":"2026-08-04T05:50:33Z","case":"codex-exp-002-rerun","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"make verify","target":"/tmp/opencode/codex-exp2"}
 {"at":"2026-08-04T05:50:33Z","case":"codex-exp-003","status":"unverified","claimed":false,"composite":0.0,"exit":null,"command":null,"target":null}
-{"at":"2026-08-04T05:50:34Z","case":"codex-exp-003-rerun","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"make verify","target":"/tmp/opencode/exp003-work"}
 {"at":"2026-08-04T05:50:34Z","case":"flailing","status":"unverified","claimed":true,"composite":0.0,"exit":null,"command":null,"target":null}
 {"at":"2026-08-04T05:50:35Z","case":"flailing-rerun","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"npx tsc && node --test 'dist/tests/*.test.js'","target":"/tmp/opencode/rate-limit-2"}
 {"at":"2026-08-04T05:50:35Z","case":"harnessed","status":"unverified","claimed":true,"composite":0.0,"exit":null,"command":null,"target":null}
@@ -23,3 +22,4 @@
 {"at":"2026-08-04T05:50:40Z","case":"real-ticket-007-v2","status":"unverified","claimed":true,"composite":0.0,"exit":null,"command":null,"target":null}
 {"at":"2026-08-04T05:50:41Z","case":"real-ticket-007-v2-rerun","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/redactor-007"}
 {"at":"2026-08-04T05:50:42Z","case":"real-ticket-008-v2","status":"unverified","claimed":true,"composite":0.0,"exit":null,"command":null,"target":null}
+{"at":"2026-08-04T09:35:29Z","case":"codex-exp-003-rerun","status":"verified","claimed":true,"composite":0.8989,"exit":0,"command":"make verify","target":"/tmp/opencode/exp003-work"}

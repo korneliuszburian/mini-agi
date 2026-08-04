@@ -34,3 +34,4 @@
 {"at":"2026-08-04T05:50:40Z","case":"real-ticket-005-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/scorer-005","status":"verified"}
 {"at":"2026-08-04T05:50:40Z","case":"real-ticket-006-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/consolidate-006","status":"verified"}
 {"at":"2026-08-04T05:50:41Z","case":"real-ticket-007-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/redactor-007","status":"verified"}
+{"at":"2026-08-04T09:35:29Z","case":"codex-exp-003-rerun","command":"make verify","target":"/tmp/opencode/exp003-work","status":"verified"}

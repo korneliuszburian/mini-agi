@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 8731cfb2f97588a0
-# canonical_entries: 32
+# canonical_sha256: d6d86453f4ed287f
+# canonical_entries: 34
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -39,3 +39,5 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `975b7e752a008dbe` gap codex-exp-003 closed by rerun codex-exp-003-rerun (composite 1.0000, verifier verified) — failure reflection: none recorded — success evidence: deterministic gate passed
 - `1f344eb53f325890` run codex-exp-003-rerun scored composite 0.5000 on 15000 tokens (0.0700 USD) with 0 scope violations and 0 tool mismatches.
 - `d1107c68ec9f67b3` gap codex-exp-003 closed by rerun codex-exp-003-rerun (composite 0.5000, verifier verified) — failure reflection: none recorded — success evidence: deterministic gate passed
+- `9504f9d0aef69f13` run codex-exp-003-rerun scored composite 0.8989 on 0 tokens (0.0001 USD) with 0 scope violations and 0 tool mismatches.
+- `719500aa05265c9b` gap codex-exp-003 closed by rerun codex-exp-003-rerun (composite 0.8989, verifier verified) — failure reflection: none recorded — success evidence: deterministic gate passed
