@@ -7,6 +7,7 @@
 
 pub mod audit;
 pub mod capture;
+pub mod config;
 pub mod contract;
 pub mod eval;
 pub mod failure;

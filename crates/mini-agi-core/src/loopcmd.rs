@@ -187,7 +187,8 @@ pub fn rerun_composite(root: &Path, case: &str) -> Option<f64> {
 /// run stays as a historical fixture (TICKET-9 semantics).
 #[must_use]
 pub fn case_closed_by_rerun(root: &Path, case: &str) -> bool {
-    rerun_composite(root, case).is_some_and(|c| c >= TARGET_COMPOSITE)
+    rerun_composite(root, case)
+        .is_some_and(|c| c >= crate::config::Config::target_composite_for(root))
 }
 
 /// Cases below the loop target with their work-graph mapping.
@@ -199,7 +200,7 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
     let report = crate::insights::insights(root)?;
     let mut rows = Vec::new();
     for case in &report.cases {
-        if case.composite >= TARGET_COMPOSITE {
+        if case.composite >= crate::config::Config::target_composite_for(root) {
             continue;
         }
         let ticket = ticket_for_case(root, &case.case);
@@ -310,13 +311,26 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     if let Some(golden) = &run.golden {
         w(&mut body, &format!("- golden: {golden}\n"))?;
     }
+    match (&run.verify_command, &run.verify_target) {
+        (Some(vc), vt) => {
+            let vt = vt.as_deref().unwrap_or("<repo root>");
+            w(&mut body, &format!("- verify_command: {vc} in {vt}\n"))?;
+        }
+        (None, _) => w(
+            &mut body,
+            "- verify_command: (none declared — caller MUST pass\n  --verify/--target to `mini-agi codex`, which refuses trust-only runs)\n",
+        )?,
+    }
     w(
         &mut body,
         "\n## Acceptance (measured by `mini-agi loop verify`)\n\n",
     )?;
     w(
         &mut body,
-        &format!("1. composite >= {TARGET_COMPOSITE} on the rerun case `{case}-rerun`\n"),
+        &format!(
+            "1. composite >= {} on the rerun case `{case}-rerun`\n",
+            crate::config::Config::target_composite_for(root)
+        ),
     )?;
     w(
         &mut body,
@@ -414,6 +428,12 @@ pub fn dispatch(
     claimant: &str,
 ) -> Result<DispatchOutcome, String> {
     let case = pick_target(root, case, below)?;
+    // P0-3 (hardening audit C.3): no trust-only worker runs. The spec
+    // embeds the case's verify_command when one exists; when it does not
+    // (historical frozen fixtures predate the verifier), the caller MUST
+    // pass --verify/--target to `mini-agi codex` — which refuses to
+    // execute without a verifier. The enforcement boundary is the worker
+    // run, not the gap case.
     let existing = ticket_for_case(root, &case);
     let (ticket_id, ticket_created) = if let Some(t) = existing {
         (t.id, false)
@@ -583,7 +603,10 @@ pub fn verify(
             gate.failures
         ));
     }
-    let closed = if report.composite >= TARGET_COMPOSITE && verified && gate_clean {
+    let closed = if report.composite >= crate::config::Config::target_composite_for(root)
+        && verified
+        && gate_clean
+    {
         if let Some(ticket) = ticket_for_case(root, base) {
             if claimant_for(root, &ticket.id).as_deref() == Some(claimant) {
                 ticket::release_ticket(root, &ticket.id, claimant)
@@ -650,7 +673,10 @@ pub fn verify(
         } else if !gate_clean {
             "  gap open: gate regressions — best-state bound holds".into()
         } else {
-            format!("  gap open: composite below {TARGET_COMPOSITE} — keep working")
+            format!(
+                "  gap open: composite below {} — keep working",
+                crate::config::Config::target_composite_for(root)
+            )
         });
         false
     };
@@ -745,6 +771,38 @@ mod tests {
         );
         ticket::release_ticket(&root, "TICKET-008-v2", claimant).unwrap();
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_spec_flags_missing_verifier() {
+        // P0-3 (hardening audit C.3): a case without a verifier must be
+        // flagged in the spec so the caller knows to supply
+        // --verify/--target; `cmd_codex` enforces the refusal.
+        let root = tmp_case_root("no-verifier");
+        let nover = root.join("evals/cases/scratch-noverifier");
+        fs::create_dir_all(&nover).unwrap();
+        fs::write(
+            nover.join("run.json"),
+            r#"{"goal":"x","scope":[],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.0,"golden":null,"trajectory":[]}"#,
+        )
+        .unwrap();
+        let outcome = dispatch(&root, Some("scratch-noverifier"), 0.5, "loop-test")
+            .expect("dispatch proceeds; the spec flags the missing verifier");
+        let spec_text = fs::read_to_string(&outcome.spec).unwrap();
+        assert!(
+            spec_text.contains("caller MUST pass"),
+            "spec must flag the missing verifier: {spec_text}"
+        );
+        // A verifiable case embeds its verify_command in the spec.
+        let root2 = tmp_case_root("with-verifier");
+        let outcome2 = dispatch(&root2, Some("real-ticket-008-v2"), 0.5, "loop-test").unwrap();
+        let spec2 = fs::read_to_string(&outcome2.spec).unwrap();
+        assert!(
+            spec2.contains("verify_command:"),
+            "spec must embed the declared verifier: {spec2}"
+        );
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&root2);
     }
 
     #[test]

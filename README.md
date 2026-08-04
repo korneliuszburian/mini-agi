@@ -14,7 +14,8 @@ skills registry, orchestration** — exposed as CLI + MCP server so ANY agent
 
 ## Status
 
-All phases 0-5 complete, 110 tests green, gate ALL GREEN, v0.3.0:
+All phases 0-10 complete (memory, eval, skills, journal, MCP, loop, verifier,
+harness evolution), 190 tests green, gate ALL GREEN, v0.3.0:
 
 | Phase | Deliverable |
 | --- | --- |
@@ -22,14 +23,24 @@ All phases 0-5 complete, 110 tests green, gate ALL GREEN, v0.3.0:
 | 1 | eval engine (4D scoring, golden, baseline, regression gate) |
 | 2 | skills registry (frontmatter, verify hooks, `skill add`) + 15 skills with completion criteria |
 | 3 | checkpoint journal audit (T008 semantics), typed contracts, metrics |
-| 4 | stdio MCP server (21 tools, codex+claude framings) + adapters; PROVEN live: codex wrote facts through MCP |
-| 5 | `init` scaffold, CI on pinned toolchain, demo, dogfood, v0.2.0 |
+| 4 | stdio MCP server (34 tools, codex+claude framings) + adapters; PROVEN live: codex wrote facts through MCP |
+| 5 | `init` scaffold, CI on pinned toolchain, demo, dogfood |
+| 6 | intelligence loop closure (ADR-0005): gaps become tickets, `loop dispatch/verify` |
+| 7 | senior runtime quality, failure register + MAST + reflections |
+| 8 | verifiable reward layer: `run verify`, best-state regression bound |
+| 9 | verified before trusted: judge-drift calibration, counterfactual harness gate |
+| 10 | the kernel improves itself: harness evolution, honest codex capture, codex review |
+
+Runtime thresholds (loop target, regression tolerance, worker caps) are
+tunable via `.miniagi.json` or `MINIAGI_*` env vars — see
+`docs/HARDENING-AUDIT.md` (P0-2).
 
 ## The deterministic gate
 
 ```sh
-scripts/verify.sh    # fmt, clippy -D warnings, tests, eval gate,
-                     # checkpoint audit, provenance, stats, budget
+scripts/verify.sh    # build, fmt, clippy -D warnings, tests, eval gate,
+                     # checkpoint audit, provenance, stats, budget,
+                     # insights, audit (memory-load + verifier attribution)
 ```
 
 A silent target is a failing target. `checkpoint.sh begin/verify` wraps
@@ -49,12 +60,16 @@ mini-agi skill list | show <name> | verify <name> | add <source>
 mini-agi checkpoint audit
 mini-agi validate <eval-run|ticket|spec|verdict> <document.json>
 mini-agi stats | budget
-mini-agi mcp                  # stdio MCP server (14 tools)
+mini-agi mcp                  # stdio MCP server (34 tools)
 mini-agi init                  # scaffold a repo with a verified brain
 mini-agi ticket list|show|validate <id>
 mini-agi run ingest <run.json> [--retro <md>]
-mini-agi insights | backlog | resume
-mini-agi mcp                  # stdio MCP server (21 tools)
+mini-agi run verify <run.json> [--dry-run]   # deterministic verifier
+mini-agi loop status|dispatch|verify
+mini-agi codex <spec> <workdir> --verify <cmd> --target <dir>   # captured worker run
+mini-agi harness snapshot|verify <target> <candidate> [--claims]
+mini-agi insights | backlog | resume | health | audit
+mini-agi eval judge-drift | hidden [--dir <d>]
 ```
 
 ## MCP

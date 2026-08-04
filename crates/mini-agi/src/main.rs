@@ -241,9 +241,10 @@ enum LoopAction {
     Dispatch {
         /// Case name (default: worst open case below the target).
         case: Option<String>,
-        /// Composite floor for dispatchability.
-        #[arg(long, default_value_t = 0.5)]
-        below: f64,
+        /// Composite floor for dispatchability (default from
+        /// `.miniagi.json` / `MINIAGI_TARGET_COMPOSITE`).
+        #[arg(long)]
+        below: Option<f64>,
         /// Claimant name.
         #[arg(long, default_value = "local")]
         claimant: String,
@@ -332,9 +333,10 @@ enum EvalAction {
     },
     /// Regression gate over all cases vs the committed baseline.
     Gate {
-        /// Max allowed composite drop.
-        #[arg(long, default_value_t = 0.05)]
-        tolerance: f64,
+        /// Max allowed composite drop (default from .miniagi.json /
+        /// `MINIAGI_REGRESSION_TOLERANCE`).
+        #[arg(long)]
+        tolerance: Option<f64>,
         /// Max allowed tool-mismatch growth per case vs baseline.
         #[arg(long, default_value_t = 1)]
         mismatch_tolerance: usize,
@@ -422,7 +424,12 @@ fn main() -> ExitCode {
                 tolerance,
                 mismatch_tolerance,
                 write_baseline,
-            } => cmd_eval_gate(tolerance, mismatch_tolerance, write_baseline),
+            } => {
+                let tolerance = tolerance.unwrap_or_else(|| {
+                    mini_agi_core::config::Config::load(&root()).regression_tolerance
+                });
+                cmd_eval_gate(tolerance, mismatch_tolerance, write_baseline)
+            }
             EvalAction::Mismatches { run } => cmd_eval_mismatches(run.as_deref()),
         },
         Command::Skill(SkillArgs { action }) => match action {
@@ -509,7 +516,12 @@ fn main() -> ExitCode {
                 case,
                 below,
                 claimant,
-            } => cmd_loop_dispatch(case.as_deref(), below, &claimant),
+            } => {
+                let below = below.unwrap_or_else(|| {
+                    mini_agi_core::config::Config::target_composite_for(&root())
+                });
+                cmd_loop_dispatch(case.as_deref(), below, &claimant)
+            }
             LoopAction::Verify {
                 case,
                 claimant,
@@ -633,9 +645,7 @@ fn cmd_codex_reparse(
         "cost_usd": 0.0,
         "golden": null,
         "verify_command": verify,
-        "verify_target": target
-            .map(str::to_string)
-            .or_else(|| Some(workdir.to_string_lossy().into_owned())),
+        "verify_target": target,
         "trajectory": trajectory,
     });
     let out_path = run_out.unwrap_or(&workdir.join("run.json")).to_path_buf();
@@ -662,6 +672,34 @@ fn cmd_codex(
     let spec_text = match std::fs::read_to_string(spec) {
         Ok(t) => t,
         Err(e) => return fail(&format!("cannot read spec {}: {e}", spec.display())),
+    };
+    // P0-3 (hardening audit C.3): refuse to START a worker whose spec
+    // declares no verifier — the `--verify`/`--target` flags take
+    // precedence, otherwise the spec's embedded verify_command is used;
+    // with neither the run would be trust-only and must not execute.
+    let Some(verify) = verify.map(str::to_owned).or_else(|| {
+        spec_text
+            .lines()
+            .find_map(|l| l.strip_prefix("- verify_command: "))
+            .map(|l| l.split(" in ").next().unwrap_or("").trim().to_owned())
+            .filter(|s| !s.is_empty())
+    }) else {
+        return fail(
+            "refusing to run codex: spec declares no verifier and --verify was not given \
+             (P0-3 no-dispatch-without-verifier)",
+        );
+    };
+    let Some(target) = target.map(str::to_owned).or_else(|| {
+        spec_text
+            .lines()
+            .find_map(|l| l.strip_prefix("- verify_command: "))
+            .map(|l| l.split(" in ").nth(1).unwrap_or_default().trim().to_owned())
+            .filter(|s| !s.is_empty())
+    }) else {
+        return fail(
+            "refusing to run codex: spec declares no verify target and --target was not given \
+             (P0-3 no-dispatch-without-verifier)",
+        );
     };
     std::fs::create_dir_all(workdir).unwrap_or(());
     let goal = spec_text
@@ -759,9 +797,7 @@ fn cmd_codex(
         "cost_usd": 0.0,
         "golden": null,
         "verify_command": verify,
-        "verify_target": target
-            .map(str::to_string)
-            .or_else(|| Some(workdir.to_string_lossy().into_owned())),
+        "verify_target": target,
         "trajectory": trajectory,
     });
     let out_path = run_out.unwrap_or(&workdir.join("run.json")).to_path_buf();
