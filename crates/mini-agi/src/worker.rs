@@ -73,6 +73,9 @@ pub struct CodexRunArgs<'a> {
     pub max_steps: Option<usize>,
     /// Skip the Landlock sandbox (ADR-0012 escape hatch).
     pub no_sandbox: bool,
+    /// Worker executable name (multi-worker, production-readiness P2/E;
+    /// default "codex").
+    pub worker_name: Option<String>,
 }
 
 /// Run codex on a slice spec, capture the transcript, emit a truthful
@@ -151,10 +154,17 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     // P0-4 (ADR-0012): the worker runs under Landlock write-containment
     // via a self-spawned wrapper on Linux, unless --no-sandbox.
     let read_only = is_read_only_spec(&spec_text);
-    let worker = match run_worker_sandboxed(workdir, no_sandbox, read_only, wall_cap, &worker_args)
-    {
+    let worker_name = resolve_worker_name(args.worker_name.as_deref());
+    let worker = match run_worker_sandboxed(
+        worker_name,
+        workdir,
+        no_sandbox,
+        read_only,
+        wall_cap,
+        &worker_args,
+    ) {
         Ok(w) => w,
-        Err(e) => return fail(&format!("codex not available: {e}")),
+        Err(e) => return fail(&format!("{worker_name} not available: {e}")),
     };
     let combined = worker.output;
     let worker_status = worker.status;
@@ -245,6 +255,12 @@ fn write_draft(run_out: Option<&Path>, workdir: &Path, run: &serde_json::Value) 
 /// Run the codex worker, routing it through the Landlock wrapper on
 /// Linux (ADR-0012) unless `no_sandbox`. The wrapper self-spawns
 /// (`exec-sandbox`), applies write-containment, then runs codex.
+/// Resolve the worker executable name (multi-worker, production-readiness
+/// P2/E): `None` defaults to `codex`.
+fn resolve_worker_name(name: Option<&str>) -> &str {
+    name.unwrap_or("codex")
+}
+
 /// Production-readiness D.2: does the spec declare a read-only sandbox?
 fn is_read_only_spec(spec_text: &str) -> bool {
     spec_text
@@ -253,6 +269,7 @@ fn is_read_only_spec(spec_text: &str) -> bool {
 }
 
 fn run_worker_sandboxed(
+    worker_name: &str,
     workdir: &Path,
     no_sandbox: bool,
     read_only: bool,
@@ -294,7 +311,10 @@ fn run_worker_sandboxed(
     {
         let _ = (no_sandbox, read_only, wall_cap);
     }
-    mini_agi_core::worker::run_capped("codex", worker_args, workdir, wall_cap)
+    // Multi-worker (production-readiness P2/E): the runner resolves the
+    // worker command from the parameter — codex today, a second type
+    // (e.g. claude) behind the same budget/sandbox/capture contract.
+    mini_agi_core::worker::run_capped(worker_name, worker_args, workdir, wall_cap)
 }
 
 /// `exec-sandbox`: apply the Landlock write-containment policy to the
@@ -346,5 +366,14 @@ mod tests {
         assert!(!is_read_only_spec(
             "- goal: x\n- scope: sandbox/read-only\n"
         ));
+    }
+
+    #[test]
+    fn worker_name_resolves_with_codex_default() {
+        // Multi-worker (P2/E): the runner command resolves from the
+        // parameter, defaulting to codex.
+        assert_eq!(resolve_worker_name(None), "codex");
+        assert_eq!(resolve_worker_name(Some("claude")), "claude");
+        assert_eq!(resolve_worker_name(Some("codex")), "codex");
     }
 }

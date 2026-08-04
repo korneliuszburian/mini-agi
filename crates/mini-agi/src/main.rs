@@ -153,6 +153,9 @@ struct CodexArgs {
     /// ADR-0012).
     #[arg(long)]
     no_sandbox: bool,
+    /// Worker executable name (multi-worker; default "codex").
+    #[arg(long)]
+    worker_name: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -561,6 +564,7 @@ fn main() -> ExitCode {
             max_wall,
             max_steps,
             no_sandbox,
+            worker_name,
         }) => reparse_log.map_or_else(
             || {
                 worker::cmd_codex(&worker::CodexRunArgs {
@@ -572,6 +576,7 @@ fn main() -> ExitCode {
                     max_wall,
                     max_steps,
                     no_sandbox,
+                    worker_name,
                 })
             },
             |log| {
