@@ -198,3 +198,21 @@ no experiment executed yet (needs real attempt-vs-gain measurement).
 - Tooling bug found by the cycle: the CLI exposed `harness-verify`
   instead of `harness verify` — restructured `harness` into
   Snapshot/Verify subcommands (clap kebab-case trap).
+
+## EXP-008 — the calibration signal caught a real drift (2026-08-04)
+
+- The grown corpus (32 rows / 22 cases) immediately surfaced 2
+  disagreements: real-ticket-002-v2-rerun and real-ticket-006-v2-rerun
+  claimed achieved but their verifiers failed (exit 1).
+- Root cause: the scratch repos' tests were DATE-COUPLED (assertions
+  looked for `memory/canonical/entries/2026-08-03/` while consolidate
+  writes under the CURRENT date). At the 2026-08-03/04 midnight
+  rollover the target repos went red — the judged layer (recorded when
+  green) still said "achieved"; the deterministic layer said "red NOW".
+- This is exactly the verifiable-reward design: judged claims are only
+  valid at verification time. Fix: patch the scratch tests to compute
+  today's date (the same class of bug the kernel fixed earlier with
+  `first_entry_text`); re-verify -> both flip to verified.
+- Corpus after: precision 100% (17 verified claimed successes / 17
+  conclusive) — and the transient 89.5% with SIGNAL was a real event,
+  not noise.

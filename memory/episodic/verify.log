@@ -1,1 +1,23 @@
 {"at":"2026-08-03T21:19:35Z","case":"flailing-rerun","command":"npx tsc && node --test 'dist/tests/*.test.js'","target":"/tmp/opencode/rate-limit-2","status":"verified"}
+{"at":"2026-08-04T05:05:15Z","case":"codex-exp-002-rerun","command":"make verify","target":"/tmp/opencode/codex-exp2","status":"verified"}
+{"at":"2026-08-04T05:05:16Z","case":"flailing-rerun","command":"npx tsc && node --test 'dist/tests/*.test.js'","target":"/tmp/opencode/rate-limit-2","status":"verified"}
+{"at":"2026-08-04T05:05:17Z","case":"real-ticket-001-v2-rerun","command":"make verify","target":"/tmp/opencode/schema-validator","status":"verified"}
+{"at":"2026-08-04T05:05:18Z","case":"real-ticket-002-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/compact-loop","status":"disagrees"}
+{"at":"2026-08-04T05:05:19Z","case":"real-ticket-003-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/checkpoint-guard","status":"verified"}
+{"at":"2026-08-04T05:05:19Z","case":"real-ticket-004-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/scorer-004","status":"verified"}
+{"at":"2026-08-04T05:05:20Z","case":"real-ticket-005-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/scorer-005","status":"verified"}
+{"at":"2026-08-04T05:05:21Z","case":"real-ticket-006-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/consolidate-006","status":"disagrees"}
+{"at":"2026-08-04T05:05:22Z","case":"real-ticket-007-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/redactor-007","status":"verified"}
+{"at":"2026-08-04T05:05:44Z","case":"real-ticket-002-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/compact-loop","status":"disagrees"}
+{"at":"2026-08-04T05:05:45Z","case":"real-ticket-006-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/consolidate-006","status":"disagrees"}
+{"at":"2026-08-04T05:07:26Z","case":"real-ticket-002-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/compact-loop","status":"verified"}
+{"at":"2026-08-04T05:07:27Z","case":"real-ticket-006-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/consolidate-006","status":"verified"}
+{"at":"2026-08-04T05:07:41Z","case":"codex-exp-002-rerun","command":"make verify","target":"/tmp/opencode/codex-exp2","status":"verified"}
+{"at":"2026-08-04T05:07:42Z","case":"flailing-rerun","command":"npx tsc && node --test 'dist/tests/*.test.js'","target":"/tmp/opencode/rate-limit-2","status":"verified"}
+{"at":"2026-08-04T05:07:43Z","case":"real-ticket-001-v2-rerun","command":"make verify","target":"/tmp/opencode/schema-validator","status":"verified"}
+{"at":"2026-08-04T05:07:44Z","case":"real-ticket-002-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/compact-loop","status":"verified"}
+{"at":"2026-08-04T05:07:46Z","case":"real-ticket-003-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/checkpoint-guard","status":"verified"}
+{"at":"2026-08-04T05:07:47Z","case":"real-ticket-004-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/scorer-004","status":"verified"}
+{"at":"2026-08-04T05:07:48Z","case":"real-ticket-005-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/scorer-005","status":"verified"}
+{"at":"2026-08-04T05:07:49Z","case":"real-ticket-006-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/consolidate-006","status":"verified"}
+{"at":"2026-08-04T05:07:50Z","case":"real-ticket-007-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/redactor-007","status":"verified"}
