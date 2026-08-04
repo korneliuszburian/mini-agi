@@ -309,10 +309,16 @@ fn run_worker_sandboxed(
                 wrapper.push(workdir.to_string_lossy().into_owned());
             }
             if let Ok(home) = std::env::var("HOME") {
-                let codex_state = std::path::Path::new(&home).join(".codex");
-                if codex_state.is_dir() {
-                    wrapper.push("--allow-write".to_string());
-                    wrapper.push(codex_state.to_string_lossy().into_owned());
+                // EXP-009: npx-style codex wrappers write their package
+                // cache under ~/.npm — include it in the default write
+                // set or the wrapper fails (EACCES). ~/.codex carries
+                // codex's own session state.
+                for state_dir in [".codex", ".npm"] {
+                    let dir = std::path::Path::new(&home).join(state_dir);
+                    if dir.is_dir() {
+                        wrapper.push("--allow-write".to_string());
+                        wrapper.push(dir.to_string_lossy().into_owned());
+                    }
                 }
             }
             wrapper.push("--".to_string());
