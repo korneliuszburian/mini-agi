@@ -152,6 +152,11 @@ pub struct Run {
     /// Wall-clock latency in seconds. `None` for legacy/reparse runs.
     #[serde(default)]
     pub latency_seconds: Option<u64>,
+    /// Eval mode (production-readiness C.1): `capability` (hill-climbing,
+    /// monitored) or `regression` (frozen, ~100% gated). `None`/absent =
+    /// `regression`.
+    #[serde(default)]
+    pub mode: Option<String>,
     /// Extra metadata (ignored by scoring).
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
@@ -801,6 +806,15 @@ pub struct GateEntry {
     /// written before ADR-0006's gate wiring; defaults to 0).
     #[serde(default)]
     pub tool_mismatches: usize,
+    /// Eval mode (production-readiness C.1): capability cases are
+    /// monitored, regression cases are hard-gated. Defaults to
+    /// "regression" for legacy baselines.
+    #[serde(default = "default_regression_mode")]
+    pub mode: String,
+}
+
+fn default_regression_mode() -> String {
+    "regression".into()
 }
 
 /// Score every case under `cases_dir` for the gate (sorted by name).
@@ -825,6 +839,10 @@ pub fn score_all_cases(
     paths.sort();
     for run in paths {
         let report = score_run(&run, root, golden_dir)?;
+        let mode = serde_json::from_str::<Run>(&fs::read_to_string(&run).unwrap_or_default())
+            .ok()
+            .and_then(|r| r.mode)
+            .unwrap_or_else(default_regression_mode);
         entries.push(GateEntry {
             case: report.case.clone(),
             composite: report.composite,
@@ -832,6 +850,7 @@ pub fn score_all_cases(
             cost_usd: report.cost_usd,
             tokens: report.tokens_total,
             tool_mismatches: report.tool_mismatches_vs_golden,
+            mode,
         });
     }
     Ok(entries)
@@ -871,11 +890,20 @@ pub fn run_gate(
             Some(b) => {
                 let dcomp = b.composite - entry.composite;
                 if dcomp > tolerance {
-                    messages.push(format!(
-                        "REGRESSION {}: composite {} -> {}",
-                        entry.case, b.composite, entry.composite
-                    ));
-                    failures += 1;
+                    if entry.mode == "capability" {
+                        // Production-readiness C.1: a capability-case drop
+                        // is a monitoring signal, not a hard gate failure.
+                        messages.push(format!(
+                            "CAPABILITY DROP {}: composite {} -> {} (monitored — not a hard fail)",
+                            entry.case, b.composite, entry.composite
+                        ));
+                    } else {
+                        messages.push(format!(
+                            "REGRESSION {}: composite {} -> {}",
+                            entry.case, b.composite, entry.composite
+                        ));
+                        failures += 1;
+                    }
                 }
                 if entry.tool_mismatches > b.tool_mismatches + mismatch_tolerance {
                     messages.push(format!(
@@ -962,6 +990,7 @@ mod tests {
             n_steps: None,
             n_toolcalls: None,
             latency_seconds: None,
+            mode: None,
             extra: serde_json::Map::new(),
         }
     }
@@ -1019,6 +1048,7 @@ mod tests {
             n_steps: None,
             n_toolcalls: None,
             latency_seconds: None,
+            mode: None,
             extra: serde_json::Map::new(),
         };
         // The three identical execs are consecutive; the read and final
@@ -1118,6 +1148,7 @@ mod tests {
             cost_usd: 0.1,
             tokens: 1000,
             tool_mismatches: mismatches,
+            mode: "regression".into(),
         }
     }
 
@@ -1152,6 +1183,39 @@ mod tests {
         let baseline = [gate_entry("case-a", 0.9, 1)];
         let result = run_gate(&entries, &baseline, 0.05, 1);
         assert_eq!(result.failures, 0);
+    }
+
+    #[test]
+    fn capability_drop_is_monitored_not_failed() {
+        // Production-readiness C.1: a capability-case composite drop is
+        // reported (CAPABILITY DROP) but does not fail the gate.
+        let mut entry = gate_entry("cap-a", 0.4, 0);
+        entry.mode = "capability".into();
+        let baseline = [gate_entry("cap-a", 0.9, 0)];
+        let result = run_gate(&[entry], &baseline, 0.05, 1);
+        assert_eq!(result.failures, 0, "{:?}", result.messages);
+        assert!(
+            result
+                .messages
+                .iter()
+                .any(|m| m.starts_with("CAPABILITY DROP")),
+            "{:?}",
+            result.messages
+        );
+    }
+
+    #[test]
+    fn regression_drop_still_fails() {
+        // A regression-case drop is unchanged: hard failure.
+        let entry = gate_entry("reg-a", 0.4, 0);
+        let baseline = [gate_entry("reg-a", 0.9, 0)];
+        let result = run_gate(&[entry], &baseline, 0.05, 1);
+        assert_eq!(result.failures, 1, "{:?}", result.messages);
+        assert!(
+            result.messages.iter().any(|m| m.starts_with("REGRESSION")),
+            "{:?}",
+            result.messages
+        );
     }
 
     #[test]
@@ -1250,6 +1314,7 @@ mod process_supervision_tests {
             n_steps: None,
             n_toolcalls: None,
             latency_seconds: None,
+            mode: None,
             extra: serde_json::Map::new(),
         }
     }
