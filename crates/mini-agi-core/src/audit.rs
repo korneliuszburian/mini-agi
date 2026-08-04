@@ -322,37 +322,27 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
     // rerun trajectory must never read a sibling case's outputs
     // (trial contamination, Anthropic's documented eval failure).
     let references = check_references(root);
-    match references {
-        Ok(rep) => {
-            report.passed.push(format!(
-                "references: {} case(s) match, {} missing, {} contaminated",
-                rep.matched, rep.missing, rep.contaminated
-            ));
-            if rep.missing > 0 {
-                report.findings.push(Finding {
-                    severity: "warn".into(),
-                    message: format!(
-                        "{} case(s) with a rerun have no reference under evals/references/",
-                        rep.missing
-                    ),
-                });
-            }
-            if rep.contaminated > 0 {
-                report.findings.push(Finding {
-                    severity: "warn".into(),
-                    message: format!(
-                        "{0} rerun(s) read sibling outputs — trial contamination",
-                        rep.contaminated
-                    ),
-                });
-            }
-        }
-        Err(e) => {
-            report.findings.push(Finding {
-                severity: "warn".into(),
-                message: format!("references check error: {e}"),
-            });
-        }
+    report.passed.push(format!(
+        "references: {} case(s) match, {} missing, {} contaminated",
+        references.matched, references.missing, references.contaminated
+    ));
+    if references.missing > 0 {
+        report.findings.push(Finding {
+            severity: "warn".into(),
+            message: format!(
+                "{} case(s) with a rerun have no reference under evals/references/",
+                references.missing
+            ),
+        });
+    }
+    if references.contaminated > 0 {
+        report.findings.push(Finding {
+            severity: "warn".into(),
+            message: format!(
+                "{0} rerun(s) read sibling outputs — trial contamination",
+                references.contaminated
+            ),
+        });
     }
 
     Ok(report)
@@ -374,13 +364,13 @@ pub struct ReferenceReport {
 pub const REFERENCE_TOLERANCE: f64 = 0.05;
 
 /// Check reference solutions and trial isolation for every rerun case.
-fn check_references(root: &Path) -> std::io::Result<ReferenceReport> {
+fn check_references(root: &Path) -> ReferenceReport {
     let mut rep = ReferenceReport::default();
     let cases_dir = root.join("evals/cases");
     let refs_dir = root.join("evals/references");
     let golden_dir = root.join("evals/golden");
     let Ok(rd) = fs::read_dir(&cases_dir) else {
-        return Ok(rep);
+        return rep;
     };
     for entry in rd.flatten() {
         let case = entry.file_name().to_string_lossy().into_owned();
@@ -429,7 +419,7 @@ fn check_references(root: &Path) -> std::io::Result<ReferenceReport> {
             rep.missing += 1;
         }
     }
-    Ok(rep)
+    rep
 }
 
 /// Relative path of the comprehensive action log (production-readiness
