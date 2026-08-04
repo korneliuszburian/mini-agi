@@ -379,3 +379,18 @@ Intelligence" direction)
   run. Behavior-preserving for the committed corpus (0 regressions, no
   re-snapshot); falsifier tests added (probe>0, scope-fail=0,
   gate-fail=0, probe flagged in step verdicts).
+
+### Added (2026-08-04 — hardening backlog run 2, slices 6-11)
+- memory query (`mem query <kw> [--domain]`): domain/keyword retrieval
+  over canonical facts — the brief stops scaling linearly (C.7).
+- module split: clifmt.rs (shared run.json draft builder) + binary
+  worker.rs (codex runner with CodexRunArgs struct) (C.6).
+- capture look-ahead exit binding: ` exited N in`/`succeeded` headers on
+  the line after a command now set `ok`; the honest EXP-003 rerun went
+  0.5 -> 0.8989 composite (P2-12).
+- `loop objective --max-cases N [--budget-cost X]`: bounded batch
+  dispatch of verifiable/unclaimed/unblocked gaps under a budget (P2-11).
+- HealthThresholds via .miniagi.json; `loop verify` error exit 2 vs OPEN
+  1 (finish-raises) (P2-13 + P0-2 ext).
+- MCP parity: memory_query + loop_objective tools (34 -> 36).
+- docs: production-readiness audit (Anthropic/OWASP/OpenAI-grounded).
