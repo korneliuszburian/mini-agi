@@ -201,6 +201,13 @@ enum RunAction {
         /// Path to the run file (evals/cases/<case>/run.json).
         run: PathBuf,
     },
+    /// Verifier-strength audit (VERIFIABLE-REWARD-RESEARCH D): check the
+    /// declared `verify_command` is not vacuous — it must PASS on the real
+    /// target AND FAIL on an empty counterfactual target.
+    VerifyAudit {
+        /// Path to the run file (evals/cases/<case>/run.json).
+        run: PathBuf,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -558,6 +565,7 @@ fn main() -> ExitCode {
         Command::Run(RunArgs { action }) => match action {
             RunAction::Ingest { run, retro } => cmd_run_ingest(&run, retro.as_deref()),
             RunAction::Verify { run, dry_run } => cmd_run_verify(&run, dry_run),
+            RunAction::VerifyAudit { run } => cmd_run_verify_audit(&run),
             RunAction::Failures { run } => cmd_run_failures(&run),
         },
         Command::Insights => cmd_insights(),
@@ -889,6 +897,21 @@ fn cmd_run_ingest(run: &Path, retro: Option<&Path>) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(msg) => fail(&msg),
+    }
+}
+
+fn cmd_run_verify_audit(run: &Path) -> ExitCode {
+    match mini_agi_core::verifier::audit_verifier(&root(), run) {
+        Ok(text) => {
+            println!("{text}");
+            let vacuous = text.contains("VACUOUS");
+            if vacuous {
+                ExitCode::from(1)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(e) => fail(&format!("verify-audit: {e}")),
     }
 }
 

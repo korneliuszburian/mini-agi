@@ -160,6 +160,84 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
     Ok(verification)
 }
 
+/// Verifier-strength audit (VERIFIABLE-REWARD-RESEARCH D).
+///
+/// Checks the declared `verify_command` is not VACUOUS: it must PASS on
+/// the real `verify_target` (known-good work) and FAIL on an empty
+/// counterfactual target. A verifier that "passes" an empty directory
+/// accepts non-work and is a fake gate — the literature's core finding
+/// is that the TEST SUITE, not the model, is where "verified" goes
+/// wrong.
+///
+/// # Errors
+///
+/// Returns a message when the run cannot be read/parsed or the verifier
+/// cannot be started.
+pub fn audit_verifier(root: &Path, run_path: &Path) -> Result<String, String> {
+    let run: crate::eval::Run = serde_json::from_str(
+        &std::fs::read_to_string(run_path)
+            .map_err(|e| format!("cannot read {}: {e}", run_path.display()))?,
+    )
+    .map_err(|e| format!("invalid run json: {e}"))?;
+    let command = run
+        .verify_command
+        .as_deref()
+        .ok_or("verify-audit: the run declares no verify_command")?;
+    let target = run
+        .verify_target
+        .as_deref()
+        .ok_or("verify-audit: the run declares no verify_target")?;
+    let target_path = std::path::Path::new(target);
+    let _ = root;
+
+    // (a) Gold check: the verifier must pass on the real target.
+    let gold = crate::worker::run_capped("sh", &["-c", command], target_path, Some(120))
+        .map_err(|e| format!("cannot start verifier: {e}"))?;
+    let gold_ok = !gold.aborted && gold.status == Some(0);
+
+    // (b) Counterfactual check: the verifier must FAIL on an empty dir
+    // (no deliverables -> the gate must reject non-work).
+    let tmp = std::env::temp_dir().join(format!("mag-va-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap_or(());
+    let cf = crate::worker::run_capped("sh", &["-c", command], &tmp, Some(120))
+        .map_err(|e| format!("cannot start verifier on the counterfactual: {e}"))?;
+    let _ = std::fs::remove_dir_all(&tmp);
+    let cf_ok = !cf.aborted && cf.status == Some(0);
+
+    let _ = crate::audit::append_action(
+        target_path,
+        "verify-audit",
+        "kernel",
+        run_path.to_string_lossy().as_ref(),
+    );
+    let mut out = String::new();
+    if !gold_ok {
+        out.push_str("verify-audit: GOLD FAILED — the verifier does not pass on the known-good target (FPR: rejects real work)\n");
+    }
+    if cf_ok {
+        out.push_str("verify-audit: VACUOUS — the verifier PASSES on an empty target (FNR: accepts non-work); the gate is fake\n");
+    }
+    if gold_ok && !cf_ok {
+        out.push_str(
+            "verify-audit: PASS — the verifier rejects empty work and accepts the real target\n",
+        );
+    }
+    let _ = std::fmt::write(
+        &mut out,
+        format_args!(
+            "  gold: target {target} -> {}; counterfactual (empty dir) -> {}",
+            if gold_ok { "PASS" } else { "FAIL" },
+            if cf_ok {
+                "PASS (vacuous)"
+            } else {
+                "FAIL (non-vacuous)"
+            }
+        ),
+    );
+    Ok(out)
+}
+
 /// Judge-calibration record (Phase 9 slice 2): one JSON line per
 /// verification, appended to `memory/derived/calibration.md` — the
 /// verifier-vs-judged disagreement corpus. Never hand-edited.
@@ -507,5 +585,74 @@ mod calibration_tests {
         assert_eq!(drift.total, 0);
         assert!(drift.precision().is_nan());
         let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod verify_audit_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-va-test-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    fn run_with(command: &str, target: &Path) -> PathBuf {
+        std::fs::create_dir_all(target).unwrap();
+        let path = target.join("run.json");
+        std::fs::write(
+            &path,
+            format!(
+                r#"{{"goal":"g","scope":["x"],"outcome":{{"achieved":true}},"tokens_total":1,"cost_usd":0.0,"golden":null,"verify_command":"{command}","verify_target":"{}","trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}}]}}"#,
+                target.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        path
+    }
+
+    #[test]
+    fn vacuous_verifier_is_flagged() {
+        // A verifier that ALWAYS exits 0 accepts empty work -> VACUOUS.
+        let root = tmp_root("vacuous");
+        let target = root.join("target");
+        let run = run_with("true", &target);
+        let text = audit_verifier(&root, &run).unwrap();
+        assert!(text.contains("VACUOUS"), "{text}");
+        assert!(text.contains("gate is fake"), "{text}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn non_vacuous_verifier_passes() {
+        // A verifier that passes only when the deliverable exists ->
+        // gold passes (file present), counterfactual fails (empty) ->
+        // PASS.
+        let root = tmp_root("good");
+        let target = root.join("target");
+        std::fs::create_dir_all(&target).unwrap();
+        std::fs::write(target.join("x.txt"), "deliverable").unwrap();
+        let run = run_with("sh -c 'test -f x.txt'", &target);
+        let text = audit_verifier(&root, &run).unwrap();
+        assert!(text.contains("PASS"), "{text}");
+        assert!(!text.contains("VACUOUS"), "{text}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn missing_verifier_errors() {
+        let root = tmp_root("nover");
+        let path = root.join("run.json");
+        std::fs::write(
+            &path,
+            r#"{"goal":"g","scope":[],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.0,"golden":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        let err = audit_verifier(&root, &path).unwrap_err();
+        assert!(err.contains("verify_command"), "{err}");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
