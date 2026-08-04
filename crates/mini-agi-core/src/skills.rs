@@ -29,6 +29,10 @@ pub struct Skill {
     pub disable_model_invocation: bool,
     /// Hint for the argument the user should pass to the skill.
     pub argument_hint: Option<String>,
+    /// Sandbox policy for the skill (production-readiness D.2): `None`/
+    /// `"write"` = write-containment (Landlock, default); `"read-only"` =
+    /// the worker runs with NO workdir write access (least authority).
+    pub sandbox: Option<String>,
     /// Absolute path of the skill's `SKILL.md`.
     pub path: PathBuf,
 }
@@ -93,12 +97,14 @@ pub fn parse_skill_md(content: &str) -> Result<Skill, SkillError> {
         Some("true" | "True" | "yes")
     );
     let argument_hint = fields.get("argument-hint").cloned();
+    let sandbox = fields.get("sandbox").cloned();
     Ok(Skill {
         name,
         description,
         verify,
         disable_model_invocation,
         argument_hint,
+        sandbox,
         path: PathBuf::new(),
     })
 }
@@ -525,5 +531,23 @@ description: >
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn sandbox_frontmatter_is_parsed() {
+        let md = "---\nname: audit\ndescription: read-only review\nsandbox: read-only\n---\n";
+        let skill = parse_skill_md(md).unwrap();
+        assert_eq!(skill.sandbox.as_deref(), Some("read-only"));
+        let md2 = "---\nname: impl\ndescription: write work\n---\n";
+        let skill2 = parse_skill_md(md2).unwrap();
+        assert_eq!(skill2.sandbox, None, "absent sandbox means default write");
+    }
+
+    #[test]
+    fn sandbox_frontmatter_parses_in_a_real_skill() {
+        let md =
+            "---\nname: review\ndescription: rubric review\n---\n# Review\n\nprocedural body\n";
+        let skill = parse_skill_md(md).unwrap();
+        assert_eq!(skill.sandbox, None);
     }
 }

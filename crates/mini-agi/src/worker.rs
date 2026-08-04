@@ -150,7 +150,9 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     ];
     // P0-4 (ADR-0012): the worker runs under Landlock write-containment
     // via a self-spawned wrapper on Linux, unless --no-sandbox.
-    let worker = match run_worker_sandboxed(workdir, no_sandbox, wall_cap, &worker_args) {
+    let read_only = is_read_only_spec(&spec_text);
+    let worker = match run_worker_sandboxed(workdir, no_sandbox, read_only, wall_cap, &worker_args)
+    {
         Ok(w) => w,
         Err(e) => return fail(&format!("codex not available: {e}")),
     };
@@ -243,20 +245,31 @@ fn write_draft(run_out: Option<&Path>, workdir: &Path, run: &serde_json::Value) 
 /// Run the codex worker, routing it through the Landlock wrapper on
 /// Linux (ADR-0012) unless `no_sandbox`. The wrapper self-spawns
 /// (`exec-sandbox`), applies write-containment, then runs codex.
+/// Production-readiness D.2: does the spec declare a read-only sandbox?
+fn is_read_only_spec(spec_text: &str) -> bool {
+    spec_text
+        .lines()
+        .any(|l| l.trim_start().starts_with("- sandbox: read-only"))
+}
+
 fn run_worker_sandboxed(
     workdir: &Path,
     no_sandbox: bool,
+    read_only: bool,
     wall_cap: Option<u64>,
     worker_args: &[&str],
 ) -> std::io::Result<mini_agi_core::worker::WorkerResult> {
     #[cfg(target_os = "linux")]
     {
         if !no_sandbox {
-            let mut wrapper = vec![
-                "exec-sandbox".to_string(),
-                "--allow-write".to_string(),
-                workdir.to_string_lossy().into_owned(),
-            ];
+            // Production-readiness D.2: least authority — a read-only
+            // skill grants NO workdir write access (only codex's own
+            // state dir), so the worker cannot modify the tree.
+            let mut wrapper = vec!["exec-sandbox".to_string()];
+            if !read_only {
+                wrapper.push("--allow-write".to_string());
+                wrapper.push(workdir.to_string_lossy().into_owned());
+            }
             if let Ok(home) = std::env::var("HOME") {
                 let codex_state = std::path::Path::new(&home).join(".codex");
                 if codex_state.is_dir() {
@@ -279,7 +292,7 @@ fn run_worker_sandboxed(
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = (no_sandbox, wall_cap);
+        let _ = (no_sandbox, read_only, wall_cap);
     }
     mini_agi_core::worker::run_capped("codex", worker_args, workdir, wall_cap)
 }
@@ -317,5 +330,21 @@ pub fn cmd_exec_sandbox(allow_write: &[PathBuf], command: &[String]) -> ExitCode
     {
         let _ = (allow_write, command);
         fail("exec-sandbox: Linux-only (Landlock, ADR-0012)")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_only_spec_is_detected() {
+        assert!(is_read_only_spec("- goal: x\n- sandbox: read-only\n"));
+        assert!(!is_read_only_spec("- goal: x\n- sandbox: write\n"));
+        assert!(!is_read_only_spec("- goal: x\n"));
+        // A workdir write mention must not be confused with the flag.
+        assert!(!is_read_only_spec(
+            "- goal: x\n- scope: sandbox/read-only\n"
+        ));
     }
 }
