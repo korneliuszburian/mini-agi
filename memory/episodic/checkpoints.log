@@ -64,3 +64,4 @@
 2026-08-04T07:58:48Z VERIFY-PASS hardening-slice1 @ e7225d7
 2026-08-04T08:08:14Z CHECKPOINT-ABORT hardening-slice2 disallowed dirty paths: .miniagi.json.example
 2026-08-04T08:11:10Z STATUS hardening-slice2 ran without BEGIN (checkpoint begin refused: .miniagi.json.example disallowed dirty path); committed 3799353, verify ALL GREEN, gate CI green — discipline resumes at slice 3
+2026-08-04T08:16:26Z BEGIN hardening-slice3 -> f95e5e3
