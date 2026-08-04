@@ -159,6 +159,11 @@ struct CodexArgs {
     /// HITL approval reason (required when config `require_approval`).
     #[arg(long)]
     approve: Option<String>,
+    /// Verified-iteration loop (BREAKTHROUGH): on verifier failure,
+    /// re-invoke the worker with the distilled failure register, up to
+    /// N attempts (default 1 = single shot).
+    #[arg(long, default_value_t = 1)]
+    iterate: usize,
 }
 
 #[derive(Args, Debug)]
@@ -585,6 +590,7 @@ fn main() -> ExitCode {
             no_sandbox,
             worker_name,
             approve,
+            iterate,
         }) => reparse_log.map_or_else(
             || {
                 worker::cmd_codex(&worker::CodexRunArgs {
@@ -598,6 +604,7 @@ fn main() -> ExitCode {
                     no_sandbox,
                     worker_name,
                     approve,
+                    iterate,
                 })
             },
             |log| {

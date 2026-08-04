@@ -80,13 +80,16 @@ pub struct CodexRunArgs<'a> {
     /// the workdir config sets `require_approval`; the decision is
     /// logged to the action log.
     pub approve: Option<String>,
+    /// Verified-iteration loop attempts (BREAKTHROUGH): on verifier
+    /// failure, re-invoke the worker with the distilled failure
+    /// register. 1 = single shot (default).
+    pub iterate: usize,
 }
 
 /// Run codex on a slice spec, capture the transcript, emit a truthful
 /// run.json draft under the wall/step caps and (Linux) the Landlock
 /// sandbox.
 pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
-    use mini_agi_core::capture;
     let spec = args.spec;
     let workdir = args.workdir;
     let run_out = args.run_out;
@@ -95,6 +98,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     let max_wall = args.max_wall;
     let max_steps = args.max_steps;
     let no_sandbox = args.no_sandbox;
+    let iterate = args.iterate;
     let spec_text = match std::fs::read_to_string(spec) {
         Ok(t) => t,
         Err(e) => return fail(&format!("cannot read spec {}: {e}", spec.display())),
@@ -138,25 +142,9 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         .find_map(|l| l.strip_prefix("- scope: "))
         .unwrap_or("")
         .to_string();
-    let prompt = format!(
-        "{spec_text}\n\nIMPLEMENTATION PROTOCOL (binding): plan first, tests first, never repeat a failing action. When the work is done and your own gate passes, END YOUR FINAL MESSAGE with:\n<promise>COMPLETE</promise>\n<result>{{\"summary\": \"one sentence\"}}</result>\n"
-    );
-    let log_path = workdir.join("codex.log");
-    // P0-1 (hardening audit): the worker runs under a wall-time cap —
-    // killed live when it exceeds it (CLI --max-wall, else the workdir's
-    // .miniagi.json `max_wall_seconds`). Std-only spawn + poll + kill.
     let cfg = mini_agi_core::config::Config::load(workdir);
     let wall_cap = max_wall.or(cfg.max_wall_seconds);
     let step_cap = max_steps.or(cfg.max_steps);
-    let worker_args = vec![
-        "exec",
-        "-s",
-        "workspace-write",
-        "--skip-git-repo-check",
-        &prompt,
-    ];
-    // P0-4 (ADR-0012): the worker runs under Landlock write-containment
-    // via a self-spawned wrapper on Linux, unless --no-sandbox.
     let read_only = is_read_only_spec(&spec_text);
     let worker_name = resolve_worker_name(args.worker_name.as_deref());
     // HITL approval gate (production-readiness D.4 / ADR-0014): when the
@@ -176,87 +164,149 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
             }
         }
     }
-    let worker = match run_worker_sandboxed(
-        worker_name,
-        workdir,
-        no_sandbox,
-        read_only,
-        wall_cap,
-        &worker_args,
-    ) {
-        Ok(w) => w,
-        Err(e) => return fail(&format!("{worker_name} not available: {e}")),
-    };
-    let combined = worker.output;
-    let worker_status = worker.status;
-    std::fs::write(&log_path, &combined).unwrap_or(());
-    // The prompt (which embeds the completion protocol) is echoed at the
-    // start of the transcript — strip it so the marker detection cannot
-    // self-forge (codex review).
-    let stripped = combined.replace(&prompt, "");
-    let outcome = capture::CaptureOutcome {
-        log_path: log_path.clone(),
-        steps: capture::parse_transcript(&combined),
-        completed: capture::completed(&stripped),
-        result: capture::extract_result(&combined),
-    };
-    println!(
-        "codex: exit {}, completed={}, {} captured steps, log: {}",
-        worker_status.map_or_else(|| "-".into(), |c| c.to_string()),
-        outcome.completed,
-        outcome.steps.len(),
-        log_path.display()
-    );
-    if let Some(result) = &outcome.result {
-        println!("  result: {result}");
-    }
-    for step in &outcome.steps {
-        println!(
-            "  [{}] {}",
-            step.tool,
-            step.action.chars().take(100).collect::<String>()
-        );
-    }
+    let protocol = "IMPLEMENTATION PROTOCOL (binding): plan first, tests first, never repeat a failing action. When the work is done and your own gate passes, END YOUR FINAL MESSAGE with:\n<promise>COMPLETE</promise>\n<result>{\"summary\": \"one sentence\"}</result>";
+    let base_prompt = format!("{spec_text}\n\n{protocol}\n");
     let scope_list: Vec<String> = scope
         .split(',')
         .map(|s| s.trim().trim_matches('`').to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    // P0-1 post-hoc cap check: wall + step caps are enforced after
-    // capture (cost is self-reported and enforced at `run ingest`).
-    // A breach aborts the run: the draft is still written (inspectable)
-    // with outcome.achieved=false and the exit code is 3 (aborted), so
-    // a budget breach can never be mistaken for a clean run.
-    let violations = mini_agi_core::worker::budget_violations(
-        outcome.steps.len(),
-        0.0,
-        worker.wall_seconds,
-        step_cap,
-        None,
-        wall_cap,
-    );
-    let aborted = worker.aborted || !violations.is_empty();
-    for v in &violations {
-        eprintln!("  [abort] {v}");
-    }
-    if worker.aborted {
-        eprintln!("  [abort] worker killed by the wall-time cap ({wall_cap:?}s)");
+    let log_path = workdir.join("codex.log");
+    let mut all_steps: Vec<mini_agi_core::capture::CapturedStep> = Vec::new();
+    let mut failure_context = String::new();
+    let mut final_wall = 0u64;
+    let mut attempts_done = 0;
+    let mut aborted = false;
+    let mut verifier_passed = false;
+    let iterations = iterate.max(1);
+    for attempt in 1..=iterations {
+        attempts_done = attempt;
+        let prompt = if attempt == 1 {
+            base_prompt.clone()
+        } else {
+            format!(
+                "{base_prompt}\n\nFAILURE FEEDBACK FROM ATTEMPT {prev} (binding — fix these):\n{failure_context}\nStart from your last state, address each failing case, and re-run the verifier until it passes.\n",
+                prev = attempt - 1
+            )
+        };
+        let worker_args = vec![
+            "exec",
+            "-s",
+            "workspace-write",
+            "--skip-git-repo-check",
+            &prompt,
+        ];
+        let worker = match run_worker_sandboxed(
+            worker_name,
+            workdir,
+            no_sandbox,
+            read_only,
+            wall_cap,
+            &worker_args,
+        ) {
+            Ok(w) => w,
+            Err(e) => return fail(&format!("{worker_name} not available: {e}")),
+        };
+        let combined = worker.output;
+        final_wall = worker.wall_seconds;
+        std::fs::write(
+            &log_path,
+            format!("{combined}\n--- attempt {attempt} ---\n"),
+        )
+        .unwrap_or(());
+        let stripped = combined.replace(&prompt, "");
+        let outcome = mini_agi_core::capture::CaptureOutcome {
+            log_path: log_path.clone(),
+            steps: mini_agi_core::capture::parse_transcript(&combined),
+            completed: mini_agi_core::capture::completed(&stripped),
+            result: mini_agi_core::capture::extract_result(&combined),
+        };
+        all_steps.extend(outcome.steps.iter().cloned());
+        println!(
+            "codex attempt {attempt}: exit {}, completed={}, {} steps",
+            worker.status.map_or_else(|| "-".into(), |c| c.to_string()),
+            outcome.completed,
+            outcome.steps.len()
+        );
+        // P0-1 post-hoc cap check (accumulated).
+        let violations = mini_agi_core::worker::budget_violations(
+            all_steps.len(),
+            0.0,
+            final_wall,
+            step_cap,
+            None,
+            wall_cap,
+        );
+        aborted = worker.aborted || !violations.is_empty();
+        for v in &violations {
+            eprintln!("  [abort] {v}");
+        }
+        if worker.aborted {
+            eprintln!("  [abort] worker killed by the wall-time cap ({wall_cap:?}s)");
+        }
+        if aborted {
+            break;
+        }
+        // Single shot: the kernel does not drive iteration (the verifier
+        // is loop verify's job). Only iterate > 1 runs the verifier here.
+        if iterations == 1 {
+            break;
+        }
+        // Verified-iteration (BREAKTHROUGH): run the deterministic
+        // verifier; on failure distill the feedback and re-invoke.
+        let verifier = mini_agi_core::worker::run_capped(
+            "sh",
+            &["-c", &verify],
+            std::path::Path::new(&target),
+            Some(120),
+        );
+        match verifier {
+            Ok(v) if v.status == Some(0) && !v.aborted => {
+                verifier_passed = true;
+                println!("  verifier PASSED on attempt {attempt}");
+                break;
+            }
+            Ok(v) => {
+                failure_context = distill_failure(attempt, &v.output);
+                println!(
+                    "  verifier FAILED on attempt {attempt}; {} attempt(s) left",
+                    iterations.saturating_sub(attempt)
+                );
+            }
+            Err(e) => return fail(&format!("verifier not available: {e}")),
+        }
     }
     let run = crate::clifmt::build_run_draft(
         &goal,
         &scope_list,
-        &outcome.steps,
+        &all_steps,
         Some(&verify),
         Some(&target),
-        Some(worker.wall_seconds),
+        Some(final_wall),
     );
+    let mut run = run;
+    run["attempts"] = serde_json::json!(attempts_done);
+    run["verifier_passed"] = serde_json::json!(verifier_passed);
     let exit = write_draft(run_out, workdir, &run);
     if aborted {
         println!("  run ABORTED by a budget cap (exit 3) — not a clean run");
         ExitCode::from(3)
+    } else if iterations > 1 && !verifier_passed {
+        println!("  run did NOT pass the verifier after {attempts_done} attempts (exit 1)");
+        ExitCode::from(1)
     } else {
         exit
     }
+}
+
+/// Distill a verifier failure into a compact, single-sentence binding
+/// instruction for the next iteration (BREAKTHROUGH; Reflexion-style
+/// test-grounded feedback).
+fn distill_failure(attempt: usize, verifier_output: &str) -> String {
+    let excerpt: String = verifier_output.chars().take(600).collect();
+    format!(
+        "- the verifier FAILED on attempt {attempt}. Its output (fix the failing cases; do not repeat them):\n{excerpt}"
+    )
 }
 
 fn write_draft(run_out: Option<&Path>, workdir: &Path, run: &serde_json::Value) -> ExitCode {
@@ -407,5 +457,28 @@ mod tests {
         assert_eq!(resolve_worker_name(None), "codex");
         assert_eq!(resolve_worker_name(Some("claude")), "claude");
         assert_eq!(resolve_worker_name(Some("codex")), "codex");
+    }
+}
+
+#[cfg(test)]
+mod iteration_tests {
+    use super::*;
+
+    #[test]
+    fn distill_failure_is_compact_and_binding() {
+        let out = distill_failure(
+            2,
+            "FAIL: test_inline_comment\nAssertionError: 'k', 'v  # comment' != ('k', 'v')\n",
+        );
+        assert!(out.contains("FAILED on attempt 2"), "{out}");
+        assert!(out.contains("test_inline_comment"), "{out}");
+        assert!(out.contains("do not repeat them"), "{out}");
+        assert!(out.len() < 400, "excerpt is bounded: {}", out.len());
+    }
+
+    #[test]
+    fn resolve_worker_name_defaults_to_codex() {
+        assert_eq!(resolve_worker_name(None), "codex");
+        assert_eq!(resolve_worker_name(Some("claude")), "claude");
     }
 }
