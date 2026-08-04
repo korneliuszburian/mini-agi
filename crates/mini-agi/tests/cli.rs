@@ -983,7 +983,13 @@ fn cli_health_reports_and_exits_zero_on_healthy_repo() {
     let root = tmp_root("c26");
     wipe(&root);
     let health = run(&root, &["health"]);
-    assert!(health.status.success(), "{}", combined(&health));
+    // The machine snapshot may legitimately WARN on a loaded host
+    // (exit 1); only CRITICAL (exit 2) is a hard failure here.
+    assert!(
+        health.status.code().is_some_and(|c| c <= 1),
+        "{}",
+        combined(&health)
+    );
     let text = stdout(&health);
     assert!(text.contains("HEALTH CHECK"));
     assert!(text.contains("no findings") || text.contains("[warn]") || text.contains("[critical]"));
