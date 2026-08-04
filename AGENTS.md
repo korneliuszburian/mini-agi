@@ -12,9 +12,38 @@ Three generations, one lineage (ADR-0001):
 - v3 = this repo.
 
 Charter (founding goal, verbatim, NEVER lose or paraphrase): `docs/CHALLENGE.md`.
-ADRs: `docs/adr/` (ADR-0001..0003 local + inherited PoC ADR-0001..0012).
-Master plan: `docs/PLAN.md`. Canonical memory import source:
-`agentic-core@HEAD`.
+ADRs: `docs/adr/` (ADR-0001..0010 local). Master plan: `docs/PLAN.md`.
+Canonical memory import source: `agentic-core@HEAD`.
+
+## Verification discipline (Phase 8-9: verified before trusted)
+
+- A run's `outcome.achieved` is the run's OWN claim until
+  `mini-agi run verify <run.json>` confirms it: the declared
+  `verify_command` executes in `verify_target` and the kernel reports
+  verified / disagrees / unverified. `loop verify` closes a gap ONLY
+  when composite >= 0.5 AND the verifier passes (or `--allow-unverified`
+  is explicit). Never report a run as successful without its verifier.
+- `run verify --dry-run` prints the command without executing it.
+- `mini-agi eval judge-drift` reports how often the judged outcome
+  disagrees with the deterministic layer (calibration corpus:
+  memory/derived/calibration.md) — treat disagreement as a signal.
+- Failure register entries carry MAST classification (14 modes) and
+  reflections; `loop dispatch` injects them into slice specs — never
+  repeat a recorded failure.
+
+## Harness evolution (Phase 8-9: guarded)
+
+- `mini-agi harness` snapshots the harness spec + gate ledger row.
+- `mini-agi harness verify <target> <candidate> [--claims]` swaps a
+  candidate, runs the gate, and ACCEPTS only on observed failure
+  reduction; a claim of fixing a failure never observed before the edit
+  is REJECTED with evidence (Phantom Guardrails). The gate itself
+  (scripts/verify.sh) is never its own counterfactual subject.
+- Harness/AGENTS changes that cannot show an observed failure reduction
+  land as normal documentation commits — the counterfactual gate only
+  justifies failure-reducing edits.
+
+## Toolchain (pinned)
 
 ## Toolchain (pinned)
 

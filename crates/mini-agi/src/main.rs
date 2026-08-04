@@ -88,11 +88,23 @@ enum Command {
     /// Codex integration (Phase 8 slice 4, EXP-003): run codex on a
     /// slice spec, capture the transcript, emit a truthful run.json.
     Codex(CodexArgs),
-    /// Harness evolution (Phase 8 slice 7): versioned spec + ledger.
-    Harness,
-    /// Counterfactual harness gate (Phase 9 slice 5): swaps a candidate
-    /// file in, runs the gate, reports the failure delta.
-    HarnessVerify {
+    /// Harness evolution: versioned spec + ledger + counterfactual gate.
+    Harness(HarnessArgs),
+}
+
+#[derive(Args, Debug)]
+struct HarnessArgs {
+    #[command(subcommand)]
+    action: HarnessAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum HarnessAction {
+    /// Snapshot the versioned harness spec + gate ledger row.
+    Snapshot,
+    /// Counterfactual gate (Phase 9 slice 5): swaps a candidate file in,
+    /// runs the gate, reports the failure delta.
+    Verify {
         /// Target file to be edited.
         target: PathBuf,
         /// Candidate file with the new content.
@@ -465,12 +477,14 @@ fn main() -> ExitCode {
             verify.as_deref(),
             target.as_deref(),
         ),
-        Command::Harness => cmd_harness(),
-        Command::HarnessVerify {
-            target,
-            candidate,
-            claims,
-        } => cmd_harness_verify(&target, &candidate, claims.as_deref()),
+        Command::Harness(HarnessArgs { action }) => match action {
+            HarnessAction::Snapshot => cmd_harness(),
+            HarnessAction::Verify {
+                target,
+                candidate,
+                claims,
+            } => cmd_harness_verify(&target, &candidate, claims.as_deref()),
+        },
         Command::Loop(LoopArgs { action }) => match action {
             LoopAction::Status { attempts } => cmd_loop_status(attempts),
             LoopAction::Dispatch {

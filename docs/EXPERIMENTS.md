@@ -174,3 +174,27 @@ no experiment executed yet (needs real attempt-vs-gain measurement).
   family_of correct; dry-run never executes.
 - Note: codex's own sandbox could not run the gate (read-only lock);
   our local gate ran independently and is ALL GREEN.
+
+## EXP-007 — first real harness revision cycle (2026-08-03)
+
+- Candidate: AGENTS.md revision adding the Phase 8-9 discipline
+  (verify-first: achieved is a claim until `run verify` confirms;
+  judge-drift calibration; MAST failure context; counterfactual gate
+  semantics; `harness verify` usage).
+- Cycle through the counterfactual gate:
+  - `harness verify AGENTS.md <candidate> --claims tests` → REJECT:
+    "claimed failure 'tests' was never observed before the edit
+    (Phantom Guardrails) — gate before: [audit:]". The phantom-claim
+    path proven on real content.
+  - `harness verify AGENTS.md <candidate>` (no claim) → NEUTRAL: gate
+    failures unchanged (1) — the revision does not reduce the observed
+    `audit:` failure (dirty-tree warn at that moment), so the gate
+    correctly refuses to justify it.
+- Semantics confirmed and documented: the counterfactual gate justifies
+  FAILURE-REDUCING edits only; green-state documentation improvements
+  land as normal review commits. The AGENTS.md revision therefore
+  landed as a documentation commit; the ledger snapshot records the
+  green baseline.
+- Tooling bug found by the cycle: the CLI exposed `harness-verify`
+  instead of `harness verify` — restructured `harness` into
+  Snapshot/Verify subcommands (clap kebab-case trap).
