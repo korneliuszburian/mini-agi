@@ -340,6 +340,25 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
         &mut body,
         "3. `mini-agi run failures` on the rerun: no repeated failing actions\n",
     )?;
+    // Hard per-run budget gate (production-readiness E): the caps the
+    // loop will enforce at verify time are declared here so the worker
+    // knows them.
+    let cfg = crate::config::Config::load(root);
+    let mut budget_line = String::from("- budget:");
+    match (cfg.max_tokens, cfg.max_cost_usd) {
+        (Some(t), Some(c)) => {
+            let _ = write!(budget_line, " max {t} tokens / ${c:.2} cost (hard caps)");
+        }
+        (Some(t), None) => {
+            let _ = write!(budget_line, " max {t} tokens (hard cap)");
+        }
+        (None, Some(c)) => {
+            let _ = write!(budget_line, " max ${c:.2} cost (hard cap)");
+        }
+        (None, None) => budget_line.push_str(" none configured"),
+    }
+    budget_line.push('\n');
+    w(&mut body, &budget_line)?;
     w(
         &mut body,
         "4. target repo `verify.sh` ALL GREEN (where applicable)\n",
@@ -719,9 +738,35 @@ pub fn verify(
             gate.failures
         ));
     }
+    // Hard per-run budget gates (production-readiness E): a rerun that
+    // exceeds the configured max_tokens / max_cost_usd is flagged and
+    // blocks close — an unbounded rerun must not displace the frozen
+    // suite. The caps are declared in the ticket spec (write_spec) and
+    // enforced here at the loop seam.
+    let cfg = crate::config::Config::load(root);
+    let mut in_budget = true;
+    if let Some(max) = cfg.max_tokens
+        && report.tokens_total > max
+    {
+        in_budget = false;
+        lines.push(format!(
+            "  budget: tokens {} > max {max} — close blocked (hard budget gate)",
+            report.tokens_total
+        ));
+    }
+    if let Some(max) = cfg.max_cost_usd
+        && report.cost_usd > max
+    {
+        in_budget = false;
+        lines.push(format!(
+            "  budget: cost ${:.4} > max ${max:.4} — close blocked (hard budget gate)",
+            report.cost_usd
+        ));
+    }
     let closed = if report.composite >= crate::config::Config::target_composite_for(root)
         && verified
         && gate_clean
+        && in_budget
     {
         if let Some(ticket) = ticket_for_case(root, base) {
             if claimant_for(root, &ticket.id).as_deref() == Some(claimant) {
@@ -788,6 +833,8 @@ pub fn verify(
                 .into()
         } else if !gate_clean {
             "  gap open: gate regressions — best-state bound holds".into()
+        } else if !in_budget {
+            "  gap open: over budget — hard budget gate (see lines above)".into()
         } else {
             format!(
                 "  gap open: composite below {} — keep working",
@@ -1078,6 +1125,27 @@ mod tests {
         // Sorted worst first: obj-low (0.0) then obj-mid (0.0). After the
         // first (0.05 spent >= 0.02 budget) the budget stops the second.
         assert_eq!(plan2.dispatched.len(), 1, "budget must stop the batch");
+        let _ = fs::remove_dir_all(&root);
+    }
+    #[test]
+    fn verify_blocks_close_on_hard_budget_breach() {
+        // Production-readiness E: a rerun over the configured
+        // max_tokens / max_cost_usd must NOT close, even when the
+        // composite, verifier and gate are satisfied.
+        let root = tmp_case_root("budget");
+        fs::write(root.join(".miniagi.json"), r#"{"max_tokens": 1000}"#).unwrap();
+        let rerun = root.join("evals/cases/real-ticket-008-v2-rerun");
+        fs::create_dir_all(&rerun).unwrap();
+        fs::copy(
+            repo().join("evals/cases/real-ticket-008-v2/run.json"),
+            rerun.join("run.json"),
+        )
+        .unwrap();
+        let (text, closed) =
+            verify(&root, "real-ticket-008-v2-rerun", "budget-test", true).expect("verify runs");
+        assert!(!closed, "over-budget rerun must not close:\n{text}");
+        assert!(text.contains("tokens 265897 > max 1000"), "{text}");
+        assert!(text.contains("hard budget gate"), "{text}");
         let _ = fs::remove_dir_all(&root);
     }
 }

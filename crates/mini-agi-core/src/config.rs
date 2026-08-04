@@ -26,6 +26,10 @@ pub struct Config {
     /// Maximum accepted run cost in USD (`None` = unlimited).
     #[serde(default)]
     pub max_cost_usd: Option<f64>,
+    /// Maximum accepted run tokens (hard loop gate, production-readiness
+    /// E; `None` = unlimited).
+    #[serde(default)]
+    pub max_tokens: Option<u64>,
     /// Maximum accepted run wall-clock time in seconds (`None` = unlimited).
     #[serde(default)]
     pub max_wall_seconds: Option<u64>,
@@ -54,6 +58,7 @@ impl Default for Config {
             regression_tolerance: default_regression_tolerance(),
             max_steps: None,
             max_cost_usd: None,
+            max_tokens: None,
             max_wall_seconds: None,
             max_repeated_steps: None,
             health: crate::health::HealthThresholds::default(),
@@ -99,6 +104,12 @@ impl Config {
         };
         set_usize("MINIAGI_MAX_STEPS", &mut self.max_steps);
         set_usize("MINIAGI_MAX_REPEATED_STEPS", &mut self.max_repeated_steps);
+        if let Some(v) = std::env::var("MINIAGI_MAX_TOKENS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+        {
+            self.max_tokens = Some(v);
+        }
         if let Some(v) = std::env::var("MINIAGI_MAX_COST_USD")
             .ok()
             .and_then(|s| s.parse::<f64>().ok())
