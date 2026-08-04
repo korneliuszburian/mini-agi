@@ -316,6 +316,11 @@ fn run_worker_sandboxed(
                 }
             }
             wrapper.push("--".to_string());
+            // The wrapper runs `<worker_name> <worker_args...>` — the
+            // command itself is NOT part of worker_args (a real bug the
+            // proof-of-advantage experiment caught: the wrapper tried to
+            // run `exec` instead of `codex exec`).
+            wrapper.push(worker_name.to_string());
             wrapper.extend(worker_args.iter().map(|s| (*s).to_string()));
             let arg_refs: Vec<&str> = wrapper.iter().map(String::as_str).collect();
             if let Ok(exe) = std::env::current_exe() {
