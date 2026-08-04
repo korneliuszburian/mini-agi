@@ -653,3 +653,35 @@ tests + verify ALL GREEN + pushed + CI green). Status:
 - This audit is the deliverable of the deep-research goal; it proposes
   changes and does not modify code. Implementation is tracked by the
   P0/P1/P2 backlog above (H.1 starts with a single PR).
+
+### Implementation run 2 (2026-08-04) — backlog slices 6-11
+- C.7/P1-7 memory query — DONE (`mem query`, `memory::query_facts`).
+- C.6/H.2-9 module split — DONE (`clifmt.rs` + binary `worker.rs`,
+  `CodexRunArgs` struct; too_many_arguments override removed).
+- P2-12 capture look-ahead exit binding — DONE (real exp003 log now 3
+  probe failures + 22 successes + 1 unknown; rerun composite 0.5 ->
+  0.8989, baseline re-snapshotted).
+- P2-11/C.11 `loop objective` — DONE (bounded batch dispatch under a
+  budget, verifiable/unclaimed/unblocked only).
+- P2-13 + P0-2 ext finish-raises + health config — DONE (loop verify
+  error exit 2 distinct from OPEN 1; HealthThresholds via .miniagi.json).
+- MCP parity — DONE (memory_query + loop_objective tools; 34 -> 36).
+
+### Remaining backlog (honest, low/uncertain value or needs ADR/decision)
+- P2-14 persisted dynamic skills disabled-on-fail — small; `skill add`
+  already persists; "disabled-on-fail" is marginal.
+- Multi-worker types (claude behind worker.rs trait) — real, medium;
+  needs a claude CLI integration decision.
+- CI-baked judge-drift precision threshold — premature (24-row corpus).
+- Persistent `loop objective` converge (reopen remaining work) — medium;
+  the one-shot batch is the honest first cut.
+- probe-vs-gate `suspicious` wiring into a critic layer — the kernel has
+  no LLM client; the critic is a host-agent surface, low kernel fit.
+- ADR-0007/0009/0012 cleanup of ADR numbering gaps — cosmetic.
+
+## Status
+- Everything above is grounded in the current worktree and the fetched
+  sources. Unconfirmed items are marked as such inline.
+- This audit is the deliverable of the deep-research goal; it proposes
+  changes and does not modify code. Implementation is tracked by the
+  P0/P1/P2 backlog above (H.1 starts with a single PR).
