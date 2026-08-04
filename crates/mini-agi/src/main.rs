@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
+mod clifmt;
 #[cfg(target_os = "linux")]
 mod sandbox;
-mod clifmt;
 mod worker;
 use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};

@@ -48,10 +48,7 @@ pub fn cmd_codex_reparse(
             step.action.chars().take(90).collect::<String>()
         );
     }
-    let goal = outcome
-        .result
-        .as_deref()
-        .unwrap_or("(goal not extracted)");
+    let goal = outcome.result.as_deref().unwrap_or("(goal not extracted)");
     let run = crate::clifmt::build_run_draft(goal, &[], &outcome.steps, verify, target);
     write_draft(run_out, workdir, &run)
 }
@@ -212,7 +209,13 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     if worker.aborted {
         eprintln!("  [abort] worker killed by the wall-time cap ({wall_cap:?}s)");
     }
-    let run = crate::clifmt::build_run_draft(&goal, &scope_list, &outcome.steps, Some(&verify), Some(&target));
+    let run = crate::clifmt::build_run_draft(
+        &goal,
+        &scope_list,
+        &outcome.steps,
+        Some(&verify),
+        Some(&target),
+    );
     let exit = write_draft(run_out, workdir, &run);
     if aborted {
         println!("  run ABORTED by a budget cap (exit 3) — not a clean run");
@@ -301,7 +304,10 @@ pub fn cmd_exec_sandbox(allow_write: &[PathBuf], command: &[String]) -> ExitCode
                 eprintln!("  [warn] running the worker UNSANDBOXED (ADR-0012)");
             }
         }
-        match std::process::Command::new(&command[0]).args(&command[1..]).status() {
+        match std::process::Command::new(&command[0])
+            .args(&command[1..])
+            .status()
+        {
             Ok(s) => ExitCode::from(s.code().and_then(|c| u8::try_from(c).ok()).unwrap_or(1)),
             Err(e) => fail(&format!("exec-sandbox: cannot run {}: {e}", command[0])),
         }

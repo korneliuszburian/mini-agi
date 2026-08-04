@@ -81,13 +81,7 @@ mod tests {
 
     #[test]
     fn draft_keeps_ok_from_the_capture() {
-        let d = build_run_draft(
-            "g",
-            &[],
-            &[step("exec", "probe")],
-            None,
-            None,
-        );
+        let d = build_run_draft("g", &[], &[step("exec", "probe")], None, None);
         assert!(d["verify_command"].is_null());
         assert!(d["trajectory"][0]["ok"].is_null());
     }
