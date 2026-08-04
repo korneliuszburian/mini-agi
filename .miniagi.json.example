@@ -1,0 +1,8 @@
+{
+  "target_composite": 0.5,
+  "regression_tolerance": 0.05,
+  "max_steps": null,
+  "max_cost_usd": null,
+  "max_wall_seconds": null,
+  "max_repeated_steps": null
+}

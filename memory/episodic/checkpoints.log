@@ -61,3 +61,5 @@
 2026-08-04T07:30:42Z BEGIN hardening-audit -> 7bb558d
 2026-08-04T07:31:32Z VERIFY-PASS hardening-audit @ 7bb558d
 2026-08-04T07:44:08Z BEGIN hardening-slice1 -> c25cca8
+2026-08-04T07:58:48Z VERIFY-PASS hardening-slice1 @ e7225d7
+2026-08-04T08:08:14Z CHECKPOINT-ABORT hardening-slice2 disallowed dirty paths: .miniagi.json.example

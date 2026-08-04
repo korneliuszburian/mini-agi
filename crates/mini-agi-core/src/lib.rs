@@ -24,3 +24,4 @@ pub mod skills;
 pub mod store;
 pub mod ticket;
 pub mod verifier;
+pub mod worker;

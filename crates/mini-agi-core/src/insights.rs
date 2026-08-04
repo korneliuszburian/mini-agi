@@ -47,6 +47,22 @@ pub struct IngestReport {
 ///
 /// Returns the underlying I/O, scoring, or memory error.
 pub fn ingest_run(root: &Path, run: &Path, retro: Option<&Path>) -> Result<IngestReport, String> {
+    // P0-1 (hardening audit): cost cap enforced at ingest — a run that
+    // exceeds the repo's configured max_cost_usd is refused, so a
+    // self-reported cost cannot slip into the trusted corpus silently.
+    if let Some(max) = crate::config::Config::load(root).max_cost_usd
+        && let Some(r) = std::fs::read_to_string(run)
+            .ok()
+            .and_then(|text| serde_json::from_str::<crate::eval::Run>(&text).ok())
+        && r.cost_usd > max
+    {
+        return Err(format!(
+            "refusing to ingest {}: cost ${:.4} exceeds the configured \
+             max_cost_usd ${max:.4} (P0-1 cost cap)",
+            run.display(),
+            r.cost_usd
+        ));
+    }
     let report = eval::score_run(run, root, &root.join("evals/golden"))
         .map_err(|e| format!("cannot score run: {e}"))?;
     let case = run
@@ -301,6 +317,20 @@ mod tests {
         assert!(second.skipped >= 1);
         let text = first_entry_text(&root);
         assert!(text.contains("composite"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ingest_refuses_run_over_cost_cap() {
+        // P0-1 (hardening audit): the cost cap is enforced at ingest.
+        let root = tmp_root("cost-cap");
+        seed_case(&root, "real-ticket-008-v2");
+        fs::write(root.join(".miniagi.json"), r#"{"max_cost_usd": 0.001}"#).unwrap();
+        let run = root.join("evals/cases/real-ticket-008-v2/run.json");
+        let err =
+            ingest_run(&root, &run, None).expect_err("ingest must refuse a run over the cost cap");
+        assert!(err.contains("cost"), "unexpected error: {err}");
+        assert!(err.contains("max_cost_usd"), "unexpected error: {err}");
         let _ = fs::remove_dir_all(&root);
     }
 

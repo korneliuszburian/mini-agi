@@ -134,6 +134,14 @@ struct CodexArgs {
     /// (no codex run).
     #[arg(long)]
     reparse_log: Option<PathBuf>,
+    /// Worker wall-time cap in seconds (P0-1). Default: workdir's
+    /// `.miniagi.json` `max_wall_seconds`; unlimited when unset.
+    #[arg(long)]
+    max_wall: Option<u64>,
+    /// Worker step cap (P0-1). Default: workdir's `.miniagi.json`
+    /// `max_steps`; unlimited when unset.
+    #[arg(long)]
+    max_steps: Option<usize>,
 }
 
 #[derive(Args, Debug)]
@@ -482,6 +490,8 @@ fn main() -> ExitCode {
             verify,
             target,
             reparse_log,
+            max_wall,
+            max_steps,
         }) => reparse_log.map_or_else(
             || {
                 cmd_codex(
@@ -490,6 +500,8 @@ fn main() -> ExitCode {
                     run_out.as_deref(),
                     verify.as_deref(),
                     target.as_deref(),
+                    max_wall,
+                    max_steps,
                 )
             },
             |log| {
@@ -667,6 +679,8 @@ fn cmd_codex(
     run_out: Option<&Path>,
     verify: Option<&str>,
     target: Option<&str>,
+    max_wall: Option<u64>,
+    max_steps: Option<usize>,
 ) -> ExitCode {
     use mini_agi_core::capture;
     let spec_text = match std::fs::read_to_string(spec) {
@@ -716,25 +730,29 @@ fn cmd_codex(
         "{spec_text}\n\nIMPLEMENTATION PROTOCOL (binding): plan first, tests first, never repeat a failing action. When the work is done and your own gate passes, END YOUR FINAL MESSAGE with:\n<promise>COMPLETE</promise>\n<result>{{\"summary\": \"one sentence\"}}</result>\n"
     );
     let log_path = workdir.join("codex.log");
-    let output = match std::process::Command::new("codex")
-        .args([
+    // P0-1 (hardening audit): the worker runs under a wall-time cap —
+    // killed live when it exceeds it (CLI --max-wall, else the workdir's
+    // .miniagi.json `max_wall_seconds`). Std-only spawn + poll + kill.
+    let cfg = mini_agi_core::config::Config::load(workdir);
+    let wall_cap = max_wall.or(cfg.max_wall_seconds);
+    let step_cap = max_steps.or(cfg.max_steps);
+    let worker = match mini_agi_core::worker::run_capped(
+        "codex",
+        &[
             "exec",
             "-s",
             "workspace-write",
             "--skip-git-repo-check",
             &prompt,
-        ])
-        .current_dir(workdir)
-        .output()
-    {
-        Ok(o) => o,
+        ],
+        workdir,
+        wall_cap,
+    ) {
+        Ok(w) => w,
         Err(e) => return fail(&format!("codex not available: {e}")),
     };
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let combined = worker.output;
+    let worker_status = worker.status;
     std::fs::write(&log_path, &combined).unwrap_or(());
     // The prompt (which embeds the completion protocol) is echoed at the
     // start of the transcript — strip it so the marker detection cannot
@@ -748,10 +766,7 @@ fn cmd_codex(
     };
     println!(
         "codex: exit {}, completed={}, {} captured steps, log: {}",
-        output
-            .status
-            .code()
-            .map_or_else(|| "-".into(), |c| c.to_string()),
+        worker_status.map_or_else(|| "-".into(), |c| c.to_string()),
         outcome.completed,
         outcome.steps.len(),
         log_path.display()
@@ -789,6 +804,26 @@ fn cmd_codex(
         .map(|s| s.trim().trim_matches('`'))
         .filter(|s| !s.is_empty())
         .collect();
+    // P0-1 post-hoc cap check: wall + step caps are enforced after
+    // capture (cost is self-reported and enforced at `run ingest`).
+    // A breach aborts the run: the draft is still written (inspectable)
+    // with outcome.achieved=false and the exit code is 3 (aborted), so
+    // a budget breach can never be mistaken for a clean run.
+    let violations = mini_agi_core::worker::budget_violations(
+        outcome.steps.len(),
+        0.0,
+        worker.wall_seconds,
+        step_cap,
+        None,
+        wall_cap,
+    );
+    let aborted = worker.aborted || !violations.is_empty();
+    for v in &violations {
+        eprintln!("  [abort] {v}");
+    }
+    if worker.aborted {
+        eprintln!("  [abort] worker killed by the wall-time cap ({wall_cap:?}s)");
+    }
     let run = serde_json::json!({
         "goal": goal,
         "scope": scope_list,
@@ -805,10 +840,19 @@ fn cmd_codex(
         &out_path,
         serde_json::to_string_pretty(&run).unwrap_or_default(),
     ) {
-        Ok(()) => println!("  run draft: {}", out_path.display()),
+        Ok(()) => {
+            println!("  run draft: {}", out_path.display());
+            if aborted {
+                println!("  run ABORTED by a budget cap (exit 3) — not a clean run");
+            }
+        }
         Err(e) => return fail(&format!("cannot write run draft: {e}")),
     }
-    ExitCode::SUCCESS
+    if aborted {
+        ExitCode::from(3)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn cmd_harness_verify(target: &Path, candidate: &Path, claims: Option<&str>) -> ExitCode {
