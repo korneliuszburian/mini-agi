@@ -21,6 +21,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: run the deterministic gate
         run: scripts/verify.sh
+      - name: diagnostic — full test output when the gate fails
+        if: failure()
+        run: cargo test --all 2>&1 | grep -B 2 -A 12 -E "FAILED|panicked at|failures:" | head -60
 
   release-build:
     runs-on: ubuntu-latest
