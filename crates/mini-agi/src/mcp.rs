@@ -341,6 +341,22 @@ fn tool_definitions() -> Vec<Value> {
             required: &["claimant"],
         },
         ToolDef {
+            name: "loop_objective",
+            description: "Bounded batch dispatch of open gaps under a budget.",
+            params: &[
+                ("max_cases", "integer"),
+                ("budget_cost", "string"),
+                ("claimant", "string"),
+            ],
+            required: &["claimant"],
+        },
+        ToolDef {
+            name: "memory_query",
+            description: "Domain/keyword retrieval over canonical facts.",
+            params: &[("keyword", "string"), ("domain", "string")],
+            required: &[],
+        },
+        ToolDef {
             name: "loop_verify",
             description: "Verify a rerun; close the gap at the target.",
             params: &[("case", "string"), ("claimant", "string")],
@@ -719,6 +735,42 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                     outcome.spec.display()
                 ),
                 Err(e) => format!("error: {e}"),
+            }
+        }
+        "loop_objective" => {
+            let claimant = arg!("claimant");
+            let max_cases = arg!("max_cases").parse::<usize>().unwrap_or(3);
+            let budget_cost = arg!("budget_cost");
+            let budget_cost = if budget_cost.is_empty() {
+                None
+            } else {
+                budget_cost.parse::<f64>().ok()
+            };
+            match mini_agi_core::loopcmd::objective(root, max_cases, claimant, budget_cost) {
+                Ok(plan) => format!(
+                    "dispatched {} case(s); budget ${:.2}{}",
+                    plan.dispatched.len(),
+                    plan.budget_spent,
+                    plan.budget_cost
+                        .map_or_else(String::new, |b| format!(" / ${b:.2}"))
+                ),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "memory_query" => {
+            let keyword = arg!("keyword");
+            let domain = arg!("domain");
+            let keyword = (!keyword.is_empty()).then_some(keyword);
+            let domain = (!domain.is_empty()).then_some(domain);
+            let facts = mini_agi_core::memory::query_facts(root, domain, keyword);
+            if facts.is_empty() {
+                "no facts match".to_string()
+            } else {
+                facts
+                    .iter()
+                    .map(|(id, d, body)| format!("- `{id}` ({d}) {body}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
             }
         }
         "loop_verify" => {
