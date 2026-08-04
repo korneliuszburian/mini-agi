@@ -156,7 +156,7 @@ struct CodexArgs {
     /// Worker executable name (multi-worker; default "codex").
     #[arg(long)]
     worker_name: Option<String>,
-    /// HITL approval reason (required when config require_approval).
+    /// HITL approval reason (required when config `require_approval`).
     #[arg(long)]
     approve: Option<String>,
 }
