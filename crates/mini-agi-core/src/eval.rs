@@ -181,6 +181,53 @@ pub fn step_score(step: &Step) -> f64 {
     s
 }
 
+/// Gate/test/verify commands whose failure is a REAL gate failure, not
+/// a probe (ADR-0013).
+const GATE_COMMANDS: &[&str] = &[
+    "make verify",
+    "make test",
+    "cargo test",
+    "cargo clippy",
+    "cargo build",
+    "cargo check",
+    "pytest",
+    "python -m unittest",
+    "npm test",
+    "npm run test",
+    "node --test",
+    "npx tsc",
+    "mini-agi verify",
+    "checkpoint.sh verify",
+    "mvn test",
+    "go test",
+];
+
+/// Probe-vs-gate classification (ADR-0013).
+///
+/// Is this failing step a real gate failure (score 0) rather than a
+/// probe (ungated 0.5)? A step is a gate failure when it touches a path
+/// in the run's declared `scope` OR its action is a gate/test/verify
+/// command. Any other failing step is a probe — a diagnostic whose
+/// failure says nothing about whether the work succeeded.
+#[must_use]
+pub fn is_gate_failure(run: &Run, step: &Step) -> bool {
+    step.paths.iter().any(|p| path_is_in_scope(p, &run.scope))
+        || GATE_COMMANDS.iter().any(|g| step.action.contains(g))
+}
+
+/// Per-step score honoring probe-vs-gate (ADR-0013).
+///
+/// A failing step that is NOT a gate failure is downgraded from 0 to
+/// the ungated 0.5 (it is a probe, not a failed gate); everything else
+/// uses `step_score`.
+#[must_use]
+pub fn step_score_gated(run: &Run, step: &Step) -> f64 {
+    if step.ok == Some(false) && !is_gate_failure(run, step) {
+        return 0.5;
+    }
+    step_score(step)
+}
+
 /// Repetition watchdog signal (hardening audit P1-5): the longest run of
 /// consecutive identical `(tool, action)` steps in a run's trajectory.
 ///
@@ -254,6 +301,9 @@ pub struct StepVerdict {
     pub score: f64,
     /// Whether this step is flagged for judge attention.
     pub suspicious: bool,
+    /// ADR-0013: true when the step failed as a PROBE (ok:false but not
+    /// a scope-touching or gate command) and was scored as ungated.
+    pub probe_failure: bool,
 }
 
 /// Per-step process supervision for a run.
@@ -276,7 +326,8 @@ pub fn score_steps(run: &Run) -> Vec<StepVerdict> {
     run.trajectory
         .iter()
         .map(|s| {
-            let score = step_score(s);
+            let score = step_score_gated(run, s);
+            let probe_failure = s.ok == Some(false) && !is_gate_failure(run, s);
             let suspicious = if outcome_ok {
                 s.goal_aligned == Some(false) || s.ok == Some(false) || s.reverted
             } else {
@@ -287,6 +338,7 @@ pub fn score_steps(run: &Run) -> Vec<StepVerdict> {
                 tool: s.tool.clone(),
                 score,
                 suspicious,
+                probe_failure,
             }
         })
         .collect()
@@ -302,6 +354,37 @@ pub fn score_steps(run: &Run) -> Vec<StepVerdict> {
 )]
 pub fn score_trajectory(steps: &[Step]) -> TrajectoryReport {
     let per_step: Vec<f64> = steps.iter().map(step_score).collect();
+    trajectory_report(per_step, steps)
+}
+
+/// Score a trajectory with the probe-vs-gate rule (ADR-0013): used by
+/// `score_run` so a failed probe does not zero the geomean. A step that
+/// fails AND touches the scope or runs a gate command still zeroes.
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "same PoC float math; ADR-0013 per-step adjustment"
+)]
+pub fn score_trajectory_gated(run: &Run) -> TrajectoryReport {
+    let per_step: Vec<f64> = run
+        .trajectory
+        .iter()
+        .map(|s| step_score_gated(run, s))
+        .collect();
+    trajectory_report(per_step, &run.trajectory)
+}
+
+/// Shared trajectory report builder from per-step scores.
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "exact port of PoC float math; efficiency = round(total/steps)"
+)]
+fn trajectory_report(per_step: Vec<f64>, steps: &[Step]) -> TrajectoryReport {
     let total_tokens: u64 = steps.iter().map(|s| s.tokens).sum();
     let output_tokens: u64 = steps.iter().map(|s| s.output_tokens).sum();
     let goal_drift_steps = steps
@@ -640,7 +723,7 @@ pub fn score_run(
     let text = fs::read_to_string(run_path)?;
     let run: Run = serde_json::from_str(&text)?;
     Run::validate(&run)?;
-    let traj = score_trajectory(&run.trajectory);
+    let traj = score_trajectory_gated(&run);
     let out = outcome_score(&run);
     let golden = match &run.golden {
         Some(name) => load_golden(golden_dir, name)?,
@@ -836,6 +919,41 @@ mod tests {
         }
     }
 
+    fn step_with(tool: &str, action: &str, ok: Option<bool>, paths: &[&str]) -> Step {
+        let mut s = step(tool);
+        s.action = action.to_string();
+        s.ok = ok;
+        s.paths = paths.iter().map(ToString::to_string).collect();
+        s
+    }
+
+    fn run_with(steps: Vec<Step>) -> Run {
+        Run {
+            goal: "g".into(),
+            scope: vec!["src/".to_string()],
+            outcome: Outcome {
+                achieved: true,
+                tests_pass: Some(true),
+                typecheck_pass: Some(true),
+                lint_pass: Some(true),
+            },
+            tokens_total: 0,
+            cost_usd: 0.0,
+            golden: None,
+            verify_command: None,
+            verify_target: None,
+            reflection: None,
+            mast: None,
+            trajectory: steps,
+            extra: serde_json::Map::new(),
+        }
+    }
+
+    fn score_steps_composite(steps: Vec<Step>) -> f64 {
+        let run = run_with(steps);
+        score_trajectory_gated(&run).geomean
+    }
+
     fn approx(a: f64, b: f64) -> bool {
         (a - b).abs() < 1e-12
     }
@@ -989,6 +1107,59 @@ mod tests {
         let baseline = [gate_entry("case-a", 0.9, 1)];
         let result = run_gate(&entries, &baseline, 0.05, 1);
         assert_eq!(result.failures, 0);
+    }
+
+    #[test]
+    fn probe_failure_does_not_zero_trajectory() {
+        // ADR-0013: a failed diagnostic (ok:false, no scope paths, not a
+        // gate command) is a probe — scored as ungated, not 0.
+        let steps = vec![
+            step_with("exec", "sed -n '1,20p' missing.txt", Some(false), &[]),
+            step_with("write", "Wrote src/main.rs", Some(true), &["src/main.rs"]),
+            step_with("exec", "make verify", Some(true), &[]),
+        ];
+        let g = score_steps_composite(steps);
+        // 0.5 (probe) * 1 * 1 -> geomean (0.5)^(1/3) ~ 0.7937, rounded to 4.
+        assert!(g > 0.0, "probe must not zero the trajectory, got {g}");
+        assert!((g - 0.7937).abs() < 1e-4, "got {g}");
+    }
+
+    #[test]
+    fn scope_touching_failure_still_zeroes() {
+        // ADR-0013: a failing step that touches a scope path is a real
+        // gate failure — the trajectory still zeroes.
+        let steps = vec![
+            step_with("write", "Wrote src/main.rs", Some(true), &["src/main.rs"]),
+            step_with(
+                "edit",
+                "Wrote src/broken.rs",
+                Some(false),
+                &["src/broken.rs"],
+            ),
+        ];
+        assert!(approx(score_steps_composite(steps), 0.0));
+    }
+
+    #[test]
+    fn gate_command_failure_still_zeroes() {
+        // ADR-0013: a failing gate/test command is a real gate failure.
+        let steps = vec![
+            step_with("exec", "make verify", Some(true), &[]),
+            step_with("exec", "make verify", Some(false), &[]),
+        ];
+        assert!(approx(score_steps_composite(steps), 0.0));
+    }
+
+    #[test]
+    fn probe_failure_is_flagged_in_step_verdicts() {
+        let run = run_with(vec![
+            step_with("exec", "which nonexistent", Some(false), &[]),
+            step_with("exec", "make verify", Some(true), &[]),
+        ]);
+        let verdicts = score_steps(&run);
+        assert!(verdicts[0].probe_failure, "probe must be flagged");
+        assert!(!verdicts[1].probe_failure, "gate pass is not a probe");
+        assert!(approx(verdicts[0].score, 0.5));
     }
 }
 

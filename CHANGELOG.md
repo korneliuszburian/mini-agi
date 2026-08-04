@@ -370,3 +370,12 @@ Intelligence" direction)
   workdir + $HOME/.codex + --allow-write dirs). cmd_codex routes through
   the wrapper on Linux (--no-sandbox escape). landlock 0.4 in the binary
   crate only; graceful degradation without Landlock.
+
+### Added (2026-08-04 — hardening slice 5, C.4 / ADR-0013)
+- probe-vs-gate step scoring: a failing PROBE (ok:false, no scope path,
+  not a gate/test/verify command) is scored as ungated 0.5 instead of
+  zeroing the whole trajectory; a failing scope-touching step or a
+  failing gate command (make verify, cargo test, ...) still zeroes the
+  run. Behavior-preserving for the committed corpus (0 regressions, no
+  re-snapshot); falsifier tests added (probe>0, scope-fail=0,
+  gate-fail=0, probe flagged in step verdicts).

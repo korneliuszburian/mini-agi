@@ -624,6 +624,13 @@ tests + verify ALL GREEN + pushed + CI green). Status:
   `max_cost_usd`.
 - **P1-5 (repetition watchdog) — DONE.** `eval::max_consecutive_repeat`;
   `loop verify` warns when a run exceeds `max_repeated_steps`.
+- **C.4 (probe-vs-gate step scoring) — DONE (ADR-0013).** `eval::step_score_gated`
+  downgrades a failing PROBE step (ok:false, no scope path, not a
+  gate/test/verify command) to ungated 0.5 instead of zeroing the whole
+  trajectory geomean; a failing scope-touching step or gate command still
+  zeroes the run. Behavior-preserving for the 24-case corpus (no case
+  has an ok:false step) — the baseline did not change; falsifier tests
+  cover probe>0 / scope-fail=0 / gate-fail=0.
 - **P0-4 (worker sandbox) — DONE (ADR-0012).** `mini-agi exec-sandbox`
   applies Landlock write-containment (read+execute everywhere, write
   confined to the workdir + `$HOME/.codex` + `--allow-write` dirs) to a
