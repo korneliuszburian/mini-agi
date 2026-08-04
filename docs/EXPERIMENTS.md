@@ -407,3 +407,19 @@ kernel's contribution must exceed a single run's capacity (long-horizon
 the loop's value is in PERSISTENT cross-run memory (the failure register
 surviving to a future session), the kernel's unique capability per the
 AWM/Ledger literature.
+
+### EXP-011 continued — e4 (money formatter, 44 hidden cases) also solo 10/10
+
+The 5th generated task class (3-function money formatter: format with
+thousands separator + negative + clamp, parse inverse with whitespace,
+add with clamping) — 10 plain runs, solo 10/10. Rejected by the
+pre-registered gate (>= 5/10). Cumulative: 7 task classes rejected
+(EXP-010: 4, EXP-011: e1-e4), ~70 solo runs, all >= 5/10.
+
+Established finding: codex's internal single-process iteration (runs the
+verifier, reads failures, fixes before ending) is at ceiling on every
+generated small-to-medium repo task. The kernel's verified-iteration
+loop has nothing to fix on these — attempt 1 always passes. The one
+lever codex's internal loop CANNOT provide is persistent memory ACROSS
+processes/runs; a long-horizon cross-session task is the remaining
+honest isolation class.
