@@ -49,7 +49,7 @@ pub fn cmd_codex_reparse(
         );
     }
     let goal = outcome.result.as_deref().unwrap_or("(goal not extracted)");
-    let run = crate::clifmt::build_run_draft(goal, &[], &outcome.steps, verify, target);
+    let run = crate::clifmt::build_run_draft(goal, &[], &outcome.steps, verify, target, None);
     write_draft(run_out, workdir, &run)
 }
 
@@ -215,6 +215,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         &outcome.steps,
         Some(&verify),
         Some(&target),
+        Some(worker.wall_seconds),
     );
     let exit = write_draft(run_out, workdir, &run);
     if aborted {

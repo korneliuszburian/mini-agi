@@ -10,7 +10,10 @@ use mini_agi_core::capture::CapturedStep;
 /// false and the outcome gates are false until a deterministic verifier
 /// confirms the work (verified before trusted, ADR-0011). `goal` and
 /// `scope` come from the slice spec; `verify_command`/`verify_target`
-/// from the caller or the spec's embedded verifier (P0-3).
+/// from the caller or the spec's embedded verifier (P0-3). The versioned
+/// trace header (`kernel_version`, `n_steps`, `n_toolcalls`,
+/// `latency_seconds`) is
+/// stamped here so a run is self-describing (production-readiness C.2).
 #[must_use]
 pub fn build_run_draft(
     goal: &str,
@@ -18,6 +21,7 @@ pub fn build_run_draft(
     steps: &[CapturedStep],
     verify_command: Option<&str>,
     verify_target: Option<&str>,
+    latency_seconds: Option<u64>,
 ) -> serde_json::Value {
     let trajectory: Vec<serde_json::Value> = steps
         .iter()
@@ -45,6 +49,10 @@ pub fn build_run_draft(
         "golden": null,
         "verify_command": verify_command,
         "verify_target": verify_target,
+        "kernel_version": env!("CARGO_PKG_VERSION"),
+        "n_steps": steps.len(),
+        "n_toolcalls": steps.iter().filter(|s| s.tool == "exec").count(),
+        "latency_seconds": latency_seconds,
         "trajectory": trajectory,
     })
 }
@@ -71,7 +79,13 @@ mod tests {
             &[step("exec", "make verify")],
             Some("make verify"),
             Some("workdir"),
+            Some(42),
         );
+        // Versioned trace header (production-readiness C.2).
+        assert_eq!(d["kernel_version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(d["n_steps"], 1);
+        assert_eq!(d["n_toolcalls"], 1);
+        assert_eq!(d["latency_seconds"], 42);
         assert_eq!(d["outcome"]["achieved"], false);
         assert_eq!(d["verify_command"], "make verify");
         assert_eq!(d["verify_target"], "workdir");
@@ -81,7 +95,7 @@ mod tests {
 
     #[test]
     fn draft_keeps_ok_from_the_capture() {
-        let d = build_run_draft("g", &[], &[step("exec", "probe")], None, None);
+        let d = build_run_draft("g", &[], &[step("exec", "probe")], None, None, None);
         assert!(d["verify_command"].is_null());
         assert!(d["trajectory"][0]["ok"].is_null());
     }

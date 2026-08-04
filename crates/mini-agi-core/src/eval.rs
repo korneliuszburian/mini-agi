@@ -139,6 +139,19 @@ pub struct Run {
     pub mast: Option<String>,
     /// Steps of the run.
     pub trajectory: Vec<Step>,
+    /// Kernel version that produced the run (versioned trace header,
+    /// production-readiness C.2/F.3). `None` for legacy runs.
+    #[serde(default)]
+    pub kernel_version: Option<String>,
+    /// Trajectory step count (trace aggregate). `None` for legacy runs.
+    #[serde(default)]
+    pub n_steps: Option<usize>,
+    /// Exec/tool-call count (trace aggregate). `None` for legacy runs.
+    #[serde(default)]
+    pub n_toolcalls: Option<usize>,
+    /// Wall-clock latency in seconds. `None` for legacy/reparse runs.
+    #[serde(default)]
+    pub latency_seconds: Option<u64>,
     /// Extra metadata (ignored by scoring).
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
@@ -945,6 +958,10 @@ mod tests {
             reflection: None,
             mast: None,
             trajectory: steps,
+            kernel_version: None,
+            n_steps: None,
+            n_toolcalls: None,
+            latency_seconds: None,
             extra: serde_json::Map::new(),
         }
     }
@@ -998,11 +1015,39 @@ mod tests {
                 step("read"),
                 step("exec"),
             ],
+            kernel_version: None,
+            n_steps: None,
+            n_toolcalls: None,
+            latency_seconds: None,
             extra: serde_json::Map::new(),
         };
         // The three identical execs are consecutive; the read and final
         // exec break the run, so the max repeat is 3, not 4.
         assert_eq!(max_consecutive_repeat(&run), 3);
+    }
+
+    #[test]
+    fn trace_header_parses_and_is_reported() {
+        // Production-readiness C.2/F.3: a run with the versioned trace
+        // header parses, validates, and survives scoring.
+        let mut run = run_with(vec![step("exec"), step("write")]);
+        run.kernel_version = Some("0.3.0".into());
+        run.n_steps = Some(2);
+        run.n_toolcalls = Some(1);
+        run.latency_seconds = Some(7);
+        Run::validate(&run).expect("trace header must not break validation");
+        assert_eq!(run.n_toolcalls, Some(1));
+    }
+
+    #[test]
+    fn legacy_runs_without_header_still_parse() {
+        // Old run.json files (no kernel_version/n_steps/...) must keep
+        // parsing via serde defaults — the committed 24-case corpus.
+        let run = run_with(vec![step("exec")]);
+        assert_eq!(run.kernel_version, None);
+        assert_eq!(run.n_steps, None);
+        assert_eq!(run.n_toolcalls, None);
+        assert_eq!(run.latency_seconds, None);
     }
 
     #[test]
@@ -1201,6 +1246,10 @@ mod process_supervision_tests {
             reflection: None,
             mast: None,
             trajectory,
+            kernel_version: None,
+            n_steps: None,
+            n_toolcalls: None,
+            latency_seconds: None,
             extra: serde_json::Map::new(),
         }
     }
