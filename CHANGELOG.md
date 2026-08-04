@@ -430,3 +430,14 @@ Intelligence" direction)
 - EXP-009 proof-of-advantage control (N=3, kernel loop vs plain — both
   3/3, no success delta; found the sandboxed-wrapper codex bug + ~/.npm
   write-containment issue, both fixed).
+
+### Added (2026-08-04 — N=5 proof-of-advantage protocol + red-team signal)
+- EXP-010: the pre-registered pilot gate ran 10 plain-arm runs x 4 hard
+  task classes (exact-output refactor, bug hunt, parser precedence,
+  cross-file dependency ordering) — solo codex passed 10/10 on ALL four;
+  the gate rejected every candidate (solo >= 5/10), so the N=5 experiment
+  did not run (task-shopping is forbidden). Honest lesson: kernel value
+  needs demonstration where the verifier matters (iterative test-failure
+  recovery, long-horizon), not on single-bug single-repo tasks.
+- red-team signal: verifier-vs-judge disagreement cases surfaced by
+  `eval judge-drift` and warned in `loop dispatch` specs.
