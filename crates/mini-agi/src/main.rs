@@ -289,6 +289,20 @@ enum LoopAction {
         #[arg(long)]
         allow_unverified: bool,
     },
+    /// Bounded batch dispatch of the worst open gaps under a shared
+    /// budget (hardening audit P2-11): verifiable, unclaimed,
+    /// unblocked cases only.
+    Objective {
+        /// Max cases to dispatch in this objective.
+        #[arg(long, default_value_t = 3)]
+        max_cases: usize,
+        /// Total cost budget in USD (stop when spent).
+        #[arg(long)]
+        budget_cost: Option<f64>,
+        /// Claimant name.
+        #[arg(long, default_value = "local")]
+        claimant: String,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -583,6 +597,11 @@ fn main() -> ExitCode {
                 claimant,
                 allow_unverified,
             } => cmd_loop_verify(&case, &claimant, allow_unverified),
+            LoopAction::Objective {
+                max_cases,
+                budget_cost,
+                claimant,
+            } => cmd_loop_objective(max_cases, budget_cost, &claimant),
         },
     }
 }
@@ -749,6 +768,48 @@ fn cmd_loop_verify(case: &str, claimant: &str, allow_unverified: bool) -> ExitCo
             }
         }
         Err(e) => fail(&format!("loop verify: {e}")),
+    }
+}
+
+fn cmd_loop_objective(max_cases: usize, budget_cost: Option<f64>, claimant: &str) -> ExitCode {
+    match mini_agi_core::loopcmd::objective(&root(), max_cases, claimant, budget_cost) {
+        Ok(plan) => {
+            println!(
+                "loop objective: dispatched {} case(s) under max_cases={max_cases}",
+                plan.dispatched.len()
+            );
+            for d in &plan.dispatched {
+                println!(
+                    "  dispatched: {} -> {} (spec: {})",
+                    d.case,
+                    d.ticket,
+                    d.spec.display()
+                );
+            }
+            for c in &plan.skipped_no_verifier {
+                println!("  skipped (no verifier, P0-3): {c}");
+            }
+            for c in &plan.skipped_blocked {
+                println!("  skipped (blocked by an open ticket): {c}");
+            }
+            for c in &plan.skipped_unavailable {
+                println!("  skipped (run.json unreadable): {c}");
+            }
+            match plan.budget_cost {
+                Some(b) => println!(
+                    "  budget: ${:.2} / ${b:.2} spent ({})",
+                    plan.budget_spent,
+                    if plan.budget_spent >= b {
+                        "STOPPED"
+                    } else {
+                        "within"
+                    }
+                ),
+                None => println!("  budget: none (${:.2} declared cost)", plan.budget_spent),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("loop objective: {e}")),
     }
 }
 

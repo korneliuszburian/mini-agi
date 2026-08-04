@@ -414,6 +414,106 @@ pub struct DispatchOutcome {
     pub ticket_created: bool,
 }
 
+/// Objective plan result (hardening audit P2-11 / C.11).
+///
+/// A bounded batch of dispatches under a shared budget with a global
+/// stop — the gated `BabyAGI` task-list-as-plan (per-step
+/// re-prioritization rejected).
+#[derive(Debug)]
+pub struct ObjectiveOutcome {
+    /// Cases actually dispatched.
+    pub dispatched: Vec<DispatchOutcome>,
+    /// Cases skipped: no verifier declared (P0-3).
+    pub skipped_no_verifier: Vec<String>,
+    /// Cases skipped: blocked by an open ticket (ADR-0008 work graph).
+    pub skipped_blocked: Vec<String>,
+    /// Cases skipped: run.json unreadable.
+    pub skipped_unavailable: Vec<String>,
+    /// Cost budget in USD (None = unlimited).
+    pub budget_cost: Option<f64>,
+    /// Accumulated declared cost of the dispatched cases.
+    pub budget_spent: f64,
+}
+
+/// `loop objective`: dispatch the worst `max_cases` open gaps that are
+/// verifiable (P0-3), unclaimed, and unblocked (ADR-0008), stopping when
+/// `max_cases` is reached or the cost budget is spent.
+///
+/// # Errors
+///
+/// Returns a message when status cannot be read or a dispatch fails.
+pub fn objective(
+    root: &Path,
+    max_cases: usize,
+    claimant: &str,
+    budget_cost: Option<f64>,
+) -> Result<ObjectiveOutcome, String> {
+    let target = crate::config::Config::target_composite_for(root);
+    let report = crate::insights::insights(root).map_err(|e| e.to_string())?;
+    let mut candidates: Vec<&crate::insights::CaseInsight> = report
+        .cases
+        .iter()
+        .filter(|c| c.composite < target)
+        .collect();
+    candidates.sort_by(|a, b| a.composite.total_cmp(&b.composite));
+    let mut out = ObjectiveOutcome {
+        dispatched: Vec::new(),
+        skipped_no_verifier: Vec::new(),
+        skipped_blocked: Vec::new(),
+        skipped_unavailable: Vec::new(),
+        budget_cost,
+        budget_spent: 0.0,
+    };
+    for candidate in candidates {
+        if out.dispatched.len() >= max_cases {
+            break;
+        }
+        if let Some(budget) = budget_cost
+            && out.budget_spent >= budget
+        {
+            break;
+        }
+        let case = &candidate.case;
+        if case_closed_by_rerun(root, case) {
+            continue;
+        }
+        let run_path = root.join("evals/cases").join(case).join("run.json");
+        let Ok(run) =
+            serde_json::from_str::<eval::Run>(&fs::read_to_string(&run_path).unwrap_or_default())
+        else {
+            out.skipped_unavailable.push(case.clone());
+            continue;
+        };
+        // P0-3: no-dispatch-without-verifier.
+        if run.verify_command.is_none() {
+            out.skipped_no_verifier.push(case.clone());
+            continue;
+        }
+        if let Some(t) = ticket_for_case(root, case) {
+            if t.status == "CLOSED" || claimant_for(root, &t.id).is_some() {
+                continue;
+            }
+            if ticket_is_blocked_by_open(root, &t) {
+                out.skipped_blocked.push(case.clone());
+                continue;
+            }
+        }
+        let d = dispatch(root, Some(case), target, claimant)?;
+        out.budget_spent += run.cost_usd;
+        out.dispatched.push(d);
+    }
+    Ok(out)
+}
+
+/// ADR-0008: is `ticket` blocked by an open (not CLOSED) ticket it
+/// depends on? A blocker in progress still blocks the dependent.
+fn ticket_is_blocked_by_open(root: &Path, ticket: &crate::ticket::Ticket) -> bool {
+    ticket
+        .blocked_by
+        .iter()
+        .any(|dep| crate::ticket::find_ticket(root, dep).is_ok_and(|dt| dt.status != "CLOSED"))
+}
+
 /// `loop dispatch`: pick the worst open case, ensure its ticket, claim it
 /// (lease), and write the slice spec.
 ///
@@ -927,6 +1027,54 @@ mod tests {
         assert_eq!(case_ok.map(|t| t.id), Some("TICKET-008-v2".to_string()));
         let case_no = ticket_for_case(&root, "real-ticket-0089-v2");
         assert!(case_no.is_none(), "digit boundary must not match");
+        let _ = fs::remove_dir_all(&root);
+    }
+    #[test]
+    fn objective_dispatches_only_verifiable_unblocked_cases() {
+        // P2-11: the objective stops at max_cases and skips no-verifier
+        // (P0-3) and blocked cases.
+        let root = tmp_case_root("objective");
+        // A verifiable low case: real-ticket-008-v2 has a verifier? No —
+        // seed a scratch case WITH a verifier by copying the rerun shape.
+        let scratch = root.join("evals/cases/obj-low");
+        fs::create_dir_all(&scratch).unwrap();
+        fs::write(
+            scratch.join("run.json"),
+            r#"{"goal":"x","scope":["a"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.05,"golden":null,"verify_command":"sh verify.sh","verify_target":"/tmp/x","trajectory":[{"step":1,"tool":"exec","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        // A no-verifier low case that must be skipped.
+        let nover = root.join("evals/cases/obj-nover");
+        fs::create_dir_all(&nover).unwrap();
+        fs::write(
+            nover.join("run.json"),
+            r#"{"goal":"x","scope":[],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.01,"golden":null,"trajectory":[{"step":1,"tool":"exec","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        // max_cases=2 -> obj-low dispatches, obj-nover is examined and
+        // skipped (P0-3 no verifier).
+        let plan = objective(&root, 2, "obj-test", None).unwrap();
+        assert_eq!(plan.dispatched.len(), 1);
+        assert_eq!(plan.dispatched[0].case, "obj-low");
+        assert!(
+            plan.skipped_no_verifier.iter().any(|c| c == "obj-nover"),
+            "no-verifier case must be skipped (P0-3)"
+        );
+        // Budget stop: budget 0.01 < obj-low's 0.05 -> after spending it
+        // stops. With max_cases large and only one verifiable case, it
+        // dispatches anyway (budget only stops BETWEEN cases). Re-run
+        // with a tiny budget and a second verifiable case to prove stop.
+        let scratch2 = root.join("evals/cases/obj-mid");
+        fs::create_dir_all(&scratch2).unwrap();
+        fs::write(
+            scratch2.join("run.json"),
+            r#"{"goal":"x","scope":["b"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.02,"golden":null,"verify_command":"sh v.sh","verify_target":"/tmp/x","trajectory":[{"step":1,"tool":"exec","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        let plan2 = objective(&root, 10, "obj-test", Some(0.02)).unwrap();
+        // Sorted worst first: obj-low (0.0) then obj-mid (0.0). After the
+        // first (0.05 spent >= 0.02 budget) the budget stops the second.
+        assert_eq!(plan2.dispatched.len(), 1, "budget must stop the batch");
         let _ = fs::remove_dir_all(&root);
     }
 }
