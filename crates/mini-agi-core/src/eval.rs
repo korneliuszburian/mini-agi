@@ -181,6 +181,30 @@ pub fn step_score(step: &Step) -> f64 {
     s
 }
 
+/// Repetition watchdog signal (hardening audit P1-5): the longest run of
+/// consecutive identical `(tool, action)` steps in a run's trajectory.
+///
+/// A worker that repeats the same action verbatim is likely spinning, not
+/// progressing — `max_repeated_steps` in the config converts this into a
+/// warning at `loop verify` time.
+#[must_use]
+pub fn max_consecutive_repeat(run: &Run) -> usize {
+    let mut best = 0;
+    let mut cur = 0;
+    let mut prev: Option<(&str, &str)> = None;
+    for step in &run.trajectory {
+        let key = (step.tool.as_str(), step.action.as_str());
+        if prev == Some(key) {
+            cur += 1;
+        } else {
+            cur = 1;
+        }
+        best = best.max(cur);
+        prev = Some(key);
+    }
+    best
+}
+
 /// Geometric mean; zero if any score is non-positive (`PoC` `geomean`).
 #[must_use]
 #[allow(
@@ -829,6 +853,38 @@ mod tests {
     #[test]
     fn geomean_empty_is_zero() {
         assert!(approx(geomean(&[]), 0.0));
+    }
+
+    #[test]
+    fn watchdog_counts_only_consecutive_identical_steps() {
+        let run = Run {
+            goal: "g".into(),
+            scope: vec![],
+            outcome: Outcome {
+                achieved: true,
+                tests_pass: Some(true),
+                typecheck_pass: Some(true),
+                lint_pass: Some(true),
+            },
+            tokens_total: 0,
+            cost_usd: 0.0,
+            golden: None,
+            verify_command: None,
+            verify_target: None,
+            reflection: None,
+            mast: None,
+            trajectory: vec![
+                step("exec"),
+                step("exec"),
+                step("exec"),
+                step("read"),
+                step("exec"),
+            ],
+            extra: serde_json::Map::new(),
+        };
+        // The three identical execs are consecutive; the read and final
+        // exec break the run, so the max repeat is 3, not 4.
+        assert_eq!(max_consecutive_repeat(&run), 3);
     }
 
     #[test]

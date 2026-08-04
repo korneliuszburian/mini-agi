@@ -506,6 +506,22 @@ pub fn verify(
             report.tool_mismatches_vs_golden
         ),
     ];
+    // Repetition watchdog (hardening audit P1-5): a run whose trajectory
+    // repeats the same (tool, action) verbatim beyond the configured
+    // max_repeated_steps is flagged — a spinning worker. A signal, not a
+    // hard block (repeated probes can be legitimate).
+    if let Some(max) = crate::config::Config::load(root).max_repeated_steps
+        && let Some(run) = serde_json::from_str::<eval::Run>(
+            &std::fs::read_to_string(&run_path).unwrap_or_default(),
+        )
+        .ok()
+        && eval::max_consecutive_repeat(&run) > max
+    {
+        let repeats = eval::max_consecutive_repeat(&run);
+        lines.push(format!(
+            "  warning: repetition watchdog — {repeats} identical consecutive steps (max {max}); the worker may have spun"
+        ));
+    }
     // Verifiable reward layer (ADR-0011): when the run declares a
     // deterministic verifier, CLOSED requires it to pass — a self-
     // reported outcome is not trusted. A verifier ERROR (e.g. missing
