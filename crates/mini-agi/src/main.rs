@@ -411,6 +411,18 @@ enum MemAction {
         #[arg(long, default_value = "general")]
         domain: String,
     },
+    /// Domain/keyword retrieval over canonical facts (hardening audit
+    /// C.7): load only the relevant fragment instead of the whole brief.
+    Query {
+        /// Keyword to filter facts by (substring, case-insensitive).
+        keyword: Option<String>,
+        /// Restrict to one domain.
+        #[arg(long)]
+        domain: Option<String>,
+        /// Print raw (id, domain, body) triples instead of rendered lines.
+        #[arg(long)]
+        raw: bool,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -435,6 +447,11 @@ fn main() -> ExitCode {
                 index,
                 domain,
             } => cmd_signoff(&queue, index, &domain),
+            MemAction::Query {
+                keyword,
+                domain,
+                raw,
+            } => cmd_mem_query(keyword.as_deref(), domain.as_deref(), raw),
         },
         Command::Derive(DeriveArgs { brief_only }) => cmd_derive(brief_only),
         Command::Provenance => {
@@ -1983,6 +2000,28 @@ fn cmd_signoff(queue: &Path, index: usize, domain: &str) -> ExitCode {
         }
         Err(msg) => fail(&msg),
     }
+}
+
+fn cmd_mem_query(keyword: Option<&str>, domain: Option<&str>, raw: bool) -> ExitCode {
+    if keyword.is_none() && domain.is_none() {
+        return fail("mem query: give a keyword and/or --domain to filter by");
+    }
+    let facts = memory::query_facts(&root(), domain, keyword);
+    if facts.is_empty() {
+        println!("no facts match (domain={domain:?}, keyword={keyword:?})");
+        return ExitCode::from(1);
+    }
+    if raw {
+        for (id, d, body) in &facts {
+            println!("{id} [{d}] {body}");
+        }
+    } else {
+        for (id, d, body) in &facts {
+            println!("- `{id}` ({d}) {body}");
+        }
+    }
+    println!("{} fact(s) matched", facts.len());
+    ExitCode::SUCCESS
 }
 
 fn signoff_text(queue: &Path, index: usize, domain: &str, root: &Path) -> Result<String, String> {

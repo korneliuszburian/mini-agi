@@ -180,6 +180,30 @@ pub fn existing_fact_ids(root: &Path) -> Vec<String> {
     ids
 }
 
+/// Domain/keyword retrieval over canonical facts (hardening audit C.7).
+///
+/// `domain` filters on the entry's declared domain (exact);
+/// `keyword` filters on the flattened fact body (case-insensitive
+/// substring). At least one filter must be given. Returns
+/// `(fact_id, domain, flat_body)` triples.
+#[must_use]
+pub fn query_facts(
+    root: &Path,
+    domain: Option<&str>,
+    keyword: Option<&str>,
+) -> Vec<(String, String, String)> {
+    let mut out = Vec::new();
+    for (id, fact_domain, body) in read_facts(root) {
+        let domain_matches = domain.is_none_or(|d| fact_domain == d);
+        let keyword_matches =
+            keyword.is_none_or(|k| body.to_lowercase().contains(&k.to_lowercase()));
+        if domain_matches && keyword_matches {
+            out.push((id, fact_domain, body));
+        }
+    }
+    out
+}
+
 /// UTC now formatted `YYYY-MM-DDTHH:MM:SSZ` (`PoC` strftime contract).
 #[must_use]
 pub fn utc_now_stamp() -> String {
@@ -610,6 +634,31 @@ mod tests {
         let date = utc_now_date();
         assert_eq!(date.len(), 10);
         assert!(stamp.starts_with(&date));
+    }
+
+    #[test]
+    fn query_filters_by_domain_and_keyword() {
+        let root = std::env::temp_dir().join(format!("mag-memq-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let entry_dir = root.join("memory/canonical/entries").join(utc_now_date());
+        std::fs::create_dir_all(&entry_dir).unwrap();
+        let text = "# Canonical entry test-001\n\n- domain: eval\n\n## F-000 `1111111111111111`\n\ncomposite 0.9 on the rerun\n\n## F-001 `2222222222222222`\n\nmemory discipline held\n";
+        std::fs::write(entry_dir.join("test-001.md"), text).unwrap();
+        // Domain filter.
+        let eval = query_facts(&root, Some("eval"), None);
+        assert_eq!(eval.len(), 2);
+        let strategy = query_facts(&root, Some("strategy"), None);
+        assert!(strategy.is_empty());
+        // Keyword filter (case-insensitive substring).
+        let comp = query_facts(&root, None, Some("COMPOSITE"));
+        assert_eq!(comp.len(), 1);
+        assert_eq!(comp[0].0, "1111111111111111");
+        // Domain + keyword together.
+        let both = query_facts(&root, Some("eval"), Some("memory"));
+        assert_eq!(both.len(), 1);
+        // At least one filter: read_facts with none given matches all.
+        assert_eq!(query_facts(&root, None, None).len(), 2);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
 
