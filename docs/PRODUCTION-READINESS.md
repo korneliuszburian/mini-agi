@@ -271,11 +271,29 @@ CI green):
   and reports MATCH / DIVERGENT (deterministic materialization proof).
   Live: snapshot pre-migration -> replay MATCH.
 
+### Implementation status (run 3, 2026-08-04) — the whole remaining Todo
+- **P2/E multi-worker types — DONE.** `worker_name` parameter resolves
+  the worker command (default codex); a second type dispatches under the
+  same budget/sandbox/capture contract.
+- **P2/D.3 OWASP-mapping ADR-0014 — DONE.** Every Agentic Top-10-2026
+  risk mapped to a concrete control (or PARTIAL/N-A) at the real seams.
+- **P2/D.4 HITL approval gate — DONE.** Config `require_approval`; a
+  worker run without `--approve <reason>` refuses before spawning; the
+  decision is logged to the action log.
+- **HARDENING P2-14 persisted dynamic skills disabled-on-fail — DONE.**
+  `skill verify --disable-on-fail` persists `disabled: true` in the
+  skill's frontmatter; `skill list` shows it.
+- **B distribution readiness — DONE.** crates.io dry-run: core PASSES
+  (binary blocked only by core-not-live, documented order); `flake.nix`
+  (pinned 1.97.1); `docs/RELEASING.md` checklist.
+- **Proof-of-advantage control EXP-009 — DONE (anecdote).** N=3 per arm,
+  same wordcount task: kernel loop vs plain resampling — BOTH 3/3 PASS,
+  plain ~3.8x faster; NO success delta on an easy task. Two real
+  findings: the Landlock sandbox blocks npx codex wrappers (~/.npm +
+  /dev/null — ~/.npm fixed, /dev/null documented), and the full kernel
+  loop (capture + verifier) worked end-to-end.
+
 ### Remaining backlog (honest)
-- P1: reference solutions per case + trial-isolation guard; capability/
-  regression labels + per-mode gates; per-skill least-authority Landlock;
-  judge-drift recalibration trigger. All real, all need the eval-corpus
-  work that follows.
 - P2: snapshot/replay pair, OWASP-mapping ADR, HITL approval gate,
   resume-from-checkpoint + retention, crates.io/Nix/Homebrew.
 - Rejected (named in section G): observability SaaS, OTel now, CRDT

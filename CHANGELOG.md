@@ -419,3 +419,14 @@ Intelligence" direction)
 - judge-drift recalibration trigger (min_judge_precision; audit warn +
   calibration-trigger.log note).
 - derive snapshot/replay (deterministic materialization proof).
+
+### Added (2026-08-04 — whole remaining Todo, slices 1-6)
+- multi-worker types (worker_name param, default codex).
+- ADR-0014 OWASP Agentic Top-10-2026 risk mapping.
+- HITL approval gate (require_approval config + --approve, logged).
+- persisted dynamic skills disabled-on-fail (skill verify --disable-on-fail).
+- distribution readiness: crates.io dry-run (core passes), flake.nix,
+  docs/RELEASING.md.
+- EXP-009 proof-of-advantage control (N=3, kernel loop vs plain — both
+  3/3, no success delta; found the sandboxed-wrapper codex bug + ~/.npm
+  write-containment issue, both fixed).
