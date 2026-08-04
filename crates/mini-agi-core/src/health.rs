@@ -37,24 +37,60 @@ pub mod thresholds {
     pub const ZOO_CRIT_COUNT: usize = 300;
 }
 
+/// Configurable machine thresholds (hardening audit P0-2 extension):
+/// the health classifiers read these instead of the hardcoded consts;
+/// `.miniagi.json` under `"health": { ... }` overrides per-field.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct HealthThresholds {
+    /// Warn when the 1-minute load exceeds this many cores.
+    pub load_warn_mult: f64,
+    /// Critical when the 1-minute load exceeds this many cores.
+    pub load_crit_mult: f64,
+    /// Warn when available memory drops below this fraction of total.
+    pub mem_warn_frac: f64,
+    /// Critical when available memory drops below this fraction.
+    pub mem_crit_frac: f64,
+    /// Warn when used swap exceeds this fraction of total swap.
+    pub swap_warn_frac: f64,
+    /// Warn when a single command has more than this many processes.
+    pub zoo_warn_count: usize,
+    /// Critical when a single command has more than this many processes.
+    pub zoo_crit_count: usize,
+}
+
+impl Default for HealthThresholds {
+    fn default() -> Self {
+        Self {
+            load_warn_mult: thresholds::LOAD_WARN_MULT,
+            load_crit_mult: thresholds::LOAD_CRIT_MULT,
+            mem_warn_frac: thresholds::MEM_WARN_FRAC,
+            mem_crit_frac: thresholds::MEM_CRIT_FRAC,
+            swap_warn_frac: thresholds::SWAP_WARN_FRAC,
+            zoo_warn_count: thresholds::ZOO_WARN_COUNT,
+            zoo_crit_count: thresholds::ZOO_CRIT_COUNT,
+        }
+    }
+}
+
 /// Classify a 1-minute load average against the core count.
 #[must_use]
-pub fn classify_load(load1: f64, nproc: usize) -> Option<Finding> {
+pub fn classify_load(load1: f64, nproc: usize, t: &HealthThresholds) -> Option<Finding> {
     let mult = load1 / f64::from(u32::try_from(nproc.max(1)).unwrap_or(1));
-    if mult > thresholds::LOAD_CRIT_MULT {
+    if mult > t.load_crit_mult {
         Some(Finding {
             severity: "critical".into(),
             message: format!(
                 "load {load1:.1} is {mult:.1}x the {nproc} cores (critical > {})",
-                thresholds::LOAD_CRIT_MULT
+                t.load_crit_mult
             ),
         })
-    } else if mult > thresholds::LOAD_WARN_MULT {
+    } else if mult > t.load_warn_mult {
         Some(Finding {
             severity: "warn".into(),
             message: format!(
                 "load {load1:.1} is {mult:.1}x the {nproc} cores (warn > {})",
-                thresholds::LOAD_WARN_MULT
+                t.load_warn_mult
             ),
         })
     } else {
@@ -64,23 +100,23 @@ pub fn classify_load(load1: f64, nproc: usize) -> Option<Finding> {
 
 /// Classify available memory as a fraction of total.
 #[must_use]
-pub fn classify_mem(available_frac: f64) -> Option<Finding> {
-    if available_frac < thresholds::MEM_CRIT_FRAC {
+pub fn classify_mem(available_frac: f64, t: &HealthThresholds) -> Option<Finding> {
+    if available_frac < t.mem_crit_frac {
         Some(Finding {
             severity: "critical".into(),
             message: format!(
                 "available memory {:.0}% of total (critical < {:.0}%)",
                 available_frac * 100.0,
-                thresholds::MEM_CRIT_FRAC * 100.0
+                t.mem_crit_frac * 100.0
             ),
         })
-    } else if available_frac < thresholds::MEM_WARN_FRAC {
+    } else if available_frac < t.mem_warn_frac {
         Some(Finding {
             severity: "warn".into(),
             message: format!(
                 "available memory {:.0}% of total (warn < {:.0}%)",
                 available_frac * 100.0,
-                thresholds::MEM_WARN_FRAC * 100.0
+                t.mem_warn_frac * 100.0
             ),
         })
     } else {
@@ -90,21 +126,21 @@ pub fn classify_mem(available_frac: f64) -> Option<Finding> {
 
 /// Classify the process zoo: the largest single-command process count.
 #[must_use]
-pub fn classify_zoo(largest: usize) -> Option<Finding> {
-    if largest > thresholds::ZOO_CRIT_COUNT {
+pub fn classify_zoo(largest: usize, t: &HealthThresholds) -> Option<Finding> {
+    if largest > t.zoo_crit_count {
         Some(Finding {
             severity: "critical".into(),
             message: format!(
                 "process zoo: {largest} processes share one command (critical > {}; 2026-08-03: 500 agent-browser)",
-                thresholds::ZOO_CRIT_COUNT
+                t.zoo_crit_count
             ),
         })
-    } else if largest > thresholds::ZOO_WARN_COUNT {
+    } else if largest > t.zoo_warn_count {
         Some(Finding {
             severity: "warn".into(),
             message: format!(
                 "process zoo: {largest} processes share one command (warn > {})",
-                thresholds::ZOO_WARN_COUNT
+                t.zoo_warn_count
             ),
         })
     } else {
@@ -202,6 +238,9 @@ fn process_zoo() -> Option<usize> {
 ///
 /// Returns the underlying filesystem error.
 pub fn health(root: &Path) -> Result<HealthReport, std::io::Error> {
+    // Configurable thresholds (hardening audit P0-2): `.miniagi.json`
+    // under "health" overrides; defaults equal the historical consts.
+    let t = crate::config::Config::load(root).health;
     let mut report = HealthReport::default();
 
     // Machine snapshot (Linux /proc; skipped elsewhere).
@@ -212,34 +251,34 @@ pub fn health(root: &Path) -> Result<HealthReport, std::io::Error> {
             .and_then(|v| v.parse::<f64>().ok())
     {
         report.load1 = Some(load1);
-        if let Some(finding) = classify_load(load1, nproc_count()) {
+        if let Some(finding) = classify_load(load1, nproc_count(), &t) {
             report.findings.push(finding);
         }
     }
     if let Some((total, available, swap_used)) = meminfo() {
         report.nproc = nproc_count();
         report.mem_available_frac = parse_frac(available, total);
-        if let Some(f) = report.mem_available_frac.and_then(classify_mem) {
+        if let Some(f) = report.mem_available_frac.and_then(|f| classify_mem(f, &t)) {
             report.findings.push(f);
         }
         let swap_total = total_swap();
         report.swap_used_frac = parse_frac(swap_used, swap_total);
         if let Some(frac) = report.swap_used_frac
-            && frac > thresholds::SWAP_WARN_FRAC
+            && frac > t.swap_warn_frac
         {
             report.findings.push(Finding {
                 severity: "warn".into(),
                 message: format!(
                     "swap {:.0}% used (warn > {:.0}%)",
                     frac * 100.0,
-                    thresholds::SWAP_WARN_FRAC * 100.0
+                    t.swap_warn_frac * 100.0
                 ),
             });
         }
     }
     report.zoo_largest = process_zoo();
     if let Some(largest) = report.zoo_largest
-        && let Some(finding) = classify_zoo(largest)
+        && let Some(finding) = classify_zoo(largest, &t)
     {
         report.findings.push(finding);
     }
@@ -322,37 +361,50 @@ mod tests {
 
     #[test]
     fn load_classification_boundaries() {
-        assert!(classify_load(1.0, 16).is_none());
+        let t = HealthThresholds::default();
+        assert!(classify_load(1.0, 16, &t).is_none());
         assert_eq!(
-            classify_load(25.0, 16).unwrap().severity,
+            classify_load(25.0, 16, &t).unwrap().severity,
             "warn",
             "1.56x cores"
         );
         assert_eq!(
-            classify_load(50.0, 16).unwrap().severity,
+            classify_load(50.0, 16, &t).unwrap().severity,
             "critical",
             "3.1x cores"
         );
         assert_eq!(
-            classify_load(48.1, 16).unwrap().severity,
+            classify_load(48.1, 16, &t).unwrap().severity,
             "critical",
             "3.0x is the exclusive boundary"
+        );
+        // Configurable thresholds: a tight critical bound trips earlier.
+        let tight = HealthThresholds {
+            load_crit_mult: 0.5,
+            load_warn_mult: 0.2,
+            ..HealthThresholds::default()
+        };
+        assert_eq!(
+            classify_load(10.0, 16, &tight).unwrap().severity,
+            "critical"
         );
     }
 
     #[test]
     fn mem_classification_boundaries() {
-        assert!(classify_mem(0.5).is_none());
-        assert_eq!(classify_mem(0.08).unwrap().severity, "warn");
-        assert_eq!(classify_mem(0.03).unwrap().severity, "critical");
+        let t = HealthThresholds::default();
+        assert!(classify_mem(0.5, &t).is_none());
+        assert_eq!(classify_mem(0.08, &t).unwrap().severity, "warn");
+        assert_eq!(classify_mem(0.03, &t).unwrap().severity, "critical");
     }
 
     #[test]
     fn zoo_classification_catches_the_incident_class() {
-        assert!(classify_zoo(50).is_none());
-        assert_eq!(classify_zoo(150).unwrap().severity, "warn");
+        let t = HealthThresholds::default();
+        assert!(classify_zoo(50, &t).is_none());
+        assert_eq!(classify_zoo(150, &t).unwrap().severity, "warn");
         assert_eq!(
-            classify_zoo(500).unwrap().severity,
+            classify_zoo(500, &t).unwrap().severity,
             "critical",
             "2026-08-03: 500 agent-browser processes"
         );

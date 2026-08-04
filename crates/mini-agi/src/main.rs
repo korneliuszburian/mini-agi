@@ -767,7 +767,13 @@ fn cmd_loop_verify(case: &str, claimant: &str, allow_unverified: bool) -> ExitCo
                 ExitCode::from(1)
             }
         }
-        Err(e) => fail(&format!("loop verify: {e}")),
+        // P2-13 (hardening audit): an error is a distinct terminal
+        // signal (2) from an honest OPEN (1) — a consumer can tell
+        // "the gap stays open" from "the verification machinery broke".
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::from(2)
+        }
     }
 }
 

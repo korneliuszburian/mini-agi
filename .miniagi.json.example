@@ -4,5 +4,14 @@
   "max_steps": null,
   "max_cost_usd": null,
   "max_wall_seconds": null,
-  "max_repeated_steps": null
+  "max_repeated_steps": null,
+  "health": {
+    "load_warn_mult": 1.5,
+    "load_crit_mult": 3.0,
+    "mem_warn_frac": 0.1,
+    "mem_crit_frac": 0.05,
+    "swap_warn_frac": 0.5,
+    "zoo_warn_count": 100,
+    "zoo_crit_count": 300
+  }
 }

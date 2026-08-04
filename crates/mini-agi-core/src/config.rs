@@ -33,6 +33,10 @@ pub struct Config {
     /// actions in a captured trajectory (P1-5). `None` = disabled.
     #[serde(default)]
     pub max_repeated_steps: Option<usize>,
+    /// Machine thresholds for `health` (hardening audit P0-2
+    /// extension): per-field override of the hardcoded consts.
+    #[serde(default)]
+    pub health: crate::health::HealthThresholds,
 }
 
 const fn default_target_composite() -> f64 {
@@ -52,6 +56,7 @@ impl Default for Config {
             max_cost_usd: None,
             max_wall_seconds: None,
             max_repeated_steps: None,
+            health: crate::health::HealthThresholds::default(),
         }
     }
 }
