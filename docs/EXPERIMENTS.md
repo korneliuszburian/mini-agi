@@ -216,3 +216,31 @@ no experiment executed yet (needs real attempt-vs-gain measurement).
 - Corpus after: precision 100% (17 verified claimed successes / 17
   conclusive) — and the transient 89.5% with SIGNAL was a real event,
   not noise.
+
+## EXP-005 RESULTS — resampling control executed (2026-08-04)
+
+Design (from EXP-005): equal attempt count, failure-memory-conditioned
+retries vs plain resampling; pilot N<=5.
+
+Execution (codex exec gpt-5.6-terra, workspace-write, fresh task
+"count_lines.py CLI with tests + Makefile verify", 1 attempt per arm):
+
+| Arm | Attempts | Outcome | Wall | Tests |
+| --- | --- | --- | --- | --- |
+| Plain (no memory) | 1 | SUCCESS (make verify green) | 14.5s | 3 |
+| Reflexion (failure memory injected) | 1 | SUCCESS (make verify green) | 3m54s | 3 |
+
+First run of the reflexion arm was INVALID (setup bug: the task text did
+not interpolate into the prompt — the arm re-ran correctly).
+
+Reading (What Drives Improvement 2606.30774): at equal attempts both
+arms succeeded — NO success delta from failure memory on this task. The
+reflexion arm cost ~16x wall time. This is consistent with the paper:
+gains from feedback are often confounded by the ability to USE feedback,
+and at 1 attempt the ceiling is the model's solo capability. The control
+works: without it, one could have attributed the refl arm's success to
+"failure memory works" — the control shows resampling would have
+succeeded anyway.
+
+Follow-up: repeat at N=5 per arm (pilot rule) with a HARDER task where
+solo capability is below the bar — the pilot predicts the N=30 ceiling.
