@@ -25,6 +25,7 @@ pub const DERIVED_REL: &str = "memory/derived";
 pub const PER_DOMAIN_REL: &str = "memory/derived/per-domain";
 /// Relative path of the review (contested) queue directory.
 pub const REVIEW_REL: &str = "memory/review";
+/// Named derive snapshots (production-readiness F.1).
 pub const SNAPSHOTS_REL: &str = "memory/derived/snapshots";
 
 /// Derived brief size cap in bytes (context budget; `PoC`: 8192).
