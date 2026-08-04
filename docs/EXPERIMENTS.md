@@ -342,3 +342,48 @@ Findings for the kernel:
   --no-sandbox for wrapped workers.
 - The honest capture (ok flags) + loop verify (composite 0.81-1.0,
   verifier PASS) worked end-to-end on all three kernel runs.
+
+## EXP-010 — N=5 proof-of-advantage control: the pilot gate rejected ALL candidates (2026-08-04)
+
+Protocol (pre-registered in VERIFIABLE-REWARD-RESEARCH.md section B):
+run the PLAIN arm ≥10 times per candidate HARD task; keep tasks where
+solo pass ∈ [0,3]/10 (headroom exists); reject tasks where solo passes
+≥5/10 (too easy). Select ≥2 kept tasks BEFORE the N=5 experiment. The
+N=5 experiment may NOT run on tasks the gate rejects.
+
+### Pilot results (plain arm, bare codex exec, same model)
+
+| task | class | runs | solo pass | gate verdict |
+| --- | --- | --- | --- | --- |
+| taskA | cross-file refactor, exact-output invariant | 10 | 10/10 | REJECTED (too easy) |
+| taskB | bug hunt (planted leap-year edge) | 10 | 10/10 | REJECTED (too easy) |
+| taskC | arithmetic parser, correct precedence | 10 | 10/10 | REJECTED (too easy) |
+| taskD | dependency-ordered scheduler (cross-file) | 10 | 10/10 | REJECTED (too easy) |
+
+Wall-time (solo): taskA avg ~97 (68-134), taskB avg ~87 (72-106),
+taskC avg ~105 (75-144), taskD avg ~122 (98-175). Every run's verifier
+(`make verify`) passed on the first attempt.
+
+### Verdict
+
+The pre-registered task-selection gate rejected ALL four candidate
+tasks: modern solo codex passes 10/10 on single-repo / single-issue-
+scale tasks, including the multi-file and subtle-invariant designs
+(exact-output refactor, cross-file dependency ordering). Per the
+pre-registered rule the N=5 experiment CANNOT run on these task classes —
+it would reproduce EXP-009 (no delta on tasks solo solves 3/3-10/10).
+
+This is the gate working, not the experiment failing: continuing to
+design harder tasks until solo drops below the bar would be task-
+shopping (selecting tasks until the result matches the hypothesis),
+which the pre-registration forbids. The honest lesson: the kernel's
+value cannot be demonstrated on these task classes; it needs
+demonstration where the VERIFIER matters (iterative recovery from
+failing tests, long-horizon multi-session work, scale), not on
+single-bug single-repo tasks that solo solves reliably.
+
+The control still worked as intended: it rejected the hypothesis
+"the kernel loop beats plain resampling" for this task class before any
+costly N=5 runs, and it would have rejected any false positive claim.
+No kept tasks -> no experiment; the follow-up build below proceeds
+independently.
