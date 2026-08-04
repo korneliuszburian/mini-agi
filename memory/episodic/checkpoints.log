@@ -120,3 +120,5 @@
 2026-08-04T16:51:49Z STATUS todo-slice3-fix: work committed 8e3a037+8dcbea0, verify.sh ALL GREEN, pushed c9acc49..8dcbea0; prior VERIFY-FAIL was the red-gate rollback record
 2026-08-04T16:52:21Z BEGIN todo-slice4 -> 6fa5aa4 (clean)
 2026-08-04T16:56:29Z VERIFY-PASS todo-slice4 @ d94fd9e
+2026-08-04T16:56:39Z BEGIN todo-slice5 -> 8f31ae7
+2026-08-04T16:58:35Z VERIFY-PASS todo-slice5 @ fe4713e
