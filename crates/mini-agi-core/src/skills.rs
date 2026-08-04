@@ -33,6 +33,10 @@ pub struct Skill {
     /// `"write"` = write-containment (Landlock, default); `"read-only"` =
     /// the worker runs with NO workdir write access (least authority).
     pub sandbox: Option<String>,
+    /// True when the skill's verify hook failed and the skill was marked
+    /// disabled (HARDENING P2-14): a broken dynamic skill must not keep
+    /// running silently.
+    pub disabled: bool,
     /// Absolute path of the skill's `SKILL.md`.
     pub path: PathBuf,
 }
@@ -98,6 +102,10 @@ pub fn parse_skill_md(content: &str) -> Result<Skill, SkillError> {
     );
     let argument_hint = fields.get("argument-hint").cloned();
     let sandbox = fields.get("sandbox").cloned();
+    let disabled = matches!(
+        fields.get("disabled").map(String::as_str),
+        Some("true" | "True" | "yes")
+    );
     Ok(Skill {
         name,
         description,
@@ -105,6 +113,7 @@ pub fn parse_skill_md(content: &str) -> Result<Skill, SkillError> {
         disable_model_invocation,
         argument_hint,
         sandbox,
+        disabled,
         path: PathBuf::new(),
     })
 }
@@ -265,6 +274,36 @@ pub fn verify_skill(skill: &Skill, cwd: &Path) -> Result<VerifyResult, SkillErro
             + &String::from_utf8_lossy(&output.stderr),
         exit_code: output.status.code(),
     })
+}
+
+/// Mark a skill enabled/disabled (HARDENING P2-14): rewrite the
+/// skill's `SKILL.md` frontmatter so the disabled state persists.
+///
+/// # Errors
+///
+/// Returns [`SkillError::Io`] on filesystem failure or when the skill
+/// cannot be found.
+pub fn set_disabled(root: &Path, name: &str, disabled: bool) -> Result<(), SkillError> {
+    let skill = find_skill(root, name)?;
+    let text = fs::read_to_string(&skill.path).map_err(SkillError::Io)?;
+    let marker = "disabled: true";
+    let updated = if disabled {
+        // Insert the marker right after the frontmatter opening line.
+        let insert_at = text
+            .find("---\n")
+            .map(|i| i + "---\n".len())
+            .ok_or_else(|| SkillError::Parse("no frontmatter".into()))?;
+        let mut t = text;
+        t.insert_str(insert_at, &format!("{marker}\n"));
+        t
+    } else {
+        text.lines()
+            .filter(|l| !l.trim_start().starts_with("disabled:"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    fs::write(&skill.path, updated).map_err(SkillError::Io)?;
+    Ok(())
 }
 
 /// Install skills from a source into the registry.
@@ -549,5 +588,32 @@ description: >
             "---\nname: review\ndescription: rubric review\n---\n# Review\n\nprocedural body\n";
         let skill = parse_skill_md(md).unwrap();
         assert_eq!(skill.sandbox, None);
+    }
+
+    #[test]
+    fn set_disabled_persists_and_parses_back() {
+        // HARDENING P2-14: disabling a skill persists in the frontmatter
+        // and re-parses; re-enabling removes the marker.
+        let dir = tempfile_dir("disabled");
+        let skill_dir = dir.join(".agents/skills/broken");
+        fs::create_dir_all(&skill_dir).unwrap();
+        let path = skill_dir.join("SKILL.md");
+        fs::write(
+            &path,
+            "---\nname: broken\ndescription: failing hook\nverify: sh -c 'exit 1'\n---\n# Broken\n",
+        )
+        .unwrap();
+        set_disabled(&dir, "broken", true).unwrap();
+        let after = parse_skill_md(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(after.disabled, "disabled flag must persist");
+        assert!(
+            fs::read_to_string(&path)
+                .unwrap()
+                .contains("disabled: true")
+        );
+        set_disabled(&dir, "broken", false).unwrap();
+        let re = parse_skill_md(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(!re.disabled, "re-enabling must remove the marker");
+        let _ = fs::remove_dir_all(&dir);
     }
 }

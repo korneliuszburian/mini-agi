@@ -343,6 +343,11 @@ enum SkillAction {
     Verify {
         /// Skill name.
         name: String,
+        /// Mark the skill disabled in its frontmatter when the hook
+        /// fails (HARDENING P2-14): a broken dynamic skill must not
+        /// keep running silently.
+        #[arg(long)]
+        disable_on_fail: bool,
     },
     /// Install skills from a git source (repo with `.agents/skills/`, or a
     /// repo that is itself a skill).
@@ -517,7 +522,10 @@ fn main() -> ExitCode {
         Command::Skill(SkillArgs { action }) => match action {
             SkillAction::List => cmd_skill_list(),
             SkillAction::Show { name } => cmd_skill_show(&name),
-            SkillAction::Verify { name } => cmd_skill_verify(&name),
+            SkillAction::Verify {
+                name,
+                disable_on_fail,
+            } => cmd_skill_verify(&name, disable_on_fail),
             SkillAction::Add { source } => cmd_skill_add(&source),
         },
         Command::Checkpoint(CheckpointArgs { action }) => match action {
@@ -1437,7 +1445,11 @@ fn cmd_skill_list() -> ExitCode {
                 } else {
                     "ref"
                 };
-                println!("{}  [{hook}]  {}", skill.name, skill.description);
+                if skill.disabled {
+                    println!("{}  [{hook}][disabled]  {}", skill.name, skill.description);
+                } else {
+                    println!("{}  [{hook}]  {}", skill.name, skill.description);
+                }
             }
             ExitCode::SUCCESS
         }
@@ -1469,7 +1481,7 @@ fn cmd_skill_show(name: &str) -> ExitCode {
     }
 }
 
-fn cmd_skill_verify(name: &str) -> ExitCode {
+fn cmd_skill_verify(name: &str, disable_on_fail: bool) -> ExitCode {
     let root = root();
     match skills::find_skill(&root, name) {
         Ok(skill) => match skills::verify_skill(&skill, &root) {
@@ -1480,6 +1492,14 @@ fn cmd_skill_verify(name: &str) -> ExitCode {
                 } else {
                     eprintln!("FAIL: {name} (exit {:?})", result.exit_code);
                     eprintln!("{}", result.output);
+                    // HARDENING P2-14: persist the disabled state so a
+                    // broken dynamic skill cannot keep running silently.
+                    if disable_on_fail {
+                        match skills::set_disabled(&root, name, true) {
+                            Ok(()) => eprintln!("skill {name} marked DISABLED (persisted)"),
+                            Err(e) => eprintln!("warning: could not mark {name} disabled — {e}"),
+                        }
+                    }
                     ExitCode::from(1)
                 }
             }
