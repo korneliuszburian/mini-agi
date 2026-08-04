@@ -345,8 +345,51 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
         });
     }
 
+    // 9. Judge-drift recalibration trigger (production-readiness C.3):
+    // when the verifier-vs-judged precision drops below the configured
+    // minimum, emit a warn finding AND append a dated trigger note so
+    // the calibration corpus is known to need a refresh.
+    let drift = crate::verifier::judge_drift(root);
+    let min_precision = crate::config::Config::load(root).min_judge_precision;
+    if drift.total > 0 && drift.precision() < min_precision {
+        let trigger = root.join(CALIBRATION_TRIGGER_LOG_REL);
+        let stamp = crate::memory::utc_now_stamp();
+        let line = format!(
+            "{stamp} precision {:.3} below min {min_precision:.3} — recalibrate calibration.md\n",
+            drift.precision()
+        );
+        if let Some(parent) = trigger.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&trigger)
+            .and_then(|mut f| {
+                use std::io::Write;
+                f.write_all(line.as_bytes())
+            });
+        report.findings.push(Finding {
+            severity: "warn".into(),
+            message: format!(
+                "judge-drift: precision {:.3} < min {min_precision:.3} — recalibration trigger appended to {}",
+                drift.precision(),
+                CALIBRATION_TRIGGER_LOG_REL
+            ),
+        });
+    } else {
+        report.passed.push(format!(
+            "judge-drift: precision {:.3} ({} verifications) within min {min_precision:.3}",
+            drift.precision(),
+            drift.total
+        ));
+    }
+
     Ok(report)
 }
+
+/// Relative path of the judge-drift recalibration trigger log.
+pub const CALIBRATION_TRIGGER_LOG_REL: &str = "memory/episodic/calibration-trigger.log";
 
 /// Reference + trial-isolation report (production-readiness C.1).
 #[derive(Debug, Default)]
@@ -739,5 +782,92 @@ mod reference_tests {
         assert_eq!(rep2.contaminated, 0, "own dir must not be flagged");
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&root2);
+    }
+}
+
+#[cfg(test)]
+mod judge_drift_trigger_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-drift-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(root.join("memory/episodic")).unwrap();
+        root
+    }
+
+    fn seed_calibration(root: &Path, rows: &[crate::verifier::CalibrationRow]) {
+        for r in rows {
+            crate::verifier::append_calibration(root, r).unwrap();
+        }
+    }
+
+    fn row(case: &str, status: &str, claimed: bool) -> crate::verifier::CalibrationRow {
+        crate::verifier::CalibrationRow {
+            at: "2026-08-04T00:00:00Z".into(),
+            case: case.into(),
+            status: status.into(),
+            claimed,
+            composite: 0.9,
+            exit: Some(0),
+            command: Some("sh v.sh".into()),
+            target: Some("/tmp/x".into()),
+        }
+    }
+
+    #[test]
+    fn precision_below_threshold_produces_the_trigger() {
+        // Production-readiness C.3: a claimed-success that the verifier
+        // did NOT confirm drops precision below the default min 1.0 ->
+        // a warn finding + a dated calibration-trigger note.
+        let root = tmp_root("trigger");
+        seed_calibration(
+            &root,
+            &[
+                row("case-a", "verified", true),
+                row("case-b", "disagrees", true),
+            ],
+        );
+        let drift = crate::verifier::judge_drift(&root);
+        assert!(drift.precision() < 1.0, "{drift:?}");
+        let report = audit(&root).unwrap();
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.message.contains("judge-drift") && f.message.contains("recalibration")),
+            "{:?}",
+            report.findings
+        );
+        let trigger = root.join(CALIBRATION_TRIGGER_LOG_REL);
+        assert!(
+            trigger.is_file(),
+            "the calibration trigger note must be appended"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn full_precision_stays_green() {
+        let root = tmp_root("green");
+        seed_calibration(
+            &root,
+            &[
+                row("case-a", "verified", true),
+                row("case-b", "verified", false),
+            ],
+        );
+        let report = audit(&root).unwrap();
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|f| f.message.contains("judge-drift")),
+            "{:?}",
+            report.findings
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

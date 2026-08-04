@@ -41,6 +41,16 @@ pub struct Config {
     /// extension): per-field override of the hardcoded consts.
     #[serde(default)]
     pub health: crate::health::HealthThresholds,
+    /// Judge-drift recalibration trigger (production-readiness C.3):
+    /// when `eval judge-drift` precision drops below this, the audit
+    /// signals a recalibration. Default 1.0 (any disagreement is a
+    /// signal).
+    #[serde(default = "default_min_judge_precision")]
+    pub min_judge_precision: f64,
+}
+
+const fn default_min_judge_precision() -> f64 {
+    1.0
 }
 
 const fn default_target_composite() -> f64 {
@@ -62,6 +72,7 @@ impl Default for Config {
             max_wall_seconds: None,
             max_repeated_steps: None,
             health: crate::health::HealthThresholds::default(),
+            min_judge_precision: default_min_judge_precision(),
         }
     }
 }
