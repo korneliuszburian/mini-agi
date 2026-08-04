@@ -42,15 +42,36 @@ fn is_transcript_noise(trimmed: &str) -> bool {
 /// Extract the exit code from a `/usr/bin/bash -lc "cmd"` transcript
 /// tool-result line — codex logs `(exit N)` at the end. `None` when the
 /// line carries no exit evidence.
+/// Extract the exit code from a codex tool-result line — codex logs
+/// ` exited 2 in 0ms:` (or `(exit 2)`) on the line AFTER the command.
+/// `None` when the line carries no exit evidence.
 fn bash_exit(trimmed: &str) -> Option<i32> {
-    let tail = trimmed
-        .rsplit(' ')
-        .next()
-        .unwrap_or("")
-        .trim_matches(|c: char| c == ')' || c == '(' || c == '"');
-    tail.strip_prefix("exit")
-        .and_then(|rest| rest.split_whitespace().next())
-        .and_then(|n| n.trim_end_matches(')').parse().ok())
+    let t = trimmed.trim();
+    if let Some(rest) = t.strip_prefix("exited ") {
+        return rest
+            .split_whitespace()
+            .next()
+            .and_then(|n| n.trim_end_matches(':').parse().ok());
+    }
+    if t.starts_with("succeeded") {
+        return Some(0);
+    }
+    if t.starts_with("(exit") {
+        return t
+            .split_whitespace()
+            .nth(1)
+            .and_then(|n| n.trim_end_matches(')').parse().ok());
+    }
+    None
+}
+
+/// Look-ahead (hardening audit P2-12): bind the ` exited N in ...:`
+/// tool-result header that follows a command to that command's exit
+/// code. The command line itself carries no exit evidence; the NEXT
+/// line does. Without this the honest capture records `ok: None` for
+/// every command.
+fn next_line_exit(lines: &[&str], idx: usize) -> Option<i32> {
+    lines.get(idx + 1).and_then(|next| bash_exit(next))
 }
 
 /// Lines that look like executed commands (shell prompts, bare command
@@ -107,8 +128,9 @@ fn looks_like_command(line: &str) -> bool {
 /// step it cannot see.
 #[must_use]
 pub fn parse_transcript(text: &str) -> Vec<CapturedStep> {
+    let lines: Vec<&str> = text.lines().collect();
     let mut steps = Vec::new();
-    for (idx, raw) in text.lines().enumerate() {
+    for (idx, raw) in lines.iter().enumerate() {
         let trimmed = raw.trim();
         let line = trimmed;
         if line.is_empty() || is_transcript_noise(line) {
@@ -120,7 +142,7 @@ pub fn parse_transcript(text: &str) -> Vec<CapturedStep> {
                 tool: "exec".into(),
                 action: line.to_string(),
                 paths: Vec::new(),
-                ok: bash_exit(trimmed).map(|code| code == 0),
+                ok: next_line_exit(&lines, idx).map(|code| code == 0),
             });
             continue;
         }
@@ -229,6 +251,43 @@ no completion marker here
             steps
                 .iter()
                 .all(|s| s.action != "plain prose line is ignored")
+        );
+    }
+
+    #[test]
+    fn look_ahead_binds_exit_code_to_the_command() {
+        // P2-12 (hardening audit): the ` exited N in ...:` / ` succeeded`
+        // header on the line AFTER a command becomes that command's ok.
+        let text = "/usr/bin/bash -lc \"make verify\" in /tmp/w\n exited 0 in 42ms:\n...\n/usr/bin/bash -lc \"probe missing\" in /tmp/w\n exited 2 in 0ms:\n...\n/usr/bin/bash -lc \"build\" in /tmp/w\n succeeded in 0ms:\n...\n/usr/bin/bash -lc \"slow thing\" in /tmp/w\n(no exit header)\n";
+        let steps = parse_transcript(text);
+        assert_eq!(steps.len(), 4);
+        assert_eq!(steps[0].ok, Some(true));
+        assert_eq!(steps[1].ok, Some(false));
+        assert_eq!(steps[2].ok, Some(true), "succeeded maps to exit 0");
+        // No exit header -> unknown, never invented.
+        assert_eq!(steps[3].ok, None);
+    }
+
+    #[test]
+    fn look_ahead_binds_exits_on_the_real_exp003_log() {
+        let path = std::path::Path::new("/tmp/opencode/exp003-work/codex.log");
+        if !path.is_file() {
+            eprintln!("skipping: {} absent on this host", path.display());
+            return;
+        }
+        let text = std::fs::read_to_string(path).unwrap();
+        let steps = parse_transcript(&text);
+        let with_ok = steps.iter().filter(|s| s.ok.is_some()).count();
+        assert!(
+            with_ok > 0,
+            "the real exp003 transcript carries exited/succeeded headers — {} exec steps should have ok bound",
+            steps.iter().filter(|s| s.tool == "exec").count()
+        );
+        // The exit-2 probe from the review finding must surface as a
+        // failed step (ok Some(false)), not be zeroed as unknown.
+        assert!(
+            steps.iter().any(|s| s.ok == Some(false)),
+            "at least one real probe failure must be captured"
         );
     }
 
