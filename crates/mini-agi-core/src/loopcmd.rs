@@ -359,6 +359,18 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     }
     budget_line.push('\n');
     w(&mut body, &budget_line)?;
+    // Red-team signal (VERIFIABLE-REWARD-RESEARCH D): a case with a
+    // recent verifier-vs-judge disagreement must warn the worker —
+    // the judged outcome previously overstated success here.
+    if crate::verifier::disagreement_cases(root)
+        .iter()
+        .any(|c| c == case || c == case.strip_suffix("-rerun").unwrap_or(case))
+    {
+        w(
+            &mut body,
+            "  [warn] red-team: a prior run on this case DISAGREED with the\n  verifier — investigate before trusting the judged outcome\n",
+        )?;
+    }
     w(
         &mut body,
         "4. target repo `verify.sh` ALL GREEN (where applicable)\n",
@@ -1148,6 +1160,37 @@ mod tests {
         assert!(text.contains("hard budget gate"), "{text}");
         let _ = fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn dispatch_spec_warns_on_disagreement_case() {
+        // Red-team signal: a case with a prior verifier-vs-judge
+        // disagreement gets a warning in its dispatch spec.
+        let root = tmp_case_root("redteam");
+        crate::verifier::append_calibration(
+            &root,
+            &crate::verifier::CalibrationRow {
+                at: "2026-08-04T00:00:00Z".into(),
+                case: "real-ticket-008-v2".into(),
+                status: "disagrees".into(),
+                claimed: true,
+                composite: 0.9,
+                exit: Some(1),
+                command: Some("sh v.sh".into()),
+                target: Some("/tmp/x".into()),
+            },
+        )
+        .unwrap();
+        let outcome = dispatch(&root, Some("real-ticket-008-v2"), 0.5, "rt-test").unwrap();
+        let spec = fs::read_to_string(&outcome.spec).unwrap();
+        assert!(spec.contains("red-team"), "spec must warn: {spec}");
+        // A clean case has no warning.
+        let root2 = tmp_case_root("clean2");
+        let outcome2 = dispatch(&root2, Some("real-ticket-008-v2"), 0.5, "rt-test").unwrap();
+        let spec2 = fs::read_to_string(&outcome2.spec).unwrap();
+        assert!(!spec2.contains("red-team"), "no warn expected: {spec2}");
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&root2);
+    }
 }
 
 #[cfg(test)]
@@ -1304,7 +1347,6 @@ mod metrics_migration_tests {
             1,
             "no duplicate row"
         );
-        let _ = fs::remove_dir_all(&root);
     }
 }
 

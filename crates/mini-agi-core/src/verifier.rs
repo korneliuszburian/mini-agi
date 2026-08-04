@@ -384,6 +384,9 @@ pub struct JudgeDrift {
     pub verified_successes: usize,
     /// Disagreements (verifier and claim differ).
     pub disagreements: usize,
+    /// Cases with a recorded verifier-vs-judge disagreement — the
+    /// first-class red-team signal (VERIFIABLE-REWARD-RESEARCH D).
+    pub disagreement_cases: Vec<String>,
 }
 
 impl JudgeDrift {
@@ -418,9 +421,19 @@ pub fn judge_drift(root: &Path) -> JudgeDrift {
         }
         if row.status == "disagrees" {
             drift.disagreements += 1;
+            if !drift.disagreement_cases.contains(&row.case) {
+                drift.disagreement_cases.push(row.case.clone());
+            }
         }
     }
     drift
+}
+
+/// Cases with a recorded verifier-vs-judge disagreement (red-team
+/// signal): a `loop dispatch` for such a case must warn in its spec.
+#[must_use]
+pub fn disagreement_cases(root: &Path) -> Vec<String> {
+    judge_drift(root).disagreement_cases
 }
 
 #[cfg(test)]
@@ -653,6 +666,48 @@ mod verify_audit_tests {
         .unwrap();
         let err = audit_verifier(&root, &path).unwrap_err();
         assert!(err.contains("verify_command"), "{err}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod judge_drift_signal_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-jds-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn disagreement_case_surfaces_in_judge_drift() {
+        // Red-team signal: a disagreement row names its case.
+        let root = tmp_root("signal");
+        append_calibration(
+            &root,
+            &CalibrationRow {
+                at: "2026-08-04T00:00:00Z".into(),
+                case: "case-x".into(),
+                status: "disagrees".into(),
+                claimed: true,
+                composite: 0.9,
+                exit: Some(1),
+                command: Some("sh v.sh".into()),
+                target: Some("/tmp/x".into()),
+            },
+        )
+        .unwrap();
+        let drift = judge_drift(&root);
+        assert_eq!(drift.disagreements, 1);
+        assert!(
+            drift.disagreement_cases.iter().any(|c| c == "case-x"),
+            "{:?}",
+            drift.disagreement_cases
+        );
+        assert!(disagreement_cases(&root).iter().any(|c| c == "case-x"));
         let _ = std::fs::remove_dir_all(&root);
     }
 }

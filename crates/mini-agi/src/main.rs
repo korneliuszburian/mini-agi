@@ -1636,6 +1636,11 @@ fn cmd_eval_judge_drift() -> ExitCode {
         "judge drift: {} verifications, {} disagreements",
         drift.total, drift.disagreements
     );
+    for case in &drift.disagreement_cases {
+        println!(
+            "  DISAGREEMENT CASE: {case} — the judged outcome disagreed with the verifier (red-team signal)"
+        );
+    }
     println!(
         "  claimed successes: {} — verified by the deterministic layer: {}",
         drift.claimed_successes, drift.verified_successes
