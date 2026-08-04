@@ -11,7 +11,7 @@ categories = ["development-tools", "command-line-utilities"]
 repository = "https://github.com/korneliuszburian/mini-agi"
 
 [dependencies]
-mini-agi-core = { path = "../mini-agi-core" }
+mini-agi-core = { path = "../mini-agi-core", version = "0.3.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
