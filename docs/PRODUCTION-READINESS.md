@@ -245,6 +245,32 @@ P0/P1 backlog implemented slice by slice (each verify ALL GREEN + pushed
   `init::bootstrap` first-run skeleton auto-init (no files, no clobber);
   documented in README.
 
+### Implementation status (run 2, 2026-08-04)
+P1 backlog delivered slice by slice (each verify ALL GREEN + pushed +
+CI green):
+- **C.1 capability/regression labels + per-mode gates — DONE.** run.json
+  `mode: capability|regression` (default regression); `eval gate` treats
+  a capability-case composite drop as a monitored CAPABILITY DROP (not a
+  hard fail) while a regression-case drop stays a hard failure.
+- **C.1 reference solutions + trial-isolation guard — DONE.** References
+  under `evals/references/<case>.json` (bootstrapped from the verified
+  reruns); the audit flags a case with a rerun lacking a matching
+  reference (missing, or composite/achieved divergence beyond 0.05) and
+  flags a rerun whose trajectory reads a sibling case dir (trial
+  contamination). Current corpus: 11 match, 0 missing, 0 contaminated.
+- **D.2 per-skill least-authority sandbox — DONE.** Skills declare
+  `sandbox: read-only` frontmatter; the worker routes through the
+  Landlock wrapper with NO workdir write access for a read-only spec
+  (only codex's own state dir stays writable).
+- **C.3 judge-drift recalibration trigger — DONE.** Config
+  `min_judge_precision` (default 1.0); when verifier-vs-judged precision
+  drops below it the audit warns AND appends a dated note to
+  `memory/episodic/calibration-trigger.log`. Current corpus stays 1.000.
+- **F.1 derive snapshot/replay — DONE.** `derive --snapshot <name>`
+  records canonical+brief hashes; `derive --replay <name>` regenerates
+  and reports MATCH / DIVERGENT (deterministic materialization proof).
+  Live: snapshot pre-migration -> replay MATCH.
+
 ### Remaining backlog (honest)
 - P1: reference solutions per case + trial-isolation guard; capability/
   regression labels + per-mode gates; per-skill least-authority Landlock;

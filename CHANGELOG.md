@@ -408,3 +408,14 @@ Intelligence" direction)
   latency_seconds (legacy runs parse unchanged).
 - Data-dir contract: AGENTIC_ROOT override + first-run bootstrap of the
   memory/evals/tickets/scripts skeleton.
+
+### Added (2026-08-04 — P1 backlog, slices 1-5)
+- capability/regression case labels + per-mode eval gates (CAPABILITY
+  DROP monitored, REGRESSION hard).
+- reference solutions (evals/references/) + trial-isolation guard in the
+  audit; 11 references bootstrapped.
+- per-skill least-authority sandbox (sandbox: read-only frontmatter ->
+  no workdir write in the Landlock wrapper).
+- judge-drift recalibration trigger (min_judge_precision; audit warn +
+  calibration-trigger.log note).
+- derive snapshot/replay (deterministic materialization proof).
