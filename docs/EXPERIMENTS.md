@@ -302,3 +302,43 @@ checksums — the pilot predicts the N=30 ceiling.
   was re-snapshotted (the fabricated 1.0000 was replaced by the
   honest 0.5000).
 - The full Phase 10 delta: verify.sh ALL GREEN + pushed + CI green.
+
+## EXP-009 — proof-of-advantage control on the kernel's OWN loop (2026-08-04)
+
+Protocol: the SAME fresh task (wordcount CLI: line-count of a file, 3
+unittest cases, make verify gate) executed N=3 per arm. Arm K = the full
+kernel loop (loop dispatch spec with failure context -> `mini-agi codex`
+with budget + capture -> loop verify with the deterministic verifier).
+Arm P = plain resampling (`codex exec` on the bare task prompt, same
+model). Both arms used --no-sandbox (the sandbox is a safety feature,
+not the tested variable; the Landlock write-containment blocks the npx
+codex wrapper's /dev/null + ~/.npm writes — a REAL finding).
+
+Results (all gates = make verify in the target dir):
+
+| arm | run | wall(s) | verify gate | loop verify |
+| --- | --- | --- | --- | --- |
+| K | k1 | 296 | PASS | CLOSED 0.8123 |
+| K | k2 | 379 | PASS | CLOSED 1.0000 |
+| K | k3 | 300 | PASS | CLOSED 0.8909 |
+| P | p1 | 80 | PASS | n/a |
+| P | p2 | 83 | PASS | n/a |
+| P | p3 | 95 | PASS | n/a |
+
+Verdict (honest): at N=3 on this EASY task, BOTH arms succeeded 3/3 —
+NO success delta from the kernel loop. Plain resampling was ~3.8x
+faster in wall time (avg 86s vs 325s); the kernel loop's spec/failure-
+context prompting + capture + verifier add overhead without improving
+success when solo capability is above the bar. This is the same
+two-observation-to-N=3 version of EXP-005: the control WORKS (it would
+have rejected a false "kernel memory beats resampling" claim), and the
+kernel's value must be shown where solo FAILS. The measurement is an
+anecdote at this N, not a causal conclusion.
+
+Findings for the kernel:
+- The Landlock sandbox (ADR-0012) write-containment blocks npx-style
+  codex wrappers (writes /dev/null + ~/.npm). For production, either add
+  ~/.npm (+ a /dev/null allowance) to the default write set or document
+  --no-sandbox for wrapped workers.
+- The honest capture (ok flags) + loop verify (composite 0.81-1.0,
+  verifier PASS) worked end-to-end on all three kernel runs.
