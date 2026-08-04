@@ -342,3 +342,12 @@ Intelligence" direction)
   telemetry, counterfactual gate, memory-load/attribution, pilot
   instrument); codex review EXP-006 REWORK fully dispositioned; audit
   in the gate; multi-root documented follow_up.
+### Added (Phase 10 — EXP-003 continuation, slice 4)
+- cmd_codex now parses the COMBINED transcript (stdout+stderr) — bash -lc
+  invocations land on stderr; the earlier run captured 0 steps.
+- `--reparse-log <path>`: rebuild a run.json draft from an existing
+  transcript without re-running codex.
+- Full loop end-to-end on a fresh slice: dispatch codex-exp-003 ->
+  codex exec (8m59s) -> capture (40 steps) -> honest draft (verify
+  fields, goal_aligned null) -> ingest -> loop verify CLOSED 1.0000,
+  lease released; gate 0 regressions across 24 cases.

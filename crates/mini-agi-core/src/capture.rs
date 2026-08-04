@@ -198,6 +198,18 @@ no completion marker here
     }
 
     #[test]
+    fn parses_exp003_transcript() {
+        let text = std::fs::read_to_string("/tmp/opencode/exp003-work/codex.log").unwrap();
+        let steps = parse_transcript(&text);
+        assert!(
+            !steps.is_empty(),
+            "must capture steps from the exp003 transcript"
+        );
+        let execs = steps.iter().filter(|s| s.tool == "exec").count();
+        assert!(execs > 0, "bash -lc invocations must be captured");
+    }
+
+    #[test]
     fn parses_real_exp002_transcript_when_present() {
         // The EXP-002 transcript lives outside the repo (a scratch dir);
         // a clean host must not fail on it — the test is conditional.

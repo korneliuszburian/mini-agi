@@ -130,6 +130,10 @@ struct CodexArgs {
     /// Target repo for the verifier (defaults to the workdir).
     #[arg(long)]
     target: Option<String>,
+    /// Re-parse an existing transcript log into a fresh run.json draft
+    /// (no codex run).
+    #[arg(long)]
+    reparse_log: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -470,12 +474,26 @@ fn main() -> ExitCode {
             run_out,
             verify,
             target,
-        }) => cmd_codex(
-            &spec,
-            &workdir,
-            run_out.as_deref(),
-            verify.as_deref(),
-            target.as_deref(),
+            reparse_log,
+        }) => reparse_log.map_or_else(
+            || {
+                cmd_codex(
+                    &spec,
+                    &workdir,
+                    run_out.as_deref(),
+                    verify.as_deref(),
+                    target.as_deref(),
+                )
+            },
+            |log| {
+                cmd_codex_reparse(
+                    &log,
+                    &workdir,
+                    run_out.as_deref(),
+                    verify.as_deref(),
+                    target.as_deref(),
+                )
+            },
         ),
         Command::Harness(HarnessArgs { action }) => match action {
             HarnessAction::Snapshot => cmd_harness(),
@@ -559,6 +577,80 @@ fn cmd_audit() -> ExitCode {
     }
 }
 
+fn cmd_codex_reparse(
+    log: &Path,
+    workdir: &Path,
+    run_out: Option<&Path>,
+    verify: Option<&str>,
+    target: Option<&str>,
+) -> ExitCode {
+    use mini_agi_core::capture;
+    let text = match std::fs::read_to_string(log) {
+        Ok(t) => t,
+        Err(e) => return fail(&format!("cannot read log {}: {e}", log.display())),
+    };
+    let outcome = capture::CaptureOutcome {
+        log_path: log.to_path_buf(),
+        steps: capture::parse_transcript(&text),
+        completed: capture::completed(&text),
+        result: capture::extract_result(&text),
+    };
+    println!(
+        "reparse: {} captured steps, completed={}",
+        outcome.steps.len(),
+        outcome.completed
+    );
+    for step in &outcome.steps {
+        println!(
+            "  [{}] {}",
+            step.tool,
+            step.action.chars().take(90).collect::<String>()
+        );
+    }
+    let trajectory: Vec<serde_json::Value> = outcome
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            serde_json::json!({
+                "step": i + 1,
+                "action": s.action,
+                "tool": s.tool,
+                "ok": true,
+                "goal_aligned": null,
+                "tokens": 0,
+                "output_tokens": 0,
+                "note": format!("captured from codex transcript line {}", s.line),
+                "paths": s.paths,
+            })
+        })
+        .collect();
+    let run = serde_json::json!({
+        "goal": outcome.result.as_deref().unwrap_or("(goal not extracted)"),
+        "scope": [],
+        "outcome": {"achieved": false, "tests": false, "typecheck": false},
+        "tokens_total": 0,
+        "cost_usd": 0.0,
+        "golden": null,
+        "verify_command": verify,
+        "verify_target": target
+            .map(str::to_string)
+            .or_else(|| Some(workdir.to_string_lossy().into_owned())),
+        "trajectory": trajectory,
+    });
+    let out_path = run_out.unwrap_or(&workdir.join("run.json")).to_path_buf();
+    match std::fs::write(
+        &out_path,
+        serde_json::to_string_pretty(&run).unwrap_or_default(),
+    ) {
+        Ok(()) => {
+            println!("  run draft: {}", out_path.display());
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("cannot write run draft: {e}")),
+    }
+}
+
 fn cmd_codex(
     spec: &Path,
     workdir: &Path,
@@ -600,17 +692,17 @@ fn cmd_codex(
         Ok(o) => o,
         Err(e) => return fail(&format!("codex not available: {e}")),
     };
-    let transcript = String::from_utf8_lossy(&output.stdout);
-    std::fs::write(
-        &log_path,
-        format!("{transcript}{}", String::from_utf8_lossy(&output.stderr)),
-    )
-    .unwrap_or(());
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    std::fs::write(&log_path, &combined).unwrap_or(());
     let outcome = capture::CaptureOutcome {
         log_path: log_path.clone(),
-        steps: capture::parse_transcript(&transcript),
-        completed: capture::completed(&transcript),
-        result: capture::extract_result(&transcript),
+        steps: capture::parse_transcript(&combined),
+        completed: capture::completed(&combined),
+        result: capture::extract_result(&combined),
     };
     println!(
         "codex: exit {}, completed={}, {} captured steps, log: {}",

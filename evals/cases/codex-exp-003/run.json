@@ -1,0 +1,11 @@
+{
+  "goal": "Implement scripts/token-count.py — a zero-dependency Python CLI that prints the word count of a file (usage: token-count.py <path>; exit 0 on success, exit 1 with a clear message on a missing/unreadable file). Tests in tests/test_token_count.py (unittest, no dependencies) covering: known word count, missing file error, directory path error. Makefile target verify wiring tests + smoke check.",
+  "scope": ["scripts/token-count.py", "tests/test_token_count.py", "Makefile"],
+  "outcome": {"achieved": false, "tests": false, "typecheck": false},
+  "tokens_total": 100,
+  "cost_usd": 0.001,
+  "golden": null,
+  "trajectory": [
+    {"step": 1, "action": "read: slice spec — task defined, not yet implemented", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 100, "output_tokens": 20}
+  ]
+}

@@ -244,3 +244,15 @@ succeeded anyway.
 
 Follow-up: repeat at N=5 per arm (pilot rule) with a HARDER task where
 solo capability is below the bar — the pilot predicts the N=30 ceiling.
+
+## EXP-003 continuation — the loop with the honest capture (2026-08-04)
+
+- Full cycle: dispatch codex-exp-003 (TICKET-11, lease) -> `mini-agi
+  codex` (8m59s, completion protocol, capture) -> 40 steps captured ->
+  draft with verify_command/verify_target + goal_aligned null ->
+  outcome finalized only after the workdir gate confirmed green ->
+  ingest -> loop verify CLOSED 1.0000 (verifier PASS, lease released,
+  0 regressions across 24 cases).
+- Found + fixed: cmd_codex parsed stdout only (bash -lc invocations are
+  on stderr) — combined parse + --reparse-log; the first draft had an
+  empty trajectory (stale binary), reparse fixed it.
