@@ -315,7 +315,121 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
         }
     }
 
+    // 8. Reference solutions + trial isolation (production-readiness
+    // C.1): every case with a rerun must have a proven-good reference
+    // under evals/references/<case>.json; the rerun must reproduce its
+    // key outcome (same achieved, composite within tolerance); and a
+    // rerun trajectory must never read a sibling case's outputs
+    // (trial contamination, Anthropic's documented eval failure).
+    let references = check_references(root);
+    match references {
+        Ok(rep) => {
+            report.passed.push(format!(
+                "references: {} case(s) match, {} missing, {} contaminated",
+                rep.matched, rep.missing, rep.contaminated
+            ));
+            if rep.missing > 0 {
+                report.findings.push(Finding {
+                    severity: "warn".into(),
+                    message: format!(
+                        "{} case(s) with a rerun have no reference under evals/references/",
+                        rep.missing
+                    ),
+                });
+            }
+            if rep.contaminated > 0 {
+                report.findings.push(Finding {
+                    severity: "warn".into(),
+                    message: format!(
+                        "{0} rerun(s) read sibling outputs — trial contamination",
+                        rep.contaminated
+                    ),
+                });
+            }
+        }
+        Err(e) => {
+            report.findings.push(Finding {
+                severity: "warn".into(),
+                message: format!("references check error: {e}"),
+            });
+        }
+    }
+
     Ok(report)
+}
+
+/// Reference + trial-isolation report (production-readiness C.1).
+#[derive(Debug, Default)]
+pub struct ReferenceReport {
+    /// Rerun cases whose reference exists and matches the key outcome.
+    pub matched: usize,
+    /// Rerun cases with no reference under `evals/references/`.
+    pub missing: usize,
+    /// Rerun cases whose trajectory reads a sibling case's outputs.
+    pub contaminated: usize,
+}
+
+/// Composite tolerance for reference reproduction (production-readiness
+/// C.1).
+pub const REFERENCE_TOLERANCE: f64 = 0.05;
+
+/// Check reference solutions and trial isolation for every rerun case.
+fn check_references(root: &Path) -> std::io::Result<ReferenceReport> {
+    let mut rep = ReferenceReport::default();
+    let cases_dir = root.join("evals/cases");
+    let refs_dir = root.join("evals/references");
+    let golden_dir = root.join("evals/golden");
+    let Ok(rd) = fs::read_dir(&cases_dir) else {
+        return Ok(rep);
+    };
+    for entry in rd.flatten() {
+        let case = entry.file_name().to_string_lossy().into_owned();
+        let Some(base) = case.strip_suffix("-rerun") else {
+            continue;
+        };
+        let rerun_path = entry.path().join("run.json");
+        let Ok(rerun) = serde_json::from_str::<crate::eval::Run>(
+            &fs::read_to_string(&rerun_path).unwrap_or_default(),
+        ) else {
+            continue;
+        };
+        // Trial isolation: a rerun step path must not point into any
+        // OTHER case directory under evals/cases.
+        for step in &rerun.trajectory {
+            for p in &step.paths {
+                let p = p.trim_start_matches("./");
+                if p.starts_with("evals/cases/") && !p.starts_with(&format!("evals/cases/{case}/"))
+                {
+                    rep.contaminated += 1;
+                    break;
+                }
+            }
+        }
+        // Reference presence + key-outcome reproduction.
+        let ref_path = refs_dir.join(format!("{base}.json"));
+        let Ok(reference) = crate::eval::score_run(&ref_path, root, &golden_dir) else {
+            rep.missing += 1;
+            continue;
+        };
+        let Ok(rerun_report) = crate::eval::score_run(&rerun_path, root, &golden_dir) else {
+            continue;
+        };
+        let reference_run = serde_json::from_str::<crate::eval::Run>(
+            &fs::read_to_string(&ref_path).unwrap_or_default(),
+        );
+        let achieved_match = match reference_run {
+            Ok(r) => r.outcome.achieved == rerun.outcome.achieved,
+            Err(_) => false,
+        };
+        let composite_match =
+            (rerun_report.composite - reference.composite).abs() <= REFERENCE_TOLERANCE;
+        if composite_match && achieved_match {
+            rep.matched += 1;
+        } else {
+            rep.missing += 1;
+        }
+    }
+    Ok(rep)
 }
 
 /// Relative path of the comprehensive action log (production-readiness
@@ -557,5 +671,83 @@ mod action_log_tests {
             report.findings
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod reference_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-refs-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        for d in ["evals/cases", "evals/references", "evals/golden"] {
+            std::fs::create_dir_all(root.join(d)).unwrap();
+        }
+        root
+    }
+
+    fn run_json(extra_path: &str) -> String {
+        // A valid, scoreable run; extra_path goes into the write step.
+        format!(
+            r#"{{"goal":"g","scope":["src/"],"outcome":{{"achieved":true,"tests_pass":true,"typecheck_pass":true,"lint_pass":true}},"tokens_total":1,"cost_usd":0.01,"golden":null,"trajectory":[{{"step":1,"tool":"write","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1,"paths":["{extra_path}"]}}]}}"#
+        )
+    }
+
+    fn seed_case(root: &Path, case: &str, extra_path: &str) {
+        std::fs::create_dir_all(root.join("evals/cases").join(case)).unwrap();
+        std::fs::write(
+            root.join("evals/cases").join(case).join("run.json"),
+            run_json(extra_path),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn matching_reference_passes_and_missing_is_flagged() {
+        let root = tmp_root("match");
+        seed_case(&root, "case-a-rerun", "src/main.rs");
+        // Reference = the same run -> composite + achieved match.
+        std::fs::write(
+            root.join("evals/references/case-a.json"),
+            run_json("src/main.rs"),
+        )
+        .unwrap();
+        // case-b has a rerun but no reference.
+        seed_case(&root, "case-b-rerun", "src/b.rs");
+        let rep = check_references(&root).unwrap();
+        assert_eq!(rep.matched, 1, "case-a must match");
+        assert_eq!(rep.missing, 1, "case-b must be missing a reference");
+        assert_eq!(rep.contaminated, 0);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn sibling_output_read_is_flagged_as_contamination() {
+        let root = tmp_root("contam");
+        // The rerun's write step points INTO another case dir — a trial
+        // that reads a prior run's outputs (Anthropic contamination).
+        seed_case(&root, "case-x-rerun", "evals/cases/case-y-rerun/run.json");
+        std::fs::write(
+            root.join("evals/references/case-x.json"),
+            run_json("src/main.rs"),
+        )
+        .unwrap();
+        let rep = check_references(&root).unwrap();
+        assert_eq!(rep.contaminated, 1, "sibling read must be flagged");
+        // Its own dir is fine.
+        let root2 = tmp_root("self");
+        seed_case(&root2, "case-z-rerun", "evals/cases/case-z-rerun/run.json");
+        std::fs::write(
+            root2.join("evals/references/case-z.json"),
+            run_json("src/main.rs"),
+        )
+        .unwrap();
+        let rep2 = check_references(&root2).unwrap();
+        assert_eq!(rep2.contaminated, 0, "own dir must not be flagged");
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&root2);
     }
 }

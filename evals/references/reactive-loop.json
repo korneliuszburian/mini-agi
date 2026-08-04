@@ -1,0 +1,23 @@
+{
+  "goal": "Add rate limiting to auth endpoint",
+  "scope": ["src/auth.ts", "tests/auth.test.ts"],
+  "outcome": {"achieved": true, "tests_pass": true, "typecheck_pass": true, "lint_pass": null},
+  "tokens_total": 10300,
+  "cost_usd": 0.05,
+  "golden": null,
+  "trajectory": [
+    {"step": 1, "action": "read: src/auth.ts (existing auth: Bearer token check, no rate limiting)", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 120},
+    {"step": 2, "action": "read: tests/auth.test.ts (existing tests: auth only, no rate limiting)", "tool": "read", "ok": true, "goal_aligned": true, "tokens": 700, "output_tokens": 120},
+    {"step": 3, "action": "exec: npm init -y (scratch project)", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 400, "output_tokens": 60},
+    {"step": 4, "action": "exec: npm install --save-dev typescript @types/node", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 900, "output_tokens": 80},
+    {"step": 5, "action": "write: tests/auth.test.ts (test-first: rate limiting tests — 5 allowed, 6th 429 + Retry-After, per-token isolation, window reset)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 1800, "output_tokens": 60, "paths": ["tests/auth.test.ts"]},
+    {"step": 6, "action": "write: src/auth.ts (fixed-window counter per token+ip, limit 5/min, 429 with retry-after)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 2000, "output_tokens": 60, "paths": ["src/auth.ts"]},
+    {"step": 7, "action": "write: tsconfig.json (compiler config, moduleResolution node)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 40, "paths": ["tsconfig.json"]},
+    {"step": 8, "action": "exec: npx tsc — error TS5108 moduleResolution node10 removed (toolchain discovery, not a fix attempt)", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 400, "output_tokens": 40},
+    {"step": 9, "action": "write: tsconfig.json (module + moduleResolution node16)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 40, "paths": ["tsconfig.json"]},
+    {"step": 10, "action": "write: tests/auth.test.ts (fix FakeRes typing: explicit interface, tsc-clean)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 1200, "output_tokens": 50, "paths": ["tests/auth.test.ts"]},
+    {"step": 11, "action": "write: src/auth.ts (export resetRateLimits for test isolation)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 400, "output_tokens": 40, "paths": ["src/auth.ts"]},
+    {"step": 12, "action": "write: tests/auth.test.ts (beforeEach resetRateLimits — tests order-independent)", "tool": "write", "ok": true, "goal_aligned": true, "tokens": 300, "output_tokens": 40, "paths": ["tests/auth.test.ts"]},
+    {"step": 13, "action": "exec: npx tsc && node --test — typecheck clean, 9/9 tests pass", "tool": "exec", "ok": true, "goal_aligned": true, "tokens": 800, "output_tokens": 120}
+  ]
+}
