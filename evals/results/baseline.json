@@ -25,7 +25,7 @@
   },
   {
     "case": "codex-exp-003-rerun",
-    "composite": 1.0,
+    "composite": 0.5,
     "outcome": 1.0,
     "cost_usd": 0.07,
     "tokens": 15000,

@@ -46,6 +46,8 @@ fn scores_reproduce_poc_baseline_on_all_cases() {
     for case in &[
         "codex-exp-002",
         "codex-exp-002-rerun",
+        "codex-exp-003",
+        "codex-exp-003-rerun",
         "flailing",
         "flailing-rerun",
         "harnessed",

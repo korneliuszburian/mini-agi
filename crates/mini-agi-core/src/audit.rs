@@ -230,6 +230,23 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
         }
     }
 
+    // 5b. Calibration integrity (codex review): verified rows must
+    // carry command/target evidence; impossible rows are a signal.
+    let calibration = crate::verifier::read_calibration(root).unwrap_or_default();
+    let impossible: Vec<&crate::verifier::CalibrationRow> = calibration
+        .iter()
+        .filter(|r| r.status == "verified" && (r.command.is_none() || r.target.is_none()))
+        .collect();
+    if !impossible.is_empty() {
+        report.findings.push(Finding {
+            severity: "warn".into(),
+            message: format!(
+                "calibration integrity: {} verified row(s) without command/target evidence",
+                impossible.len()
+            ),
+        });
+    }
+
     // 6. Verifier attribution (Phase 9 slice 6, NIST audit trail): the
     // last executed verifier commands — audit attribution for commands
     // the kernel has run in target repos.

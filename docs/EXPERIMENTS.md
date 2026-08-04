@@ -213,9 +213,12 @@ no experiment executed yet (needs real attempt-vs-gain measurement).
   valid at verification time. Fix: patch the scratch tests to compute
   today's date (the same class of bug the kernel fixed earlier with
   `first_entry_text`); re-verify -> both flip to verified.
-- Corpus after: precision 100% (17 verified claimed successes / 17
-  conclusive) — and the transient 89.5% with SIGNAL was a real event,
-  not noise.
+- Corpus after: precision 100% — and the transient 89.5% with SIGNAL
+  was a real event, not noise.
+- Durability correction (codex review EXP-007): the first patch hard-
+  coded the new date; the scratch tests now COMPUTE today's date
+  (datetime) so the next rollover cannot break them again; the
+  consolidate-006 dry-run path is date-computed too.
 
 ## EXP-005 RESULTS — resampling control executed (2026-08-04)
 
@@ -233,26 +236,38 @@ Execution (codex exec gpt-5.6-terra, workspace-write, fresh task
 First run of the reflexion arm was INVALID (setup bug: the task text did
 not interpolate into the prompt — the arm re-ran correctly).
 
-Reading (What Drives Improvement 2606.30774): at equal attempts both
-arms succeeded — NO success delta from failure memory on this task. The
-reflexion arm cost ~16x wall time. This is consistent with the paper:
-gains from feedback are often confounded by the ability to USE feedback,
-and at 1 attempt the ceiling is the model's solo capability. The control
-works: without it, one could have attributed the refl arm's success to
-"failure memory works" — the control shows resampling would have
-succeeded anyway.
+Reading (What Drives Improvement 2606.30774): this is a TWO-OBSERVATION
+ANECDOTE, not a causal conclusion (codex review EXP-007): one valid
+call per arm gives no success-rate delta estimate; the reflexion arm
+consumed at least two executions (the invalid first run cannot be
+excluded from resource accounting), so the ~16x wall comparison is not
+attributable to memory; the 14.5s plain result has no committed
+prompts/transcripts/task-checksum evidence to establish comparability.
+The only defensible statement: at 1 attempt each, both arms finished
+green; no observed difference in these two calls. The control prevents
+attributing the reflexion arm's success to failure memory, but the
+experiment needs the N=5 pilot on a harder task, with full protocol
+evidence committed, before any conclusion.
 
 Follow-up: repeat at N=5 per arm (pilot rule) with a HARDER task where
-solo capability is below the bar — the pilot predicts the N=30 ceiling.
+solo capability is below the bar; commit prompts, transcripts and task
+checksums — the pilot predicts the N=30 ceiling.
 
 ## EXP-003 continuation — the loop with the honest capture (2026-08-04)
 
 - Full cycle: dispatch codex-exp-003 (TICKET-11, lease) -> `mini-agi
-  codex` (8m59s, completion protocol, capture) -> 40 steps captured ->
-  draft with verify_command/verify_target + goal_aligned null ->
-  outcome finalized only after the workdir gate confirmed green ->
-  ingest -> loop verify CLOSED 1.0000 (verifier PASS, lease released,
-  0 regressions across 24 cases).
+  codex` (8m59s, completion protocol, capture) -> draft with
+  verify_command/verify_target + goal_aligned null -> outcome finalized
+  only after the workdir gate confirmed green -> ingest -> loop verify.
+- Honesty correction (codex review EXP-007): the first committed
+  trajectory fabricated ok:true for every captured step (a probe
+  command exited 2 but was recorded as ok). The capture parser now
+  sets ok from transcript exit evidence (None when absent) and filters
+  transcript noise; the rerun was regenerated -> honest composite
+  0.5000 (ungated steps), verifier PASS, gap CLOSED exactly at the
+  target. The fabricated 1.0000 in the baseline was displaced by the
+  honest 0.5000 via a refreshed baseline — the best-state bound
+  correctly blocked the displacement until the baseline re-snapshot.
 - Found + fixed: cmd_codex parsed stdout only (bash -lc invocations are
   on stderr) — combined parse + --reparse-log; the first draft had an
   empty trajectory (stale binary), reparse fixed it.

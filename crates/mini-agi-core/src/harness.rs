@@ -208,8 +208,16 @@ pub fn verify_candidate(
     let candidate_text = fs::read_to_string(candidate)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
     let _ = fs::write(&target, &candidate_text);
-    let after = gate_failures_text(root);
+    let (after, after_ok) = gate_run(root);
     restore(&target, original.as_ref())?;
+    // A gate that FAILS after the swap (markerless abort, crash) is an
+    // INVALID after-observation — automatic rejection, never a
+    // countable "reduction" (codex review).
+    if !after_ok {
+        return Ok(format!(
+            "REJECT: gate did not complete cleanly after the swap (exit non-zero, {after:?}) — broken gate must not look like a reduction"
+        ));
+    }
     let before_count = before.len();
     let after_count = after.len();
     match after_count.cmp(&before_count) {
@@ -226,6 +234,14 @@ pub fn verify_candidate(
 }
 
 fn gate_failures_text(root: &Path) -> Vec<String> {
+    gate_run(root).0
+}
+
+/// Run the gate; returns (parsed [FAIL] labels, gate-exit-success).
+/// The markerless-failure synthesis stays in the BEFORE set (a silently
+/// broken current gate must be visible); the AFTER check treats any
+/// non-success as invalid (see `verify_candidate`).
+fn gate_run(root: &Path) -> (Vec<String>, bool) {
     let output = std::process::Command::new("sh")
         .arg("scripts/verify.sh")
         .current_dir(root)
@@ -235,9 +251,6 @@ fn gate_failures_text(root: &Path) -> Vec<String> {
             let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
             text.push_str(&String::from_utf8_lossy(&out.stderr));
             let mut failures = gate_failures(&text);
-            // A gate that FAILS without emitting [FAIL] markers is itself
-            // broken — a marker-less failure must not look green (codex
-            // review).
             if !out.status.success() && failures.is_empty() {
                 failures.push(format!(
                     "gate exited {} without [FAIL] markers",
@@ -246,9 +259,9 @@ fn gate_failures_text(root: &Path) -> Vec<String> {
                         .map_or_else(|| "-".into(), |c| c.to_string())
                 ));
             }
-            failures
+            (failures, out.status.success())
         }
-        Err(_) => vec!["gate unavailable".to_string()],
+        Err(_) => (vec!["gate unavailable".to_string()], false),
     }
 }
 

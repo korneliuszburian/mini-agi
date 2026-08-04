@@ -22,3 +22,5 @@
 {"at":"2026-08-04T05:07:49Z","case":"real-ticket-006-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/consolidate-006","status":"verified"}
 {"at":"2026-08-04T05:07:50Z","case":"real-ticket-007-v2-rerun","command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/redactor-007","status":"verified"}
 {"at":"2026-08-04T05:29:13Z","case":"codex-exp-003-rerun","command":"make verify","target":"/tmp/opencode/exp003-work","status":"verified"}
+{"at":"2026-08-04T05:47:20Z","case":"codex-exp-003-rerun","command":"make verify","target":"/tmp/opencode/exp003-work","status":"verified"}
+{"at":"2026-08-04T05:47:36Z","case":"codex-exp-003-rerun","command":"make verify","target":"/tmp/opencode/exp003-work","status":"verified"}

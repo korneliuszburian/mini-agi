@@ -53,4 +53,7 @@
 2026-08-03T21:50:24Z BEGIN phase9-close -> 109142d (clean)
 2026-08-03T21:50:35Z VERIFY-PASS phase9-close @ 109142d
 2026-08-04T05:02:25Z BEGIN phase10-harness -> cb09335 (clean)
+2026-08-04T05:49:00Z STATUS phase10-harness superseded by phase10-codex (work committed; slice closed via later checkpoints)
+2026-08-04T05:49:24Z STATUS phase10-harness superseded by phase10-codex (work committed e6cd22d..; manual repair)
+2026-08-04T05:49:24Z VERIFY-FAIL phase10-harness @ 32cc0b2 -> superseded without gate run (manual repair)
 2026-08-04T05:15:57Z BEGIN phase10-codex -> e05a90c (clean)

@@ -31,4 +31,4 @@
 {"at":"2026-08-04T05:07:49Z","case":"real-ticket-007-v2","status":"unverified","claimed":true,"composite":0.0,"exit":null,"command":null,"target":null}
 {"at":"2026-08-04T05:07:50Z","case":"real-ticket-007-v2-rerun","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"python3 -m unittest discover -s tests","target":"/tmp/opencode/redactor-007"}
 {"at":"2026-08-04T05:07:50Z","case":"real-ticket-008-v2","status":"unverified","claimed":true,"composite":0.0,"exit":null,"command":null,"target":null}
-{"at":"2026-08-04T05:29:13Z","case":"codex-exp-003-rerun","status":"verified","claimed":true,"composite":1.0,"exit":0,"command":"make verify","target":"/tmp/opencode/exp003-work"}
+{"at":"2026-08-04T05:47:36Z","case":"codex-exp-003-rerun","status":"verified","claimed":true,"composite":0.5,"exit":0,"command":"make verify","target":"/tmp/opencode/exp003-work"}

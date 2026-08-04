@@ -17,6 +17,40 @@ pub struct CapturedStep {
     pub action: String,
     /// Paths touched (for write steps; best-effort).
     pub paths: Vec<String>,
+    /// `true` when the transcript carries exit-0 evidence for a bash
+    /// invocation; `null` (None) when unknown — never invented.
+    pub ok: Option<bool>,
+}
+
+/// Transcript noise that must never be captured as a step (codex
+/// review: `npm notice`, bare `codex` tool labels, help text and the
+/// "Reading additional input" preamble are prose, not actions).
+fn is_transcript_noise(trimmed: &str) -> bool {
+    trimmed.starts_with("npm notice")
+        || trimmed.starts_with("Reading additional input")
+        || trimmed == "codex"
+        || trimmed.starts_with("OpenAI Codex v")
+        || trimmed.starts_with("workdir:")
+        || trimmed.starts_with("model:")
+        || trimmed.starts_with("provider:")
+        || trimmed.starts_with("approval:")
+        || trimmed.starts_with("sandbox:")
+        || trimmed.starts_with("reasoning")
+        || trimmed.starts_with("session id:")
+}
+
+/// Extract the exit code from a `/usr/bin/bash -lc "cmd"` transcript
+/// tool-result line — codex logs `(exit N)` at the end. `None` when the
+/// line carries no exit evidence.
+fn bash_exit(trimmed: &str) -> Option<i32> {
+    let tail = trimmed
+        .rsplit(' ')
+        .next()
+        .unwrap_or("")
+        .trim_matches(|c: char| c == ')' || c == '(' || c == '"');
+    tail.strip_prefix("exit")
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|n| n.trim_end_matches(')').parse().ok())
 }
 
 /// Lines that look like executed commands (shell prompts, bare command
@@ -25,6 +59,9 @@ pub struct CapturedStep {
 /// merely mentions a command is not executed.
 fn looks_like_command(line: &str) -> bool {
     let trimmed = line.trim();
+    if is_transcript_noise(trimmed) {
+        return false;
+    }
     let bare = trimmed
         .strip_prefix("$ ")
         .or_else(|| trimmed.strip_prefix("> "))
@@ -56,7 +93,6 @@ fn looks_like_command(line: &str) -> bool {
             | "grep"
             | "find"
             | "cargo"
-            | "codex"
     ) || trimmed.starts_with("$ ")
         || trimmed.starts_with("> ")
         || trimmed.starts_with("/usr/bin/bash -lc ")
@@ -73,8 +109,9 @@ fn looks_like_command(line: &str) -> bool {
 pub fn parse_transcript(text: &str) -> Vec<CapturedStep> {
     let mut steps = Vec::new();
     for (idx, raw) in text.lines().enumerate() {
-        let line = raw.trim();
-        if line.is_empty() {
+        let trimmed = raw.trim();
+        let line = trimmed;
+        if line.is_empty() || is_transcript_noise(line) {
             continue;
         }
         if looks_like_command(line) {
@@ -83,6 +120,7 @@ pub fn parse_transcript(text: &str) -> Vec<CapturedStep> {
                 tool: "exec".into(),
                 action: line.to_string(),
                 paths: Vec::new(),
+                ok: bash_exit(trimmed).map(|code| code == 0),
             });
             continue;
         }
@@ -95,6 +133,7 @@ pub fn parse_transcript(text: &str) -> Vec<CapturedStep> {
                     tool: "write".into(),
                     action: line.to_string(),
                     paths: vec![path.trim_matches('`').trim().to_string()],
+                    ok: None,
                 });
                 break;
             }
@@ -105,6 +144,7 @@ pub fn parse_transcript(text: &str) -> Vec<CapturedStep> {
                 tool: "read".into(),
                 action: line.to_string(),
                 paths: Vec::new(),
+                ok: None,
             });
         }
     }
@@ -127,9 +167,19 @@ pub fn extract_result(text: &str) -> Option<String> {
 }
 
 /// Detect the completion marker `<promise>COMPLETE</promise>`.
+///
+/// The marker must appear in the LAST 20% of the transcript (codex
+/// review: the prompt echo embeds the marker at the start — the
+/// assistant's completion lands at the end). The heuristic is honest
+/// for reparse; `cmd_codex` additionally strips the prompt text before
+/// checking.
 #[must_use]
 pub fn completed(text: &str) -> bool {
-    text.contains("<promise>COMPLETE</promise>")
+    let marker = "<promise>COMPLETE</promise>";
+    let Some(pos) = text.rfind(marker) else {
+        return false;
+    };
+    pos >= text.len() * 4 / 5
 }
 
 /// A captured codex run: transcript log path + parsed steps + markers.
@@ -194,7 +244,15 @@ no completion marker here
     #[test]
     fn completion_marker_detection() {
         assert!(!completed(TRANSCRIPT));
-        assert!(completed("done\n<promise>COMPLETE</promise>\n"));
+        // The marker counts only near the END of the transcript — the
+        // prompt echo embeds it at the start.
+        let padding = "x".repeat(200);
+        assert!(completed(&format!(
+            "{padding}done\n<promise>COMPLETE</promise>\n"
+        )));
+        assert!(!completed(&format!(
+            "<promise>COMPLETE</promise>\n{padding}done\n"
+        )));
     }
 
     #[test]

@@ -616,7 +616,7 @@ fn cmd_codex_reparse(
                 "step": i + 1,
                 "action": s.action,
                 "tool": s.tool,
-                "ok": true,
+                "ok": s.ok,
                 "goal_aligned": null,
                 "tokens": 0,
                 "output_tokens": 0,
@@ -698,10 +698,14 @@ fn cmd_codex(
         String::from_utf8_lossy(&output.stderr)
     );
     std::fs::write(&log_path, &combined).unwrap_or(());
+    // The prompt (which embeds the completion protocol) is echoed at the
+    // start of the transcript — strip it so the marker detection cannot
+    // self-forge (codex review).
+    let stripped = combined.replace(&prompt, "");
     let outcome = capture::CaptureOutcome {
         log_path: log_path.clone(),
         steps: capture::parse_transcript(&combined),
-        completed: capture::completed(&combined),
+        completed: capture::completed(&stripped),
         result: capture::extract_result(&combined),
     };
     println!(
@@ -733,7 +737,7 @@ fn cmd_codex(
                 "step": i + 1,
                 "action": s.action,
                 "tool": s.tool,
-                "ok": true,
+                "ok": s.ok,
                 "goal_aligned": null,
                 "tokens": 0,
                 "output_tokens": 0,
