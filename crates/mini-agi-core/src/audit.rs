@@ -707,7 +707,7 @@ mod reference_tests {
         .unwrap();
         // case-b has a rerun but no reference.
         seed_case(&root, "case-b-rerun", "src/b.rs");
-        let rep = check_references(&root).unwrap();
+        let rep = check_references(&root);
         assert_eq!(rep.matched, 1, "case-a must match");
         assert_eq!(rep.missing, 1, "case-b must be missing a reference");
         assert_eq!(rep.contaminated, 0);
@@ -725,7 +725,7 @@ mod reference_tests {
             run_json("src/main.rs"),
         )
         .unwrap();
-        let rep = check_references(&root).unwrap();
+        let rep = check_references(&root);
         assert_eq!(rep.contaminated, 1, "sibling read must be flagged");
         // Its own dir is fine.
         let root2 = tmp_root("self");
@@ -735,7 +735,7 @@ mod reference_tests {
             run_json("src/main.rs"),
         )
         .unwrap();
-        let rep2 = check_references(&root2).unwrap();
+        let rep2 = check_references(&root2);
         assert_eq!(rep2.contaminated, 0, "own dir must not be flagged");
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&root2);
