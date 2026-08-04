@@ -351,3 +351,15 @@ Intelligence" direction)
   codex exec (8m59s) -> capture (40 steps) -> honest draft (verify
   fields, goal_aligned null) -> ingest -> loop verify CLOSED 1.0000,
   lease released; gate 0 regressions across 24 cases.
+
+### Added (2026-08-04 — hardening audit implementation, slice 1-3)
+- P0-3: `mini-agi codex` refuses trust-only runs (spec without a
+  verifier); `write_spec` embeds the case's verify_command.
+- P0-2: `config.rs` — `.miniagi.json` + `MINIAGI_*` env overlay;
+  loop target / regression tolerance / dispatch floor configurable.
+- P0-1: `worker.rs` — wall-time kill cap, step/cost caps, abort on
+  breach (exit 3); `run ingest` enforces the cost cap.
+- P1-5: repetition watchdog (`eval::max_consecutive_repeat` + `loop
+  verify` warning).
+- ADR-0007 written; README refreshed; checkpoint allowlist + config
+  files.

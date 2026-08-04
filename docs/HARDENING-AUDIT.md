@@ -605,9 +605,36 @@ the one architectural rule all the good benchmark patterns share
   and add the worker guardrails (P0) so the boundary is enforced, not
   assumed.
 
+## Implementation status (2026-08-04)
+
+The P0/P1 backlog below is being implemented slice by slice (each slice:
+tests + verify ALL GREEN + pushed + CI green). Status:
+
+- **P0-3 (no trust-only worker runs) — DONE.** `mini-agi codex` refuses
+  to execute a spec that declares no verifier (`--verify`/`--target` or
+  the spec's embedded `verify_command`); `write_spec` embeds the case
+  verifier when present. Enforcement is at the worker boundary, not
+  dispatch — historical frozen fixtures predate the verifier.
+- **P0-2 (budget/stop as data) — DONE.** `config.rs` (`.miniagi.json` +
+  `MINIAGI_*` env overlay, behavior-preserving defaults); loop target,
+  eval-gate tolerance, and dispatch floor resolve from config.
+- **P0-1 (worker guardrails) — DONE.** `worker.rs`: `run_capped` kills
+  the worker at the wall-time cap; `cmd_codex` aborts (exit 3, honest
+  draft) on wall/step breach; `run ingest` refuses a run over
+  `max_cost_usd`.
+- **P1-5 (repetition watchdog) — DONE.** `eval::max_consecutive_repeat`;
+  `loop verify` warns when a run exceeds `max_repeated_steps`.
+- **ADR-0007 written** (the referenced-but-missing authority).
+- **README refreshed** (phases 0-10, 190 tests, 34 MCP tools, gate list).
+- **Deferred (documented, need ADR/decision):** probe-vs-gate step
+  scoring (changes scoring semantics + baseline), sandbox for worker
+  exec (external tooling decision), module split, `loop objective`,
+  `memory query`.
+
 ## Status
-- Everything above is grounded in the current worktree (`1d3e4c8`) and
-  the fetched sources. Unconfirmed items are marked as such inline.
+- Everything above is grounded in the current worktree (`1d3e4c8` and
+  the hardening commits `e7225d7`/`3799353`/`e9b7bf9`) and the fetched
+  sources. Unconfirmed items are marked as such inline.
 - This audit is the deliverable of the deep-research goal; it proposes
   changes and does not modify code. Implementation is tracked by the
   P0/P1/P2 backlog above (H.1 starts with a single PR).
