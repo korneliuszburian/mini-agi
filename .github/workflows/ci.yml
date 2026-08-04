@@ -25,10 +25,11 @@ jobs:
         if: failure()
         run: cargo test --all 2>&1 | grep -B 2 -A 12 -E "FAILED|panicked at|failures:" | head -60
       - name: supply-chain check (cargo-deny)
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-          arguments: --all-features advisories licenses bans
+        # A plain shell step (the cargo-deny action's container conflicts
+        # with the pinned rust-toolchain.toml on musl hosts).
+        run: |
+          cargo install cargo-deny --locked
+          cargo deny check advisories licenses bans
 
   release-build:
     runs-on: ubuntu-latest

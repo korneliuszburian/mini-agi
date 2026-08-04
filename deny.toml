@@ -1,13 +1,11 @@
 # cargo-deny configuration (production-readiness audit B.3).
 # Supply-chain minimum: advisories (RustSec), licenses, duplicate-version
-# bans. Run in CI via EmbarkStudios/cargo-deny-action.
+# bans. Run in CI: `cargo deny check advisories licenses bans`.
 
 [advisories]
-version = 2
 yanked = "warn"
 
 [licenses]
-version = 2
 allow = [
     "MIT",
     "Apache-2.0",
@@ -21,7 +19,6 @@ allow = [
 confidence-threshold = 0.8
 
 [bans]
-version = 2
 # The landlock crate (ADR-0012) pulls a second `syn` major into the dev
 # tree; a benign spread — warn, never block.
 multiple-versions = "warn"
