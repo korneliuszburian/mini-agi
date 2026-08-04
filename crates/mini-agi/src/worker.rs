@@ -76,6 +76,10 @@ pub struct CodexRunArgs<'a> {
     /// Worker executable name (multi-worker, production-readiness P2/E;
     /// default "codex").
     pub worker_name: Option<String>,
+    /// HITL approval reason (production-readiness D.4): required when
+    /// the workdir config sets `require_approval`; the decision is
+    /// logged to the action log.
+    pub approve: Option<String>,
 }
 
 /// Run codex on a slice spec, capture the transcript, emit a truthful
@@ -155,6 +159,23 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     // via a self-spawned wrapper on Linux, unless --no-sandbox.
     let read_only = is_read_only_spec(&spec_text);
     let worker_name = resolve_worker_name(args.worker_name.as_deref());
+    // HITL approval gate (production-readiness D.4 / ADR-0014): when the
+    // worker's config requires approval, a run without --approve refuses
+    // BEFORE spawning the worker; an approved run logs the decision to
+    // the action log.
+    if mini_agi_core::config::Config::load(workdir).require_approval {
+        match &args.approve {
+            Some(reason) => {
+                let _ = mini_agi_core::audit::append_action(workdir, "approval", "human", reason);
+            }
+            None => {
+                return fail(
+                    "refusing to run the worker: config require_approval is set and \
+                     --approve <reason> was not given (HITL approval gate, ADR-0014 D.4)",
+                );
+            }
+        }
+    }
     let worker = match run_worker_sandboxed(
         worker_name,
         workdir,

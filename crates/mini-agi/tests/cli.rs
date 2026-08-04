@@ -1151,3 +1151,44 @@ fn bootstrap_seeds_missing_dirs_without_files() {
     assert!(!root.join("AGENTS.md").is_file());
     wipe(&root);
 }
+
+#[test]
+fn approval_gate_refuses_without_approve_when_required() {
+    // Production-readiness D.4 / ADR-0014: with require_approval set, a
+    // worker run without --approve refuses BEFORE spawning the worker.
+    let root = tmp_root("approval");
+    let spec = root.join("spec.md");
+    std::fs::write(
+        &spec,
+        "- goal: g\n- scope: x\n- verify_command: sh v.sh in /tmp/x\n",
+    )
+    .unwrap();
+    let workdir = root.join("work");
+    std::fs::create_dir_all(&workdir).unwrap();
+    // The worker reads its policy from the WORKDIR's config (same seam
+    // as wall_cap / max_tokens).
+    std::fs::write(
+        workdir.join(".miniagi.json"),
+        r#"{"require_approval": true}"#,
+    )
+    .unwrap();
+    let out = run(
+        &root,
+        &[
+            "codex",
+            spec.to_str().unwrap(),
+            workdir.to_str().unwrap(),
+            "--verify",
+            "sh v.sh",
+            "--target",
+            "/tmp/x",
+        ],
+    );
+    let text = combined(&out);
+    assert!(!out.status.success(), "{text}");
+    assert!(text.contains("require_approval"), "{text}");
+    assert!(text.contains("--approve"), "{text}");
+    // The refusal must not spawn the worker: no transcript log.
+    assert!(!workdir.join("codex.log").exists(), "{text}");
+    wipe(&root);
+}

@@ -47,6 +47,11 @@ pub struct Config {
     /// signal).
     #[serde(default = "default_min_judge_precision")]
     pub min_judge_precision: f64,
+    /// HITL approval gate (production-readiness D.4): when true, a
+    /// worker run requires an explicit `--approve <reason>`; the
+    /// decision is logged to the action log.
+    #[serde(default)]
+    pub require_approval: bool,
 }
 
 const fn default_min_judge_precision() -> f64 {
@@ -73,6 +78,7 @@ impl Default for Config {
             max_repeated_steps: None,
             health: crate::health::HealthThresholds::default(),
             min_judge_precision: default_min_judge_precision(),
+            require_approval: false,
         }
     }
 }
