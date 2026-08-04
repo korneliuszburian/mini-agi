@@ -105,6 +105,28 @@ const DIRS: &[&str] = &[
 /// # Errors
 ///
 /// Returns [`io::Error`] when a directory or file cannot be written.
+/// Bootstrap the data-dir skeleton on first use (production-readiness
+/// B.4 "single binary" story): create only the MISSING directories from
+/// the seed layout — no files, no clobbering. Called best-effort at
+/// startup so the binary works in an empty data dir; a no-op in a repo
+/// that already has the layout.
+///
+/// # Errors
+///
+/// Returns the underlying I/O error when a directory cannot be created.
+pub fn bootstrap(root: &Path) -> Result<Vec<String>, io::Error> {
+    let mut created = Vec::new();
+    for dir in DIRS {
+        let path = root.join(dir);
+        if path.exists() {
+            continue;
+        }
+        fs::create_dir_all(&path)?;
+        created.push(dir.to_string());
+    }
+    Ok(created)
+}
+
 pub fn init(root: &Path) -> Result<Vec<String>, io::Error> {
     let mut created = Vec::new();
     for dir in DIRS {

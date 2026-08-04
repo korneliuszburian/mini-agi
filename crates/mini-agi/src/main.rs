@@ -450,6 +450,10 @@ struct DeriveArgs {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    // Production-readiness B.4: first-run auto-init of the data-dir
+    // skeleton (best-effort — a missing layout must not block an
+    // otherwise-working command, and an existing repo is a no-op).
+    let _ = init::bootstrap(&root());
     match cli.command {
         Command::Mem(MemArgs { action }) => match action {
             MemAction::Consolidate {

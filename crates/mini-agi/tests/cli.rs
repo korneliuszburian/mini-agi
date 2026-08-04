@@ -164,9 +164,13 @@ fn cli_dry_run_reports_planned_entry_and_preserves_empty_tree() {
         "entry: memory/canonical/entries/{day}/{day}-001.md"
     )));
     assert!(stdout(&out).contains("would write 1 new facts (skipped 1 duplicates)"));
+    // Production-readiness B.4: the data-dir skeleton is bootstrapped on
+    // first use, but a dry-run must not WRITE canonical entries.
+    let entries = root.join("memory/canonical/entries");
+    assert!(entries.is_dir(), "skeleton is bootstrapped");
     assert!(
-        !root.join("memory").exists(),
-        "dry-run must not create canonical directories"
+        std::fs::read_dir(&entries).map_or(true, |rd| rd.flatten().next().is_none()),
+        "dry-run must not write canonical entries"
     );
     wipe(&root);
 }
@@ -1096,5 +1100,54 @@ fn exec_sandbox_confines_writes_outside_the_allow_set() {
         !outside.join("f.txt").is_file(),
         "write outside the allow-set must be denied by Landlock: {text}"
     );
+    wipe(&root);
+}
+
+#[test]
+fn init_creates_the_data_dir_layout_in_an_empty_dir() {
+    // Production-readiness B.4: the data-dir contract — an empty dir
+    // gains the memory/ + evals/ + tickets/ + scripts/ skeleton.
+    let root = tmp_root("init-layout");
+    let init = run(&root, &["init"]);
+    assert!(init.status.success(), "{}", combined(&init));
+    for rel in [
+        "memory/canonical/entries",
+        "memory/episodic",
+        "memory/derived/per-domain",
+        "evals/cases",
+        "evals/golden",
+        "evals/results",
+        "tickets",
+        "scripts",
+        "docs/adr",
+    ] {
+        assert!(root.join(rel).is_dir(), "missing dir {rel}");
+    }
+    assert!(root.join("AGENTS.md").is_file());
+    assert!(root.join("scripts/verify.sh").is_file());
+    // Idempotent: a second init does not fail.
+    let again = run(&root, &["init"]);
+    assert!(again.status.success(), "{}", combined(&again));
+    wipe(&root);
+}
+
+#[test]
+fn bootstrap_seeds_missing_dirs_without_files() {
+    // Production-readiness B.4: the first-run auto-init creates the
+    // skeleton but no files (no clobbering); running a repo command in
+    // an empty dir bootstraps it.
+    let root = tmp_root("bootstrap");
+    // AGENTIC_ROOT points the kernel at the empty dir.
+    let out = std::process::Command::new(BIN)
+        .env("AGENTIC_ROOT", &root)
+        .arg("stats")
+        .output()
+        .expect("spawn mini-agi");
+    let text = combined(&out);
+    assert!(out.status.success(), "{text}");
+    assert!(root.join("memory/canonical/entries").is_dir());
+    assert!(root.join("evals/cases").is_dir());
+    // bootstrap must NOT create files.
+    assert!(!root.join("AGENTS.md").is_file());
     wipe(&root);
 }

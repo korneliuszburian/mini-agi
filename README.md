@@ -47,6 +47,16 @@ A silent target is a failing target. `checkpoint.sh begin/verify` wraps
 every edit step; the journal is audited by the gate (every VERIFY needs an
 earlier BEGIN).
 
+## Data-dir contract
+
+The kernel operates on a repo root resolved as: `AGENTIC_ROOT` env var,
+else the current directory. On first use in an empty dir it bootstraps
+the `memory/` + `evals/` + `tickets/` + `scripts/` skeleton (no files —
+run `mini-agi init` for the full scaffold). Runtime thresholds and
+budgets live in `.miniagi.json` (+ `MINIAGI_*` env overrides); hard
+per-run budget gates (`max_tokens`/`max_cost_usd`) block a `loop verify`
+close on breach.
+
 ## CLI
 
 ```
