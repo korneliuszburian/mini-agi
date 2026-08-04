@@ -1,0 +1,94 @@
+name: release
+
+# Tag-gated release pipeline (production-readiness audit B.2): the
+# deterministic gate runs on the tag commit first; a version-mismatch
+# check ensures the tag equals Cargo.toml's version; then static release
+# artifacts + checksums are built, attested, and published as a GitHub
+# Release draft.
+#
+# Trigger: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install pinned toolchain (1.97.1, rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: rustfmt, clippy
+          targets: x86_64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+      - name: run the deterministic gate
+        run: scripts/verify.sh
+      - name: tag matches Cargo.toml version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VER="v$(grep -m1 '^version' Cargo.toml | sed 's/.*= *"\(.*\)"/\1/')"
+          test "$TAG" = "$VER" || { echo "tag $TAG != Cargo version $VER"; exit 1; }
+
+  release-build:
+    runs-on: ubuntu-latest
+    needs: gate
+    strategy:
+      matrix:
+        # musl gives the static single binary; glibc is the safe fallback.
+        # aarch64 musl needs cross-rs (follow-up; unconfirmed with landlock).
+        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: "${{ matrix.target }}"
+      - uses: Swatinem/rust-cache@v2
+      - name: install musl toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          rustup target add "${{ matrix.target }}"
+      - name: build release (locked)
+        run: cargo build --release --locked --target "${{ matrix.target }}"
+      - name: package + checksums
+        run: |
+          BIN="target/${{ matrix.target }}/release/mini-agi"
+          test -x "$BIN" || { echo "build produced no binary"; exit 1; }
+          DIR="mini-agi-${{ matrix.target }}"
+          mkdir -p "$DIR"
+          cp "$BIN" "$DIR/mini-agi"
+          cp README.md LICENSE "$DIR/"
+          tar czf "$DIR.tar.gz" "$DIR"
+          sha256sum "$DIR.tar.gz" > "$DIR.tar.gz.sha256"
+          echo "package=$DIR.tar.gz" >> "$GITHUB_ENV"
+      - name: upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: "${{ matrix.target }}"
+          path: "mini-agi-*.tar.gz*"
+      - name: attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: "mini-agi-*.tar.gz"
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: release-build
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+      - name: create + upload GitHub Release (draft)
+        env:
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          gh release create "$TAG" --draft --verify-tag
+          gh release upload "$TAG" --clobber release-artifacts/*.tar.gz release-artifacts/*.tar.gz.sha256
+          echo "published draft release $TAG"

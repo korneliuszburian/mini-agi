@@ -24,6 +24,11 @@ jobs:
       - name: diagnostic — full test output when the gate fails
         if: failure()
         run: cargo test --all 2>&1 | grep -B 2 -A 12 -E "FAILED|panicked at|failures:" | head -60
+      - name: supply-chain check (cargo-deny)
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features advisories licenses bans
 
   release-build:
     runs-on: ubuntu-latest
