@@ -221,8 +221,42 @@ already event-sourcing-shaped. Extend it:
 - Path-grading as a hard gate — conflicts with "grade outcomes, not
   paths"; `mismatch.rs` stays soft.
 
+## Implementation status (2026-08-04)
+P0/P1 backlog implemented slice by slice (each verify ALL GREEN + pushed
++ CI green):
+- **B.2/B.3 supply chain + release pipeline — DONE.** `deny.toml` +
+  `cargo deny check advisories licenses bans` in CI (plain shell step —
+  the action container conflicts with the pinned toolchain on musl);
+  tag-gated `.github/workflows/release.yml` (gate prerequisite, tag==
+  Cargo.toml version, musl+glibc matrix --release --locked, sha256 +
+  attest-build-provenance, GitHub Release draft). aarch64 musl deferred
+  (needs cross-rs; landlock on musl unconfirmed).
+- **D.1 comprehensive audit log — DONE.** `audit::append_action`
+  appends `<utc> <principal> <action> <content-hash> <detail>` rows to
+  `memory/episodic/actions.log` at the loop-verify / run-ingest /
+  run-verify seams; the audit validates row shape.
+- **E hard per-run budget gates — DONE.** Config `max_tokens`
+  (+`max_cost_usd`); the ticket spec declares the caps; `loop verify`
+  BLOCKS close on a breach even when composite+verifier+gate pass.
+- **C.2/F.3 run.json trace header — DONE.** `kernel_version`, `n_steps`,
+  `n_toolcalls`, `latency_seconds` on `eval::Run` (serde defaults —
+  legacy runs parse unchanged), stamped by the capture draft.
+- **B.4 data-dir contract — DONE.** `AGENTIC_ROOT` root override +
+  `init::bootstrap` first-run skeleton auto-init (no files, no clobber);
+  documented in README.
+
+### Remaining backlog (honest)
+- P1: reference solutions per case + trial-isolation guard; capability/
+  regression labels + per-mode gates; per-skill least-authority Landlock;
+  judge-drift recalibration trigger. All real, all need the eval-corpus
+  work that follows.
+- P2: snapshot/replay pair, OWASP-mapping ADR, HITL approval gate,
+  resume-from-checkpoint + retention, crates.io/Nix/Homebrew.
+- Rejected (named in section G): observability SaaS, OTel now, CRDT
+  agent-memory, cargo-vet/SBOM/own cosign for solo, path-grading as a
+  hard gate.
+
 ## Status
-Grounded in the current worktree (commit `0edc568`) and the fetched
-sources. Unconfirmed items are marked. This report proposes changes;
-implementation would follow the same slice discipline as the hardening
-backlog.
+Grounded in the current worktree and the fetched sources. Unconfirmed
+items are marked. Implementation follows the same slice discipline as
+the hardening backlog.

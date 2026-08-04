@@ -394,3 +394,17 @@ Intelligence" direction)
   1 (finish-raises) (P2-13 + P0-2 ext).
 - MCP parity: memory_query + loop_objective tools (34 -> 36).
 - docs: production-readiness audit (Anthropic/OWASP/OpenAI-grounded).
+
+### Added (2026-08-04 — production-readiness slices 1-5)
+- cargo-deny (advisories/licenses/bans) in CI; tag-gated release.yml
+  (gate prereq, version check, musl+glibc matrix, sha256 + attestations,
+  GitHub Release draft).
+- Comprehensive action log: memory/episodic/actions.log (utc, principal,
+  action, content-hash) at loop-verify/run-ingest/run-verify seams,
+  validated by the audit.
+- Hard per-run budget gates in the loop: max_tokens/max_cost_usd in the
+  ticket spec; loop verify blocks close on breach.
+- run.json versioned trace header: kernel_version/n_steps/n_toolcalls/
+  latency_seconds (legacy runs parse unchanged).
+- Data-dir contract: AGENTIC_ROOT override + first-run bootstrap of the
+  memory/evals/tickets/scripts skeleton.
