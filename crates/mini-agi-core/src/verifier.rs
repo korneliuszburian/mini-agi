@@ -146,7 +146,7 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
         "disagrees"
     }
     .to_string();
-    Ok(Verification {
+    let verification = Verification {
         case,
         status,
         command: Some(command),
@@ -154,7 +154,10 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
         exit_code,
         claimed: run.outcome.achieved,
         output_excerpt: excerpt,
-    })
+    };
+    // Comprehensive action log (production-readiness D.1).
+    let _ = crate::audit::append_action(root, "run-verify", "kernel", &verification.case);
+    Ok(verification)
 }
 
 /// Judge-calibration record (Phase 9 slice 2): one JSON line per

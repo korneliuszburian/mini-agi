@@ -805,6 +805,9 @@ pub fn verify(
         0,
         format!("loop verify: {}", if closed { "CLOSED" } else { "OPEN" }),
     );
+    // Comprehensive action log (production-readiness D.1): record the
+    // loop-verify action with the claimant as principal.
+    let _ = crate::audit::append_action(root, "loop-verify", claimant, case);
     Ok((lines.join("\n"), closed))
 }
 

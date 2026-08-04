@@ -103,6 +103,8 @@ pub fn ingest_run(root: &Path, run: &Path, retro: Option<&Path>) -> Result<Inges
     };
     let outcome = memory::consolidate(root, &buffer, "run ingest", &opts)
         .map_err(|e| format!("cannot consolidate run facts: {e}"))?;
+    // Comprehensive action log (production-readiness D.1).
+    let _ = crate::audit::append_action(root, "run-ingest", "kernel", &case);
     Ok(IngestReport {
         case,
         composite: report.composite,

@@ -281,7 +281,86 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
         }
     }
 
+    // 7. Comprehensive action log (production-readiness D.1): an
+    // append-only, timestamped, principal + content-hash record of every
+    // kernel action. Rows are validated for shape; a malformed line is a
+    // finding (tampering or a bug must not go silent).
+    let actions_path = root.join(ACTIONS_LOG_REL);
+    match fs::read_to_string(&actions_path) {
+        Ok(text) => {
+            let rows: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+            let malformed = rows.iter().filter(|l| !is_valid_action_row(l)).count();
+            report.passed.push(format!(
+                "action log: {} action(s) recorded ({} malformed)",
+                rows.len(),
+                malformed
+            ));
+            if malformed > 0 {
+                report.findings.push(Finding {
+                    severity: "warn".into(),
+                    message: format!(
+                        "{malformed} malformed action-log row(s) in {ACTIONS_LOG_REL}"
+                    ),
+                });
+            }
+        }
+        Err(_) if !actions_path.exists() => report
+            .passed
+            .push("action log: no kernel actions recorded yet".into()),
+        Err(e) => {
+            report.findings.push(Finding {
+                severity: "fail".into(),
+                message: format!("action log: {ACTIONS_LOG_REL} exists but is unreadable — {e}"),
+            });
+        }
+    }
+
     Ok(report)
+}
+
+/// Relative path of the comprehensive action log (production-readiness
+/// D.1). Append-only; rows are `<utc-stamp> <principal> <action>
+/// <content-hash> <detail>`.
+pub const ACTIONS_LOG_REL: &str = "memory/episodic/actions.log";
+
+/// Append one kernel action row (best-effort for callers: a log write
+/// failure must never break the action itself). Content hash binds the
+/// row to its inputs so tampering is detectable.
+pub fn append_action(
+    root: &Path,
+    action: &str,
+    principal: &str,
+    detail: &str,
+) -> std::io::Result<()> {
+    use std::io::Write;
+    let path = root.join(ACTIONS_LOG_REL);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let stamp = crate::memory::utc_now_stamp();
+    let hash = crate::hash::source_sha256(&format!("{stamp}|{action}|{principal}|{detail}"));
+    let row = format!("{stamp} {principal} {action} {hash} {detail}\n");
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)?;
+    f.write_all(row.as_bytes())
+}
+
+/// Validate one action-log row shape: `20-char-stamp principal action
+/// 16-hex content-hash detail`.
+fn is_valid_action_row(row: &str) -> bool {
+    let mut fields = row.split_whitespace();
+    let stamp = fields.next();
+    let principal = fields.next();
+    let action = fields.next();
+    let hash = fields.next();
+    let detail = fields.next();
+    matches!(stamp, Some(s) if s.len() == 20 && s.ends_with('Z'))
+        && principal.is_some_and(|p| !p.is_empty())
+        && action.is_some_and(|a| !a.is_empty())
+        && hash.is_some_and(|h| h.len() == 16 && h.chars().all(|c| c.is_ascii_hexdigit()))
+        && detail.is_some_and(|d| !d.is_empty())
 }
 
 fn walk_md(dir: &Path) -> Vec<std::path::PathBuf> {
@@ -414,5 +493,64 @@ mod memory_load_tests {
             report.passed
         );
         let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod action_log_tests {
+    use super::*;
+    use std::io::Write;
+    use std::path::PathBuf;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-actions-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn append_action_writes_valid_rows_and_audit_accepts_them() {
+        let root = tmp_root("valid");
+        append_action(&root, "loop-verify", "local", "case-a").unwrap();
+        append_action(&root, "run-ingest", "kernel", "case-b").unwrap();
+        let text = std::fs::read_to_string(root.join(ACTIONS_LOG_REL)).unwrap();
+        let rows: Vec<&str> = text.lines().collect();
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(|l| is_valid_action_row(l)), "{text}");
+        // The audit surfaces them as passed, not findings.
+        let report = audit(&root).unwrap();
+        assert!(
+            report
+                .passed
+                .iter()
+                .any(|p| p.contains("2 action(s) recorded")),
+            "{:?}",
+            report.passed
+        );
+        assert!(report.findings.is_empty(), "{:?}", report.findings);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn audit_flags_malformed_action_rows() {
+        let root = tmp_root("malformed");
+        std::fs::create_dir_all(root.join("memory/episodic")).unwrap();
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(root.join(ACTIONS_LOG_REL))
+            .unwrap();
+        f.write_all(b"THIS IS NOT A VALID ROW\n").unwrap();
+        let report = audit(&root).unwrap();
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.message.contains("malformed action-log row")),
+            "{:?}",
+            report.findings
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
