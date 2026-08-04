@@ -25,6 +25,7 @@ pub const DERIVED_REL: &str = "memory/derived";
 pub const PER_DOMAIN_REL: &str = "memory/derived/per-domain";
 /// Relative path of the review (contested) queue directory.
 pub const REVIEW_REL: &str = "memory/review";
+pub const SNAPSHOTS_REL: &str = "memory/derived/snapshots";
 
 /// Derived brief size cap in bytes (context budget; `PoC`: 8192).
 pub const MAX_BRIEF_BYTES: usize = 8192;
@@ -44,6 +45,9 @@ pub enum MemoryError {
     /// The contested queue has no fact at the requested index.
     #[error("contested fact index not found")]
     IndexNotFound,
+    /// A named derive snapshot does not exist.
+    #[error("derive snapshot not found: {0}")]
+    SnapshotMissing(String),
     /// Signoff was called with a missing queue or a non-positive index.
     #[error("signoff requires an existing queue file and positive fact index")]
     BadSignoff,
@@ -609,6 +613,66 @@ pub fn derive(root: &Path, brief_only: bool) -> Result<(usize, usize), MemoryErr
     Ok((facts.len(), fragments.len()))
 }
 
+/// Snapshot the derived views (production-readiness F.1).
+///
+/// Records the canonical fingerprint + the brief hash under a named
+/// file, so a later `replay` can prove the views are a deterministic
+/// materialization.
+///
+/// # Errors
+///
+/// Returns [`MemoryError::Io`] when the snapshot cannot be written.
+pub fn snapshot(root: &Path, name: &str) -> Result<String, MemoryError> {
+    let fingerprint = canonical_fingerprint(root);
+    let brief =
+        fs::read_to_string(root.join(DERIVED_REL).join("context-brief.md")).unwrap_or_default();
+    let doc = serde_json::json!({
+        "name": name,
+        "at": utc_now_stamp(),
+        "canonical_sha256": fingerprint,
+        "brief_sha256": source_sha256(&brief),
+    });
+    let dir = root.join(SNAPSHOTS_REL);
+    fs::create_dir_all(&dir)?;
+    fs::write(
+        dir.join(format!("{name}.json")),
+        serde_json::to_string_pretty(&doc).unwrap_or_default(),
+    )?;
+    Ok(format!("snapshot {name}: canonical {fingerprint}"))
+}
+
+/// Replay a named snapshot (production-readiness F.1).
+///
+/// Regenerates the derived views deterministically, then verifies the
+/// canonical fingerprint and the brief hash match the snapshot — the
+/// deterministic materialization proof.
+///
+/// # Errors
+///
+/// Returns [`MemoryError::SnapshotMissing`] when the named snapshot does
+/// not exist, or [`MemoryError::NoCanonical`] when there are no facts.
+pub fn replay(root: &Path, name: &str) -> Result<String, MemoryError> {
+    let path = root.join(SNAPSHOTS_REL).join(format!("{name}.json"));
+    let text = fs::read_to_string(&path).map_err(|_| MemoryError::SnapshotMissing(name.into()))?;
+    let doc: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| MemoryError::Io(std::io::Error::other(e)))?;
+    let snap_canon = doc["canonical_sha256"].as_str().unwrap_or("").to_string();
+    let snap_brief = doc["brief_sha256"].as_str().unwrap_or("").to_string();
+    derive(root, false)?;
+    let now_canon = canonical_fingerprint(root);
+    let brief =
+        fs::read_to_string(root.join(DERIVED_REL).join("context-brief.md")).unwrap_or_default();
+    let now_brief = source_sha256(&brief);
+    let verdict = if now_canon == snap_canon && now_brief == snap_brief {
+        "MATCH — derived views are a deterministic materialization of the snapshot".to_string()
+    } else if now_canon != snap_canon {
+        format!("DIVERGENT — canonical changed since the snapshot ({snap_canon} != {now_canon})")
+    } else {
+        "DIVERGENT — derived views changed since the snapshot (brief hash differs)".to_string()
+    };
+    Ok(format!("replay {name}: {verdict}"))
+}
+
 /// Current canonical fingerprint for the provenance gate (`PoC` `sha256(joined)`).
 #[must_use]
 pub fn canonical_fingerprint(root: &Path) -> String {
@@ -658,6 +722,41 @@ mod tests {
         assert_eq!(both.len(), 1);
         // At least one filter: read_facts with none given matches all.
         assert_eq!(query_facts(&root, None, None).len(), 2);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+    #[test]
+    fn snapshot_then_replay_detects_canonical_divergence() {
+        // Production-readiness F.1: a snapshot is the deterministic-
+        // materialization reference; a canonical change after the
+        // snapshot makes a replay DIVERGENT.
+        let root = std::env::temp_dir().join(format!("mag-snap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let entry_dir = root.join("memory/canonical/entries").join(utc_now_date());
+        std::fs::create_dir_all(&entry_dir).unwrap();
+        std::fs::write(
+            entry_dir.join("snap-001.md"),
+            "# Canonical entry snap-001\n\n- domain: eval\n\n## F-000 `aaaaaaaaaaaaaaaa`\n\nfact one\n",
+        )
+        .unwrap();
+        derive(&root, false).unwrap();
+        let snap = snapshot(&root, "pre").unwrap();
+        assert!(snap.contains("canonical"), "{snap}");
+        // Replay now matches.
+        let r1 = replay(&root, "pre").unwrap();
+        assert!(r1.contains("MATCH"), "{r1}");
+        // Add a canonical fact, re-derive, replay -> DIVERGENT.
+        std::fs::write(
+            entry_dir.join("snap-002.md"),
+            "# Canonical entry snap-002\n\n- domain: eval\n\n## F-001 `bbbbbbbbbbbbbbbb`\n\nfact two\n",
+        )
+        .unwrap();
+        derive(&root, false).unwrap();
+        let r2 = replay(&root, "pre").unwrap();
+        assert!(r2.contains("DIVERGENT"), "{r2}");
+        assert!(r2.contains("canonical changed"), "{r2}");
+        // Missing snapshot -> SnapshotMissing.
+        let err = replay(&root, "nope").unwrap_err();
+        assert!(matches!(err, MemoryError::SnapshotMissing(_)));
         let _ = std::fs::remove_dir_all(&root);
     }
 }

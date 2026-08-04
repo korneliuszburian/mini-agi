@@ -446,6 +446,14 @@ struct DeriveArgs {
     /// Skip per-domain fragment regeneration.
     #[arg(long)]
     brief_only: bool,
+    /// Write a named snapshot of the derived views (canonical + brief
+    /// hashes) — the deterministic-materialization reference.
+    #[arg(long)]
+    snapshot: Option<String>,
+    /// Regenerate and verify against a named snapshot (MATCH /
+    /// DIVERGENT).
+    #[arg(long)]
+    replay: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -473,7 +481,11 @@ fn main() -> ExitCode {
                 raw,
             } => cmd_mem_query(keyword.as_deref(), domain.as_deref(), raw),
         },
-        Command::Derive(DeriveArgs { brief_only }) => cmd_derive(brief_only),
+        Command::Derive(DeriveArgs {
+            brief_only,
+            snapshot,
+            replay,
+        }) => cmd_derive(brief_only, snapshot.as_deref(), replay.as_deref()),
         Command::Provenance => {
             let root = root();
             println!("canonical_sha256: {}", memory::canonical_fingerprint(&root));
@@ -1780,7 +1792,25 @@ fn signoff_text(queue: &Path, index: usize, domain: &str, root: &Path) -> Result
     }
 }
 
-fn cmd_derive(brief_only: bool) -> ExitCode {
+fn cmd_derive(brief_only: bool, snapshot: Option<&str>, replay: Option<&str>) -> ExitCode {
+    if let Some(name) = replay {
+        return match memory::replay(&root(), name) {
+            Ok(text) => {
+                println!("{text}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => fail(&format!("derive replay: {e}")),
+        };
+    }
+    if let Some(name) = snapshot {
+        return match memory::snapshot(&root(), name) {
+            Ok(text) => {
+                println!("{text}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => fail(&format!("derive snapshot: {e}")),
+        };
+    }
     match derive_text(brief_only, &root()) {
         Ok(text) => {
             println!("{text}");
