@@ -298,3 +298,39 @@ published time series, (6) memory evolution (fact linking, importance
 retrieval, supersede consolidation), (7) harness evolution (mini-agi
 improving mini-agi, journal as evolution ledger), (8) multi-repo + MCP
 completion.
+
+### Phase 9 — verified before trusted (2026-08-03, DONE)
+See docs/EXPERIMENTS.md EXP-006 + CHANGELOG.md. Run verification became
+a first-class kernel contract: `mini-agi run verify <run.json>` executes
+the declared `verify_command` in `verify_target` (kernel reports
+verified / disagrees / unverified); `loop verify` closes a gap only when
+composite >= 0.5 AND the verifier passes; the eval gate gained
+best-state regression bound (ADR bound) + published time series; failure
+register entries carry MAST classification + reflections injected into
+reruns (ADR reflexion upgrade). Codex review (EXP-006) dispositioned and
+fixed. verify ALL GREEN, CI green.
+
+### Phase 10 — the kernel improves itself (2026-08-04, DONE)
+Harness-evolution endgame + trust corpus growth, all slices delivered:
+1. First real harness revision cycle (EXP-007): AGENTS.md revised as a
+   candidate; `harness verify` counterfactual gate REJECTED a phantom
+   `--claims tests` claim with evidence and NEUTRAL-no-claim; the
+   revision landed through the gate; harness snapshot + ledger row
+   recorded.
+2. Calibration growth (EXP-008): all 22 cases re-verified -> corpus
+   2 -> 24 rows / 24 cases; two REAL disagreements surfaced (scratch
+   tests date-coupled to a midnight rollover) — patched, re-verified;
+   verifier-vs-judged precision 100%.
+3. EXP-005 execution: resampling control (codex + failure-memory vs
+   plain, equal attempts) — recorded as a two-observation anecdote (no
+   causal claim; both arms green; ~16x wall for reflexion).
+4. EXP-003 continuation: full loop dispatch -> `mini-agi codex`
+   (combined transcript capture + --reparse-log) -> honest draft ->
+   ingest -> loop verify CLOSED (composite 0.5000 honest, verifier
+   PASS, lease released).
+5. Codex review of the Phase 10 delta: REWORK -> all findings
+   dispositioned (symlink gate bypass, broken-gate-as-reduction,
+   self-forging completion marker, fabricated ok:true, non-durable date
+   fix, calibration integrity, unconditional private-path test — the
+   last one silently no-op'd and CI caught it). verify ALL GREEN,
+   pushed, CI green. Full record: docs/EXPERIMENTS.md EXP-007/008.

@@ -271,3 +271,34 @@ checksums — the pilot predicts the N=30 ceiling.
 - Found + fixed: cmd_codex parsed stdout only (bash -lc invocations are
   on stderr) — combined parse + --reparse-log; the first draft had an
   empty trajectory (stale binary), reparse fixed it.
+
+## EXP-007 — codex review of the Phase 10 delta (2026-08-04)
+
+- Verdict: REWORK. All findings dispositioned and fixed in a single
+  commit (6d3e785):
+  - CRITICAL harness gate-self-check bypassable via symlink/hardlink ->
+    canonical-path comparison before the swap.
+  - CRITICAL broken gate counted as a "reduction" -> non-success after
+    the swap is an automatic REJECT, not a countable failure.
+  - HIGH completion marker self-forging (embedded in the prompt echo) ->
+    prompt stripped before detection + marker must sit in the last 20%.
+  - HIGH fabricated ok:true trajectory steps -> capture sets ok from
+    transcript exit evidence (None when unknown); transcript-noise
+    filters (npm notice, codex label, help text).
+  - HIGH date-rollover fix not durable -> scratch tests compute today's
+    date (datetime), dry-run path date-computed.
+  - MAJOR calibration corpus inconsistent (legacy rows without
+    command/target) -> legacy rows dropped on re-append + audit
+    integrity check; corpus regenerated (24 complete rows).
+  - MAJOR capture test unconditional on a private /tmp path -> the
+    rename silently no-op'd (python str.replace) and CI caught it:
+    fixed as conditional (parses_exp003_transcript_when_present).
+  - EXP-005 rewritten from "conclusion" to "two-observation anecdote";
+    EXP-008 numbers corrected.
+- EXP-003 rerun regenerated honestly: 26 steps, ok None where exit
+  evidence was absent -> composite 0.5000 (was fabricated 1.0000),
+  verifier PASS, loop verify CLOSED exactly at the target; the best-
+  state bound correctly blocked the displacement until the baseline
+  was re-snapshotted (the fabricated 1.0000 was replaced by the
+  honest 0.5000).
+- The full Phase 10 delta: verify.sh ALL GREEN + pushed + CI green.
