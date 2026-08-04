@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
+#[cfg(target_os = "linux")]
+mod sandbox;
 use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
 use mini_agi_core::insights;
@@ -90,6 +92,9 @@ enum Command {
     Codex(CodexArgs),
     /// Harness evolution: versioned spec + ledger + counterfactual gate.
     Harness(HarnessArgs),
+    /// Landlock worker sandbox (ADR-0012): apply write-containment to
+    /// self, then run the command after `--`. Linux-only.
+    ExecSandbox(ExecSandboxArgs),
 }
 
 #[derive(Args, Debug)]
@@ -142,6 +147,20 @@ struct CodexArgs {
     /// `max_steps`; unlimited when unset.
     #[arg(long)]
     max_steps: Option<usize>,
+    /// Skip the Landlock sandbox for this run (explicit escape hatch,
+    /// ADR-0012).
+    #[arg(long)]
+    no_sandbox: bool,
+}
+
+#[derive(Args, Debug)]
+struct ExecSandboxArgs {
+    /// Directories granted write access (repeatable; their subtrees too).
+    #[arg(long)]
+    allow_write: Vec<PathBuf>,
+    /// Command + args to run under the sandbox (everything after `--`).
+    #[arg(last = true, num_args = 1..)]
+    command: Vec<String>,
 }
 
 #[derive(Args, Debug)]
@@ -492,6 +511,7 @@ fn main() -> ExitCode {
             reparse_log,
             max_wall,
             max_steps,
+            no_sandbox,
         }) => reparse_log.map_or_else(
             || {
                 cmd_codex(
@@ -502,6 +522,7 @@ fn main() -> ExitCode {
                     target.as_deref(),
                     max_wall,
                     max_steps,
+                    no_sandbox,
                 )
             },
             |log| {
@@ -514,6 +535,10 @@ fn main() -> ExitCode {
                 )
             },
         ),
+        Command::ExecSandbox(ExecSandboxArgs {
+            allow_write,
+            command,
+        }) => cmd_exec_sandbox(&allow_write, &command),
         Command::Harness(HarnessArgs { action }) => match action {
             HarnessAction::Snapshot => cmd_harness(),
             HarnessAction::Verify {
@@ -681,6 +706,7 @@ fn cmd_codex(
     target: Option<&str>,
     max_wall: Option<u64>,
     max_steps: Option<usize>,
+    no_sandbox: bool,
 ) -> ExitCode {
     use mini_agi_core::capture;
     let spec_text = match std::fs::read_to_string(spec) {
@@ -736,18 +762,16 @@ fn cmd_codex(
     let cfg = mini_agi_core::config::Config::load(workdir);
     let wall_cap = max_wall.or(cfg.max_wall_seconds);
     let step_cap = max_steps.or(cfg.max_steps);
-    let worker = match mini_agi_core::worker::run_capped(
-        "codex",
-        &[
-            "exec",
-            "-s",
-            "workspace-write",
-            "--skip-git-repo-check",
-            &prompt,
-        ],
-        workdir,
-        wall_cap,
-    ) {
+    let worker_args = vec![
+        "exec",
+        "-s",
+        "workspace-write",
+        "--skip-git-repo-check",
+        &prompt,
+    ];
+    // P0-4 (ADR-0012): the worker runs under Landlock write-containment
+    // via a self-spawned wrapper on Linux, unless --no-sandbox.
+    let worker = match run_worker_sandboxed(workdir, no_sandbox, wall_cap, &worker_args) {
         Ok(w) => w,
         Err(e) => return fail(&format!("codex not available: {e}")),
     };
@@ -852,6 +876,86 @@ fn cmd_codex(
         ExitCode::from(3)
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+/// Run the codex worker, routing it through the Landlock wrapper on
+/// Linux (ADR-0012) unless `no_sandbox`. The wrapper self-spawns
+/// (`exec-sandbox`), applies write-containment, then runs codex.
+fn run_worker_sandboxed(
+    workdir: &Path,
+    no_sandbox: bool,
+    wall_cap: Option<u64>,
+    worker_args: &[&str],
+) -> std::io::Result<mini_agi_core::worker::WorkerResult> {
+    #[cfg(target_os = "linux")]
+    {
+        if !no_sandbox {
+            let mut wrapper = vec![
+                "exec-sandbox".to_string(),
+                "--allow-write".to_string(),
+                workdir.to_string_lossy().into_owned(),
+            ];
+            if let Ok(home) = std::env::var("HOME") {
+                let codex_state = std::path::Path::new(&home).join(".codex");
+                if codex_state.is_dir() {
+                    wrapper.push("--allow-write".to_string());
+                    wrapper.push(codex_state.to_string_lossy().into_owned());
+                }
+            }
+            wrapper.push("--".to_string());
+            wrapper.extend(worker_args.iter().map(|s| (*s).to_string()));
+            let arg_refs: Vec<&str> = wrapper.iter().map(String::as_str).collect();
+            if let Ok(exe) = std::env::current_exe() {
+                return mini_agi_core::worker::run_capped(
+                    &exe.to_string_lossy(),
+                    &arg_refs,
+                    workdir,
+                    wall_cap,
+                );
+            }
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (no_sandbox, wall_cap);
+    }
+    mini_agi_core::worker::run_capped("codex", worker_args, workdir, wall_cap)
+}
+
+/// `exec-sandbox`: apply the Landlock write-containment policy to the
+/// current process, then run the command after `--` and forward its exit
+/// code. Linux-only (ADR-0012); on other targets it is a documented
+/// no-op error.
+fn cmd_exec_sandbox(allow_write: &[PathBuf], command: &[String]) -> ExitCode {
+    #[cfg(target_os = "linux")]
+    {
+        if command.is_empty() {
+            return fail("exec-sandbox: no command given after `--`");
+        }
+        let mut policy = sandbox::SandboxPolicy::new();
+        for dir in allow_write {
+            policy.allow_write(dir);
+        }
+        match policy.apply() {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("  [warn] sandbox unavailable: {e}");
+                eprintln!("  [warn] running the worker UNSANDBOXED (ADR-0012)");
+            }
+        }
+        match std::process::Command::new(&command[0])
+            .args(&command[1..])
+            .status()
+        {
+            Ok(s) => ExitCode::from(s.code().and_then(|c| u8::try_from(c).ok()).unwrap_or(1)),
+            Err(e) => fail(&format!("exec-sandbox: cannot run {}: {e}", command[0])),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (allow_write, command);
+        fail("exec-sandbox: Linux-only (Landlock, ADR-0012)")
     }
 }
 

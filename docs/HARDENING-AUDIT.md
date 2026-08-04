@@ -624,6 +624,14 @@ tests + verify ALL GREEN + pushed + CI green). Status:
   `max_cost_usd`.
 - **P1-5 (repetition watchdog) — DONE.** `eval::max_consecutive_repeat`;
   `loop verify` warns when a run exceeds `max_repeated_steps`.
+- **P0-4 (worker sandbox) — DONE (ADR-0012).** `mini-agi exec-sandbox`
+  applies Landlock write-containment (read+execute everywhere, write
+  confined to the workdir + `$HOME/.codex` + `--allow-write` dirs) to a
+  self-spawned wrapper; `cmd_codex` routes the worker through it on
+  Linux (`--no-sandbox` escape hatch). The `landlock` crate lives in the
+  binary crate — the kernel stays std-only. Graceful degradation:
+  kernels without Landlock warn and run unsandboxed. Verified: writes
+  outside the allow-set are denied (`Permission denied`), inside succeed.
 - **ADR-0007 written** (the referenced-but-missing authority).
 - **README refreshed** (phases 0-10, 190 tests, 34 MCP tools, gate list).
 - **Deferred (documented, need ADR/decision):** probe-vs-gate step

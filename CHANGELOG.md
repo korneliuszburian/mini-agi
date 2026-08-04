@@ -363,3 +363,10 @@ Intelligence" direction)
   verify` warning).
 - ADR-0007 written; README refreshed; checkpoint allowlist + config
   files.
+
+### Added (2026-08-04 — hardening slice 4, P0-4)
+- ADR-0012 + `mini-agi exec-sandbox`: Landlock write-containment for
+  the codex/hitl worker (read+execute everywhere, write confined to the
+  workdir + $HOME/.codex + --allow-write dirs). cmd_codex routes through
+  the wrapper on Linux (--no-sandbox escape). landlock 0.4 in the binary
+  crate only; graceful degradation without Landlock.

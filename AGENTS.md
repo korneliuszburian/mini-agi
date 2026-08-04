@@ -50,7 +50,9 @@ Canonical memory import source: `agentic-core@HEAD`.
 - `rust-toolchain.toml` pins `1.97.1` (stable, 2026-07) + rustfmt + clippy.
 - Dependencies: `sha2 0.11`, `serde 1`, `serde_json 1`, `thiserror 2`, `clap 4`.
 - Kernel crate (`mini-agi-core`) stays std-only + the above. No async/tokio
-  without an ADR. No unsafe (`unsafe_code = "forbid"` in workspace lints).
+  without an ADR. The BINARY crate (`mini-agi`) additionally carries the
+  Linux-only `landlock 0.4` dep for the worker sandbox (ADR-0012); the
+  kernel crate itself has no platform-specific deps. No unsafe (`unsafe_code = "forbid"` in workspace lints).
 
 ## Verification is deterministic
 

@@ -1042,3 +1042,59 @@ fn cli_run_verify_reports_verified_and_disagrees() {
     assert!(combined(&bad).contains("disagrees"));
     wipe(&root);
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn exec_sandbox_confines_writes_outside_the_allow_set() {
+    // P0-4 / ADR-0012: Landlock write-containment. Skips when the host
+    // kernel lacks Landlock (the wrapper reports it and degrades).
+    let root = tmp_root("sandbox");
+    let inside = root.join("in");
+    let outside = root.join("out");
+    std::fs::create_dir_all(&inside).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    let inside_s = inside.to_string_lossy().into_owned();
+    let outside_s = outside.to_string_lossy().into_owned();
+
+    // Write INSIDE the allow set: must succeed and create the file.
+    let ok = run(
+        &root,
+        &[
+            "exec-sandbox",
+            "--allow-write",
+            &inside_s,
+            "--",
+            "sh",
+            "-c",
+            &format!("echo ok > {inside_s}/f.txt"),
+        ],
+    );
+    assert!(ok.status.success(), "{}", combined(&ok));
+    assert!(inside.join("f.txt").is_file());
+
+    // Write OUTSIDE the allow set: must be denied (unless the host has
+    // no Landlock, in which case the wrapper warned and degraded).
+    let bad = run(
+        &root,
+        &[
+            "exec-sandbox",
+            "--allow-write",
+            &inside_s,
+            "--",
+            "sh",
+            "-c",
+            &format!("echo bad > {outside_s}/f.txt"),
+        ],
+    );
+    let text = combined(&bad);
+    if text.contains("sandbox unavailable") {
+        eprintln!("skipping: host kernel lacks Landlock (ADR-0012 degradation)");
+        wipe(&root);
+        return;
+    }
+    assert!(
+        !outside.join("f.txt").is_file(),
+        "write outside the allow-set must be denied by Landlock: {text}"
+    );
+    wipe(&root);
+}
