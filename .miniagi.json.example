@@ -6,6 +6,7 @@
   "max_tokens": null,
   "max_wall_seconds": null,
   "max_repeated_steps": null,
+  "iterate_attempts": 1,
   "health": {
     "load_warn_mult": 1.5,
     "load_crit_mult": 3.0,

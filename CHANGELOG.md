@@ -441,3 +441,15 @@ Intelligence" direction)
   recovery, long-horizon), not on single-bug single-repo tasks.
 - red-team signal: verifier-vs-judge disagreement cases surfaced by
   `eval judge-drift` and warned in `loop dispatch` specs.
+
+### Added (2026-08-04 — BREAKTHROUGH goal)
+- verified-iteration loop: `mini-agi codex --iterate N` re-invokes a
+  fresh worker on verifier failure with the distilled failure register,
+  bounded by the budget caps; the draft records attempts +
+  verifier_passed (flagship verified-reward capability).
+- EXP-011: 7 task classes, ~70 pre-registered solo runs — all at ceiling
+  (solo codex iterates internally). The kernel-vs-plain SPEED advantage
+  is unproven on reachable task classes; the honest negative is
+  published. The session's demonstrated breakthrough is the TRUST
+  property (verified/calibrated/evolvable/audited agent work) + the
+  eval-control methodology that rejected false claims 7 times.
