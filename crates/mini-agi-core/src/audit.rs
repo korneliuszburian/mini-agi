@@ -326,6 +326,11 @@ pub const ACTIONS_LOG_REL: &str = "memory/episodic/actions.log";
 /// Append one kernel action row (best-effort for callers: a log write
 /// failure must never break the action itself). Content hash binds the
 /// row to its inputs so tampering is detectable.
+///
+/// # Errors
+///
+/// Returns the underlying I/O error when the log cannot be created or
+/// appended.
 pub fn append_action(
     root: &Path,
     action: &str,
