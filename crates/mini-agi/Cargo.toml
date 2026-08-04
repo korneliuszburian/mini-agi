@@ -42,9 +42,5 @@ must_use_candidate = "warn"
 missing_errors_doc = "warn"
 module_name_repetitions = "allow"
 too_many_lines = "allow"
-# cmd_codex carries the worker's full contract; the hardening audit's
-# H.2 planned extraction (worker.rs with a run-args struct) will remove
-# this override.
-too_many_arguments = "allow"
 missing_panics_doc = "allow"
 multiple_crate_versions = "allow"

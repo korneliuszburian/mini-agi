@@ -10,6 +10,8 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 #[cfg(target_os = "linux")]
 mod sandbox;
+mod clifmt;
+mod worker;
 use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
 use mini_agi_core::insights;
@@ -531,19 +533,19 @@ fn main() -> ExitCode {
             no_sandbox,
         }) => reparse_log.map_or_else(
             || {
-                cmd_codex(
-                    &spec,
-                    &workdir,
-                    run_out.as_deref(),
-                    verify.as_deref(),
-                    target.as_deref(),
+                worker::cmd_codex(&worker::CodexRunArgs {
+                    spec: &spec,
+                    workdir: &workdir,
+                    run_out: run_out.as_deref(),
+                    verify: verify.as_deref(),
+                    target: target.as_deref(),
                     max_wall,
                     max_steps,
                     no_sandbox,
-                )
+                })
             },
             |log| {
-                cmd_codex_reparse(
+                worker::cmd_codex_reparse(
                     &log,
                     &workdir,
                     run_out.as_deref(),
@@ -555,7 +557,7 @@ fn main() -> ExitCode {
         Command::ExecSandbox(ExecSandboxArgs {
             allow_write,
             command,
-        }) => cmd_exec_sandbox(&allow_write, &command),
+        }) => worker::cmd_exec_sandbox(&allow_write, &command),
         Command::Harness(HarnessArgs { action }) => match action {
             HarnessAction::Snapshot => cmd_harness(),
             HarnessAction::Verify {
@@ -640,339 +642,6 @@ fn cmd_audit() -> ExitCode {
             }
         }
         Err(e) => fail(&format!("audit: {e}")),
-    }
-}
-
-fn cmd_codex_reparse(
-    log: &Path,
-    workdir: &Path,
-    run_out: Option<&Path>,
-    verify: Option<&str>,
-    target: Option<&str>,
-) -> ExitCode {
-    use mini_agi_core::capture;
-    let text = match std::fs::read_to_string(log) {
-        Ok(t) => t,
-        Err(e) => return fail(&format!("cannot read log {}: {e}", log.display())),
-    };
-    let outcome = capture::CaptureOutcome {
-        log_path: log.to_path_buf(),
-        steps: capture::parse_transcript(&text),
-        completed: capture::completed(&text),
-        result: capture::extract_result(&text),
-    };
-    println!(
-        "reparse: {} captured steps, completed={}",
-        outcome.steps.len(),
-        outcome.completed
-    );
-    for step in &outcome.steps {
-        println!(
-            "  [{}] {}",
-            step.tool,
-            step.action.chars().take(90).collect::<String>()
-        );
-    }
-    let trajectory: Vec<serde_json::Value> = outcome
-        .steps
-        .iter()
-        .enumerate()
-        .map(|(i, s)| {
-            serde_json::json!({
-                "step": i + 1,
-                "action": s.action,
-                "tool": s.tool,
-                "ok": s.ok,
-                "goal_aligned": null,
-                "tokens": 0,
-                "output_tokens": 0,
-                "note": format!("captured from codex transcript line {}", s.line),
-                "paths": s.paths,
-            })
-        })
-        .collect();
-    let run = serde_json::json!({
-        "goal": outcome.result.as_deref().unwrap_or("(goal not extracted)"),
-        "scope": [],
-        "outcome": {"achieved": false, "tests": false, "typecheck": false},
-        "tokens_total": 0,
-        "cost_usd": 0.0,
-        "golden": null,
-        "verify_command": verify,
-        "verify_target": target,
-        "trajectory": trajectory,
-    });
-    let out_path = run_out.unwrap_or(&workdir.join("run.json")).to_path_buf();
-    match std::fs::write(
-        &out_path,
-        serde_json::to_string_pretty(&run).unwrap_or_default(),
-    ) {
-        Ok(()) => {
-            println!("  run draft: {}", out_path.display());
-            ExitCode::SUCCESS
-        }
-        Err(e) => fail(&format!("cannot write run draft: {e}")),
-    }
-}
-
-fn cmd_codex(
-    spec: &Path,
-    workdir: &Path,
-    run_out: Option<&Path>,
-    verify: Option<&str>,
-    target: Option<&str>,
-    max_wall: Option<u64>,
-    max_steps: Option<usize>,
-    no_sandbox: bool,
-) -> ExitCode {
-    use mini_agi_core::capture;
-    let spec_text = match std::fs::read_to_string(spec) {
-        Ok(t) => t,
-        Err(e) => return fail(&format!("cannot read spec {}: {e}", spec.display())),
-    };
-    // P0-3 (hardening audit C.3): refuse to START a worker whose spec
-    // declares no verifier — the `--verify`/`--target` flags take
-    // precedence, otherwise the spec's embedded verify_command is used;
-    // with neither the run would be trust-only and must not execute.
-    let Some(verify) = verify.map(str::to_owned).or_else(|| {
-        spec_text
-            .lines()
-            .find_map(|l| l.strip_prefix("- verify_command: "))
-            .map(|l| l.split(" in ").next().unwrap_or("").trim().to_owned())
-            .filter(|s| !s.is_empty())
-    }) else {
-        return fail(
-            "refusing to run codex: spec declares no verifier and --verify was not given \
-             (P0-3 no-dispatch-without-verifier)",
-        );
-    };
-    let Some(target) = target.map(str::to_owned).or_else(|| {
-        spec_text
-            .lines()
-            .find_map(|l| l.strip_prefix("- verify_command: "))
-            .map(|l| l.split(" in ").nth(1).unwrap_or_default().trim().to_owned())
-            .filter(|s| !s.is_empty())
-    }) else {
-        return fail(
-            "refusing to run codex: spec declares no verify target and --target was not given \
-             (P0-3 no-dispatch-without-verifier)",
-        );
-    };
-    std::fs::create_dir_all(workdir).unwrap_or(());
-    let goal = spec_text
-        .lines()
-        .find_map(|l| l.strip_prefix("- goal: "))
-        .unwrap_or("(goal not parsed from spec)")
-        .to_string();
-    let scope = spec_text
-        .lines()
-        .find_map(|l| l.strip_prefix("- scope: "))
-        .unwrap_or("")
-        .to_string();
-    let prompt = format!(
-        "{spec_text}\n\nIMPLEMENTATION PROTOCOL (binding): plan first, tests first, never repeat a failing action. When the work is done and your own gate passes, END YOUR FINAL MESSAGE with:\n<promise>COMPLETE</promise>\n<result>{{\"summary\": \"one sentence\"}}</result>\n"
-    );
-    let log_path = workdir.join("codex.log");
-    // P0-1 (hardening audit): the worker runs under a wall-time cap —
-    // killed live when it exceeds it (CLI --max-wall, else the workdir's
-    // .miniagi.json `max_wall_seconds`). Std-only spawn + poll + kill.
-    let cfg = mini_agi_core::config::Config::load(workdir);
-    let wall_cap = max_wall.or(cfg.max_wall_seconds);
-    let step_cap = max_steps.or(cfg.max_steps);
-    let worker_args = vec![
-        "exec",
-        "-s",
-        "workspace-write",
-        "--skip-git-repo-check",
-        &prompt,
-    ];
-    // P0-4 (ADR-0012): the worker runs under Landlock write-containment
-    // via a self-spawned wrapper on Linux, unless --no-sandbox.
-    let worker = match run_worker_sandboxed(workdir, no_sandbox, wall_cap, &worker_args) {
-        Ok(w) => w,
-        Err(e) => return fail(&format!("codex not available: {e}")),
-    };
-    let combined = worker.output;
-    let worker_status = worker.status;
-    std::fs::write(&log_path, &combined).unwrap_or(());
-    // The prompt (which embeds the completion protocol) is echoed at the
-    // start of the transcript — strip it so the marker detection cannot
-    // self-forge (codex review).
-    let stripped = combined.replace(&prompt, "");
-    let outcome = capture::CaptureOutcome {
-        log_path: log_path.clone(),
-        steps: capture::parse_transcript(&combined),
-        completed: capture::completed(&stripped),
-        result: capture::extract_result(&combined),
-    };
-    println!(
-        "codex: exit {}, completed={}, {} captured steps, log: {}",
-        worker_status.map_or_else(|| "-".into(), |c| c.to_string()),
-        outcome.completed,
-        outcome.steps.len(),
-        log_path.display()
-    );
-    if let Some(result) = &outcome.result {
-        println!("  result: {result}");
-    }
-    for step in &outcome.steps {
-        println!(
-            "  [{}] {}",
-            step.tool,
-            step.action.chars().take(100).collect::<String>()
-        );
-    }
-    let trajectory: Vec<serde_json::Value> = outcome
-        .steps
-        .iter()
-        .enumerate()
-        .map(|(i, s)| {
-            serde_json::json!({
-                "step": i + 1,
-                "action": s.action,
-                "tool": s.tool,
-                "ok": s.ok,
-                "goal_aligned": null,
-                "tokens": 0,
-                "output_tokens": 0,
-                "note": format!("captured from codex transcript line {}", s.line),
-                "paths": s.paths,
-            })
-        })
-        .collect();
-    let scope_list: Vec<&str> = scope
-        .split(',')
-        .map(|s| s.trim().trim_matches('`'))
-        .filter(|s| !s.is_empty())
-        .collect();
-    // P0-1 post-hoc cap check: wall + step caps are enforced after
-    // capture (cost is self-reported and enforced at `run ingest`).
-    // A breach aborts the run: the draft is still written (inspectable)
-    // with outcome.achieved=false and the exit code is 3 (aborted), so
-    // a budget breach can never be mistaken for a clean run.
-    let violations = mini_agi_core::worker::budget_violations(
-        outcome.steps.len(),
-        0.0,
-        worker.wall_seconds,
-        step_cap,
-        None,
-        wall_cap,
-    );
-    let aborted = worker.aborted || !violations.is_empty();
-    for v in &violations {
-        eprintln!("  [abort] {v}");
-    }
-    if worker.aborted {
-        eprintln!("  [abort] worker killed by the wall-time cap ({wall_cap:?}s)");
-    }
-    let run = serde_json::json!({
-        "goal": goal,
-        "scope": scope_list,
-        "outcome": {"achieved": false, "tests": false, "typecheck": false},
-        "tokens_total": 0,
-        "cost_usd": 0.0,
-        "golden": null,
-        "verify_command": verify,
-        "verify_target": target,
-        "trajectory": trajectory,
-    });
-    let out_path = run_out.unwrap_or(&workdir.join("run.json")).to_path_buf();
-    match std::fs::write(
-        &out_path,
-        serde_json::to_string_pretty(&run).unwrap_or_default(),
-    ) {
-        Ok(()) => {
-            println!("  run draft: {}", out_path.display());
-            if aborted {
-                println!("  run ABORTED by a budget cap (exit 3) — not a clean run");
-            }
-        }
-        Err(e) => return fail(&format!("cannot write run draft: {e}")),
-    }
-    if aborted {
-        ExitCode::from(3)
-    } else {
-        ExitCode::SUCCESS
-    }
-}
-
-/// Run the codex worker, routing it through the Landlock wrapper on
-/// Linux (ADR-0012) unless `no_sandbox`. The wrapper self-spawns
-/// (`exec-sandbox`), applies write-containment, then runs codex.
-fn run_worker_sandboxed(
-    workdir: &Path,
-    no_sandbox: bool,
-    wall_cap: Option<u64>,
-    worker_args: &[&str],
-) -> std::io::Result<mini_agi_core::worker::WorkerResult> {
-    #[cfg(target_os = "linux")]
-    {
-        if !no_sandbox {
-            let mut wrapper = vec![
-                "exec-sandbox".to_string(),
-                "--allow-write".to_string(),
-                workdir.to_string_lossy().into_owned(),
-            ];
-            if let Ok(home) = std::env::var("HOME") {
-                let codex_state = std::path::Path::new(&home).join(".codex");
-                if codex_state.is_dir() {
-                    wrapper.push("--allow-write".to_string());
-                    wrapper.push(codex_state.to_string_lossy().into_owned());
-                }
-            }
-            wrapper.push("--".to_string());
-            wrapper.extend(worker_args.iter().map(|s| (*s).to_string()));
-            let arg_refs: Vec<&str> = wrapper.iter().map(String::as_str).collect();
-            if let Ok(exe) = std::env::current_exe() {
-                return mini_agi_core::worker::run_capped(
-                    &exe.to_string_lossy(),
-                    &arg_refs,
-                    workdir,
-                    wall_cap,
-                );
-            }
-        }
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = (no_sandbox, wall_cap);
-    }
-    mini_agi_core::worker::run_capped("codex", worker_args, workdir, wall_cap)
-}
-
-/// `exec-sandbox`: apply the Landlock write-containment policy to the
-/// current process, then run the command after `--` and forward its exit
-/// code. Linux-only (ADR-0012); on other targets it is a documented
-/// no-op error.
-fn cmd_exec_sandbox(allow_write: &[PathBuf], command: &[String]) -> ExitCode {
-    #[cfg(target_os = "linux")]
-    {
-        if command.is_empty() {
-            return fail("exec-sandbox: no command given after `--`");
-        }
-        let mut policy = sandbox::SandboxPolicy::new();
-        for dir in allow_write {
-            policy.allow_write(dir);
-        }
-        match policy.apply() {
-            Ok(()) => {}
-            Err(e) => {
-                eprintln!("  [warn] sandbox unavailable: {e}");
-                eprintln!("  [warn] running the worker UNSANDBOXED (ADR-0012)");
-            }
-        }
-        match std::process::Command::new(&command[0])
-            .args(&command[1..])
-            .status()
-        {
-            Ok(s) => ExitCode::from(s.code().and_then(|c| u8::try_from(c).ok()).unwrap_or(1)),
-            Err(e) => fail(&format!("exec-sandbox: cannot run {}: {e}", command[0])),
-        }
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = (allow_write, command);
-        fail("exec-sandbox: Linux-only (Landlock, ADR-0012)")
     }
 }
 
