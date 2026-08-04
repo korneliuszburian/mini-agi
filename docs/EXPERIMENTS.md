@@ -423,3 +423,32 @@ loop has nothing to fix on these — attempt 1 always passes. The one
 lever codex's internal loop CANNOT provide is persistent memory ACROSS
 processes/runs; a long-horizon cross-session task is the remaining
 honest isolation class.
+
+### EXP-011 conclusion — the breakthrough experiment's honest outcome
+
+The verified-iteration loop (P2) is BUILT and works: on verifier failure
+the kernel re-invokes a fresh worker process with the distilled failure
+register (Reflexion-style test-grounded feedback), bounded by --iterate
+and the budget caps, recording attempts + verifier_passed. It is the
+kernel's flagship verified-reward capability and is shipped.
+
+The kernel-vs-plain advantage could NOT be demonstrated. Every lever
+reduces to "solo must fail first" (for the failure register / memory /
+re-iteration to matter), and solo codex does not fail on ANY of the 7
+task classes I could honestly generate (~70 pre-registered solo runs,
+all >= 5/10). The controls rejected the speed-advantage hypothesis as
+designed — this is a genuine, well-replicated negative, NOT a failure of
+the protocol.
+
+The defensible breakthrough claim of this session is the TRUST
+property, not speed: the kernel makes agent work VERIFIED (run verify,
+probe-vs-gate, verify-audit), CALIBRATED (judge-drift + red-team
+signal), EVOLVABLE (counterfactual harness gate), and AUDITED (action
+log, references, trial-isolation) — and its eval controls rejected
+false kernel-vs-plain claims 7 times. Per VERIFIABLE-REWARD-RESEARCH.md
+the kernel MATCHES the current verifiable-reward standard and EXCEEDS
+the median (probe-vs-gate composite scoring, judge calibration); the
+literature itself says the verified-loop benefit appears only when solo
+is below the bar — which reachable task classes do not satisfy. The
+verified-iteration loop is the kernel's answer for that future bar, not
+a claim of today's speed advantage.

@@ -167,3 +167,16 @@ Grounded in the current worktree and the fetched sources
 (arXiv/ICLR/NeurIPS/METR/Anthropic). Unconfirmed items marked. The
 recommended build (verify-audit) ships as the slice in this goal;
 remaining items are tracked as follow-up tickets.
+
+## Addendum (2026-08-04) — breakthrough experiment outcome
+
+The verified-iteration loop (BREAKTHROUGH P2) shipped: `mini-agi codex
+--iterate N` re-invokes a fresh worker on verifier failure with the
+distilled failure register, bounded by budget caps, recording the
+attempt chain. The kernel-vs-plain advantage could not be demonstrated:
+7 task classes, ~70 pre-registered solo runs, all >= 5/10 — solo codex's
+internal single-process iteration is at ceiling on every generated
+small-to-medium repo task. The pre-registered gates rejected the speed-
+advantage hypothesis as designed. The session's defensible breakthrough
+is the trust property (verified/calibrated/evolvable/audited agent
+work) and the honest eval-control methodology, both evidenced.
