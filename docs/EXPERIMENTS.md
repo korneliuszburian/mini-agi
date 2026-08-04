@@ -387,3 +387,23 @@ The control still worked as intended: it rejected the hypothesis
 costly N=5 runs, and it would have rejected any false positive claim.
 No kept tasks -> no experiment; the follow-up build below proceeds
 independently.
+
+## EXP-011 (partial) — breakthrough pilot: solo codex iterates INTERNALLY
+
+Pre-registered solo gate on the iterative-verifier-failure-recovery task
+class (hidden-test suites the agent sees only as failure output):
+3 generated tasks (config-line parser with quoted/comment/whitespace
+cases; duration formatter with plural/zero-omission; case-insensitive
+order-preserving dedup), 10 plain-arm runs each. Result: solo 10/10 on
+ALL THREE (30/30).
+
+Finding: modern codex DOES iterate within a single run — it runs `make
+verify`, reads the failing hidden-case output, and fixes before ending.
+The kernel's verified-iteration loop (re-invoke with the failure
+register) would be redundant on these tasks because the worker already
+does the iteration internally. The task class that would isolate the
+kernel's contribution must exceed a single run's capacity (long-horizon
+/ multi-session work) or disable the worker's internal iteration — so
+the loop's value is in PERSISTENT cross-run memory (the failure register
+surviving to a future session), the kernel's unique capability per the
+AWM/Ledger literature.
