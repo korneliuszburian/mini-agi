@@ -256,8 +256,16 @@ no completion marker here
     }
 
     #[test]
-    fn parses_exp003_transcript() {
-        let text = std::fs::read_to_string("/tmp/opencode/exp003-work/codex.log").unwrap();
+    fn parses_exp003_transcript_when_present() {
+        // The EXP-003 transcript lives outside the repo (a scratch dir);
+        // a clean host (CI) must not fail on it — conditional, same
+        // discipline as the exp002 test below.
+        let path = std::path::Path::new("/tmp/opencode/exp003-work/codex.log");
+        if !path.is_file() {
+            eprintln!("skipping: {} absent on this host", path.display());
+            return;
+        }
+        let text = std::fs::read_to_string(path).unwrap();
         let steps = parse_transcript(&text);
         assert!(
             !steps.is_empty(),
@@ -265,6 +273,13 @@ no completion marker here
         );
         let execs = steps.iter().filter(|s| s.tool == "exec").count();
         assert!(execs > 0, "bash -lc invocations must be captured");
+        // The noise filters must keep npm-notice/help text OUT of the steps.
+        assert!(
+            steps
+                .iter()
+                .all(|s| !s.action.starts_with("npm notice") && s.action != "codex"),
+            "noise must be filtered"
+        );
     }
 
     #[test]
