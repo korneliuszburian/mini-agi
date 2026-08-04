@@ -7,6 +7,7 @@
 //! worker live; step/cost caps are enforced after capture. Std-only
 //! (no async): spawn + poll + kill.
 
+use std::fs::{self, File};
 use std::io;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -29,6 +30,11 @@ pub struct WorkerResult {
 /// `max_wall_seconds` (None = unlimited). Std-only: spawn, poll with a
 /// short sleep, kill at the deadline, then collect output.
 ///
+/// Output goes to temp files, not pipes: a killed parent whose children
+/// inherited the pipes would keep them open and block `wait_with_output`
+/// (observed on CI — a 1s-cap test ran 30s because `sh -c sleep` left an
+/// orphan holding the pipe). File redirect is deterministic.
+///
 /// # Errors
 ///
 /// Returns the spawn error when the command cannot start.
@@ -39,51 +45,47 @@ pub fn run_capped(
     max_wall_seconds: Option<u64>,
 ) -> io::Result<WorkerResult> {
     let start = Instant::now();
+    let stdout_path = cwd.join(format!(".worker-{}.out", std::process::id()));
+    let stderr_path = cwd.join(format!(".worker-{}.err", std::process::id()));
+    let stdout_file = File::create(&stdout_path)?;
+    let stderr_file = File::create(&stderr_path)?;
     let mut child = Command::new(command)
         .args(args)
         .current_dir(cwd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stdout(Stdio::from(stdout_file))
+        .stderr(Stdio::from(stderr_file))
         .spawn()?;
+    let mut aborted = false;
     if let Some(max) = max_wall_seconds {
         let deadline = start + Duration::from_secs(max);
         loop {
-            if let Some(status) = child.try_wait()? {
-                let out = child.wait_with_output()?;
-                return Ok(WorkerResult {
-                    status: status.code(),
-                    wall_seconds: start.elapsed().as_secs(),
-                    aborted: false,
-                    output: combine(&out),
-                });
+            if child.try_wait()?.is_some() {
+                break;
             }
             if Instant::now() >= deadline {
                 let _ = child.kill();
-                let _ = child.wait();
-                let out = child.wait_with_output()?;
-                return Ok(WorkerResult {
-                    status: None,
-                    wall_seconds: start.elapsed().as_secs(),
-                    aborted: true,
-                    output: combine(&out),
-                });
+                aborted = true;
+                break;
             }
             std::thread::sleep(Duration::from_millis(50));
         }
     }
-    let out = child.wait_with_output()?;
+    let status = child.wait().ok().and_then(|s| s.code());
+    let output = match (
+        fs::read_to_string(&stdout_path),
+        fs::read_to_string(&stderr_path),
+    ) {
+        (Ok(out), Ok(err)) => format!("{out}{err}"),
+        _ => String::new(),
+    };
+    let _ = fs::remove_file(&stdout_path);
+    let _ = fs::remove_file(&stderr_path);
     Ok(WorkerResult {
-        status: out.status.code(),
+        status: if aborted { None } else { status },
         wall_seconds: start.elapsed().as_secs(),
-        aborted: false,
-        output: combine(&out),
+        aborted,
+        output,
     })
-}
-
-fn combine(out: &std::process::Output) -> String {
-    let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
-    s.push_str(&String::from_utf8_lossy(&out.stderr));
-    s
 }
 
 /// Which budget caps the captured run breaches (empty = within budget).
