@@ -515,7 +515,7 @@ fn lint_skill(skill: &Skill) -> bool {
         let is_heading = line.starts_with('#');
         if is_heading && (l.contains("done when") || l.contains("completion criteria")) {
             in_criteria = true;
-            section_depth = line.chars().take_while(|&c| c == '#').count().max(2);
+            section_depth = line.chars().take_while(|&c| c == '#').count().max(1);
             continue;
         }
         if in_criteria {
@@ -1086,6 +1086,17 @@ description: >
         assert!(
             !lint_skill(&skill),
             "prose above the section must not count"
+        );
+        // An H1 criteria heading stops at a subsequent H1 heading.
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: x\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# Completion criteria\n- [ ] self report\n# Notes\nsee the path here\n",
+        )
+        .unwrap();
+        let skill = find_skill(&root, "x").unwrap();
+        assert!(
+            !lint_skill(&skill),
+            "an H1 anchor under a later H1 must not count"
         );
         let _ = fs::remove_dir_all(&root);
     }
