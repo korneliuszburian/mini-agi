@@ -92,12 +92,17 @@ Any further notes about the feature.
 
 </spec-template>
 
-## Completion criteria
+## Completion criteria (all artifact-bound)
 
 - [ ] No interview was conducted; only already-discussed context was used.
-- [ ] The seam(s) to test at were written down and confirmed with the user.
+- [ ] The seam(s) to test at were written down and confirmed with the
+      user (quoted from the confirmation).
 - [ ] The spec follows the template section-for-section, no path or code
       snippets outside the documented exception.
+- [ ] The spec names the plan/backlog/ticket it resolves (a link or id;
+      an orphan spec fails this gate).
+- [ ] The acceptance criteria are CHECKABLE: each states a deterministic
+      gate (command + expected output) or a measurable artifact — a
+      criterion that cannot be verified against an artifact fails.
 - [ ] The spec was published (markdown or tracker) and the location is
       stated.
-- [ ] User stories are extensive and actor/feature/benefit formatted.
