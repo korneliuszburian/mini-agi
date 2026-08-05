@@ -186,6 +186,8 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     let mut attempt_verdicts: Vec<serde_json::Value> = Vec::new();
     let mut failure_context = String::new();
     let mut final_wall = 0u64;
+    let mut total_wall = 0u64;
+    let mut total_bytes = 0u64;
     let mut attempts_done = 0;
     let mut aborted = false;
     let mut verifier_passed = false;
@@ -256,6 +258,8 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         }
         let combined = worker.output;
         final_wall = worker.wall_seconds;
+        total_wall += worker.wall_seconds;
+        total_bytes += combined.len() as u64;
         std::fs::write(
             &log_path,
             format!("{combined}\n--- attempt {attempt} ---\n"),
@@ -292,6 +296,29 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
             eprintln!("  [abort] worker killed by the wall-time cap ({wall_cap:?}s)");
         }
         if aborted {
+            break;
+        }
+        // S4: total-budget governor across ALL attempts — the loop
+        // cannot burn unbounded budget even if each attempt is within
+        // its own caps.
+        if let Some(max_tokens) = cfg.max_tokens {
+            // Transcript bytes/4 as a token proxy (honest estimate).
+            if total_bytes / 4 > max_tokens {
+                eprintln!(
+                    "  [abort] total token budget exceeded: ~{} tokens > max {max_tokens}",
+                    total_bytes / 4
+                );
+                aborted = true;
+                break;
+            }
+        }
+        if let Some(max_wall) = wall_cap
+            && total_wall > max_wall.saturating_mul(iterations as u64)
+        {
+            eprintln!(
+                "  [abort] total wall budget exceeded: {total_wall}s > max {max_wall}s x {iterations} attempts"
+            );
+            aborted = true;
             break;
         }
         // Single shot: the kernel does not drive iteration (the verifier
