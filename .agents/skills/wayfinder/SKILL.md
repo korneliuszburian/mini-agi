@@ -232,8 +232,12 @@ one, you pick the next decision, not the user.
 
 1. Load the **map** — the low-res view, not every ticket body.
 2. Choose the ticket. If the user named one, use it. Otherwise take the
-   first frontier ticket in order. **Claim it**: assign it to yourself
-   before any work.
+   first frontier ticket in order. **Claim it** BEFORE any work: in a
+   mini-agi repo use the KERNEL's ticket tools (`mini-agi ticket claim
+   <ticket>` — lease + lock; `ticket validate-graph`, `ticket release`
+   via the CLI/MCP) — the kernel owns claims and locks; on an external
+   tracker assign via the tracker. Never re-implement claims in prose
+   where the kernel tool exists.
 3. Resolve it — **zoom as needed**: fetch the full body of any related or
    closed ticket on demand; invoke the skills the `## Notes` block names.
    If in doubt, ask the user a direct question.
