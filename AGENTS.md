@@ -12,7 +12,7 @@ Three generations, one lineage (ADR-0001):
 - v3 = this repo.
 
 Charter (founding goal, verbatim, NEVER lose or paraphrase): `docs/CHALLENGE.md`.
-ADRs: `docs/adr/` (ADR-0001..0010 local). Master plan: `docs/PLAN.md`.
+ADRs: `docs/adr/` (ADR-0001..0014 local). Master plan: `docs/PLAN.md`.
 Canonical memory import source: `agentic-core@HEAD`.
 
 ## Verification discipline (Phase 8-9: verified before trusted)
