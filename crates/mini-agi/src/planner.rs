@@ -30,7 +30,7 @@ pub const PROTECTED_PATHS: &[&str] = &[
 ];
 
 /// One ticket of a parallel batch.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PlannerTicket {
     /// Unique ticket id (the merge order is the id order).
     pub id: String,
@@ -52,7 +52,7 @@ fn default_target() -> String {
 }
 
 /// The strict planner manifest.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PlannerManifest {
     pub version: u32,
     pub tickets: Vec<PlannerTicket>,
@@ -125,7 +125,7 @@ pub fn parse_manifest(text: &str) -> Result<PlannerManifest, String> {
         .get("version")
         .and_then(serde_json::Value::as_u64)
         .ok_or_else(|| "manifest.version must be an integer".to_string())?;
-    if version != MANIFEST_VERSION as u64 {
+    if version != u64::from(MANIFEST_VERSION) {
         return Err(format!(
             "manifest.version {version} != supported {MANIFEST_VERSION}"
         ));
@@ -144,7 +144,7 @@ pub fn parse_manifest(text: &str) -> Result<PlannerManifest, String> {
         ));
     }
     let mut manifest = PlannerManifest {
-        version: version as u32,
+        version: u32::try_from(version).unwrap_or(MANIFEST_VERSION),
         tickets: Vec::new(),
     };
     let mut seen_ids = std::collections::HashSet::new();
