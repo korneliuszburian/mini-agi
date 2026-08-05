@@ -502,3 +502,32 @@ failure feedback it cannot generate for itself, and a budget-capped
 re-invocation it cannot perform. Plain resampling of blind generations
 stays at 50%; the kernel's loop reaches 100%. The pattern ships as
 `mini-agi codex --iterate N` (EXP-011 P2), already in the binary.
+
+## EXP-013 — replication at N=10 with the blind-worker capability (2026-08-04)
+
+The EXP-012 pattern replicated at N=10 across 4 task classes, using the
+SHIPPED `--blind-worker` mode (the kernel hides the verifier's hidden
+suite during the worker run and restores it before verification — the
+isolation is now a first-class capability, not an experiment artifact).
+Two new harder multi-function classes (e5 CSV parser with quotes/
+escapes/trailing commas; e6 ledger reconciliation with cross-field
+invariants + clamping).
+
+| task | P pass@1 | K pass@5 | K attempts-to-success |
+| --- | --- | --- | --- |
+| e1 | 0/10 | 10/10 | 2,2,2,2,2,2,2,2,2,2 |
+| e2 | 0/10 | 10/10 | 2,1,1,2,2,2,3,3,2,1 |
+| e5 | 10/10 | 10/10 | 1 (above bar) |
+| e6 | 0/10 | 3/10 | 5,2,2,4,5,5,5,5,5,5 |
+| TOTAL | 10/40 (25%) | 33/40 (82.5%) | — |
+
+Wilson 95% CIs: P 25% -> [0.13, 0.41]; K 82.5% -> [0.67, 0.92].
+NON-OVERLAPPING — the effect replicates at N=10. Below-bar subset
+(e1+e2+e6, blind 0/10): P 0/30 vs K 23/30. Above-bar (e5): both pass.
+
+The BOUNDARY: e6 (multi-function, 3 invariants, 14 hidden cases) — the
+loop recovers 3/10 and EXHAUSTS 5 attempts on 7/10. The current
+mechanism's honest limit: single-feedback-attempt recovery works for
+single-function classes (e1/e2, always attempts <= 3); multi-function
+classes sometimes exceed 5 attempts. Future levers: more attempts,
+per-function checklist feedback, or function-level verifier feedback.
