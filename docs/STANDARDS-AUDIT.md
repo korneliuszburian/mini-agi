@@ -11,14 +11,17 @@ server into ANY repo brings all work standards with it?
   implement, tdd, verify, checkpoint, review, code-review,
   diagnosing-bugs, orchestrate, compact, handoff, ingest-knowledge,
   caveman.
-- Global (`~/.agents/skills/`, 19 symlinks, most into krn-codex-skills
-  except omarchy + cube-css which are opencode-local): codebase-design,
-  delivery-loop, domain-modeling, prototype, slice-work,
-  source-to-decision, target-repo-work, setup-repository-workflow,
-  typescript-engineering, writing-great-skills,
-  managing-codex-capabilities, omarchy + the 5 overlapping copies of
-  local skills (code-review, diagnosing-bugs, implement, to-spec,
-  wayfinder). One DEAD symlink: `reviewer-handoff` (no SKILL.md).
+- Global (`~/.agents/skills/`, 19 entries): 18 symlinks into
+  krn-codex-skills (codebase-design, code-review, delivery-loop,
+  diagnosing-bugs, domain-modeling, implement, managing-codex-
+  capabilities, opencode-second-opinion, prototype,
+  setup-repository-workflow, slice-work, source-to-decision,
+  target-repo-work, to-spec, typescript-engineering, wayfinder,
+  writing-great-skills + the 5 overlapping copies of local skills:
+  code-review, diagnosing-bugs, implement, to-spec, wayfinder) and
+  omarchy (not from krn-codex-skills). One DEAD symlink:
+  `reviewer-handoff` (no SKILL.md). `cube-css` is Codex-only, at
+  `~/.codex/skills/cube-css`, not part of the global list.
 - opencode-only: cube-css (UI styling).
 
 ## Plane coverage
@@ -61,6 +64,8 @@ MISSING (prioritized):
 2. frontend-verification skill — E2E/visual/a11y verification with the
    same deterministic-gate contract as verify.sh (fills the one plane
    gap; relevant to the human-review-gate rule for frontend work).
+   DEFERRED by the user — frontend work is planned only by the user;
+   do not build before they say so.
 3. security-review skill — dependency audit + threat model + secret
    scan as a gate step (feeds the rubric's Security dimension).
 4. AGENTS.md generator — per-stack templates (Rust/TS/web) instead of
