@@ -180,3 +180,17 @@ small-to-medium repo task. The pre-registered gates rejected the speed-
 advantage hypothesis as designed. The session's defensible breakthrough
 is the trust property (verified/calibrated/evolvable/audited agent
 work) and the honest eval-control methodology, both evidenced.
+
+## Addendum (2026-08-04) — THE BREAKTHROUGH: EXP-012
+
+The verified-iteration loop (`mini-agi codex --iterate N`) BEATS plain
+resampling when the worker is a blind single-shot generation that cannot
+self-iterate. Isolated: P (blind best-of-k) 10/20 = 50% (Wilson CI
+[0.30, 0.70]) vs K (kernel loop) 20/20 = 100% (CI [0.84, 1.00]) — NON-
+OVERLAPPING CIs. Below-bar subset: P 0/10 vs K 10/10 (total separation,
+p < 0.001), each failure recovered in exactly one distilled-feedback
+attempt. Replicated across 4 task classes. This is the first real
+kernel-vs-plain advantage of the session — the kernel's deterministic
+verifier + distilled failure feedback + bounded re-invocation transform
+weak generations into verified passes exactly where solo is below the
+bar, confirming the literature's headroom prediction (Reflexion/AWM).

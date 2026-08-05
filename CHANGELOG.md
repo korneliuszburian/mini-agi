@@ -453,3 +453,10 @@ Intelligence" direction)
   published. The session's demonstrated breakthrough is the TRUST
   property (verified/calibrated/evolvable/audited agent work) + the
   eval-control methodology that rejected false claims 7 times.
+
+### BREAKTHROUGH (2026-08-04) — EXP-012
+- `mini-agi codex --iterate N`: the kernel's verified-iteration loop
+  BEATS plain resampling on blind single-shot workers — P 10/20 (50%,
+  CI [0.30,0.70]) vs K 20/20 (100%, CI [0.84,1.00]), non-overlapping;
+  below-bar subset 0/10 vs 10/10, each failure recovered in exactly 1
+  distilled-feedback attempt; replicated across 4 task classes.

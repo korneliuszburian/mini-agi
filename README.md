@@ -76,7 +76,12 @@ mini-agi ticket list|show|validate <id>
 mini-agi run ingest <run.json> [--retro <md>]
 mini-agi run verify <run.json> [--dry-run]   # deterministic verifier
 mini-agi loop status|dispatch|verify
-mini-agi codex <spec> <workdir> --verify <cmd> --target <dir>   # captured worker run
+mini-agi codex <spec> <workdir> --verify <cmd> --target <dir> [--iterate N]
+                      # captured worker run; --iterate N = verified-
+                      # iteration loop: on verifier failure, re-invoke a
+                      # fresh worker with the distilled failure register
+                      # (EXP-012: turns blind single-shots from 50% to
+                      # 100% verified pass where solo is below the bar)
 mini-agi harness snapshot|verify <target> <candidate> [--claims]
 mini-agi insights | backlog | resume | health | audit
 mini-agi eval judge-drift | hidden [--dir <d>]
