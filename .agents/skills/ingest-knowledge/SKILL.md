@@ -1,6 +1,8 @@
 ---
 name: ingest-knowledge
 description: Knowledge layer — ingest a source (course notes, video notes, docs) once into canonical memory, then derive AGENTS.md fragments and skills for any domain. Use for knowledge from courses/materials so it stops being project-local.
+version: 1.0.0
+source: mini-agi repo (.agents/skills)
 ---
 
 # Ingest Knowledge

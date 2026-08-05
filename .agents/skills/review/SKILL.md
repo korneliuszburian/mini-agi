@@ -2,6 +2,8 @@
 name: review
 description: Rubric-based code review with default-to-action. Scores correctness, security, tests, scope 0-2 each, and MUST cite canonical memory anchors (ADR-0003). Use when a change is ready for review or before merge.
 verify: .agents/checks/review-anchor-test.sh
+version: 1.0.0
+source: mini-agi repo (.agents/skills)
 ---
 
 # Review

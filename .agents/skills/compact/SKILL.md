@@ -1,6 +1,8 @@
 ---
 name: compact
 description: Two-stage context compaction. Stage 1: checkpoint + episodic buffer append. Stage 2: consolidate to canonical memory, re-derive views, run provenance gate. Use when a session grows long, before /clear, or at stage boundaries.
+version: 1.0.0
+source: mini-agi repo (.agents/skills)
 ---
 
 # Compact

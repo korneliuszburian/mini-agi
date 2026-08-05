@@ -39,6 +39,12 @@ pub struct Skill {
     pub disabled: bool,
     /// Absolute path of the skill's `SKILL.md`.
     pub path: PathBuf,
+    /// Frontmatter `version` (semver) — the skill's own version, for
+    /// install-diff and provenance.
+    pub version: Option<String>,
+    /// Frontmatter `source` — where the skill came from (origin path
+    /// or URL).
+    pub source: Option<String>,
 }
 
 /// Result of running a skill's verify hook.
@@ -106,6 +112,8 @@ pub fn parse_skill_md(content: &str) -> Result<Skill, SkillError> {
         fields.get("disabled").map(String::as_str),
         Some("true" | "True" | "yes")
     );
+    let version = fields.get("version").cloned();
+    let source = fields.get("source").cloned();
     Ok(Skill {
         name,
         description,
@@ -115,6 +123,8 @@ pub fn parse_skill_md(content: &str) -> Result<Skill, SkillError> {
         sandbox,
         disabled,
         path: PathBuf::new(),
+        version,
+        source,
     })
 }
 
@@ -268,6 +278,8 @@ pub struct VerifyAllReport {
     /// Skills WITHOUT a verify hook (reported, not failing — most
     /// skills are reference/procedure skills).
     pub no_hook: Vec<String>,
+    /// Skills missing `version` or `source` frontmatter (D5).
+    pub no_version: Vec<String>,
 }
 
 /// Dual-registration drift (D4): local vs global content divergence.
@@ -336,6 +348,9 @@ pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
     let registry = discover_skills(root)?;
     let mut report = VerifyAllReport::default();
     for skill in &registry {
+        if skill.version.is_none() || skill.source.is_none() {
+            report.no_version.push(skill.name.clone());
+        }
         match skill.verify.as_deref() {
             None => report.no_hook.push(skill.name.clone()),
             Some(_) => match verify_skill(skill, root) {
@@ -495,6 +510,12 @@ fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
         )));
     }
     let dest = agents_dir(root).join(&skill.name);
+    // Install-diff (D5): copy only when the content differs — a blind
+    // remove_dir_all would silently destroy local edits on reinstall.
+    let existing = fs::read_to_string(dest.join("SKILL.md")).ok();
+    if existing.as_deref() == Some(content.as_str()) {
+        return Ok(skill.name);
+    }
     let _ = fs::remove_dir_all(&dest);
     fs::create_dir_all(&dest).map_err(SkillError::Io)?;
     fs::copy(skill_md, dest.join("SKILL.md")).map_err(SkillError::Io)?;

@@ -2,6 +2,8 @@
 name: checkpoint
 description: Edit-commit checkpoint cascade (ECC). Commit state before every further edit; roll back to last green checkpoint when the verifier fails. Use before and after every edit step.
 verify: scripts/checkpoint.sh status
+version: 1.0.0
+source: mini-agi repo (.agents/skills)
 ---
 
 # Checkpoint
