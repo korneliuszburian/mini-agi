@@ -104,11 +104,36 @@ pub fn spawn_detached(
         no_sandbox,
     };
     let exe = std::env::current_exe()?;
-    // One run per workdir (F4): refuse when a run is already active.
-    if is_alive(&handle) {
-        return Err(std::io::Error::other(
-            "a detached run is already active in this workdir",
-        ));
+    // One run per workdir (F4): the lock is taken atomically
+    // (create_new) so concurrent launches cannot both pass a
+    // check-then-spawn race. A stale lock (its recorded process is
+    // dead) is recovered by the next launch.
+    let lock = handle.join("launch.lock");
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&lock)
+    {
+        Ok(_) => {}
+        Err(_) if lock_holder_alive(&handle) => {
+            return Err(std::io::Error::other(
+                "a detached run is already active in this workdir",
+            ));
+        }
+        Err(_) => {
+            // Stale lock: the holder's run is finished — take it over.
+            let _ = std::fs::remove_file(&lock);
+            if std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&lock)
+                .is_err()
+            {
+                return Err(std::io::Error::other(
+                    "a detached run is already active in this workdir",
+                ));
+            }
+        }
     }
     let out = std::fs::File::create(handle.join("run.out"))?;
     let err = out.try_clone()?;
@@ -173,6 +198,7 @@ pub fn spawn_detached(
     let pid = child.id();
     let mut cleanup = || {
         let _ = child.kill();
+        let _ = child.wait();
         let _ = std::fs::remove_dir_all(&handle);
     };
     if std::fs::write(handle.join("run.pid"), pid.to_string()).is_err() {
@@ -199,6 +225,20 @@ pub fn spawn_detached(
 /// unreadable. Combined with the pid it identifies a process instance
 /// (guards against pid reuse; zombies keep their start-time but report
 /// state Z).
+/// The launch lock is held while a launch is in progress (run.pid not
+/// written yet) or while the recorded run process is alive.
+fn lock_holder_alive(handle: &Path) -> bool {
+    if !handle.join("run.pid").exists() {
+        return true;
+    }
+    is_alive(handle)
+}
+
+/// Whether the report file for this launch exists (the run is done).
+fn report_ready_checked(handle: &Path) -> bool {
+    launch_report(handle).is_some_and(|p| p.is_file())
+}
+
 fn process_starttime(pid: u32) -> u64 {
     std::fs::read_to_string(format!("/proc/{pid}/stat"))
         .ok()
@@ -300,11 +340,25 @@ pub struct BgStatus {
 // Consumed by the MCP tools (AFK v3 S2).
 #[allow(dead_code)]
 pub fn run_status(handle: &Path) -> BgStatus {
+    if !valid_handle(handle) {
+        return BgStatus {
+            alive: false,
+            workdir: None,
+            report: None,
+            report_ready: false,
+            progress_tail: None,
+        };
+    }
+    // Release the launch lock once the run is observably finished, so
+    // the next launch does not need a stale-lock dance.
+    if !is_alive(handle) && report_ready_checked(handle) {
+        let _ = std::fs::remove_file(handle.join("launch.lock"));
+    }
     let launch: Option<LaunchInfo> = std::fs::read_to_string(handle.join("launch.json"))
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok());
     let workdir = launch.as_ref().map(|l| l.workdir.clone());
-    let report = launch.as_ref().map(|l| l.report.clone());
+    let report = launch_report(handle).map(|p| p.to_string_lossy().into_owned());
     let report_ready = report.as_ref().is_some_and(|r| Path::new(r).is_file());
     let progress_tail = workdir.as_ref().and_then(|w| {
         let path = Path::new(w).join("progress.md");
@@ -335,10 +389,10 @@ pub fn run_status(handle: &Path) -> BgStatus {
 // Consumed by the MCP tools (AFK v3 S2).
 #[allow(dead_code)]
 pub fn run_report_text(handle: &Path) -> Option<String> {
-    let report = std::fs::read_to_string(handle.join("launch.json"))
-        .ok()
-        .and_then(|t| serde_json::from_str::<LaunchInfo>(&t).ok())
-        .map(|l| l.report)?;
+    if !valid_handle(handle) {
+        return None;
+    }
+    let report = launch_report(handle)?;
     std::fs::read_to_string(&report).ok()
 }
 
@@ -541,11 +595,12 @@ mod tests {
     #[test]
     fn status_reads_progress_tail_and_report_ready() {
         let root = tmp_root("status");
-        let handle = handle_for(&root);
-        std::fs::create_dir_all(&handle).unwrap();
         let workdir = root.join("wd");
         std::fs::create_dir_all(&workdir).unwrap();
-        let report = root.join("REPORT.md");
+        // The handle must live INSIDE the workdir (authority guard).
+        let handle = handle_for(&workdir);
+        std::fs::create_dir_all(&handle).unwrap();
+        let report = workdir.join("REPORT.md");
         let launch = LaunchInfo {
             goal_or_case: "x".into(),
             workdir: workdir.to_string_lossy().into_owned(),
