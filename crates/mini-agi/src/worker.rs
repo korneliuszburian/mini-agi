@@ -94,6 +94,307 @@ pub struct CodexRunArgs<'a> {
     pub hidden_dir: Option<std::path::PathBuf>,
 }
 
+/// Inputs for the verified-iteration core (AFK supervisor S1: the
+/// iteration loop extracted from `cmd_codex` so the supervisor reuses
+/// it instead of duplicating).
+pub struct IterationInput<'a> {
+    /// The slice spec text (prompt base for attempt 1).
+    pub spec_text: &'a str,
+    /// The goal (parsed from the spec).
+    pub goal: &'a str,
+    /// The parsed scope list.
+    pub scope_list: &'a [String],
+    /// The deterministic verifier command (P0-3 enforced).
+    pub verify: &'a str,
+    /// The verifier target dir.
+    pub target: &'a Path,
+    /// The worker workdir.
+    pub workdir: &'a Path,
+    /// Wall cap per attempt.
+    pub wall_cap: Option<u64>,
+    /// Step cap (accumulated).
+    pub step_cap: Option<usize>,
+    /// Skip the sandbox (ADR-0012 escape hatch).
+    pub no_sandbox: bool,
+    /// Worker executable name.
+    pub worker_name: &'a str,
+    /// Read-only sandbox mode (D.2).
+    pub read_only: bool,
+    /// Iteration count (1 = single shot).
+    pub iterate: usize,
+    /// Blind-worker mode (EXP-012 isolation).
+    pub blind_worker: bool,
+    /// Hidden-suite dir for blind-worker.
+    pub hidden_dir: Option<&'a Path>,
+}
+
+/// A supervision event from the iteration core (the AFK supervisor's
+/// progress sink; `cmd_codex` ignores them beyond printing).
+#[derive(Debug)]
+pub enum ProgressEvent {
+    /// One worker attempt started.
+    AttemptStarted { attempt: usize },
+    /// The verifier verdict for an attempt.
+    Verifier {
+        attempt: usize,
+        failed_cases: Vec<String>,
+        passed: bool,
+    },
+    /// The run aborted (budget cap).
+    Aborted { reason: String },
+}
+
+/// The verified-iteration result (the draft + supervision metadata).
+#[derive(Debug)]
+// The AFK supervisor (S2) consumes all fields; `cmd_codex` reads the
+// subset it needs today.
+#[allow(dead_code)]
+pub struct IterationResult {
+    /// Number of attempts executed.
+    pub attempts_done: usize,
+    /// Whether the verifier passed on the final attempt.
+    pub verifier_passed: bool,
+    /// Whether the run aborted (budget cap).
+    pub aborted: bool,
+    /// All captured steps across attempts.
+    pub all_steps: Vec<mini_agi_core::capture::CapturedStep>,
+    /// Per-attempt verdicts (process supervision).
+    pub attempt_verdicts: Vec<serde_json::Value>,
+    /// Accumulated wall time.
+    pub total_wall: u64,
+    /// Accumulated transcript bytes.
+    pub total_bytes: u64,
+    /// The run.json draft (trace header + attempts + verdicts).
+    pub run: serde_json::Value,
+}
+
+/// The verified-iteration core (BREAKTHROUGH): run the worker up to N
+/// attempts; on verifier failure distill the failure register and
+/// re-invoke a fresh worker, bounded by budget caps; the verifier must
+/// be non-vacuous before iterating. `progress` receives supervision
+/// events (the AFK supervisor writes progress.md from them).
+pub fn run_verified_iteration(
+    input: &IterationInput<'_>,
+    mut progress: impl FnMut(ProgressEvent),
+) -> Result<IterationResult, String> {
+    let protocol = "IMPLEMENTATION PROTOCOL (binding): plan first, tests first, never repeat a failing action. When the work is done and your own gate passes, END YOUR FINAL MESSAGE with:\n<promise>COMPLETE</promise>\n<result>{\"summary\": \"one sentence\"}</result>";
+    let base_prompt = format!("{}\n\n{protocol}\n", input.spec_text);
+    let log_path = input.workdir.join("codex.log");
+    let mut all_steps: Vec<mini_agi_core::capture::CapturedStep> = Vec::new();
+    let mut attempt_verdicts: Vec<serde_json::Value> = Vec::new();
+    let mut failure_context = String::new();
+    let mut final_wall = 0u64;
+    let mut total_wall = 0u64;
+    let mut total_bytes = 0u64;
+    let mut attempts_done = 0;
+    let mut aborted = false;
+    let mut verifier_passed = false;
+    let iterations = input.iterate.max(1);
+    // S2: verify-audit wired into the loop — before trusting the
+    // iteration, confirm the verifier is non-vacuous.
+    if iterations > 1 {
+        let audit = mini_agi_core::verifier::audit_verifier_vacuous(input.target, input.verify);
+        if audit.is_vacuous {
+            return Err(
+                "refusing verified-iteration: the verifier is VACUOUS (passes an empty \
+                 target) — fix the verifier or drop --iterate (verify-audit)"
+                    .to_string(),
+            );
+        }
+    }
+    for attempt in 1..=iterations {
+        attempts_done = attempt;
+        progress(ProgressEvent::AttemptStarted { attempt });
+        let prompt = if attempt == 1 {
+            base_prompt.clone()
+        } else {
+            format!(
+                "{base_prompt}\n\nFAILURE FEEDBACK FROM ATTEMPT {prev} (binding — fix these):\n{failure_context}\nStart from your last state, address each failing case, and re-run the verifier until it passes.\n",
+                prev = attempt - 1
+            )
+        };
+        let worker_args = vec![
+            "exec",
+            "-s",
+            "workspace-write",
+            "--skip-git-repo-check",
+            &prompt,
+        ];
+        // Blind-worker mode: the hidden suite is unavailable to the
+        // worker — the kernel's loop is the only feedback path.
+        let hidden_away = if input.blind_worker {
+            match input.hidden_dir {
+                Some(dir) if dir.exists() => hide_verifier(dir).unwrap_or(false),
+                Some(dir) => {
+                    return Err(format!(
+                        "refusing blind-worker mode: the hidden suite {} does not exist — \
+                         isolation cannot be guaranteed",
+                        dir.display()
+                    ));
+                }
+                None => {
+                    return Err(
+                        "refusing blind-worker mode without --hidden-dir (the isolation \
+                         requires the verifier's hidden suite to be movable)"
+                            .to_string(),
+                    );
+                }
+            }
+        } else {
+            false
+        };
+        let worker = match run_worker_sandboxed(
+            input.worker_name,
+            input.workdir,
+            input.no_sandbox,
+            input.read_only,
+            input.wall_cap,
+            &worker_args,
+        ) {
+            Ok(w) => w,
+            Err(e) => {
+                if hidden_away && let Some(dir) = input.hidden_dir {
+                    let _ = restore_verifier(dir);
+                }
+                return Err(format!("{} not available: {e}", input.worker_name));
+            }
+        };
+        if hidden_away && let Some(dir) = input.hidden_dir {
+            let _ = restore_verifier(dir);
+        }
+        let combined = worker.output;
+        final_wall = worker.wall_seconds;
+        total_wall += worker.wall_seconds;
+        total_bytes += combined.len() as u64;
+        std::fs::write(
+            &log_path,
+            format!("{combined}\n--- attempt {attempt} ---\n"),
+        )
+        .unwrap_or(());
+        let stripped = combined.replace(&prompt, "");
+        let outcome = mini_agi_core::capture::CaptureOutcome {
+            log_path: log_path.clone(),
+            steps: mini_agi_core::capture::parse_transcript(&combined),
+            completed: mini_agi_core::capture::completed(&stripped),
+            result: mini_agi_core::capture::extract_result(&combined),
+        };
+        all_steps.extend(outcome.steps.iter().cloned());
+        // P0-1 post-hoc cap check (accumulated).
+        let violations = mini_agi_core::worker::budget_violations(
+            all_steps.len(),
+            0.0,
+            final_wall,
+            input.step_cap,
+            None,
+            input.wall_cap,
+        );
+        aborted = worker.aborted || !violations.is_empty();
+        for v in &violations {
+            eprintln!("  [abort] {v}");
+        }
+        if worker.aborted {
+            eprintln!(
+                "  [abort] worker killed by the wall-time cap ({:?}s)",
+                input.wall_cap
+            );
+        }
+        if aborted {
+            progress(ProgressEvent::Aborted {
+                reason: "budget cap".to_string(),
+            });
+            break;
+        }
+        // S4: total-budget governor across ALL attempts.
+        let cfg = mini_agi_core::config::Config::load(input.workdir);
+        if let Some(max_tokens) = cfg.max_tokens
+            && total_bytes / 4 > max_tokens
+        {
+            eprintln!(
+                "  [abort] total token budget exceeded: ~{} tokens > max {max_tokens}",
+                total_bytes / 4
+            );
+            aborted = true;
+            progress(ProgressEvent::Aborted {
+                reason: "total token budget".to_string(),
+            });
+            break;
+        }
+        if let Some(max_wall) = input.wall_cap
+            && total_wall > max_wall.saturating_mul(iterations as u64)
+        {
+            eprintln!(
+                "  [abort] total wall budget exceeded: {total_wall}s > max {max_wall}s x {iterations} attempts"
+            );
+            aborted = true;
+            progress(ProgressEvent::Aborted {
+                reason: "total wall budget".to_string(),
+            });
+            break;
+        }
+        // Single shot: the kernel does not drive iteration.
+        if iterations == 1 {
+            break;
+        }
+        // Verified-iteration (BREAKTHROUGH): run the deterministic
+        // verifier; on failure distill the feedback and re-invoke.
+        let verifier =
+            mini_agi_core::worker::run_capped("sh", &["-c", input.verify], input.target, Some(120));
+        match verifier {
+            Ok(v) if v.status == Some(0) && !v.aborted => {
+                verifier_passed = true;
+                attempt_verdicts.push(serde_json::json!({
+                    "attempt": attempt,
+                    "failed_cases": [],
+                    "passed": true,
+                }));
+                progress(ProgressEvent::Verifier {
+                    attempt,
+                    failed_cases: Vec::new(),
+                    passed: true,
+                });
+                break;
+            }
+            Ok(v) => {
+                let failed_cases = extract_failing_cases(&v.output);
+                attempt_verdicts.push(serde_json::json!({
+                    "attempt": attempt,
+                    "failed_cases": failed_cases.clone(),
+                    "passed": false,
+                }));
+                failure_context = distill_failure(attempt, &v.output);
+                progress(ProgressEvent::Verifier {
+                    attempt,
+                    failed_cases,
+                    passed: false,
+                });
+            }
+            Err(e) => return Err(format!("verifier not available: {e}")),
+        }
+    }
+    let run = crate::clifmt::build_run_draft(
+        input.goal,
+        input.scope_list,
+        &all_steps,
+        Some(input.verify),
+        Some(&input.target.to_string_lossy()),
+        Some(final_wall),
+    );
+    let mut run = run;
+    run["attempts"] = serde_json::json!(attempts_done);
+    run["verifier_passed"] = serde_json::json!(verifier_passed);
+    run["attempt_verdicts"] = serde_json::json!(attempt_verdicts);
+    Ok(IterationResult {
+        attempts_done,
+        verifier_passed,
+        aborted,
+        all_steps,
+        attempt_verdicts,
+        total_wall,
+        total_bytes,
+        run,
+    })
+}
+
 /// Run codex on a slice spec, capture the transcript, emit a truthful
 /// run.json draft under the wall/step caps and (Linux) the Landlock
 /// sandbox.
@@ -152,6 +453,11 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         .find_map(|l| l.strip_prefix("- scope: "))
         .unwrap_or("")
         .to_string();
+    let scope_list: Vec<String> = scope
+        .split(',')
+        .map(|s| s.trim().trim_matches('`').to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
     let cfg = mini_agi_core::config::Config::load(workdir);
     let wall_cap = max_wall.or(cfg.max_wall_seconds);
     let step_cap = max_steps.or(cfg.max_steps);
@@ -174,219 +480,63 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
             }
         }
     }
-    let protocol = "IMPLEMENTATION PROTOCOL (binding): plan first, tests first, never repeat a failing action. When the work is done and your own gate passes, END YOUR FINAL MESSAGE with:\n<promise>COMPLETE</promise>\n<result>{\"summary\": \"one sentence\"}</result>";
-    let base_prompt = format!("{spec_text}\n\n{protocol}\n");
-    let scope_list: Vec<String> = scope
-        .split(',')
-        .map(|s| s.trim().trim_matches('`').to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    let log_path = workdir.join("codex.log");
-    let mut all_steps: Vec<mini_agi_core::capture::CapturedStep> = Vec::new();
-    let mut attempt_verdicts: Vec<serde_json::Value> = Vec::new();
-    let mut failure_context = String::new();
-    let mut final_wall = 0u64;
-    let mut total_wall = 0u64;
-    let mut total_bytes = 0u64;
-    let mut attempts_done = 0;
-    let mut aborted = false;
-    let mut verifier_passed = false;
-    let iterations = iterate.max(1);
-    // S2: verify-audit wired into the loop — before trusting the
-    // iteration, confirm the verifier is non-vacuous (it must reject an
-    // empty counterfactual target). A vacuous verifier would make the
-    // loop 'pass' garbage; refuse instead.
-    if iterations > 1 {
-        let audit =
-            mini_agi_core::verifier::audit_verifier_vacuous(std::path::Path::new(&target), &verify);
-        if audit.is_vacuous {
-            return fail(
-                "refusing verified-iteration: the verifier is VACUOUS (passes an empty \
-                 target) — fix the verifier or drop --iterate (verify-audit)",
-            );
+    let input = IterationInput {
+        spec_text: &spec_text,
+        goal: &goal,
+        scope_list: &scope_list,
+        verify: &verify,
+        target: std::path::Path::new(&target),
+        workdir,
+        wall_cap,
+        step_cap,
+        no_sandbox,
+        worker_name,
+        read_only,
+        iterate,
+        blind_worker,
+        hidden_dir,
+    };
+    let result = match run_verified_iteration(&input, |event| match event {
+        ProgressEvent::AttemptStarted { attempt } => {
+            println!("codex attempt {attempt} started");
         }
-    }
-    for attempt in 1..=iterations {
-        attempts_done = attempt;
-        let prompt = if attempt == 1 {
-            base_prompt.clone()
-        } else {
-            format!(
-                "{base_prompt}\n\nFAILURE FEEDBACK FROM ATTEMPT {prev} (binding — fix these):\n{failure_context}\nStart from your last state, address each failing case, and re-run the verifier until it passes.\n",
-                prev = attempt - 1
-            )
-        };
-        let worker_args = vec![
-            "exec",
-            "-s",
-            "workspace-write",
-            "--skip-git-repo-check",
-            &prompt,
-        ];
-        // Blind-worker mode: the hidden suite is unavailable to the
-        // worker — the kernel's loop is the only feedback path.
-        let hidden_away = if blind_worker {
-            match hidden_dir {
-                Some(dir) => hide_verifier(dir).unwrap_or(false),
-                None => {
-                    return fail(
-                        "refusing blind-worker mode without --hidden-dir (the isolation                          requires the verifier's hidden suite to be movable)",
-                    );
-                }
-            }
-        } else {
-            false
-        };
-        let worker = match run_worker_sandboxed(
-            worker_name,
-            workdir,
-            no_sandbox,
-            read_only,
-            wall_cap,
-            &worker_args,
-        ) {
-            Ok(w) => w,
-            Err(e) => {
-                if hidden_away && let Some(dir) = hidden_dir {
-                    let _ = restore_verifier(dir);
-                }
-                return fail(&format!("{worker_name} not available: {e}"));
-            }
-        };
-        if hidden_away && let Some(dir) = hidden_dir {
-            let _ = restore_verifier(dir);
-        }
-        let combined = worker.output;
-        final_wall = worker.wall_seconds;
-        total_wall += worker.wall_seconds;
-        total_bytes += combined.len() as u64;
-        std::fs::write(
-            &log_path,
-            format!("{combined}\n--- attempt {attempt} ---\n"),
-        )
-        .unwrap_or(());
-        let stripped = combined.replace(&prompt, "");
-        let outcome = mini_agi_core::capture::CaptureOutcome {
-            log_path: log_path.clone(),
-            steps: mini_agi_core::capture::parse_transcript(&combined),
-            completed: mini_agi_core::capture::completed(&stripped),
-            result: mini_agi_core::capture::extract_result(&combined),
-        };
-        all_steps.extend(outcome.steps.iter().cloned());
-        println!(
-            "codex attempt {attempt}: exit {}, completed={}, {} steps",
-            worker.status.map_or_else(|| "-".into(), |c| c.to_string()),
-            outcome.completed,
-            outcome.steps.len()
-        );
-        // P0-1 post-hoc cap check (accumulated).
-        let violations = mini_agi_core::worker::budget_violations(
-            all_steps.len(),
-            0.0,
-            final_wall,
-            step_cap,
-            None,
-            wall_cap,
-        );
-        aborted = worker.aborted || !violations.is_empty();
-        for v in &violations {
-            eprintln!("  [abort] {v}");
-        }
-        if worker.aborted {
-            eprintln!("  [abort] worker killed by the wall-time cap ({wall_cap:?}s)");
-        }
-        if aborted {
-            break;
-        }
-        // S4: total-budget governor across ALL attempts — the loop
-        // cannot burn unbounded budget even if each attempt is within
-        // its own caps.
-        if let Some(max_tokens) = cfg.max_tokens {
-            // Transcript bytes/4 as a token proxy (honest estimate).
-            if total_bytes / 4 > max_tokens {
-                eprintln!(
-                    "  [abort] total token budget exceeded: ~{} tokens > max {max_tokens}",
-                    total_bytes / 4
-                );
-                aborted = true;
-                break;
-            }
-        }
-        if let Some(max_wall) = wall_cap
-            && total_wall > max_wall.saturating_mul(iterations as u64)
-        {
-            eprintln!(
-                "  [abort] total wall budget exceeded: {total_wall}s > max {max_wall}s x {iterations} attempts"
-            );
-            aborted = true;
-            break;
-        }
-        // Single shot: the kernel does not drive iteration (the verifier
-        // is loop verify's job). Only iterate > 1 runs the verifier here.
-        if iterations == 1 {
-            break;
-        }
-        // Verified-iteration (BREAKTHROUGH): run the deterministic
-        // verifier; on failure distill the feedback and re-invoke.
-        let verifier = mini_agi_core::worker::run_capped(
-            "sh",
-            &["-c", &verify],
-            std::path::Path::new(&target),
-            Some(120),
-        );
-        match verifier {
-            Ok(v) if v.status == Some(0) && !v.aborted => {
-                verifier_passed = true;
-                attempt_verdicts.push(serde_json::json!({
-                    "attempt": attempt,
-                    "failed_cases": [],
-                    "passed": true,
-                }));
+        ProgressEvent::Verifier {
+            attempt,
+            failed_cases,
+            passed,
+        } => {
+            if passed {
                 println!("  verifier PASSED on attempt {attempt}");
-                break;
-            }
-            Ok(v) => {
-                attempt_verdicts.push(serde_json::json!({
-                    "attempt": attempt,
-                    "failed_cases": extract_failing_cases(&v.output),
-                    "passed": false,
-                }));
-                failure_context = distill_failure(attempt, &v.output);
+            } else {
                 println!(
-                    "  verifier FAILED on attempt {attempt}; {} attempt(s) left",
-                    iterations.saturating_sub(attempt)
+                    "  verifier FAILED on attempt {attempt}: {} case(s)",
+                    failed_cases.len()
                 );
             }
-            Err(e) => return fail(&format!("verifier not available: {e}")),
         }
-    }
-    let run = crate::clifmt::build_run_draft(
-        &goal,
-        &scope_list,
-        &all_steps,
-        Some(&verify),
-        Some(&target),
-        Some(final_wall),
-    );
-    let mut run = run;
-    run["attempts"] = serde_json::json!(attempts_done);
-    run["verifier_passed"] = serde_json::json!(verifier_passed);
-    run["attempt_verdicts"] = serde_json::json!(attempt_verdicts);
+        ProgressEvent::Aborted { reason } => {
+            eprintln!("  [abort] {reason}");
+        }
+    }) {
+        Ok(r) => r,
+        Err(e) => return fail(&e),
+    };
+    let run = result.run;
     let exit = write_draft(run_out, workdir, &run);
-    if aborted {
+    if result.aborted {
         println!("  run ABORTED by a budget cap (exit 3) — not a clean run");
         ExitCode::from(3)
-    } else if iterations > 1 && !verifier_passed {
-        println!("  run did NOT pass the verifier after {attempts_done} attempts (exit 1)");
+    } else if iterate.max(1) > 1 && !result.verifier_passed {
+        println!(
+            "  run did NOT pass the verifier after {} attempts (exit 1)",
+            result.attempts_done
+        );
         ExitCode::from(1)
     } else {
         exit
     }
 }
 
-/// Blind-worker isolation (EXP-012 as a capability): move the verifier's
-/// hidden-suite directory aside so the worker cannot self-verify.
-/// Returns true when the directory was moved.
 fn hide_verifier(hidden_dir: &Path) -> std::io::Result<bool> {
     if !hidden_dir.exists() {
         return Ok(false);

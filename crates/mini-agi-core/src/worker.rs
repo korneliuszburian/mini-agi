@@ -44,6 +44,27 @@ pub fn run_capped(
     cwd: &Path,
     max_wall_seconds: Option<u64>,
 ) -> io::Result<WorkerResult> {
+    run_capped_idle(command, args, cwd, max_wall_seconds, None)
+}
+
+/// `run_capped` with an idle-timeout (AFK supervisor S1).
+///
+/// When `max_idle_seconds` is set and the worker's output file has not
+/// been modified for that long while the process still runs, the worker
+/// is killed as STUCK (genuinely no progress). Output lands in the same
+/// files as `run_capped`; the mtime of the `.out` file is the liveness
+/// signal.
+///
+/// # Errors
+///
+/// Returns the spawn error when the command cannot start.
+pub fn run_capped_idle(
+    command: &str,
+    args: &[&str],
+    cwd: &Path,
+    max_wall_seconds: Option<u64>,
+    max_idle_seconds: Option<u64>,
+) -> io::Result<WorkerResult> {
     let start = Instant::now();
     let stdout_path = cwd.join(format!(".worker-{}.out", std::process::id()));
     let stderr_path = cwd.join(format!(".worker-{}.err", std::process::id()));
@@ -56,16 +77,37 @@ pub fn run_capped(
         .stderr(Stdio::from(stderr_file))
         .spawn()?;
     let mut aborted = false;
-    if let Some(max) = max_wall_seconds {
-        let deadline = start + Duration::from_secs(max);
+    // Poll when a wall cap OR an idle cap is set (idle needs the poll
+    // loop to watch the output-file mtime).
+    if max_wall_seconds.is_some() || max_idle_seconds.is_some() {
+        let deadline = max_wall_seconds.map(|max| start + Duration::from_secs(max));
+        let idle = max_idle_seconds.map(Duration::from_secs);
+        let mut last_mtime = std::fs::metadata(&stdout_path)
+            .and_then(|m| m.modified())
+            .ok();
         loop {
             if child.try_wait()?.is_some() {
                 break;
             }
-            if Instant::now() >= deadline {
+            let now = Instant::now();
+            if deadline.is_some_and(|d| now >= d) {
                 let _ = child.kill();
                 aborted = true;
                 break;
+            }
+            if let Some(idle) = idle {
+                let mtime = std::fs::metadata(&stdout_path)
+                    .and_then(|m| m.modified())
+                    .ok();
+                if let (Some(prev), Some(cur)) = (last_mtime, mtime) {
+                    if cur != prev {
+                        last_mtime = Some(cur);
+                    } else if now.duration_since(start) >= idle {
+                        let _ = child.kill();
+                        aborted = true;
+                        break;
+                    }
+                }
             }
             std::thread::sleep(Duration::from_millis(50));
         }
@@ -174,6 +216,50 @@ mod tests {
         let err = run_capped("definitely-not-a-real-binary-xyz", &[], &root, None).unwrap_err();
         let _ = std::io::Error::other(err);
         let _ = write!(&mut std::io::stderr(), "spawn err ok");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod idle_timeout_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-idle-{}-{}", tag, std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn silent_worker_is_killed_by_idle_timeout() {
+        // `sleep` produces NO output -> the out-file mtime never changes
+        // -> the idle cap must kill it (stuck worker).
+        let root = tmp_root("silent");
+        let res = run_capped_idle("sh", &["-c", "sleep 30"], &root, None, Some(1)).unwrap();
+        assert!(
+            res.aborted,
+            "a silent worker must be killed by the idle cap"
+        );
+        assert!(res.wall_seconds < 10, "killed near the idle cap");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn active_worker_survives_idle_timeout() {
+        // A worker that keeps writing output is alive -> not killed.
+        let root = tmp_root("active");
+        let res = run_capped_idle(
+            "sh",
+            &["-c", "while true; do echo tick; sleep 0.2; done"],
+            &root,
+            Some(3),
+            Some(1),
+        )
+        .unwrap();
+        assert!(res.aborted, "killed by the wall cap, not the idle cap");
+        assert!(res.output.contains("tick"), "output must be captured");
         let _ = std::fs::remove_dir_all(&root);
     }
 }
