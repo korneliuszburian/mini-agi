@@ -10,19 +10,14 @@ report opens the next layer).
 
 ---
 
-**AFK v2:** session resume (verifier failure feeds the worker's own codex
-session — content-marker ownership) and the sequential-reviewer template
-(independent read-only review + one fix pass + final outcome resolution)
-are shipped; the second self-hosting proof closed a real kernel gap
-(verify.sh's hidden failure output). Details: docs/AFK-SUPERVISOR.md.
-
-**AFK supervisor (AFK-SUPERVISOR):** `mini-agi loop run` ships the
-verified-iteration loop as a supervised background runner — progress.md,
-run report, two-phase liveness (idle timeout + completion grace), on-done
-hook, and the run draft persisted with the kernel's own verifier result.
-Codex is a first-class client via MCP (docs/CODEX-INTEGRATION.md), and the
-self-hosting proof (S6) demonstrated the kernel building a real kernel
-improvement through itself, verified by itself. Details: docs/AFK-SUPERVISOR.md.
+**AFK supervisor (AFK-SUPERVISOR v1-v3):** `mini-agi loop run` — the
+verified-iteration loop as a supervised background runner — plus session
+resume, the sequential-reviewer template, and the MCP bridge (codex
+sessions launch/poll/read runs). Two self-hosting proofs closed real
+kernel gaps (the `--max-idle` flag; verify.sh's hidden failure output).
+Details: `docs/AFK-SUPERVISOR.md` (semantics) and
+`docs/CODEX-INTEGRATION.md` (the codex client surface). See
+`docs/README.md` for the full map.
 
 ## A. Executive summary
 

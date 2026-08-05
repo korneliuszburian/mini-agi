@@ -1,2 +1,6 @@
 target/
 .krn/
+# AFK supervisor runtime (AFK v3): never commit live run state.
+.supervisor/
+.worker-*
+*.blind-hidden
