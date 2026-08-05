@@ -425,11 +425,40 @@ fn extract_failing_cases(verifier_output: &str) -> Vec<String> {
         .collect()
 }
 
+/// Extract per-case details from a unittest-style verifier report:
+/// (failing-case-name, detail-line) pairs, where the detail line is the
+/// AssertionError/Error message that follows the case's traceback.
+fn extract_case_details(verifier_output: &str) -> Vec<(String, String)> {
+    let lines: Vec<&str> = verifier_output.lines().collect();
+    let mut out = Vec::new();
+    let mut current: Option<String> = None;
+    for line in lines {
+        let t = line.trim();
+        if let Some(rest) = t
+            .strip_prefix("FAIL: ")
+            .or_else(|| t.strip_prefix("ERROR: "))
+        {
+            let name = rest.split_whitespace().next().unwrap_or(rest).to_string();
+            current = Some(name);
+        } else if let Some(cur) = &current {
+            if let Some(msg) = t.strip_prefix("AssertionError: ") {
+                out.push((cur.clone(), msg.to_string()));
+                current = None;
+            } else if !t.is_empty() && !t.starts_with('-') && !t.starts_with("Traceback") {
+                // First meaningful non-traceback line as a fallback detail.
+                out.push((cur.clone(), t.to_string()));
+                current = None;
+            }
+        }
+    }
+    out
+}
+
 /// Distill a verifier failure into a compact, binding instruction for
 /// the next iteration (BREAKTHROUGH; Reflexion-style test-grounded
-/// feedback). Structured as a per-case checklist when the failing case
-/// names are extractable (process supervision: the next attempt sees
-/// exactly the REMAINING cases).
+/// feedback). ESCALATES specificity across attempts (S8 research:
+/// feedback quality is the bottleneck): attempt 1 lists the failing
+/// case names; later attempts add each case's expected/got detail.
 fn distill_failure(attempt: usize, verifier_output: &str) -> String {
     let cases = extract_failing_cases(verifier_output);
     if cases.is_empty() {
@@ -441,9 +470,16 @@ fn distill_failure(attempt: usize, verifier_output: &str) -> String {
     let mut out = format!(
         "- the verifier FAILED on attempt {attempt}. The failing cases (fix each; do not repeat them):\n"
     );
+    let details = extract_case_details(verifier_output);
     for (i, c) in cases.iter().enumerate() {
         use std::fmt::Write as _;
-        let _ = writeln!(out, "  {}. {c}", i + 1);
+        let _ = write!(out, "  {}. {c}", i + 1);
+        if attempt > 1 {
+            if let Some((_, detail)) = details.iter().find(|(n, _)| n == c) {
+                let _ = write!(out, " — {detail}");
+            }
+        }
+        let _ = writeln!(out);
     }
     out
 }
@@ -673,5 +709,22 @@ mod checklist_tests {
         assert!(out.contains("1. test_inline_comment"), "{out}");
         assert!(out.contains("2. test_quoted_value"), "{out}");
         assert!(out.contains("do not repeat them"), "{out}");
+    }
+}
+
+#[cfg(test)]
+mod escalation_tests {
+    use super::*;
+
+    #[test]
+    fn later_attempts_include_expected_got_details() {
+        let out = "FAIL: test_inline_comment (tests.TestCli.test_inline_comment)\nTraceback (most recent call last):\nAssertionError: ('k', 'v  # comment') != ('k', 'v')\nFAIL: test_quoted (t.TestCli.test_quoted)\nTraceback (most recent call last):\nAssertionError: 'x' != '\"hi\"'\n";
+        let d1 = distill_failure(1, out);
+        assert!(d1.contains("1. test_inline_comment"), "{d1}");
+        assert!(!d1.contains("!= ("), "attempt 1 has no details: {d1}");
+        let d2 = distill_failure(2, out);
+        assert!(d2.contains("test_inline_comment —"), "{d2}");
+        assert!(d2.contains("!= ("), "attempt 2 carries the detail: {d2}");
+        assert!(d2.contains("test_quoted —"), "{d2}");
     }
 }
