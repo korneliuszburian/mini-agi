@@ -9,7 +9,7 @@ knows is reachable from here; anything not listed is either generated
 | Path | Kind | Notes |
 | --- | --- | --- |
 | `docs/` | documentation | this map is the entry point |
-| `docs/adr/` | decisions | ADR-0001..0010, load-bearing (ADR-0003 memory anchors, ADR-0010 signoff, ADR-0011 verifiable reward, ADR-0012 sandbox) |
+| `docs/adr/` | decisions | ADR-0001..0014, load-bearing (ADR-0003 memory anchors, ADR-0010 signoff, ADR-0011 verifiable reward, ADR-0012 sandbox) |
 | `memory/` | kernel memory | `canonical/` hand-written source of truth (append-only, provenance), `derived/` generated (never edit), `episodic/` journal+logs |
 | `evals/` | eval corpus | `cases/<case>/run.json` (load-bearing: baseline, gate, loop), `golden/`, `results/baseline.json` |
 | `scripts/` | the gate | `verify.sh` + `gate-lib.sh` (shared step helpers), `checkpoint.sh`, demo scripts |

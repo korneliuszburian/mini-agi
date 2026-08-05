@@ -19,7 +19,7 @@ Do NOT run checkpoint.sh and do NOT commit: the supervised verified-iteration lo
 - attempts: 1
 - verifier: PASSED
 - total wall: 72s | ~22226 tokens (transcript bytes / 4)
-- run.json: /mnt/storage/coding/krn/active/mini-agi/run.json
+- run.json: /mnt/storage/coding/krn/active/mini-agi/evals/cases/afk-max-idle/run.json (the case's verified run record)
 
 ## attempt chain
 - {"attempt":1,"failed_cases":[],"passed":true}
