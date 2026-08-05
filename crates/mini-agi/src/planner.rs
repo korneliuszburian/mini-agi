@@ -1,4 +1,7 @@
 //! Parallel-planner manifest + fail-closed validation (AFK v4).
+//! The batch coordinator (S2-S5) consumes this module; until then the
+//! binary build sees it as dead code.
+#![allow(dead_code)]
 //!
 //! The planner pass (a read-only codex session) emits a STRICT versioned
 //! JSON manifest; the kernel parses it FAIL-CLOSED — any violation
