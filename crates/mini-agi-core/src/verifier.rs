@@ -758,9 +758,10 @@ mod vacuous_audit_tests {
 
     #[test]
     fn always_true_verifier_is_vacuous() {
-        let root = std::env::temp_dir().join(format!("mag-va2-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
+        // NOTE: must NOT use the mag-va2-<pid> prefix — that is the
+        // production audit's OWN base dir; a remove_dir_all here races
+        // concurrent audits (their tmp dirs vanish -> spawn fails).
+        let root = tmp_root("va-always-true");
         let audit = audit_verifier_vacuous(&root, "true");
         assert!(
             audit.is_vacuous,
