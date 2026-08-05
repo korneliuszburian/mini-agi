@@ -156,6 +156,12 @@ pub fn spawn_detached(
     }
     let child = std::process::Command::new(&exe)
         .args(&args)
+        // The child must NOT inherit the parent's stdin: a codex exec
+        // would block reading it (no EOF on an MCP server's pipe) and
+        // the run would hang forever (the e2e caught this — the first
+        // 'fix' attempt was silently lost to a pkill that killed its
+        // own shell).
+        .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::from(out))
         .stderr(std::process::Stdio::from(err))
         .spawn()?;
