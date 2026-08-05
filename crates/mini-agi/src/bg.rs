@@ -4,16 +4,33 @@
 //! returns immediately with a run handle — the launch-and-poll pattern
 //! that survives MCP tool timeouts. The handle directory holds:
 //! - `run.pid` — the detached supervisor process id
+//! - `run.start` — the process start-time (identity against pid reuse)
 //! - `launch.json` — the resolved run args (`run_status` uses it to
 //!   find the workdir, the report path, the run kind)
+//! - `launch.lock` — the one-run-per-workdir mutex (`create_new`)
 //! - `run.out` — the supervisor's stdout/stderr (redirected)
+//!
+//! Liveness is identity-aware: alive = pid exists, state != Z (a
+//! zombie reports dead), and the recorded start-time matches.
+//!
+//! Concurrency: the MCP server is single-threaded (requests serialize),
+//! so launches through the bridge cannot race. Two concurrent CLI
+//! `--detach` calls in the same workdir are serialized by the
+//! `create_new` lock; the stale-lock recovery renames the stale lock
+//! aside and re-creates it, then VERIFIES the lock content is still
+//! the caller's before spawning — the residual theoretical window (a
+//! second caller renaming the freshly-created lock between the
+//! verification and the spawn) is documented, not exploitable through
+//! the bridge.
 //!
 //! The child is a plain `std::process::Command` spawn: no double-fork,
 //! no daemonization — the run survives the MCP server's exit because it
-//! is a separate process owned by the kernel's process tree. On Linux
-//! the liveness check reads `/proc/<pid>`; on other targets a launched
-//! run reports alive=false (documented limitation — the sandbox worker
-//! is Linux-only anyway).
+//! is a separate process owned by the kernel's process tree. When the
+//! child exits while the (long-lived) MCP server still runs, it may
+//! linger as a zombie record until the server exits (init reaps it
+//! then); `is_alive` never misreports it. On non-Linux targets a
+//! launched run reports alive=false (documented limitation — the
+//! sandbox worker is Linux-only anyway).
 
 use std::path::{Path, PathBuf};
 
@@ -117,7 +134,25 @@ pub fn spawn_detached(
         std::process::id(),
         process_starttime(std::process::id())
     );
-    let take_lock = || -> std::io::Result<()> {
+    // Claim the lock: create_new (atomic), or recover a stale lock. The
+    // recovery renames the stale lock aside and re-creates; after ANY
+    // claim the content is verified to still be ours before the spawn
+    // (a concurrent recoverer that renamed our fresh lock loses the
+    // verification and refuses).
+    let claim_lock = || -> std::io::Result<()> {
+        let create = || -> std::io::Result<()> {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&lock)
+                .map(|mut f| {
+                    use std::io::Write;
+                    let _ = f.write_all(me.as_bytes());
+                })
+                .map_err(|_| {
+                    std::io::Error::other("a detached run is already active in this workdir")
+                })
+        };
         match std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -132,24 +167,23 @@ pub fn spawn_detached(
                 "a detached run is already active in this workdir",
             )),
             Err(_) => {
-                // Stale lock: rename it aside atomically, then create.
+                // Stale: rename aside (unconditional — the lock content
+                // was verified dead), then create.
                 let gone = lock.with_extension(format!("stale-{}", std::process::id()));
                 let _ = std::fs::rename(&lock, &gone);
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&lock)
-                    .map(|mut f| {
-                        use std::io::Write;
-                        let _ = f.write_all(me.as_bytes());
-                    })
-                    .map_err(|_| {
-                        std::io::Error::other("a detached run is already active in this workdir")
-                    })
+                create()?;
+                // Read-back: ours?
+                let now = std::fs::read_to_string(&lock).unwrap_or_default();
+                if now != me {
+                    return Err(std::io::Error::other(
+                        "a detached run is already active in this workdir",
+                    ));
+                }
+                Ok(())
             }
         }
     };
-    take_lock()?;
+    claim_lock()?;
     // Any failure BEFORE the spawn releases the lock (no leak); the
     // post-spawn cleanup removes the whole handle dir.
     let fail_before_spawn = |e: std::io::Error| -> std::io::Result<PathBuf> {
@@ -160,7 +194,10 @@ pub fn spawn_detached(
         Ok(f) => f,
         Err(e) => return fail_before_spawn(e),
     };
-    let err = out.try_clone()?;
+    let err = match out.try_clone() {
+        Ok(f) => f,
+        Err(e) => return fail_before_spawn(e),
+    };
     let mut args: Vec<String> = vec![
         "loop".into(),
         "run".into(),
@@ -290,9 +327,9 @@ fn process_live(pid: u32, recorded_start: u64) -> bool {
     state != "Z" && starttime == recorded_start
 }
 
-/// Whether the report file for this launch exists (the run is done).
-fn report_ready_checked(handle: &Path) -> bool {
-    launch_report(handle).is_some_and(|p| p.is_file())
+/// Whether the report file for this (already parsed) launch exists.
+fn report_ready_checked(launch: &LaunchInfo) -> bool {
+    launch_report_from(launch).is_some_and(|p| p.is_file())
 }
 
 fn process_starttime(pid: u32) -> u64 {
@@ -420,7 +457,7 @@ pub fn run_status(handle: &Path) -> BgStatus {
     };
     // Release the launch lock once the run is observably finished, so
     // the next launch does not need a stale-lock dance.
-    if !is_alive(handle) && report_ready_checked(handle) {
+    if !is_alive(handle) && report_ready_checked(&launch) {
         let _ = std::fs::remove_file(handle.join("launch.lock"));
     }
     let workdir = launch.workdir.clone();
@@ -453,10 +490,8 @@ pub fn run_status(handle: &Path) -> BgStatus {
 // Consumed by the MCP tools (AFK v3 S2).
 #[allow(dead_code)]
 pub fn run_report_text(handle: &Path) -> Option<String> {
-    if !valid_handle(handle) {
-        return None;
-    }
-    let report = launch_report(handle)?;
+    let launch = validated_launch(handle)?;
+    let report = launch_report_from(&launch)?;
     std::fs::read_to_string(&report).ok()
 }
 
