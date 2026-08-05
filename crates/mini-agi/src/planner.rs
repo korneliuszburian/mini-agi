@@ -632,7 +632,15 @@ pub fn finalize_and_merge(
     let target_branch = String::from_utf8_lossy(&target_branch.stdout)
         .trim()
         .to_string();
-    git(&["checkout", "-q", "-b", &scratch, &provision.base_sha])?;
+    let co = git(&["checkout", "-q", "-b", &scratch, &provision.base_sha])?;
+    if !co.status.success() {
+        // A pre-existing scratch branch would leave the merges running
+        // on the TARGET branch (git stays put on a failed checkout) —
+        // refuse cleanly: the target stays untouched.
+        return Err(format!(
+            "scratch branch {scratch} already exists — the batch cannot assemble atomically; remove the residue (evidence preserved)"
+        ));
+    }
     for ticket in &manifest.tickets {
         let branch = format!("batch/{short}/{}", ticket.id);
         let merge = git(&[
@@ -1130,6 +1138,64 @@ mod tests {
         }];
         let err = finalize_and_merge(&root, &manifest, &provision, &results).unwrap_err();
         assert!(err.contains("fails atomically"), "{err}");
+        teardown_batch(&root, &provision);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn pre_existing_scratch_branch_fails_cleanly() {
+        // The scratch assembly must refuse when the scratch branch
+        // already exists (residue) — otherwise the merges would run on
+        // the target branch. Assert the target HEAD is unchanged.
+        let (root, base) = fixture_repo("scratch-residue");
+        let manifest = PlannerManifest {
+            version: 1,
+            tickets: vec![PlannerTicket {
+                id: "t1".into(),
+                goal: "g1".into(),
+                scope: vec!["a.txt".into()],
+                verify: "sh -c 'test -f a.txt'".into(),
+                verify_target: ".".into(),
+            }],
+        };
+        let provision = provision_batch(&root, &manifest, &base).unwrap();
+        std::fs::write(provision.worktrees[0].join("a.txt"), "changed").unwrap();
+        let results = vec![BatchTicketResult {
+            id: "t1".into(),
+            handle: provision.worktrees[0].join(".supervisor"),
+            worktree: provision.worktrees[0].clone(),
+            passed: true,
+            report: None,
+        }];
+        // Pre-create the scratch branch (residue from a previous batch).
+        let short = &base[..10];
+        assert!(
+            std::process::Command::new("git")
+                .args(["branch", &format!("batch/{short}/merge")])
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let head_before = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        let head_before = String::from_utf8_lossy(&head_before.stdout)
+            .trim()
+            .to_string();
+        let err = finalize_and_merge(&root, &manifest, &provision, &results).unwrap_err();
+        assert!(err.contains("scratch branch"), "{err}");
+        let head_after = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        let head_after = String::from_utf8_lossy(&head_after.stdout)
+            .trim()
+            .to_string();
+        assert_eq!(head_before, head_after, "the target must stay untouched");
         teardown_batch(&root, &provision);
         let _ = std::fs::remove_dir_all(&root);
     }
