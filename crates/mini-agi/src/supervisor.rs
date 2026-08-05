@@ -166,12 +166,32 @@ pub fn parse_review_verdict(text: &str) -> ReviewVerdict {
                 "REWORK" => verdict = "REWORK".into(),
                 _ => {}
             }
+            // "Verdict: REWORK, score 2/8" — the score may sit on the
+            // Verdict line after the verdict word (word boundary check).
+            if let Some(idx) = v.find("score") {
+                let rest = &v[idx + "score".len()..];
+                if rest
+                    .chars()
+                    .next()
+                    .is_none_or(|c| c.is_whitespace() || c == ':' || c == '/')
+                {
+                    for tok in rest.split(|c: char| !c.is_ascii_digit() && c != '/') {
+                        if let Some(s) = tok.strip_suffix("/8")
+                            && let Ok(n) = s.parse::<u8>()
+                        {
+                            score = Some(n.min(8));
+                        }
+                    }
+                }
+            }
         }
-        // The score requires the "score" keyword (F5): a bare "X/8"
-        // token anywhere must not set it.
-        if let Some(rest) = l
-            .strip_prefix("score")
-            .or_else(|| l.find("score").map(|i| &l[i + "score".len()..]))
+        // The score requires the "score" keyword (F5): the line must
+        // START with the word "score" — "scoreboard 7/8" is rejected.
+        if let Some(rest) = l.strip_prefix("score")
+            && rest
+                .chars()
+                .next()
+                .is_none_or(|c| c.is_whitespace() || c == ':' || c == '/')
         {
             for tok in rest.split(|c: char| !c.is_ascii_digit() && c != '/') {
                 if let Some(s) = tok.strip_suffix("/8")
