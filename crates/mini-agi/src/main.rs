@@ -11,6 +11,7 @@ use clap::{Args, Parser, Subcommand};
 mod clifmt;
 #[cfg(target_os = "linux")]
 mod sandbox;
+mod supervisor;
 mod worker;
 use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
@@ -329,6 +330,61 @@ enum LoopAction {
         #[arg(long, default_value = "local")]
         claimant: String,
     },
+    /// AFK verified-iteration supervisor: run a goal (or a case) in the
+    /// background under the verified-iteration core, writing progress.md
+    /// per attempt, a reviewable run report, and an optional on-done
+    /// hook.
+    Run {
+        /// Goal text, or an existing case name (evals/cases/<name>).
+        goal_or_case: String,
+        /// Scratch workdir for the worker.
+        #[arg(long, default_value = ".run")]
+        workdir: PathBuf,
+        /// Deterministic verifier command (required for ad-hoc goals;
+        /// P0-3).
+        #[arg(long)]
+        verify: Option<String>,
+        /// Verifier target dir (default: the workdir).
+        #[arg(long)]
+        target: Option<PathBuf>,
+        /// Iteration count (default 3).
+        #[arg(long, default_value_t = 3)]
+        iterate: usize,
+        /// On-done hook: shell command run with the report path +
+        /// outcome as args.
+        #[arg(long)]
+        on_done: Option<String>,
+        /// Run report path (default: workdir/REPORT.md).
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// Blind-worker mode (EXP-012 isolation).
+        #[arg(long)]
+        blind_worker: bool,
+        /// Hidden-suite dir (required with --blind-worker).
+        #[arg(long)]
+        hidden_dir: Option<PathBuf>,
+        /// Wall cap per attempt in seconds.
+        #[arg(long)]
+        max_wall: Option<u64>,
+        /// Skip the Landlock sandbox.
+        #[arg(long)]
+        no_sandbox: bool,
+    },
+}
+/// CLI fields for `loop run` (bundled so the command fn stays under
+/// the clippy arg budget).
+struct LoopRunArgs {
+    goal_or_case: String,
+    workdir: PathBuf,
+    verify: Option<String>,
+    target: Option<PathBuf>,
+    iterate: usize,
+    on_done: Option<String>,
+    report: Option<PathBuf>,
+    blind_worker: bool,
+    hidden_dir: Option<PathBuf>,
+    max_wall: Option<u64>,
+    no_sandbox: bool,
 }
 
 #[derive(Args, Debug)]
@@ -663,6 +719,31 @@ fn main() -> ExitCode {
                 budget_cost,
                 claimant,
             } => cmd_loop_objective(max_cases, budget_cost, &claimant),
+            LoopAction::Run {
+                goal_or_case,
+                workdir,
+                verify,
+                target,
+                iterate,
+                on_done,
+                report,
+                blind_worker,
+                hidden_dir,
+                max_wall,
+                no_sandbox,
+            } => cmd_loop_run(&LoopRunArgs {
+                goal_or_case,
+                workdir,
+                verify,
+                target,
+                iterate,
+                on_done,
+                report,
+                blind_worker,
+                hidden_dir,
+                max_wall,
+                no_sandbox,
+            }),
         },
     }
 }
@@ -1914,4 +1995,122 @@ fn derive_text(brief_only: bool, root: &Path) -> Result<String, String> {
 #[allow(dead_code)]
 const fn _entries_rel() -> &'static str {
     ENTRIES_REL
+}
+
+fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
+    use mini_agi_core::config::Config;
+    let goal_or_case = a.goal_or_case.as_str();
+    let workdir: &Path = &a.workdir;
+    let verify = a.verify.as_deref();
+    let target = a.target.as_deref();
+    let iterate = a.iterate;
+    let on_done = a.on_done.as_deref();
+    let report = a.report.as_deref();
+    let blind_worker = a.blind_worker;
+    let hidden_dir = a.hidden_dir.as_deref();
+    let max_wall = a.max_wall;
+    let no_sandbox = a.no_sandbox;
+    let _ = goal_or_case;
+    let root = root();
+    // Resolve the spec: a case name reuses its run.json (goal, scope,
+    // verifier — P0-3 enforced); an ad-hoc goal generates a spec and
+    // requires --verify/--target.
+    let (spec_text, goal, scope_list) = if root
+        .join("evals/cases")
+        .join(goal_or_case)
+        .join("run.json")
+        .is_file()
+    {
+        let case = goal_or_case;
+        let run_path = root.join("evals/cases").join(case).join("run.json");
+        let run: mini_agi_core::eval::Run =
+            match serde_json::from_str(&std::fs::read_to_string(&run_path).unwrap_or_default()) {
+                Ok(r) => r,
+                Err(e) => return fail(&format!("cannot parse case {case}: {e}")),
+            };
+        let Some(vc) = run.verify_command.as_deref() else {
+            return fail(&format!(
+                "case {case} declares no verify_command (P0-3) — cannot supervise"
+            ));
+        };
+        let vt = run
+            .verify_target
+            .clone()
+            .unwrap_or_else(|| workdir.to_string_lossy().into_owned());
+        let spec = format!(
+            "# SLICE SPEC (supervised)\n\n- goal: {}\n- scope: {}\n- verify_command: {vc} in {vt}\n",
+            run.goal,
+            run.scope.join(", ")
+        );
+        (spec, run.goal, run.scope)
+    } else {
+        let Some(vc) = verify else {
+            return fail("ad-hoc goal requires --verify (the deterministic verifier, P0-3)");
+        };
+        let vt = target.unwrap_or(workdir);
+        let spec = format!(
+            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {goal_or_case}\n- scope: (none declared)\n- verify_command: {vc} in {}\n",
+            vt.display()
+        );
+        (spec, goal_or_case.to_string(), Vec::<String>::new())
+    };
+    let vt = target.unwrap_or(workdir);
+    let cfg = Config::load(workdir);
+    // Resolve the verifier command: the flag wins; otherwise the case
+    // spec's embedded verify_command (P0-3).
+    let verify_cmd = match verify {
+        Some(v) => v.to_string(),
+        None => match spec_text
+            .lines()
+            .find_map(|l| l.strip_prefix("- verify_command: "))
+            .map(|l| l.split(" in ").next().unwrap_or("").trim().to_string())
+            .filter(|s| !s.is_empty())
+        {
+            Some(v) => v,
+            None => return fail("cannot resolve a verifier for this goal"),
+        },
+    };
+    if blind_worker && hidden_dir.is_none() {
+        return fail("--blind-worker requires --hidden-dir");
+    }
+    let supervisor_args = supervisor::SupervisorArgs {
+        spec_text: &spec_text,
+        goal: &goal,
+        scope_list: &scope_list,
+        verify: &verify_cmd,
+        target: vt,
+        workdir,
+        iterate,
+        blind_worker,
+        hidden_dir,
+        wall_cap: max_wall.or(cfg.max_wall_seconds),
+        step_cap: cfg.max_steps,
+        no_sandbox,
+        worker_name: "codex",
+        read_only: false,
+        on_done,
+        report,
+    };
+    finish_loop_run(&supervisor_args)
+}
+
+fn finish_loop_run(args: &supervisor::SupervisorArgs<'_>) -> ExitCode {
+    match supervisor::run(args) {
+        Ok(result) => {
+            println!(
+                "supervised run: attempts={} verifier_passed={}",
+                result.iteration.attempts_done, result.iteration.verifier_passed
+            );
+            println!("  progress: {}", result.progress_path.display());
+            println!("  report: {}", result.report_path.display());
+            if result.iteration.aborted {
+                ExitCode::from(3)
+            } else if result.iteration.verifier_passed {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Err(e) => fail(&format!("loop run: {e}")),
+    }
 }
