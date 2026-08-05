@@ -416,7 +416,7 @@ fn distill_failure(attempt: usize, verifier_output: &str) -> String {
     );
     for (i, c) in cases.iter().enumerate() {
         use std::fmt::Write as _;
-        let _ = write!(out, "  {}. {c}\n", i + 1);
+        let _ = writeln!(out, "  {}. {c}", i + 1);
     }
     out
 }
