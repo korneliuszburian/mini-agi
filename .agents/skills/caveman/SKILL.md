@@ -49,3 +49,9 @@ Example -- destructive op:
 > ```
 >
 > Caveman resume. Verify backup exist first.
+
+## Completion criteria
+
+- [ ] The response drops filler, articles, and pleasantries while
+      keeping full technical accuracy (the caveman-mode contract is
+      checkable against the output).

@@ -223,7 +223,8 @@ pub fn discover_skills(root: &Path) -> Result<Vec<Skill>, SkillError> {
     for entry in entries {
         let entry = entry.map_err(SkillError::Io)?;
         let dir_path = entry.path();
-        if !dir_path.is_dir() {
+        let meta = std::fs::symlink_metadata(&dir_path).map_err(SkillError::Io)?;
+        if !meta.is_dir() || meta.file_type().is_symlink() {
             continue;
         }
         let skill_md = dir_path.join("SKILL.md");
@@ -280,6 +281,11 @@ pub struct VerifyAllReport {
     pub no_hook: Vec<String>,
     /// Skills missing `version` or `source` frontmatter (D5).
     pub no_version: Vec<String>,
+    /// Skills failing the structural lint (D1 — every skill is a
+    /// contract): the SKILL.md must carry the four frontmatter keys
+    /// AND a checkable-criteria marker ("Done when" / "Completion
+    /// criteria" in the body).
+    pub lint_failed: Vec<String>,
 }
 
 /// Dual-registration drift (D4): local vs global content divergence.
@@ -335,7 +341,15 @@ fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> Option<()> {
     Some(())
 }
 
-/// Compare repo-local vs user-global registrations for drift.
+/// The contract hash: the SKILL.md content alone (16-hex). A skill's
+/// CONTRACT is its SKILL.md — aux assets differ legitimately between
+/// the local and distributed copies, and that is not drift.
+fn skill_contract_hash(dir: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(dir.join("SKILL.md")).ok()?;
+    Some(crate::hash::source_sha256(&text))
+}
+
+/// Compare repo-local vs user-global registrations for CONTRACT drift.
 #[must_use]
 pub fn dual_registration_drift(root: &Path) -> DriftReport {
     let mut report = DriftReport::default();
@@ -361,7 +375,10 @@ pub fn dual_registration_drift(root: &Path) -> DriftReport {
         if !global_dir.join("SKILL.md").is_file() {
             continue;
         }
-        let (Some(lh), Some(gh)) = (skill_hash(&local), skill_hash(&global_dir)) else {
+        let (Some(lh), Some(gh)) = (
+            skill_contract_hash(&local),
+            skill_contract_hash(&global_dir),
+        ) else {
             continue;
         };
         if lh != gh {
@@ -383,6 +400,9 @@ pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
         if skill.version.is_none() || skill.source.is_none() {
             report.no_version.push(skill.name.clone());
         }
+        if !lint_skill(skill) {
+            report.lint_failed.push(skill.name.clone());
+        }
         match skill.verify.as_deref() {
             None => report.no_hook.push(skill.name.clone()),
             Some(_) => match verify_skill(skill, root) {
@@ -395,6 +415,23 @@ pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
         }
     }
     Ok(report)
+}
+
+/// Structural lint (D1): every skill is a CONTRACT — the frontmatter
+/// must carry name/description/version/source and the body must mark
+/// checkable criteria ("Done when" or "Completion criteria"), so the
+/// gate enforces a contract shape on skills without a shell hook.
+fn lint_skill(skill: &Skill) -> bool {
+    if skill.name.is_empty() || skill.description.is_empty() {
+        return false;
+    }
+    if skill.version.is_none() || skill.source.is_none() {
+        return false;
+    }
+    let Ok(content) = std::fs::read_to_string(&skill.path) else {
+        return false;
+    };
+    content.contains("Done when") || content.contains("Completion criteria")
 }
 
 /// Verify a skill's hook: run the `verify` frontmatter command from
@@ -498,7 +535,9 @@ pub fn install_skills(root: &Path, source: &str) -> Result<Vec<String>, SkillErr
     }
     let repo_skills = staging.join(".agents").join("skills");
     let mut installed = Vec::new();
-    if repo_skills.is_dir() {
+    let repo_skills_ok = std::fs::symlink_metadata(&repo_skills)
+        .is_ok_and(|m| m.is_dir() && !m.file_type().is_symlink());
+    if repo_skills_ok {
         let entries = fs::read_dir(&repo_skills).map_err(SkillError::Io)?;
         for entry in entries {
             let entry = entry.map_err(SkillError::Io)?;
@@ -604,6 +643,13 @@ fn next_backup_path(dest: &Path) -> PathBuf {
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
+    next_backup_path_for(dest, stamp)
+}
+
+/// The collision-free name for a given stamp (the PRODUCTION seam the
+/// collision test exercises): an existing name is never deleted, the
+/// counter increments.
+fn next_backup_path_for(dest: &Path, stamp: u128) -> PathBuf {
     let mut backup = backup_name(dest, stamp);
     let mut n = 0u32;
     while backup.exists() {
@@ -836,18 +882,13 @@ description: >
         let first = backup_name(&dest, 42);
         fs::create_dir_all(&first).unwrap();
         fs::write(first.join("SKILL.md"), "precious").unwrap();
-        let mut backup = backup_name(&dest, 42);
-        let mut n = 0u32;
-        while backup.exists() {
-            n += 1;
-            let base = backup_name(&dest, 42);
-            backup = base.with_extension(format!(
-                "{}-{n}",
-                base.extension().unwrap_or_default().to_string_lossy()
-            ));
-        }
-        assert!(n >= 1, "a collision must increment the counter");
-        assert!(backup.to_string_lossy().ends_with("-1"));
+        // THE PRODUCTION SEAM: the same-stamp name must dodge the
+        // existing backup by incrementing, and never delete it.
+        let second = next_backup_path_for(&dest, 42);
+        assert!(
+            second.to_string_lossy().ends_with("-1"),
+            "a collision must increment the counter, got {second:?}"
+        );
         assert!(
             first.join("SKILL.md").is_file(),
             "the pre-existing backup is never deleted"

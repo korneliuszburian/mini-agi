@@ -1748,14 +1748,24 @@ fn cmd_skill_verify_all() -> ExitCode {
                     report.no_version.join(", ")
                 );
             }
+            if !report.lint_failed.is_empty() {
+                eprintln!(
+                    "FAIL: skills failing the structural lint (no checkable criteria marker): {}",
+                    report.lint_failed.join(", ")
+                );
+            }
             let drift = skills::dual_registration_drift(&root);
             if !drift.drifted.is_empty() {
-                println!("  DRIFTED (local vs global content):");
+                eprintln!("FAIL: dual-registration DRIFT (local != global content):");
                 for (name, lh, gh) in &drift.drifted {
-                    println!("    {name}: local {lh} != global {gh}");
+                    eprintln!("    {name}: local {lh} != global {gh}");
                 }
             }
-            if report.failed.is_empty() && report.no_version.is_empty() {
+            if report.failed.is_empty()
+                && report.no_version.is_empty()
+                && report.lint_failed.is_empty()
+                && drift.drifted.is_empty()
+            {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)
