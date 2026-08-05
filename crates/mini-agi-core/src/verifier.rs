@@ -255,7 +255,7 @@ pub fn audit_verifier_vacuous(target: &Path, verify_command: &str) -> VerifierVa
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .ok()
-            .map_or(u128::from(attempt), |d| d.as_nanos());
+            .map_or_else(|| u128::try_from(attempt).unwrap_or(0), |d| d.as_nanos());
         tmp = base.join(format!("{nonce}"));
         if std::fs::create_dir(&tmp).is_ok() {
             created = true;
