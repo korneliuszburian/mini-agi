@@ -136,6 +136,19 @@ fn handle_initialize(params: &Value) -> Value {
         "protocolVersion": negotiated,
         "capabilities": { "tools": {} },
         "serverInfo": { "name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION") },
+        // Server instructions (MCP spec InitializeResult): shown to the
+        // model as server-wide guidance (codex manual: keep the first
+        // 512 chars self-contained). The discipline contract for every
+        // codex session using the kernel (AFK-SUPERVISOR S4).
+        "instructions": concat!(
+            "mini-agi kernel: enforcement-bound memory + verified-iteration. ",
+            "Use loop_status (open gaps), memory_query (facts), ",
+            "run_verify <path> (a run stays unverified until this passes), ",
+            "loop_verify <case> (close a gap), checkpoint_audit, eval_gate, ",
+            "provenance. Results are provenance-bound. NEVER claim success ",
+            "on an unverified run; outcome.achieved is only the run's own ",
+            "claim until run_verify passes."
+        ),
     })
 }
 

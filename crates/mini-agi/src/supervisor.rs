@@ -165,6 +165,13 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         iteration.total_bytes / 4
     );
     let _ = writeln!(report, "- run.json: {}/run.json", args.workdir.display());
+    if iteration.completion_grace {
+        let _ = writeln!(
+            report,
+            "- completion grace: a cap-killed worker still delivered its full \
+             completed transcript — success-with-warning"
+        );
+    }
     let _ = writeln!(report, "\n## attempt chain");
     for v in &iteration.attempt_verdicts {
         let _ = writeln!(report, "- {v}");
@@ -196,4 +203,184 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         report_path,
         progress_path,
     })
+}
+
+/// Inputs for spec resolution.
+pub struct ResolveInput<'a> {
+    /// Goal text or an existing case name.
+    pub goal_or_case: &'a str,
+    /// Repo root (evals/cases/<name>/run.json).
+    pub root: &'a Path,
+    /// Worker workdir.
+    pub workdir: &'a Path,
+    /// Explicit verifier command (flag).
+    pub verify: Option<&'a str>,
+    /// Explicit verifier target (flag).
+    pub target: Option<&'a Path>,
+}
+
+/// A resolved, verifiable supervised spec.
+pub struct ResolvedSpec {
+    /// The spec text (prompt base).
+    pub spec_text: String,
+    /// The goal.
+    pub goal: String,
+    /// The scope list.
+    pub scope_list: Vec<String>,
+    /// The deterministic verifier command.
+    pub verify_cmd: String,
+    /// The verifier target — a case's own `verify_target` unless an
+    /// explicit `--target` overrides it (codex review F2).
+    pub target: PathBuf,
+}
+
+/// Resolve `loop run` inputs into a verifiable spec (P0-3 enforced).
+///
+/// A case name reuses its run.json (goal, scope, `verify_command` AND
+/// its `verify_target` — the verifier must run where the case says it
+/// runs);
+/// an ad-hoc goal requires an explicit `--verify` (and defaults the
+/// target to the workdir).
+pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
+    let case_dir = input.root.join("evals/cases").join(input.goal_or_case);
+    if case_dir.join("run.json").is_file() {
+        let run: mini_agi_core::eval::Run = serde_json::from_str(
+            &std::fs::read_to_string(case_dir.join("run.json")).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| format!("cannot parse case {}: {e}", input.goal_or_case))?;
+        let vc = run.verify_command.as_deref().ok_or_else(|| {
+            format!(
+                "case {} declares no verify_command (P0-3)",
+                input.goal_or_case
+            )
+        })?;
+        let vt = input.target.map_or_else(
+            || {
+                run.verify_target
+                    .unwrap_or_else(|| input.workdir.to_string_lossy().into_owned())
+            },
+            |t| t.to_string_lossy().into_owned(),
+        );
+        let spec_text = format!(
+            "# SLICE SPEC (supervised)\n\n- goal: {}\n- scope: {}\n- verify_command: {vc} in {vt}\n",
+            run.goal,
+            run.scope.join(", ")
+        );
+        Ok(ResolvedSpec {
+            spec_text,
+            goal: run.goal,
+            scope_list: run.scope,
+            verify_cmd: vc.to_string(),
+            target: PathBuf::from(vt),
+        })
+    } else {
+        let vc = input.verify.ok_or_else(|| {
+            "ad-hoc goal requires --verify (the deterministic verifier, P0-3)".to_string()
+        })?;
+        let vt = input.target.unwrap_or(input.workdir);
+        let spec_text = format!(
+            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {}\n- scope: (none declared)\n- verify_command: {vc} in {vt}\n",
+            vt.display(),
+            vt = vt.display()
+        );
+        Ok(ResolvedSpec {
+            spec_text,
+            goal: input.goal_or_case.to_string(),
+            scope_list: Vec::new(),
+            verify_cmd: vc.to_string(),
+            target: vt.to_path_buf(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-resolve-{}-{tag}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn ad_hoc_goal_requires_verify() {
+        let root = tmp_root("no-verify");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let r = resolve(&ResolveInput {
+            goal_or_case: "make tests pass",
+            root: &root,
+            workdir: &root,
+            verify: None,
+            target: None,
+        });
+        assert!(r.is_err(), "ad-hoc without --verify must be refused (P0-3)");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ad_hoc_goal_with_verify_generates_a_spec() {
+        let root = tmp_root("with-verify");
+        let r = resolve(&ResolveInput {
+            goal_or_case: "make tests pass",
+            root: &root,
+            workdir: &root,
+            verify: Some("make verify"),
+            target: Some(&root.join("target-dir")),
+        })
+        .unwrap();
+        assert_eq!(r.goal, "make tests pass");
+        assert_eq!(r.verify_cmd, "make verify");
+        assert_eq!(r.target, root.join("target-dir"));
+        assert!(r.spec_text.contains("make verify"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn case_carries_its_verify_target() {
+        let root = tmp_root("case-target");
+        let case = root.join("evals/cases/sample-case");
+        fs::create_dir_all(&case).unwrap();
+        fs::write(
+            case.join("run.json"),
+            r#"{
+                "goal": "sample goal",
+                "scope": ["a", "b"],
+                "outcome": {"achieved": true, "score": 0.9, "judged": true, "failed": []},
+                "trajectory": [],
+                "verify_command": "make verify",
+                "verify_target": "/tmp/the-real-target"
+            }"#,
+        )
+        .unwrap();
+        let r = resolve(&ResolveInput {
+            goal_or_case: "sample-case",
+            root: &root,
+            workdir: &root.join("scratch"),
+            verify: None,
+            target: None,
+        })
+        .unwrap();
+        assert_eq!(r.verify_cmd, "make verify");
+        assert_eq!(
+            r.target,
+            PathBuf::from("/tmp/the-real-target"),
+            "the case's verify_target must be honored (codex review F2)"
+        );
+        assert_eq!(r.scope_list, vec!["a", "b"]);
+        // An explicit --target overrides the case target.
+        let r2 = resolve(&ResolveInput {
+            goal_or_case: "sample-case",
+            root: &root,
+            workdir: &root.join("scratch"),
+            verify: None,
+            target: Some(&root.join("override")),
+        })
+        .unwrap();
+        assert_eq!(r2.target, root.join("override"));
+        let _ = fs::remove_dir_all(&root);
+    }
 }

@@ -144,6 +144,16 @@ pub enum ProgressEvent {
     Aborted { reason: String },
 }
 
+/// Completion-grace decision (two-phase timeout S3, codex review F3):
+/// a worker killed by a cap is NOT an abort when its transcript already
+/// contains the completion marker — the file-redirect design keeps the
+/// full transcript readable after the kill, so the attempt resolves as
+/// success-with-warning instead of lost work.
+#[must_use]
+pub const fn attempt_grace(worker_aborted: bool, completed: bool) -> bool {
+    worker_aborted && completed
+}
+
 /// The verified-iteration result (the draft + supervision metadata).
 #[derive(Debug)]
 // The AFK supervisor (S2) consumes all fields; `cmd_codex` reads the
@@ -156,6 +166,9 @@ pub struct IterationResult {
     pub verifier_passed: bool,
     /// Whether the run aborted (budget cap).
     pub aborted: bool,
+    /// Completion grace fired: a cap-killed worker still delivered its
+    /// full completed transcript (success-with-warning).
+    pub completion_grace: bool,
     /// All captured steps across attempts.
     pub all_steps: Vec<mini_agi_core::capture::CapturedStep>,
     /// Per-attempt verdicts (process supervision).
@@ -188,6 +201,7 @@ pub fn run_verified_iteration(
     let mut total_bytes = 0u64;
     let mut attempts_done = 0;
     let mut aborted = false;
+    let mut completion_grace = false;
     let mut verifier_passed = false;
     let iterations = input.iterate.max(1);
     // S2: verify-audit wired into the loop — before trusting the
@@ -281,6 +295,10 @@ pub fn run_verified_iteration(
             result: mini_agi_core::capture::extract_result(&combined),
         };
         all_steps.extend(outcome.steps.iter().cloned());
+        // Completion grace (two-phase timeout S3): a cap-killed worker
+        // whose transcript already carries the completion marker counts
+        // as success-with-warning — the attempt is not aborted.
+        let grace = attempt_grace(worker.aborted, outcome.completed);
         // P0-1 post-hoc cap check (accumulated).
         let violations = mini_agi_core::worker::budget_violations(
             all_steps.len(),
@@ -299,6 +317,9 @@ pub fn run_verified_iteration(
                 "  [abort] worker killed by the wall-time cap ({:?}s)",
                 input.wall_cap
             );
+        }
+        if grace {
+            completion_grace = true;
         }
         if aborted {
             progress(ProgressEvent::Aborted {
@@ -389,6 +410,7 @@ pub fn run_verified_iteration(
         attempts_done,
         verifier_passed,
         aborted,
+        completion_grace,
         all_steps,
         attempt_verdicts,
         total_wall,
@@ -792,6 +814,17 @@ mod tests {
 #[cfg(test)]
 mod iteration_tests {
     use super::*;
+
+    #[test]
+    fn attempt_grace_semantics() {
+        // Killed + completed marker -> grace (success-with-warning).
+        assert!(attempt_grace(true, true));
+        // Not killed: no grace involved.
+        assert!(!attempt_grace(false, true));
+        // Killed without the marker: a genuine abort.
+        assert!(!attempt_grace(true, false));
+        assert!(!attempt_grace(false, false));
+    }
 
     #[test]
     fn distill_failure_is_compact_and_binding() {

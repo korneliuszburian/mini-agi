@@ -1,49 +1,82 @@
 # mini-agi as a codex MCP server (AFK-SUPERVISOR S4).
 # The kernel is a first-class tool of every codex session in this repo:
 # enforcement-bound memory, verified-iteration loop, provenance-bound
-# results. See docs/CODEX-INTEGRATION.md.
+# results. Schema per the codex 0.146 manual (enabled_tools allow-list,
+# default_tools_approval_mode, per-tool approval_mode; the server's
+# contract text comes from the MCP initialize response `instructions`,
+# see crates/mini-agi/src/mcp.rs). See docs/CODEX-INTEGRATION.md.
 [mcp_servers.mini-agi]
 command = "cargo"
 args = ["run", "-q", "-p", "mini-agi", "--", "mcp"]
 trusted = true
-instructions = "mini-agi kernel: enforcement-bound memory + verified-iteration. Use loop_status (open gaps), memory_query (facts), run_verify <path> (a run stays unverified until this passes), loop_verify <case> (close a gap), checkpoint_audit, eval_gate, provenance. Results are provenance-bound. NEVER claim success on an unverified run; a run's outcome.achieved is only the run's own claim until run_verify passes."
+default_tools_approval_mode = "auto"
+enabled_tools = [
+  "audit",
+  "backlog",
+  "budget",
+  "checkpoint_audit",
+  "eval_gate",
+  "eval_score",
+  "eval_steps",
+  "harness",
+  "health",
+  "insights",
+  "loop_dispatch",
+  "loop_objective",
+  "loop_status",
+  "loop_verify",
+  "memory_consolidate",
+  "memory_derive",
+  "memory_query",
+  "memory_signoff",
+  "provenance",
+  "resume",
+  "run_failures",
+  "run_ingest",
+  "run_verify",
+  "skill_add",
+  "skill_list",
+  "skill_show",
+  "skill_verify",
+  "stats",
+  "ticket_claim",
+  "ticket_claims",
+  "ticket_graph",
+  "ticket_list",
+  "ticket_release",
+  "ticket_show",
+  "ticket_validate",
+  "validate",
+]
 
-# Per-tool approval — the explicit allowlist (reads auto, writes prompt).
-# memory_signoff stays HITL: the human signs off consolidated memory.
-[mcp_servers.mini-agi.tools]
-audit = { approval = "auto" }
-backlog = { approval = "auto" }
-budget = { approval = "auto" }
-checkpoint_audit = { approval = "auto" }
-eval_gate = { approval = "auto" }
-eval_score = { approval = "auto" }
-eval_steps = { approval = "auto" }
-health = { approval = "auto" }
-insights = { approval = "auto" }
-loop_status = { approval = "auto" }
-loop_verify = { approval = "auto" }
-memory_query = { approval = "auto" }
-provenance = { approval = "auto" }
-resume = { approval = "auto" }
-run_failures = { approval = "auto" }
-run_verify = { approval = "auto" }
-skill_list = { approval = "auto" }
-skill_show = { approval = "auto" }
-skill_verify = { approval = "auto" }
-stats = { approval = "auto" }
-ticket_claims = { approval = "auto" }
-ticket_graph = { approval = "auto" }
-ticket_list = { approval = "auto" }
-ticket_show = { approval = "auto" }
-ticket_validate = { approval = "auto" }
-validate = { approval = "auto" }
-harness = { approval = "prompt" }
-loop_dispatch = { approval = "prompt" }
-loop_objective = { approval = "prompt" }
-memory_consolidate = { approval = "prompt" }
-memory_derive = { approval = "prompt" }
-memory_signoff = { approval = "prompt" }
-run_ingest = { approval = "prompt" }
-skill_add = { approval = "prompt" }
-ticket_claim = { approval = "prompt" }
-ticket_release = { approval = "prompt" }
+# Writes require a prompt (HITL). memory_signoff stays human by design
+# (ADR-0010) — a session cannot silently merge its own memory.
+[mcp_servers.mini-agi.tools.harness]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.loop_dispatch]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.loop_objective]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.memory_consolidate]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.memory_derive]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.memory_signoff]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.run_ingest]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.skill_add]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.ticket_claim]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.ticket_release]
+approval_mode = "prompt"

@@ -754,7 +754,7 @@ mod vacuous_audit_tests {
 
     #[test]
     fn failing_verifier_is_not_vacuous() {
-        let root = std::env::temp_dir().join(format!("mag-va2b-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("mag-va2c-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         let audit = audit_verifier_vacuous(&root, "sh -c 'test -f x.txt'");

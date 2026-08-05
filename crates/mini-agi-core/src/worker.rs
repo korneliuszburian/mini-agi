@@ -82,6 +82,10 @@ pub fn run_capped_idle(
     if max_wall_seconds.is_some() || max_idle_seconds.is_some() {
         let deadline = max_wall_seconds.map(|max| start + Duration::from_secs(max));
         let idle = max_idle_seconds.map(Duration::from_secs);
+        // Liveness baseline: an `Instant` reset on every output-file
+        // mtime change — a worker is STUCK only after one full idle
+        // interval WITHOUT any new output (not one interval from start).
+        let mut last_activity = start;
         let mut last_mtime = std::fs::metadata(&stdout_path)
             .and_then(|m| m.modified())
             .ok();
@@ -99,14 +103,16 @@ pub fn run_capped_idle(
                 let mtime = std::fs::metadata(&stdout_path)
                     .and_then(|m| m.modified())
                     .ok();
-                if let (Some(prev), Some(cur)) = (last_mtime, mtime) {
-                    if cur != prev {
-                        last_mtime = Some(cur);
-                    } else if now.duration_since(start) >= idle {
-                        let _ = child.kill();
-                        aborted = true;
-                        break;
-                    }
+                if let (Some(prev), Some(cur)) = (last_mtime, mtime)
+                    && cur != prev
+                {
+                    last_mtime = Some(cur);
+                    last_activity = now;
+                }
+                if now.duration_since(last_activity) >= idle {
+                    let _ = child.kill();
+                    aborted = true;
+                    break;
                 }
             }
             std::thread::sleep(Duration::from_millis(50));
@@ -290,6 +296,29 @@ mod idle_timeout_tests {
         assert!(
             res.output.contains("<promise>COMPLETE</promise>"),
             "the completion marker must survive the kill (file-redirect)"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn idle_is_measured_from_last_activity_not_from_start() {
+        // The worker writes once, then stays silent. The idle cap must
+        // not fire at start+1s; it fires a full idle interval after the
+        // LAST write (~2s: 0.05s write + 1s idle + kill).
+        let root = tmp_root("late");
+        let res = run_capped_idle(
+            "sh",
+            &["-c", "echo once; sleep 30"],
+            &root,
+            Some(60),
+            Some(1),
+        )
+        .unwrap();
+        assert!(res.aborted, "silence after a late write must be killed");
+        assert!(
+            res.wall_seconds >= 1,
+            "the idle interval counts from the LAST output: wall {}s",
+            res.wall_seconds
         );
         let _ = std::fs::remove_dir_all(&root);
     }
