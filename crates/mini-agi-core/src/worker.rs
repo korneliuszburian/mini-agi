@@ -247,6 +247,54 @@ mod idle_timeout_tests {
     }
 
     #[test]
+    fn worker_that_goes_silent_mid_run_is_killed_by_idle() {
+        // Output then silence: the mtime stops changing -> the idle cap
+        // must kill (genuinely stuck mid-iteration), not the wall cap.
+        let root = tmp_root("midrun");
+        let res = run_capped_idle(
+            "sh",
+            &["-c", "echo start; sleep 30"],
+            &root,
+            Some(60),
+            Some(1),
+        )
+        .unwrap();
+        assert!(res.aborted, "mid-run silence must be killed");
+        assert!(
+            res.wall_seconds < 30,
+            "killed by the idle cap, not the wall cap"
+        );
+        assert!(
+            res.output.contains("start"),
+            "early output must be captured"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn completed_marker_with_hanging_child_is_not_lost() {
+        // Completion-grace (two-phase timeout S3): the worker writes the
+        // completion marker then hangs; the file-redirect design means
+        // the full transcript (incl. the marker) is still readable, so
+        // the run resolves as success-with-warning instead of failure.
+        let root = tmp_root("hanging");
+        let res = run_capped_idle(
+            "sh",
+            &["-c", "echo '<promise>COMPLETE</promise>'; sleep 30"],
+            &root,
+            Some(3),
+            None,
+        )
+        .unwrap();
+        assert!(res.aborted, "killed by the wall cap after the marker");
+        assert!(
+            res.output.contains("<promise>COMPLETE</promise>"),
+            "the completion marker must survive the kill (file-redirect)"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn active_worker_survives_idle_timeout() {
         // A worker that keeps writing output is alive -> not killed.
         let root = tmp_root("active");

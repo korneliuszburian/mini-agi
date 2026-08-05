@@ -243,12 +243,14 @@ pub fn run_verified_iteration(
         } else {
             false
         };
+        let idle_cap = mini_agi_core::config::Config::load(input.workdir).max_idle_seconds;
         let worker = match run_worker_sandboxed(
             input.worker_name,
             input.workdir,
             input.no_sandbox,
             input.read_only,
             input.wall_cap,
+            idle_cap,
             &worker_args,
         ) {
             Ok(w) => w,
@@ -670,6 +672,7 @@ fn run_worker_sandboxed(
     no_sandbox: bool,
     read_only: bool,
     wall_cap: Option<u64>,
+    idle_cap: Option<u64>,
     worker_args: &[&str],
 ) -> std::io::Result<mini_agi_core::worker::WorkerResult> {
     #[cfg(target_os = "linux")]
@@ -705,11 +708,12 @@ fn run_worker_sandboxed(
             wrapper.extend(worker_args.iter().map(|s| (*s).to_string()));
             let arg_refs: Vec<&str> = wrapper.iter().map(String::as_str).collect();
             if let Ok(exe) = std::env::current_exe() {
-                return mini_agi_core::worker::run_capped(
+                return mini_agi_core::worker::run_capped_idle(
                     &exe.to_string_lossy(),
                     &arg_refs,
                     workdir,
                     wall_cap,
+                    idle_cap,
                 );
             }
         }
@@ -721,7 +725,7 @@ fn run_worker_sandboxed(
     // Multi-worker (production-readiness P2/E): the runner resolves the
     // worker command from the parameter — codex today, a second type
     // (e.g. claude) behind the same budget/sandbox/capture contract.
-    mini_agi_core::worker::run_capped(worker_name, worker_args, workdir, wall_cap)
+    mini_agi_core::worker::run_capped_idle(worker_name, worker_args, workdir, wall_cap, idle_cap)
 }
 
 /// `exec-sandbox`: apply the Landlock write-containment policy to the

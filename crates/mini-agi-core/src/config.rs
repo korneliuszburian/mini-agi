@@ -33,6 +33,11 @@ pub struct Config {
     /// Maximum accepted run wall-clock time in seconds (`None` = unlimited).
     #[serde(default)]
     pub max_wall_seconds: Option<u64>,
+    /// AFK supervisor idle timeout (AFK-SUPERVISOR S1): when the
+    /// worker's output file has not changed for this many seconds, the
+    /// worker is killed as STUCK (`None` = idle detection disabled).
+    #[serde(default)]
+    pub max_idle_seconds: Option<u64>,
     /// Repetition watchdog: abort after this many identical consecutive
     /// actions in a captured trajectory (P1-5). `None` = disabled.
     #[serde(default)]
@@ -75,6 +80,7 @@ impl Default for Config {
             max_cost_usd: None,
             max_tokens: None,
             max_wall_seconds: None,
+            max_idle_seconds: None,
             max_repeated_steps: None,
             health: crate::health::HealthThresholds::default(),
             min_judge_precision: default_min_judge_precision(),
@@ -138,6 +144,12 @@ impl Config {
             .and_then(|s| s.parse::<u64>().ok())
         {
             self.max_wall_seconds = Some(v);
+        }
+        if let Some(v) = std::env::var("MINIAGI_MAX_IDLE_SECONDS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+        {
+            self.max_idle_seconds = Some(v);
         }
     }
 

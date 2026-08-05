@@ -7,6 +7,25 @@
 //! AFK/Ralph supervision model ("give input before and after, not
 //! during"; end in a reviewable artifact) realized with the kernel's
 //! deterministic verified-iteration.
+//!
+//! ## Two-phase liveness (S3)
+//!
+//! The worker has TWO timeouts (Sandcastle's two-phase model):
+//! 1. **Idle timeout** (`max_idle_seconds`): the worker's output-file
+//!    mtime is the liveness signal — when it stops changing while the
+//!    process still runs, the worker is killed as STUCK.
+//! 2. **Completion grace**: a worker that emitted the completion
+//!    marker and then hangs (e.g. a child holding the pipe) still
+//!    resolves with its FULL transcript — the file-redirect design in
+//!    `run_capped` makes the transcript readable after the kill, so
+//!    the run is success-with-warning, never lost work.
+//!
+//! ## On-done hook contract
+//!
+//! `--on-done <cmd>` runs `sh -c <cmd> on-done <report-path> <outcome>`
+//! where outcome is `0` (verifier passed), `1` (exhausted) or `3`
+//! (aborted); the hook command reads them as `$1` / `$2`. This is the
+//! notification point (e.g. a ping script).
 
 use std::fmt::Write as _;
 use std::io::Write;
