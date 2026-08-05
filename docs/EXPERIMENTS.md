@@ -521,9 +521,17 @@ invariants + clamping).
 | e6 | 0/10 | 3/10 | 5,2,2,4,5,5,5,5,5,5 |
 | TOTAL | 10/40 (25%) | 33/40 (82.5%) | — |
 
-Wilson 95% CIs: P 25% -> [0.13, 0.41]; K 82.5% -> [0.67, 0.92].
+Wilson 95% CIs: P 25% -> [0.142, 0.402]; K 82.5% -> [0.680, 0.913].
 NON-OVERLAPPING — the effect replicates at N=10. Below-bar subset
 (e1+e2+e6, blind 0/10): P 0/30 vs K 23/30. Above-bar (e5): both pass.
+
+Equal-attempts comparator (codex second-opinion disposition): P's 10
+runs per task grouped as best-of-5 (the same k as K's cap) -> e1 0/2,
+e2 0/2, e5 2/2, e6 0/2 = 2/8 = 25% — IDENTICAL to P pass@1 because all
+successes concentrate in e5. The advantage holds at equal total
+attempts: K 82.5% vs P best-of-5 25% (non-overlapping). The claim is
+scoped precisely: pass@1 (independent blind attempts) vs pass@N (up to
+N verified-iteration attempts); it is NOT a codex-vs-plain claim.
 
 The BOUNDARY: e6 (multi-function, 3 invariants, 14 hidden cases) — the
 loop recovers 3/10 and EXHAUSTS 5 attempts on 7/10. The current
@@ -531,3 +539,9 @@ mechanism's honest limit: single-feedback-attempt recovery works for
 single-function classes (e1/e2, always attempts <= 3); multi-function
 classes sometimes exceed 5 attempts. Future levers: more attempts,
 per-function checklist feedback, or function-level verifier feedback.
+
+Escalation spot-check (S8 feedback escalation: attempt >= 2 adds
+expected/got details): 5 e6 runs with the escalated feedback -> 0/5
+(ALL exhausted 5 attempts). The escalation did NOT move the multi-
+function boundary — an honest negative, recorded here per the codex
+second-opinion disposition (this result was previously unrecorded).
