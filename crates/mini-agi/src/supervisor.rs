@@ -77,8 +77,79 @@ pub struct SupervisorArgs<'a> {
     /// Session resume (AFK v2): resume the worker's own codex session
     /// on verifier failure. Default: on for iterate > 1.
     pub resume: bool,
+    /// Loop template (`--template`): "sequential-reviewer" runs an
+    /// INDEPENDENT read-only review pass after the verified iteration,
+    /// then ONE fix attempt via the worker's session resume when the
+    /// verdict is REWORK/FIX-MINOR, then the verifier re-runs.
+    pub template: Option<&'a str>,
     /// Run report path (default: workdir/REPORT.md).
     pub report: Option<&'a Path>,
+}
+
+/// A parsed review verdict (sequential-reviewer template).
+#[derive(Debug, Clone)]
+pub struct ReviewVerdict {
+    /// APPROVE | FIX-MINOR | REWORK | UNPARSEABLE (raw fallback).
+    pub verdict: String,
+    /// Score out of 8 when parseable.
+    pub score: Option<u8>,
+    /// The raw findings text (numbered findings the fix pass uses).
+    pub findings: String,
+}
+
+/// Tolerant verdict parser: the reviewer's final block is
+/// `Verdict: APPROVE|FIX-MINOR|REWORK, score X/8, findings...`. A
+/// missing verdict records UNPARSEABLE with the raw text — it never
+/// blocks the pipeline (the disposition is recorded, the run report
+/// keeps the raw verdict).
+pub fn parse_review_verdict(text: &str) -> ReviewVerdict {
+    let mut verdict = String::from("UNPARSEABLE");
+    let mut score = None;
+    let mut findings = String::new();
+    let mut in_findings = false;
+    for line in text.lines() {
+        let l = line.trim();
+        if let Some(v) = l.strip_prefix("Verdict:") {
+            let v = v.trim();
+            if v.starts_with("APPROVE") {
+                verdict = "APPROVE".into();
+            } else if v.starts_with("FIX-MINOR") {
+                verdict = "FIX-MINOR".into();
+            } else if v.starts_with("REWORK") {
+                verdict = "REWORK".into();
+            }
+        }
+        // The score may sit on the Verdict line ("score 2/8") or on its
+        // own line — scan every line for the X/8 pattern.
+        for tok in l.split(|c: char| !c.is_ascii_digit() && c != '/') {
+            if let Some(s) = tok.strip_suffix("/8")
+                && let Ok(n) = s.parse::<u8>()
+            {
+                score = Some(n.min(8));
+            }
+        }
+        if l.starts_with("Top findings") || l.starts_with("Findings:") {
+            in_findings = true;
+        } else if in_findings && !l.is_empty() {
+            findings.push_str(line);
+            findings.push('\n');
+        }
+    }
+    if findings.is_empty() {
+        findings = text
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+    }
+    ReviewVerdict {
+        verdict,
+        score,
+        findings: findings.trim().to_string(),
+    }
 }
 
 /// A fully supervised run result.
@@ -162,6 +233,76 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
             .and_then(|mut f| f.write_all(line.as_bytes()));
     })?;
 
+    // Sequential-reviewer template: an INDEPENDENT read-only review of
+    // the produced work; REWORK/FIX-MINOR triggers ONE fix attempt via
+    // the worker's session resume, then the verifier re-runs.
+    let mut review: Option<ReviewVerdict> = None;
+    if args.template == Some("sequential-reviewer") && iteration.verifier_passed {
+        let review_text = run_review_pass(args)?;
+        let verdict = parse_review_verdict(&review_text);
+        review = Some(verdict.clone());
+        append_progress(
+            &progress_path,
+            &format!(
+                "- {} REVIEW: {} {}\n",
+                stamp(),
+                verdict.verdict,
+                verdict
+                    .score
+                    .map_or_else(String::new, |s| format!("({s}/8)"))
+            ),
+        );
+        if matches!(verdict.verdict.as_str(), "REWORK" | "FIX-MINOR")
+            && let Some(session) = iteration.resume_session.as_deref()
+        {
+            append_progress(
+                &progress_path,
+                &format!(
+                    "- {} FIX PASS: resuming worker session {session} with the findings\n",
+                    stamp()
+                ),
+            );
+            let fix_prompt = format!(
+                "Independent review of your work found issues — address them now in this session.\n\n{}\nRe-run the verifier when done; it must pass.",
+                verdict.findings
+            );
+            let fix_args = vec![
+                "exec",
+                "resume",
+                session,
+                "--skip-git-repo-check",
+                &fix_prompt,
+            ];
+            let wall_cap = args.wall_cap.unwrap_or(600);
+            let idle_cap = mini_agi_core::config::Config::load(args.workdir).max_idle_seconds;
+            let fix = worker::run_worker_sandboxed(
+                args.worker_name,
+                args.workdir,
+                args.no_sandbox,
+                args.read_only,
+                Some(wall_cap),
+                idle_cap,
+                &fix_args,
+            );
+            let verifier = mini_agi_core::worker::run_capped(
+                "sh",
+                &["-c", args.verify],
+                args.target,
+                Some(120),
+            );
+            let passed_after_fix =
+                fix.is_ok() && verifier.is_ok_and(|v| !v.aborted && v.status == Some(0));
+            append_progress(
+                &progress_path,
+                &format!(
+                    "- {} FIX PASS verifier: {}\n",
+                    stamp(),
+                    if passed_after_fix { "PASSED" } else { "FAILED" }
+                ),
+            );
+        }
+    }
+
     // Persist the run draft (the run.json the verifier/loop verify use):
     // the supervisor owns the run record. The run's claim is backed by
     // the kernel's in-loop verifier result (achieved = verifier_passed),
@@ -212,6 +353,20 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
             "- completion grace: a cap-killed worker still delivered its full \
              completed transcript — success-with-warning"
         );
+    }
+    if let Some(v) = &review {
+        let _ = writeln!(report, "\n## review (sequential-reviewer)");
+        let _ = writeln!(
+            report,
+            "- verdict: {} {}/8",
+            v.verdict,
+            v.score.map_or_else(|| "?".into(), |s| s.to_string())
+        );
+        if v.verdict == "UNPARSEABLE" {
+            let _ = writeln!(report, "- raw verdict:\n{}", v.findings);
+        } else {
+            let _ = writeln!(report, "- findings:\n{}", v.findings);
+        }
     }
     let _ = writeln!(report, "\n## attempt chain");
     for v in &iteration.attempt_verdicts {
@@ -334,6 +489,38 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
     }
 }
 
+/// Append a line to the progress artifact (best-effort).
+fn append_progress(path: &Path, line: &str) {
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .and_then(|mut f| f.write_all(line.as_bytes()));
+}
+
+/// The independent review pass (sequential-reviewer): a read-only codex
+/// session reviews the produced work against the rubric and returns a
+/// verdict. Wall-capped like a worker run.
+fn run_review_pass(args: &SupervisorArgs<'_>) -> Result<String, String> {
+    let prompt = format!(
+        "Read-only adversarial review of the work just produced in this workdir by a supervised worker run (see progress.md and run.json for the goal and attempt chain). Review the working tree: the changes the worker made.\n\nGoal: {}\n\nScore 4 dimensions 0-2 (Correctness, Security, Tests, Scope), total /8: APPROVE >=7, FIX-MINOR 5-6, REWORK <5. Evidence-first: cite file:line or verifier output for EVERY finding. You are READ-ONLY: make NO changes, run NO writes.\n\nEnd with exactly:\nVerdict: APPROVE|FIX-MINOR|REWORK\nscore X/8\nTop findings:\n1. ... (each with file:line + severity)\n",
+        args.goal
+    );
+    let review_args = vec!["exec", "-s", "read-only", "--skip-git-repo-check", &prompt];
+    let idle_cap = mini_agi_core::config::Config::load(args.workdir).max_idle_seconds;
+    let review = worker::run_worker_sandboxed(
+        args.worker_name,
+        args.workdir,
+        args.no_sandbox,
+        true,
+        Some(600),
+        idle_cap,
+        &review_args,
+    )
+    .map_err(|e| format!("review pass not available: {e}"))?;
+    Ok(review.output)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -378,6 +565,43 @@ mod tests {
         assert_eq!(r.target, root.join("target-dir"));
         assert!(r.spec_text.contains("make verify"));
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn review_verdict_parses_approve_with_score() {
+        let v = parse_review_verdict(
+            "Everything fine.\nVerdict: APPROVE\nscore 7/8\nTop findings:\n(none)\n",
+        );
+        assert_eq!(v.verdict, "APPROVE");
+        assert_eq!(v.score, Some(7));
+    }
+
+    #[test]
+    fn review_verdict_parses_rework_with_findings() {
+        let v = parse_review_verdict(
+            "Verdict: REWORK, score 2/8\nTop findings:\n1. High — the idle cap is broken. [worker.rs:100]\n2. Medium — no tests.\n",
+        );
+        assert_eq!(v.verdict, "REWORK");
+        assert_eq!(v.score, Some(2));
+        assert!(v.findings.contains("idle cap is broken"), "{}", v.findings);
+        assert!(v.findings.contains("no tests"), "{}", v.findings);
+    }
+
+    #[test]
+    fn review_verdict_missing_is_unparseable_not_blocking() {
+        let v = parse_review_verdict("I reviewed it. It is fine. No verdict block.");
+        assert_eq!(v.verdict, "UNPARSEABLE");
+        assert_eq!(v.score, None);
+        assert!(!v.findings.is_empty(), "the raw text is kept");
+    }
+
+    #[test]
+    fn review_verdict_fix_minor_parses() {
+        let v = parse_review_verdict(
+            "Verdict: FIX-MINOR\nscore 6/8\nTop findings:\n1. Low — rename a var.\n",
+        );
+        assert_eq!(v.verdict, "FIX-MINOR");
+        assert_eq!(v.score, Some(6));
     }
 
     #[test]

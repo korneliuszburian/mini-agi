@@ -12,7 +12,7 @@ mod clifmt;
 #[cfg(target_os = "linux")]
 mod sandbox;
 mod supervisor;
-mod worker;
+pub(crate) mod worker;
 use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
 use mini_agi_core::insights;
@@ -375,6 +375,10 @@ enum LoopAction {
         /// Disable session resume (AFK v2): always cold re-invoke.
         #[arg(long)]
         no_resume: bool,
+        /// Loop template: "sequential-reviewer" (independent read-only
+        /// review + one fix pass via the worker's session resume).
+        #[arg(long)]
+        template: Option<String>,
     },
 }
 /// CLI fields for `loop run` (bundled so the command fn stays under
@@ -393,6 +397,7 @@ struct LoopRunArgs {
     max_idle: Option<u64>,
     no_sandbox: bool,
     no_resume: bool,
+    template: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -741,6 +746,7 @@ fn main() -> ExitCode {
                 max_idle,
                 no_sandbox,
                 no_resume,
+                template,
             } => cmd_loop_run(&LoopRunArgs {
                 goal_or_case,
                 workdir,
@@ -755,6 +761,7 @@ fn main() -> ExitCode {
                 max_idle,
                 no_sandbox,
                 no_resume,
+                template,
             }),
         },
     }
@@ -2024,6 +2031,13 @@ fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
     if a.blind_worker && a.hidden_dir.is_none() {
         return fail("--blind-worker requires --hidden-dir");
     }
+    if let Some(t) = &a.template
+        && t != "sequential-reviewer"
+    {
+        return fail(&format!(
+            "unknown template '{t}' (supported: sequential-reviewer)"
+        ));
+    }
     let cfg = Config::load(&a.workdir);
     let case_run_out = (root()
         .join("evals/cases")
@@ -2056,6 +2070,7 @@ fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
         report: a.report.as_deref(),
         run_out: case_run_out.as_deref(),
         resume: a.iterate.max(1) > 1 && !a.no_resume,
+        template: a.template.as_deref(),
     };
     finish_loop_run(&supervisor_args)
 }

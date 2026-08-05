@@ -181,6 +181,9 @@ pub struct IterationResult {
     /// Completion grace fired: a cap-killed worker still delivered its
     /// full completed transcript (success-with-warning).
     pub completion_grace: bool,
+    /// The worker's last captured codex session id (AFK v2): the
+    /// supervisor's fix attempt resumes it.
+    pub resume_session: Option<String>,
     /// All captured steps across attempts.
     pub all_steps: Vec<mini_agi_core::capture::CapturedStep>,
     /// Per-attempt verdicts (process supervision).
@@ -510,6 +513,7 @@ pub fn run_verified_iteration(
         verifier_passed,
         aborted,
         completion_grace,
+        resume_session,
         all_steps,
         attempt_verdicts,
         total_wall,
@@ -795,7 +799,7 @@ fn is_read_only_spec(spec_text: &str) -> bool {
         .any(|l| l.trim_start().starts_with("- sandbox: read-only"))
 }
 
-fn run_worker_sandboxed(
+pub fn run_worker_sandboxed(
     worker_name: &str,
     workdir: &Path,
     no_sandbox: bool,
