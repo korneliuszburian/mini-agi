@@ -502,19 +502,27 @@ fn lint_skill(skill: &Skill) -> bool {
     // the contract lint. The anchor is NOT accepted anywhere in the
     // doc (a prose `path` outside the criteria must not satisfy it).
     // The criteria SECTION (from the "Done when"/"Completion
-    // criteria" heading down) must contain a checkbox AND reference an
-    // artifact anchor (wrapped lines are part of the section — the
-    // anchor is never accepted from prose ABOVE the section).
+    // criteria" heading down, STOPPING at the next same-or-higher
+    // Markdown heading) must contain a checkbox AND reference an
+    // artifact anchor. Wrapped lines count; an anchor under a LATER
+    // heading, or prose above the section, never satisfies it.
     let mut in_criteria = false;
     let mut has_checkbox = false;
     let mut anchored = false;
+    let mut section_depth = 2usize;
     for line in content.lines() {
         let l = line.to_lowercase();
-        if l.contains("done when") || l.contains("completion criteria") {
+        let is_heading = line.starts_with('#');
+        if is_heading && (l.contains("done when") || l.contains("completion criteria")) {
             in_criteria = true;
+            section_depth = line.chars().take_while(|&c| c == '#').count().max(2);
             continue;
         }
         if in_criteria {
+            let hash_count = line.chars().take_while(|&c| c == '#').count();
+            if hash_count >= section_depth {
+                break;
+            }
             if l.trim_start().starts_with("- [ ]") {
                 has_checkbox = true;
             }
@@ -1039,6 +1047,47 @@ description: >
             );
             let _ = fs::remove_dir_all(&root);
         }
+    }
+
+    #[test]
+    fn lint_scopes_anchors_to_the_criteria_section() {
+        let root = tempfile_dir("lint-scope");
+        let sk = root.join(".agents/skills/x");
+        fs::create_dir_all(&sk).unwrap();
+        // Anchor under a LATER heading must NOT satisfy the lint.
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: x\ndescription: d\nversion: 1.0.0\nsource: s\n---\n## Completion criteria\n- [ ] self report\n## Notes\nsee the path here\n",
+        )
+        .unwrap();
+        let skill = find_skill(&root, "x").unwrap();
+        assert!(
+            !lint_skill(&skill),
+            "an anchor under a later heading must not count"
+        );
+        // Wrapped criterion lines ARE part of the section.
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: x\ndescription: d\nversion: 1.0.0\nsource: s\n---\n## Completion criteria\n- [ ] the resolution is recorded on the tracker\n      (a visible artifact: the closed issue path)\n",
+        )
+        .unwrap();
+        let skill = find_skill(&root, "x").unwrap();
+        assert!(
+            lint_skill(&skill),
+            "a wrapped anchor inside the section must count"
+        );
+        // Prose ABOVE the section must not satisfy it.
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: x\ndescription: d\nversion: 1.0.0\nsource: s\n---\nsee the path here\n## Completion criteria\n- [ ] self report\n",
+        )
+        .unwrap();
+        let skill = find_skill(&root, "x").unwrap();
+        assert!(
+            !lint_skill(&skill),
+            "prose above the section must not count"
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
