@@ -298,31 +298,38 @@ pub struct DriftReport {
 /// auxiliary files — the whole installable unit), 16-hex.
 fn skill_hash(dir: &Path) -> Option<String> {
     let mut files: Vec<PathBuf> = Vec::new();
-    collect_files(dir, &mut files);
+    collect_files(dir, &mut files)?;
     files.sort();
     let mut acc = String::new();
     for f in files {
         let rel = f.strip_prefix(dir).ok()?.to_string_lossy().into_owned();
         acc.push_str(&rel);
-        let text = std::fs::read_to_string(&f).ok()?;
-        acc.push_str(&text);
+        // Byte hashing: a non-UTF-8 asset must not silently drop the
+        // skill from the drift check.
+        let bytes = std::fs::read(&f).ok()?;
+        acc.push_str(&String::from_utf8_lossy(&bytes));
     }
     Some(crate::hash::source_sha256(&acc))
 }
 
-/// Recursive file collector for `skill_hash`.
-fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
+/// Recursive file collector for `skill_hash`; returns None on a
+/// symlinked directory (unbounded traversal from a user-controlled
+/// tree must not be followed).
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) -> Option<()> {
+    let entries = std::fs::read_dir(dir).ok()?;
     for e in entries.flatten() {
         let p = e.path();
-        if p.is_dir() {
-            collect_files(&p, out);
+        let meta = std::fs::symlink_metadata(&p).ok()?;
+        if meta.file_type().is_symlink() {
+            continue;
+        }
+        if meta.is_dir() {
+            collect_files(&p, out)?;
         } else {
             out.push(p);
         }
     }
+    Some(())
 }
 
 /// Compare repo-local vs user-global registrations for drift.
@@ -532,24 +539,28 @@ fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
         )));
     }
     let dest = agents_dir(root).join(&skill.name);
-    // Install-diff (D5): copy only when the content differs; a blind
-    // remove_dir_all would silently destroy local edits on reinstall.
-    // On a difference the existing SKILL.md is PRESERVED as a backup —
-    // nothing is ever destroyed by an install.
-    let existing = fs::read_to_string(dest.join("SKILL.md")).ok();
-    if existing.as_deref() == Some(content.as_str()) {
+    // Install-diff (D5): compare the WHOLE installable unit (SKILL.md
+    // + aux files) and copy only when it differs. On a difference the
+    // existing dir is RENAMED aside as a backup FIRST (a backup written
+    // inside dest would be destroyed by the fresh install); nothing is
+    // ever destroyed by an install.
+    let src_dir = skill_md
+        .parent()
+        .ok_or_else(|| SkillError::Parse("skill has no directory".into()))?;
+    if skill_hash(src_dir) == skill_hash(&dest) {
         return Ok(skill.name);
     }
-    if let Some(old_text) = existing {
+    if dest.exists() {
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        let _ = fs::write(
-            dest.join(format!("SKILL.md.local-before-{stamp}")),
-            old_text,
-        );
+        let backup = dest.with_file_name(format!(
+            "{}.local-before-{stamp}",
+            dest.file_name().unwrap_or_default().to_string_lossy()
+        ));
+        let _ = fs::remove_dir_all(&backup);
+        fs::rename(&dest, &backup).map_err(SkillError::Io)?;
     }
-    let _ = fs::remove_dir_all(&dest);
     fs::create_dir_all(&dest).map_err(SkillError::Io)?;
     fs::copy(skill_md, dest.join("SKILL.md")).map_err(SkillError::Io)?;
     for entry in fs::read_dir(skill_md.parent().unwrap()).map_err(SkillError::Io)? {
@@ -676,6 +687,94 @@ description: >
         let root = tempfile_dir("find-unknown");
         let err = find_skill(&root, "missing").unwrap_err();
         assert!(matches!(err, SkillError::Unknown(_)));
+    }
+
+    #[test]
+    fn install_preserves_local_edits_as_backup() {
+        let root = tempfile_dir("install-backup");
+        let src = root.join("src");
+        let sk = src.join(".agents/skills/demo");
+        fs::create_dir_all(&sk).unwrap();
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: demo\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# v1\n",
+        )
+        .unwrap();
+        let installed = install_one(&root, &sk.join("SKILL.md")).unwrap();
+        assert_eq!(installed, "demo");
+        // Local edit.
+        fs::write(
+            root.join(".agents/skills/demo/SKILL.md"),
+            "---\nname: demo\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# local-edit\n",
+        )
+        .unwrap();
+        // Reinstall with different content.
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: demo\ndescription: d\nversion: 1.1.0\nsource: s\n---\n# v2\n",
+        )
+        .unwrap();
+        install_one(&root, &sk.join("SKILL.md")).unwrap();
+        let dest = root.join(".agents/skills/demo");
+        assert_eq!(
+            fs::read_to_string(dest.join("SKILL.md")).unwrap(),
+            "---\nname: demo\ndescription: d\nversion: 1.1.0\nsource: s\n---\n# v2\n"
+        );
+        // The local edit must survive as a backup OUTSIDE the fresh dir.
+        let backups: Vec<_> = fs::read_dir(root.join(".agents/skills"))
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().contains("local-before"))
+            .collect();
+        assert!(!backups.is_empty(), "the local edit must be preserved");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn install_updates_changed_auxiliary_files() {
+        let root = tempfile_dir("install-aux");
+        let src = root.join("src");
+        let sk = src.join(".agents/skills/demo");
+        fs::create_dir_all(&sk).unwrap();
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: demo\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# v1\n",
+        )
+        .unwrap();
+        fs::write(sk.join("refs.txt"), "old").unwrap();
+        install_one(&root, &sk.join("SKILL.md")).unwrap();
+        // Same SKILL.md, changed auxiliary file: must reinstall.
+        fs::write(sk.join("refs.txt"), "new").unwrap();
+        install_one(&root, &sk.join("SKILL.md")).unwrap();
+        assert_eq!(
+            fs::read_to_string(root.join(".agents/skills/demo/refs.txt")).unwrap(),
+            "new",
+            "an aux change must not be ignored just because SKILL.md matches"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn skill_hash_is_stable_and_symlink_safe() {
+        let root = tempfile_dir("hash-stable");
+        let sk = root.join(".agents/skills/demo");
+        fs::create_dir_all(&sk).unwrap();
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: demo\ndescription: d\n---\n# x\n",
+        )
+        .unwrap();
+        let h1 = skill_hash(&sk).unwrap();
+        let h2 = skill_hash(&sk).unwrap();
+        assert_eq!(h1, h2, "the hash must be deterministic");
+        // A symlinked dir is not followed.
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("/etc", sk.join("link")).unwrap();
+            let h3 = skill_hash(&sk).unwrap();
+            assert_eq!(h1, h3, "symlinked dirs must not be traversed");
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
