@@ -183,6 +183,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         .collect();
     let log_path = workdir.join("codex.log");
     let mut all_steps: Vec<mini_agi_core::capture::CapturedStep> = Vec::new();
+    let mut attempt_verdicts: Vec<serde_json::Value> = Vec::new();
     let mut failure_context = String::new();
     let mut final_wall = 0u64;
     let mut attempts_done = 0;
@@ -309,10 +310,20 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         match verifier {
             Ok(v) if v.status == Some(0) && !v.aborted => {
                 verifier_passed = true;
+                attempt_verdicts.push(serde_json::json!({
+                    "attempt": attempt,
+                    "failed_cases": [],
+                    "passed": true,
+                }));
                 println!("  verifier PASSED on attempt {attempt}");
                 break;
             }
             Ok(v) => {
+                attempt_verdicts.push(serde_json::json!({
+                    "attempt": attempt,
+                    "failed_cases": extract_failing_cases(&v.output),
+                    "passed": false,
+                }));
                 failure_context = distill_failure(attempt, &v.output);
                 println!(
                     "  verifier FAILED on attempt {attempt}; {} attempt(s) left",
@@ -333,6 +344,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     let mut run = run;
     run["attempts"] = serde_json::json!(attempts_done);
     run["verifier_passed"] = serde_json::json!(verifier_passed);
+    run["attempt_verdicts"] = serde_json::json!(attempt_verdicts);
     let exit = write_draft(run_out, workdir, &run);
     if aborted {
         println!("  run ABORTED by a budget cap (exit 3) — not a clean run");
@@ -370,14 +382,42 @@ fn restore_verifier(hidden_dir: &Path) -> std::io::Result<bool> {
     Ok(true)
 }
 
-/// Distill a verifier failure into a compact, single-sentence binding
-/// instruction for the next iteration (BREAKTHROUGH; Reflexion-style
-/// test-grounded feedback).
+/// Extract the failing case names from a unittest-style verifier report
+/// (lines like `FAIL: test_x` / `ERROR: test_y`).
+fn extract_failing_cases(verifier_output: &str) -> Vec<String> {
+    verifier_output
+        .lines()
+        .filter_map(|l| {
+            let t = l.trim();
+            let rest = t
+                .strip_prefix("FAIL: ")
+                .or_else(|| t.strip_prefix("ERROR: "))?;
+            let name = rest.split_whitespace().next().unwrap_or(rest);
+            Some(name.to_string())
+        })
+        .collect()
+}
+
+/// Distill a verifier failure into a compact, binding instruction for
+/// the next iteration (BREAKTHROUGH; Reflexion-style test-grounded
+/// feedback). Structured as a per-case checklist when the failing case
+/// names are extractable (process supervision: the next attempt sees
+/// exactly the REMAINING cases).
 fn distill_failure(attempt: usize, verifier_output: &str) -> String {
-    let excerpt: String = verifier_output.chars().take(600).collect();
-    format!(
-        "- the verifier FAILED on attempt {attempt}. Its output (fix the failing cases; do not repeat them):\n{excerpt}"
-    )
+    let cases = extract_failing_cases(verifier_output);
+    if cases.is_empty() {
+        let excerpt: String = verifier_output.chars().take(600).collect();
+        return format!(
+            "- the verifier FAILED on attempt {attempt}. Its output (fix the failing cases; do not repeat them):\n{excerpt}"
+        );
+    }
+    let mut out = format!(
+        "- the verifier FAILED on attempt {attempt}. The failing cases (fix each; do not repeat them):\n"
+    );
+    for (i, c) in cases.iter().enumerate() {
+        out.push_str(&format!("  {}. {c}\n", i + 1));
+    }
+    out
 }
 
 fn write_draft(run_out: Option<&Path>, workdir: &Path, run: &serde_json::Value) -> ExitCode {
@@ -580,5 +620,30 @@ mod blind_worker_tests {
         let root = std::env::temp_dir().join(format!("mag-bw2-{}", std::process::id()));
         assert!(!hide_verifier(&root.join("nope")).unwrap());
         let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod checklist_tests {
+    use super::*;
+
+    #[test]
+    fn extracts_failing_case_names() {
+        let out = "FAIL: test_inline_comment (tests.TestCli.test_inline_comment)\nAssertionError: ...\nERROR: test_zero (tests.TestCli.test_zero)\nOK\n";
+        let cases = extract_failing_cases(out);
+        assert_eq!(cases, vec!["test_inline_comment", "test_zero"]);
+        assert!(extract_failing_cases("OK\nRan 5 tests").is_empty());
+    }
+
+    #[test]
+    fn checklist_lists_only_the_failing_cases() {
+        let out = distill_failure(
+            2,
+            "FAIL: test_inline_comment (tests.TestCli.test_inline_comment)\nFAIL: test_quoted_value (tests.TestCli.test_quoted_value)\n",
+        );
+        assert!(out.contains("attempt 2"), "{out}");
+        assert!(out.contains("1. test_inline_comment"), "{out}");
+        assert!(out.contains("2. test_quoted_value"), "{out}");
+        assert!(out.contains("do not repeat them"), "{out}");
     }
 }
