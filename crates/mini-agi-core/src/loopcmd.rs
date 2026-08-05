@@ -1075,9 +1075,18 @@ mod tests {
 
     #[test]
     fn pick_target_reports_nothing_left_when_all_closed() {
-        let root = repo();
+        // Hermetic fixture: one case whose run claims achieved=true (a
+        // closed case is not dispatchable). The live-repo version was
+        // fragile — any real open gap (e.g. a new case) broke it.
+        let root = tmp_case_root("nothing-left");
+        let run_path = root.join("evals/cases/real-ticket-008-v2/run.json");
+        let mut run: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&run_path).unwrap()).unwrap();
+        run["outcome"]["achieved"] = serde_json::json!(true);
+        fs::write(&run_path, serde_json::to_string_pretty(&run).unwrap()).unwrap();
         let err = pick_target(&root, None, 0.5).expect_err("all gaps are closed by rerun");
         assert!(err.contains("no case below the target is dispatchable"));
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

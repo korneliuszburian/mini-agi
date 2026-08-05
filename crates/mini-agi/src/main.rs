@@ -366,6 +366,9 @@ enum LoopAction {
         /// Wall cap per attempt in seconds.
         #[arg(long)]
         max_wall: Option<u64>,
+        /// Idle cap per attempt in seconds (overrides config).
+        #[arg(long)]
+        max_idle: Option<u64>,
         /// Skip the Landlock sandbox.
         #[arg(long)]
         no_sandbox: bool,
@@ -384,6 +387,7 @@ struct LoopRunArgs {
     blind_worker: bool,
     hidden_dir: Option<PathBuf>,
     max_wall: Option<u64>,
+    max_idle: Option<u64>,
     no_sandbox: bool,
 }
 
@@ -730,6 +734,7 @@ fn main() -> ExitCode {
                 blind_worker,
                 hidden_dir,
                 max_wall,
+                max_idle,
                 no_sandbox,
             } => cmd_loop_run(&LoopRunArgs {
                 goal_or_case,
@@ -742,6 +747,7 @@ fn main() -> ExitCode {
                 blind_worker,
                 hidden_dir,
                 max_wall,
+                max_idle,
                 no_sandbox,
             }),
         },
@@ -2013,6 +2019,17 @@ fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
         return fail("--blind-worker requires --hidden-dir");
     }
     let cfg = Config::load(&a.workdir);
+    let case_run_out = (root()
+        .join("evals/cases")
+        .join(&a.goal_or_case)
+        .join("run.json")
+        .is_file())
+    .then(|| {
+        root()
+            .join("evals/cases")
+            .join(&a.goal_or_case)
+            .join("run.json")
+    });
     let supervisor_args = supervisor::SupervisorArgs {
         spec_text: &resolved.spec_text,
         goal: &resolved.goal,
@@ -2024,12 +2041,14 @@ fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
         blind_worker: a.blind_worker,
         hidden_dir: a.hidden_dir.as_deref(),
         wall_cap: a.max_wall.or(cfg.max_wall_seconds),
+        max_idle: a.max_idle,
         step_cap: cfg.max_steps,
         no_sandbox: a.no_sandbox,
         worker_name: "codex",
         read_only: false,
         on_done: a.on_done.as_deref(),
         report: a.report.as_deref(),
+        run_out: case_run_out.as_deref(),
     };
     finish_loop_run(&supervisor_args)
 }

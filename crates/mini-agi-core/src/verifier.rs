@@ -243,7 +243,13 @@ pub fn audit_verifier(root: &Path, run_path: &Path) -> Result<String, String> {
 /// non-work and the iteration would 'pass' garbage.
 #[must_use]
 pub fn audit_verifier_vacuous(target: &Path, verify_command: &str) -> VerifierVacuousAudit {
-    let tmp = std::env::temp_dir().join(format!("mag-va2-{}", std::process::id()));
+    // Unique per-call dir: a fixed name would make concurrent audits
+    // stomp each other's cwd mid-run (test-race the vacuous gate found).
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map_or(0, |d| d.as_nanos());
+    let tmp = std::env::temp_dir().join(format!("mag-va2-{}-{nonce}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(&tmp).unwrap_or(());
     let res = crate::worker::run_capped("sh", &["-c", verify_command], &tmp, Some(120));

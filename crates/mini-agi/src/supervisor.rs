@@ -54,6 +54,8 @@ pub struct SupervisorArgs<'a> {
     pub hidden_dir: Option<&'a Path>,
     /// Wall cap per attempt.
     pub wall_cap: Option<u64>,
+    /// Idle cap per attempt, overriding the configured value.
+    pub max_idle: Option<u64>,
     /// Step cap (accumulated).
     pub step_cap: Option<usize>,
     /// No-sandbox escape hatch.
@@ -65,6 +67,10 @@ pub struct SupervisorArgs<'a> {
     /// On-done hook: shell command run with the report path + outcome
     /// ("0" | "1" | "3") as arguments.
     pub on_done: Option<&'a str>,
+    /// Draft write target (like `cmd_codex`'s `run_out`): the case's
+    /// own run.json when the goal resolved from a case, else the
+    /// workdir.
+    pub run_out: Option<&'a Path>,
     /// Run report path (default: workdir/REPORT.md).
     pub report: Option<&'a Path>,
 }
@@ -98,6 +104,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         target: args.target,
         workdir: args.workdir,
         wall_cap: args.wall_cap,
+        max_idle: args.max_idle,
         step_cap: args.step_cap,
         no_sandbox: args.no_sandbox,
         worker_name: args.worker_name,
@@ -138,6 +145,23 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
             .open(&progress_path)
             .and_then(|mut f| f.write_all(line.as_bytes()));
     })?;
+
+    // Persist the run draft (the run.json the verifier/loop verify use):
+    // the supervisor owns the run record. The run's claim is the
+    // kernel's own verifier verdict — achieved = verifier_passed (the
+    // deterministic verifier already confirmed it in-loop, so this is
+    // a verified claim, not a worker claim).
+    let mut run = iteration.run.clone();
+    run["outcome"]["achieved"] = serde_json::json!(iteration.verifier_passed);
+    let draft_path = args
+        .run_out
+        .unwrap_or(&args.workdir.join("run.json"))
+        .to_path_buf();
+    std::fs::write(
+        &draft_path,
+        serde_json::to_string_pretty(&run).unwrap_or_default(),
+    )
+    .map_err(|e| format!("cannot write run draft: {e}"))?;
 
     // Run report (the reviewable artifact — Matt's "end in a PR", here
     // a report the agent reads and cites).

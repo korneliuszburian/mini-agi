@@ -1,11 +1,21 @@
 [
   {
+    "case": "afk-max-idle",
+    "composite": 0.8409,
+    "outcome": 1.0,
+    "cost_usd": 0.0001,
+    "tokens": 0,
+    "tool_mismatches": 0,
+    "mode": "regression"
+  },
+  {
     "case": "codex-exp-002",
     "composite": 0.0,
     "outcome": 0.0,
     "cost_usd": 0.001,
     "tokens": 100,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "codex-exp-002-rerun",
@@ -13,7 +23,8 @@
     "outcome": 1.0,
     "cost_usd": 0.09,
     "tokens": 18400,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "codex-exp-003",
@@ -21,7 +32,8 @@
     "outcome": 0.0,
     "cost_usd": 0.001,
     "tokens": 100,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "codex-exp-003-rerun",
@@ -29,7 +41,8 @@
     "outcome": 1.0,
     "cost_usd": 0.0001,
     "tokens": 0,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "flailing",
@@ -37,7 +50,8 @@
     "outcome": 1.0,
     "cost_usd": 0.61,
     "tokens": 9200,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "flailing-rerun",
@@ -45,7 +59,8 @@
     "outcome": 1.0,
     "cost_usd": 0.04,
     "tokens": 8700,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "harnessed",
@@ -53,7 +68,8 @@
     "outcome": 1.0,
     "cost_usd": 0.18,
     "tokens": 2750,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "reactive-loop",
@@ -61,7 +77,8 @@
     "outcome": 0.0,
     "cost_usd": 0.93,
     "tokens": 14000,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "reactive-loop-rerun",
@@ -69,7 +86,8 @@
     "outcome": 1.0,
     "cost_usd": 0.05,
     "tokens": 10300,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-001-v2",
@@ -77,7 +95,8 @@
     "outcome": 1.0,
     "cost_usd": 0.2772,
     "tokens": 106513,
-    "tool_mismatches": 4
+    "tool_mismatches": 4,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-001-v2-rerun",
@@ -85,7 +104,8 @@
     "outcome": 1.0,
     "cost_usd": 0.05,
     "tokens": 9800,
-    "tool_mismatches": 2
+    "tool_mismatches": 2,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-002-v2",
@@ -93,7 +113,8 @@
     "outcome": 1.0,
     "cost_usd": 0.2903,
     "tokens": 112411,
-    "tool_mismatches": 4
+    "tool_mismatches": 4,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-002-v2-rerun",
@@ -101,7 +122,8 @@
     "outcome": 1.0,
     "cost_usd": 0.06,
     "tokens": 12300,
-    "tool_mismatches": 2
+    "tool_mismatches": 2,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-003-v2",
@@ -109,7 +131,8 @@
     "outcome": 1.0,
     "cost_usd": 0.7732,
     "tokens": 291156,
-    "tool_mismatches": 6
+    "tool_mismatches": 6,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-003-v2-rerun",
@@ -117,7 +140,8 @@
     "outcome": 1.0,
     "cost_usd": 0.07,
     "tokens": 14100,
-    "tool_mismatches": 3
+    "tool_mismatches": 3,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-004-v2",
@@ -125,7 +149,8 @@
     "outcome": 1.0,
     "cost_usd": 0.3447,
     "tokens": 134212,
-    "tool_mismatches": 5
+    "tool_mismatches": 5,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-004-v2-rerun",
@@ -133,7 +158,8 @@
     "outcome": 1.0,
     "cost_usd": 0.05,
     "tokens": 11200,
-    "tool_mismatches": 2
+    "tool_mismatches": 2,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-005-v2",
@@ -141,7 +167,8 @@
     "outcome": 1.0,
     "cost_usd": 0.4179,
     "tokens": 162500,
-    "tool_mismatches": 4
+    "tool_mismatches": 4,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-005-v2-rerun",
@@ -149,7 +176,8 @@
     "outcome": 1.0,
     "cost_usd": 0.05,
     "tokens": 9800,
-    "tool_mismatches": 3
+    "tool_mismatches": 3,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-006-v2",
@@ -157,7 +185,8 @@
     "outcome": 1.0,
     "cost_usd": 0.3322,
     "tokens": 126907,
-    "tool_mismatches": 5
+    "tool_mismatches": 5,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-006-v2-rerun",
@@ -165,7 +194,8 @@
     "outcome": 1.0,
     "cost_usd": 0.05,
     "tokens": 10300,
-    "tool_mismatches": 3
+    "tool_mismatches": 3,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-007-v2",
@@ -173,7 +203,8 @@
     "outcome": 1.0,
     "cost_usd": 1.3143,
     "tokens": 1841123,
-    "tool_mismatches": 4
+    "tool_mismatches": 4,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-007-v2-rerun",
@@ -181,7 +212,8 @@
     "outcome": 1.0,
     "cost_usd": 0.04,
     "tokens": 8600,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   },
   {
     "case": "real-ticket-008-v2",
@@ -189,6 +221,7 @@
     "outcome": 1.0,
     "cost_usd": 0.6971,
     "tokens": 265897,
-    "tool_mismatches": 0
+    "tool_mismatches": 0,
+    "mode": "regression"
   }
 ]

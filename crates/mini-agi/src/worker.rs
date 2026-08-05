@@ -112,6 +112,8 @@ pub struct IterationInput<'a> {
     pub workdir: &'a Path,
     /// Wall cap per attempt.
     pub wall_cap: Option<u64>,
+    /// Idle cap per attempt, overriding the configured value.
+    pub max_idle: Option<u64>,
     /// Step cap (accumulated).
     pub step_cap: Option<usize>,
     /// Skip the sandbox (ADR-0012 escape hatch).
@@ -257,7 +259,9 @@ pub fn run_verified_iteration(
         } else {
             false
         };
-        let idle_cap = mini_agi_core::config::Config::load(input.workdir).max_idle_seconds;
+        let idle_cap = input
+            .max_idle
+            .or_else(|| mini_agi_core::config::Config::load(input.workdir).max_idle_seconds);
         let worker = match run_worker_sandboxed(
             input.worker_name,
             input.workdir,
@@ -512,6 +516,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         target: std::path::Path::new(&target),
         workdir,
         wall_cap,
+        max_idle: None,
         step_cap,
         no_sandbox,
         worker_name,
