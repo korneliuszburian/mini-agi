@@ -69,6 +69,6 @@ MISSING (prioritized):
 
 ## Next
 
-- AFK v4 (parallel-planner) ships first; then the standards-package
-  goal: repo-adoption + frontend-verification skills + the human-review
-  gate per domain (frontend = mandatory HITL — zero-trust rule).
+- AFK v4 (parallel-planner) SHIPPED; next: the standards-package goal:
+  repo-adoption + frontend-verification skills + the human-review gate
+  per domain (frontend = mandatory HITL — zero-trust rule).

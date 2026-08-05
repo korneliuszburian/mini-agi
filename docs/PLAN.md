@@ -1,5 +1,7 @@
 # mini-agi — master plan (v4, Rust product)
 
+> STATUS: historical — Phases 0-10 shipped; superseded counts/trees live in docs/README.md.
+
 Status: COMPLETE. Phases 0-5 done (memory, eval, skills, journal,
 contracts, metrics, MCP+adapters, ticket lifecycle, init, CI, demo,
 dogfood incl. live codex-through-MCP; 110 tests green, verify ALL
@@ -192,9 +194,6 @@ mini-agi-rs/  (Cargo workspace)
   MCP tool schemas carry real JSON types + tolerant arg parsing.
 - Commits: 0bf2515, 96fc29d, 0.2.0, v0.2.0 tag.
 
-### Phase 5 — Dogfood + productize
-- mini-agi runs its OWN tickets through itself (memory in `memory/`).
-- CLI polish, install path (`cargo install`), README, demo, versioning.
 
 ### Phase 6 — Intelligence loop closure (ROADMAP, ADR-0005 failure-signal loop)
 Derived 2026-08-03 from the system's own measurements (`mini-agi insights`,

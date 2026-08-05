@@ -1,5 +1,7 @@
 # mini-agi — Deep Research + Hardening Audit (2026-08-04)
 
+> STATUS: historical audit record (2026-08-04); superseded by the AFK v1-v4 work. Counts/statuses inside are snapshots — current state: docs/README.md.
+
 Deep layer-by-layer audit of the repo + benchmark against real agent
 frameworks, with a concrete hardening plan. Grounded in the current
 worktree (`1d3e4c8`). Anything not directly confirmed in code or in a

@@ -12,3 +12,4 @@ target/
 codex.log
 progress.md
 run.json
+!evals/cases/**/run.json

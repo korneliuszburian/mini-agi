@@ -45,8 +45,6 @@ Canonical memory import source: `agentic-core@HEAD`.
 
 ## Toolchain (pinned)
 
-## Toolchain (pinned)
-
 - `rust-toolchain.toml` pins `1.97.1` (stable, 2026-07) + rustfmt + clippy.
 - Dependencies: `sha2 0.11`, `serde 1`, `serde_json 1`, `thiserror 2`, `clap 4`.
 - Kernel crate (`mini-agi-core`) stays std-only + the above. No async/tokio
@@ -108,7 +106,8 @@ Canonical memory import source: `agentic-core@HEAD`.
 
 ## codex sessions in this repo (AFK-SUPERVISOR S4)
 
-This repo registers mini-agi as an MCP server for codex (`.codex/config.toml`).
+This repo registers mini-agi as an MCP server for codex (`.codex/config.toml`;
+details: `docs/CODEX-INTEGRATION.md`, semantics: `docs/AFK-SUPERVISOR.md`).
 Every codex session here follows the same discipline:
 
 - Session start: `loop_status` (open gaps), `memory_query <topic>` (facts
@@ -120,3 +119,32 @@ Every codex session here follows the same discipline:
   ticket_claim/release, skill_add, harness) require a prompt (HITL) — the
   kernel's memory-signoff gate is human by design (ADR-0010).
 - Verification: `./scripts/verify.sh` ALL GREEN before a run is real.
+
+## Process rules (hard lessons, standards-polish S3)
+
+These rules exist because each one cost real work when violated:
+
+- NEVER fuse destructive commands (pkill, rm -rf, git reset --hard)
+  with edits in one shell line — the pkill killed its own shell before
+  the edit ran, silently losing a fix.
+- NEVER `git checkout -- memory/episodic/checkpoints.log` (or any
+  journal restore): the journal's working-tree lines (a VERIFY-FAIL
+  written by a rollback) are destroyed, leaving an orphan BEGIN that
+  fails the checkpoint audit. Repair through checkpoint.sh only.
+- NEVER chain a `grep -c` (or any 0-matches-command) with `&&` —
+  `grep -c` exits 1 on zero matches and silently breaks the chain
+  (recurring trap this session).
+- Edit scripts that write files MUST write at the end AND never leave
+  a partially-applied change: a python heredoc that aborts on an
+  assert before `open(w)` loses the whole edit silently (lost twice
+  this session — each fix now lands in its own script).
+- The reviewers are DEVIL'S ADVOCATES: adversarial, roasting,
+  evidence-first. A review that finds nothing is suspect; a
+  disposition that rejects a finding must disprove it with evidence,
+  and a reviewer finding that survives current-code verification is
+  accepted even when it contradicts the first impression (F3 in the
+  v3 review was wrongly rejected once — corrected).
+- The human-review gate is per-domain: default system-side review
+  (the kernel's loop + codex reviewer); domains marked HITL-required
+  (frontend) get a mandatory human approval checkpoint — the zero-
+  trust rule the user set.

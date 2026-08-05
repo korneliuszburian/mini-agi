@@ -89,14 +89,21 @@ a required-but-impossible fix (no session) is never silent. Verdict parsing
 is strict (exact tokens, word boundaries) and tolerant (UNPARSEABLE records
 the raw text, never blocks).
 
-## Deferred to v2 (with rationale)
+## The client surface (v3)
 
-- **Loop templates beyond sequential-reviewer** (parallel-planner): the
-  sequential reviewer is shipped; parallel-planner needs a second consumer —
-  revisit when issue-tracker integration lands.
+The MCP bridge — codex sessions launch, poll and read supervised runs
+through the kernel (`loop_run` / `run_status` / `run_report`). Client
+details live in `docs/CODEX-INTEGRATION.md`; this doc covers the
+supervisor SEMANTICS only (cross-referenced, not duplicated).
+
+## Deferred (with rationale)
+
 - **Session resume via stdin prompts**: the prompt currently rides in argv;
   moving it to stdin would hide it from /proc — revisit when the marker
   needs to be a security boundary (it is an ownership token today).
+- **Loop templates beyond sequential-reviewer / parallel-planner**:
+  sequential-reviewer and parallel-planner are SHIPPED; parallel-planner
+  scales when the backlog has many independent verifiable tickets.
 - **Web dashboard**: rejected by research (MCP + CLI + run-report file is the
   right surface for a solo kernel; a dashboard is team tooling).
 
@@ -129,14 +136,15 @@ merge, from a controller-owned location — the `*.blind-hidden` rename
 would race across parallel workers.
 
 Second-opinion validated (VIABLE-WITH-CHANGES, 6 findings) and
-codex-reviewed to APPROVE 8/8.
+codex-reviewed to APPROVE 8/8 (the review records are ephemeral, in
+the gitignored `.krn/`; verdicts are summarized in the CHANGELOG).
 
 ## Self-hosting proofs
 
-- **S6 (v1)**: `loop run afk-max-idle` built the real `--max-idle` flag;
-  kernel verifier passed on attempt 1; `loop verify` closed (0.8409).
-- **S5 (v2)**: `loop run verify-gate-full-output` closed the real gap the
-  kernel itself exposed — verify.sh's `step()` truncated failure output
+- **Proof #1** (`loop run afk-max-idle`, v1): built the real `--max-idle`
+  flag; kernel verifier passed on attempt 1; `loop verify` closed (0.8409).
+- **Proof #2** (`loop run verify-gate-full-output`, v2): closed the real gap
+  the kernel itself exposed — verify.sh's `step()` truncated failure output
   behind `head -20` (the exact gap that hid the vacuous-audit flake for
   hours). The produced change (gate-lib.sh + full line-numbered failure
   output) was verified by the kernel (attempt 3; attempts 2-3 resumed the

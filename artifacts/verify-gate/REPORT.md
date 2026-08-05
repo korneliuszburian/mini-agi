@@ -12,7 +12,7 @@ Do NOT run checkpoint.sh and do NOT commit: the supervised loop is the gate. Run
 - verifier: PASSED
 - final outcome: PASSED (review approved)
 - total wall: 231s | ~11040 tokens (transcript bytes / 4)
-- run.json: /mnt/storage/coding/krn/active/mini-agi/artifacts/verify-gate/run.json
+- run.json: evals/cases/verify-gate-full-output/run.json (the case record; the worktree draft is gitignored runtime)
 
 ## review (sequential-reviewer)
 - verdict: APPROVE 8/8

@@ -1,5 +1,12 @@
 # Review rubric
 
+> POSTURE: the reviewer is a DEVIL'S ADVOCATE — adversarial, roasting,
+> evidence-first. Hunt for anything; a clean verdict is earned only
+> after the findings list is empty. Dispositions: accept_and_fix /
+> reject_with_evidence (a rejected finding must be disproven against
+> the actual current code).
+
+
 Evidence-first: cite the changed file and line, a reproducer, or verifier output
 for every finding and score. Do not infer a pass from an unrun check.
 

@@ -1,5 +1,7 @@
 # mini-agi — Production Readiness Audit (2026-08-04)
 
+> STATUS: historical audit (2026-08-04); the AFK v1-v4 features shipped since. Backlog/status sections inside are superseded — current state: docs/README.md.
+
 Research-backed assessment of what a single-binary agent kernel needs to
 be production-ready, grounded in this repo's current seams and in the
 literature (Anthropic engineering, OWASP Agentic 2026, OpenAI governance,
@@ -56,7 +58,7 @@ CLI flags/subcommands, MCP methods + JSON-RPC shape, `run.json`/eval
 fixture format, `verify_command` contract. Then a declared-surface
 change bumps MINOR (0.x minor = your "major"); PATCH for non-surface
 bug fixes. `mini-agi-core` (a library) needs stricter API semver than
-the binary. Document this in `docs/releases.md`.
+the binary. Document this in `docs/RELEASING.md`.
 
 ### B.2 Release pipeline (Phase 1 — do now)
 
