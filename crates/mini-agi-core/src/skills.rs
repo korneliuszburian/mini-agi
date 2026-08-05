@@ -309,8 +309,8 @@ pub struct VerifyAllReport {
     pub passed: Vec<String>,
     /// Skills whose hook FAILED (the gate fails on these).
     pub failed: Vec<(String, i32)>,
-    /// Skills WITHOUT a verify hook (reported, not failing — most
-    /// skills are reference/procedure skills).
+    /// PROCEDURAL skills without a verify hook (FATAL — the gate
+    /// fails; a mode skill like caveman is legitimately hook-less).
     pub no_hook: Vec<String>,
     /// Skills missing `version` or `source` frontmatter (D5).
     pub no_version: Vec<String>,
@@ -430,7 +430,9 @@ pub fn dual_registration_drift_with(root: &Path, global: &Path) -> DriftReport {
     report
 }
 
-/// Verify every skill's hook; a missing hook is reported, not fatal.
+/// Verify every skill's hook. A missing hook on a PROCEDURAL skill is
+/// reported in `no_hook` and FAILS the caller's gate (mode skills are
+/// exempt); version/lint/drift violations are also reported.
 ///
 /// # Errors
 ///
@@ -466,6 +468,11 @@ pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
 /// must carry name/description/version/source and the body must mark
 /// checkable criteria ("Done when" or "Completion criteria"), so the
 /// gate enforces a contract shape on skills without a shell hook.
+/// Artifact anchors a completion criterion must reference to be
+/// auditable (quoted output / commit / diff / file path) — the lint
+/// rejects self-reports with no artifact anchor.
+const ARTIFACT_ANCHORS: [&str; 6] = ["quoted", "git diff", "commit", "SHA", "file:", "path"];
+
 fn lint_skill(skill: &Skill) -> bool {
     if skill.kind == "mode" {
         return true;
@@ -479,7 +486,17 @@ fn lint_skill(skill: &Skill) -> bool {
     let Ok(content) = std::fs::read_to_string(&skill.path) else {
         return false;
     };
-    content.contains("Done when") || content.contains("Completion criteria")
+    // The criteria marker must exist AND reference an artifact
+    // (quoted output / commit / diff / file path) — a self-report with
+    // no artifact anchor fails the contract lint.
+    let marker = content.contains("Done when") || content.contains("Completion criteria");
+    if !marker {
+        return false;
+    }
+    content.lines().any(|l| {
+        let l = l.to_lowercase();
+        ARTIFACT_ANCHORS.iter().any(|a| l.contains(a))
+    })
 }
 
 /// Verify a skill's hook: run the `verify` frontmatter command from
@@ -965,6 +982,33 @@ description: >
             assert!(
                 matches!(err, SkillError::Unknown(_)),
                 "a symlinked skill dir must be Unknown, got {err:?}"
+            );
+            let _ = fs::remove_dir_all(&root);
+        }
+    }
+
+    #[test]
+    fn discover_skills_rejects_symlinked_skill_directory() {
+        #[cfg(unix)]
+        {
+            let root = tempfile_dir("discover-dir-symlink");
+            let real = root.join("real");
+            fs::create_dir_all(real.join(".agents/skills/real-skill")).unwrap();
+            fs::write(
+                real.join(".agents/skills/real-skill/SKILL.md"),
+                "---\nname: real-skill\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# r\n",
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(".agents/skills")).unwrap();
+            std::os::unix::fs::symlink(
+                real.join(".agents/skills/real-skill"),
+                root.join(".agents/skills/fake"),
+            )
+            .unwrap();
+            let registry = discover_skills(&root).unwrap();
+            assert!(
+                !registry.iter().any(|s| s.name == "fake"),
+                "a symlinked skill dir must not be discovered"
             );
             let _ = fs::remove_dir_all(&root);
         }

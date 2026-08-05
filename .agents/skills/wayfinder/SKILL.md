@@ -266,6 +266,9 @@ be editing the tracker concurrently.
 - [ ] Open tickets are found by query, not enumerated in the map body.
 - [ ] Every ticket has a `wayfinder:<type>` label and a Question body sized
       to one session.
+- [ ] Every resolved ticket's resolution is recorded on the tracker
+      (a visible artifact: the resolution comment / closed issue path),
+      not only asserted in narration.
 - [ ] Claim-before-work: a session never resolves a ticket it did not
       assign to itself first.
 - [ ] No HITL ticket was resolved without the human's side of the exchange.

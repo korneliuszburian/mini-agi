@@ -397,6 +397,70 @@ fn cli_skill_verify_pass_and_fail() {
 }
 
 #[test]
+fn cli_skill_verify_all_fails_on_procedural_nohook() {
+    let root = tmp_root("c12b");
+    wipe(&root);
+    let skills = root.join(".agents/skills");
+    std::fs::create_dir_all(skills.join("hooked")).unwrap();
+    std::fs::create_dir_all(skills.join("nohook")).unwrap();
+    std::fs::write(
+        skills.join("hooked/SKILL.md"),
+        "---
+name: hooked
+description: ok
+version: 1.0.0
+source: s
+verify: 'true'
+---
+## Completion criteria
+- [ ] quoted output
+",
+    )
+    .unwrap();
+    // A PROCEDURAL skill (default type) without a verify hook -> the
+    // gate must fail.
+    std::fs::write(
+        skills.join("nohook/SKILL.md"),
+        "---
+name: nohook
+description: no hook
+version: 1.0.0
+source: s
+---
+## Completion criteria
+- [ ] quoted output
+",
+    )
+    .unwrap();
+    let all = run(&root, &["skill", "verify", "--all"]);
+    assert_eq!(
+        all.status.code(),
+        Some(1),
+        "a procedural skill without a verify hook must fail the gate"
+    );
+    assert!(String::from_utf8_lossy(&all.stderr).contains("without a verify hook"));
+    // The mode exemption: a type: mode skill without a hook passes.
+    std::fs::write(
+        skills.join("nohook/SKILL.md"),
+        "---
+name: nohook
+description: no hook
+version: 1.0.0
+source: s
+type: mode
+---
+",
+    )
+    .unwrap();
+    let all = run(&root, &["skill", "verify", "--all"]);
+    assert!(
+        all.status.success(),
+        "a mode skill without a hook is allowed"
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_skill_add_installs_from_local_git() {
     let root = tmp_root("c13");
     wipe(&root);
