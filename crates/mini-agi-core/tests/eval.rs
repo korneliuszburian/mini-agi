@@ -68,6 +68,7 @@ fn scores_reproduce_poc_baseline_on_all_cases() {
         "real-ticket-007-v2",
         "real-ticket-007-v2-rerun",
         "real-ticket-008-v2",
+        "afk-max-idle",
     ] {
         let report = score_run(&cases.join(case).join("run.json"), &root, &golden).unwrap();
         scored.push((case.to_string(), report));
