@@ -415,7 +415,8 @@ fn distill_failure(attempt: usize, verifier_output: &str) -> String {
         "- the verifier FAILED on attempt {attempt}. The failing cases (fix each; do not repeat them):\n"
     );
     for (i, c) in cases.iter().enumerate() {
-        out.push_str(&format!("  {}. {c}\n", i + 1));
+        use std::fmt::Write as _;
+        let _ = write!(out, "  {}. {c}\n", i + 1);
     }
     out
 }
