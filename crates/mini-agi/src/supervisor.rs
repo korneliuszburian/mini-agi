@@ -167,14 +167,19 @@ pub fn parse_review_verdict(text: &str) -> ReviewVerdict {
                 _ => {}
             }
             // "Verdict: REWORK, score 2/8" — the score may sit on the
-            // Verdict line after the verdict word (word boundary check).
+            // Verdict line after the verdict word. Word boundary on BOTH
+            // sides: "xscore 2/8" must be rejected (left boundary).
             if let Some(idx) = v.find("score") {
+                let left_ok = v[..idx]
+                    .chars()
+                    .next_back()
+                    .is_none_or(|c| !c.is_ascii_alphanumeric() && c != '_');
                 let rest = &v[idx + "score".len()..];
-                if rest
+                let right_ok = rest
                     .chars()
                     .next()
-                    .is_none_or(|c| c.is_whitespace() || c == ':' || c == '/')
-                {
+                    .is_none_or(|c| c.is_whitespace() || c == ':' || c == '/');
+                if left_ok && right_ok {
                     for tok in rest.split(|c: char| !c.is_ascii_digit() && c != '/') {
                         if let Some(s) = tok.strip_suffix("/8")
                             && let Ok(n) = s.parse::<u8>()
@@ -744,6 +749,10 @@ mod tests {
         assert_eq!(v.score, None);
         // "scoreboard 7/8" is NOT the keyword (F5).
         let v = parse_review_verdict("Verdict: REWORK\nscoreboard 7/8");
+        assert_eq!(v.score, None);
+        // "xscore 2/8" on the Verdict line is NOT the keyword either
+        // (left word boundary, final review).
+        let v = parse_review_verdict("Verdict: REWORK, xscore 2/8");
         assert_eq!(v.score, None);
     }
 
