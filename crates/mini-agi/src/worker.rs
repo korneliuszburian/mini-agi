@@ -474,10 +474,10 @@ fn distill_failure(attempt: usize, verifier_output: &str) -> String {
     for (i, c) in cases.iter().enumerate() {
         use std::fmt::Write as _;
         let _ = write!(out, "  {}. {c}", i + 1);
-        if attempt > 1 {
-            if let Some((_, detail)) = details.iter().find(|(n, _)| n == c) {
-                let _ = write!(out, " — {detail}");
-            }
+        if attempt > 1
+            && let Some((_, detail)) = details.iter().find(|(n, _)| n == c)
+        {
+            let _ = write!(out, " — {detail}");
         }
         let _ = writeln!(out);
     }
