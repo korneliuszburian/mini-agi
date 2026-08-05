@@ -32,6 +32,15 @@ pub fn source_sha256(text: &str) -> String {
     hex_prefix(&Sha256::digest(text.as_bytes()))
 }
 
+/// Compute the 16-hex-char source hash for RAW BYTES (binary-safe).
+///
+/// Used by the skill-drift check: lossy text conversion would collapse
+/// distinct malformed byte sequences onto one replacement character.
+#[must_use]
+pub fn source_sha256_bytes(bytes: &[u8]) -> String {
+    hex_prefix(&Sha256::digest(bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

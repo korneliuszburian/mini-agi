@@ -300,19 +300,19 @@ fn skill_hash(dir: &Path) -> Option<String> {
     let mut files: Vec<PathBuf> = Vec::new();
     collect_files(dir, &mut files)?;
     files.sort();
-    let mut acc = String::new();
+    let mut acc: Vec<u8> = Vec::new();
     for f in files {
-        let rel = f.strip_prefix(dir).ok()?.to_string_lossy().into_owned();
-        acc.push_str(&rel);
-        // RAW byte hashing: distinct malformed byte sequences must not
-        // collapse onto one replacement character.
+        let rel = f.strip_prefix(dir).ok()?;
+        let rel_bytes = rel.as_os_str().as_encoded_bytes();
+        // FRAMED hashing: length-prefix every piece (rel path, then
+        // raw content) so `a`+`bcde` cannot collide with `abc`+`de`.
+        acc.extend_from_slice(&(rel_bytes.len() as u64).to_le_bytes());
+        acc.extend_from_slice(rel_bytes);
         let bytes = std::fs::read(&f).ok()?;
-        for b in bytes {
-            use std::fmt::Write as _;
-            let _ = write!(acc, "{b:02x}");
-        }
+        acc.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+        acc.extend_from_slice(&bytes);
     }
-    Some(crate::hash::source_sha256(&acc))
+    Some(crate::hash::source_sha256_bytes(&acc))
 }
 
 /// Recursive file collector for `skill_hash`; returns None on a
@@ -502,16 +502,22 @@ pub fn install_skills(root: &Path, source: &str) -> Result<Vec<String>, SkillErr
         let entries = fs::read_dir(&repo_skills).map_err(SkillError::Io)?;
         for entry in entries {
             let entry = entry.map_err(SkillError::Io)?;
-            if !entry.path().is_dir() {
+            // symlink_metadata: a symlinked skill dir or manifest must
+            // not be followed at install.
+            let meta = std::fs::symlink_metadata(entry.path()).map_err(SkillError::Io)?;
+            if !meta.is_dir() || meta.file_type().is_symlink() {
                 continue;
             }
             let skill_md = entry.path().join("SKILL.md");
-            if skill_md.is_file() {
+            let md = std::fs::symlink_metadata(&skill_md);
+            if md.is_ok_and(|m| m.is_file() && !m.file_type().is_symlink()) {
                 let name = install_one(root, &skill_md)?;
                 installed.push(name);
             }
         }
-    } else if staging.join("SKILL.md").is_file() {
+    } else if std::fs::symlink_metadata(staging.join("SKILL.md"))
+        .is_ok_and(|m| m.is_file() && !m.file_type().is_symlink())
+    {
         installed.push(install_one(root, &staging.join("SKILL.md"))?);
     } else {
         return Err(SkillError::Parse(
@@ -554,23 +560,7 @@ fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
         return Ok(skill.name);
     }
     if dest.exists() {
-        // Collision-free backup name (secs + nanos), and an existing
-        // backup is NEVER deleted: two reinstalls within the same
-        // second must not erase the first preserved tree.
-        let base = dest
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let mut backup = dest.with_file_name(format!("{base}.local-before-{stamp}"));
-        let mut n = 0u32;
-        while backup.exists() {
-            n += 1;
-            backup = dest.with_file_name(format!("{base}.local-before-{stamp}-{n}"));
-        }
+        let backup = next_backup_path(&dest);
         fs::rename(&dest, &backup).map_err(SkillError::Io)?;
     }
     fs::create_dir_all(&dest).map_err(SkillError::Io)?;
@@ -592,6 +582,39 @@ fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
         }
     }
     Ok(skill.name)
+}
+
+/// Collision-free backup path for a skill dir being replaced: the
+/// base name + `.local-before-<nanos>` + an incrementing counter when
+/// the name already exists. An existing backup is NEVER deleted.
+/// The base backup name for a skill dir + stamp (pure, testable).
+fn backup_name(dest: &Path, stamp: u128) -> PathBuf {
+    let base = dest
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    dest.with_file_name(format!("{base}.local-before-{stamp}"))
+}
+
+/// Collision-free backup path for a skill dir being replaced: the
+/// base name + `.local-before-<nanos>` + an incrementing counter when
+/// the name already exists. An existing backup is NEVER deleted.
+fn next_backup_path(dest: &Path) -> PathBuf {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let mut backup = backup_name(dest, stamp);
+    let mut n = 0u32;
+    while backup.exists() {
+        n += 1;
+        let base = backup_name(dest, stamp);
+        backup = base.with_extension(format!(
+            "{}-{n}",
+            base.extension().unwrap_or_default().to_string_lossy()
+        ));
+    }
+    backup
 }
 
 fn copy_dir(src: &Path, dest: &Path) -> Result<(), SkillError> {
@@ -802,6 +825,74 @@ description: >
             "an aux change must not be ignored just because SKILL.md matches"
         );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn next_backup_path_collision_free_and_never_deletes() {
+        let root = tempfile_dir("backup-name");
+        let dest = root.join(".agents/skills/demo");
+        fs::create_dir_all(&dest).unwrap();
+        // Fixed stamp: the exact-name collision branch is deterministic.
+        let first = backup_name(&dest, 42);
+        fs::create_dir_all(&first).unwrap();
+        fs::write(first.join("SKILL.md"), "precious").unwrap();
+        let mut backup = backup_name(&dest, 42);
+        let mut n = 0u32;
+        while backup.exists() {
+            n += 1;
+            let base = backup_name(&dest, 42);
+            backup = base.with_extension(format!(
+                "{}-{n}",
+                base.extension().unwrap_or_default().to_string_lossy()
+            ));
+        }
+        assert!(n >= 1, "a collision must increment the counter");
+        assert!(backup.to_string_lossy().ends_with("-1"));
+        assert!(
+            first.join("SKILL.md").is_file(),
+            "the pre-existing backup is never deleted"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn install_rejects_symlinked_skill_sources() {
+        #[cfg(unix)]
+        {
+            let root = tempfile_dir("install-symlink");
+            let src = root.join("src");
+            let outer = src.join(".agents/skills");
+            fs::create_dir_all(&outer).unwrap();
+            // A REAL skill dir + a symlinked one; the source is a git
+            // repo (install_skills clones).
+            fs::create_dir_all(outer.join("real")).unwrap();
+            fs::write(
+                outer.join("real/SKILL.md"),
+                "---\nname: real\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# r\n",
+            )
+            .unwrap();
+            std::os::unix::fs::symlink(outer.join("real"), outer.join("fake")).unwrap();
+            let git = |args: &[&str]| {
+                assert!(
+                    std::process::Command::new("git")
+                        .args(args)
+                        .current_dir(&src)
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+            };
+            git(&["init", "-q", "-b", "master"]);
+            git(&["add", "-A"]);
+            git(&["commit", "-qm", "base"]);
+            let installed = install_skills(&root, &src.to_string_lossy()).unwrap();
+            assert_eq!(installed, vec!["real"]);
+            assert!(
+                !root.join(".agents/skills/fake").exists(),
+                "a symlinked skill dir must not be installed"
+            );
+            let _ = fs::remove_dir_all(&root);
+        }
     }
 
     #[test]
