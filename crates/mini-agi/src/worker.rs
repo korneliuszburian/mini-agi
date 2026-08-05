@@ -270,12 +270,23 @@ pub fn run_verified_iteration(
     // Session-ownership marker (codex review F1): a run-unique string
     // embedded ONLY in the worker's prompt; the session whose rollout
     // file contains it is provably the worker's (content match beats the
-    // newest-file heuristic under concurrent codex processes).
-    let marker = format!(
-        "SESS-OWN-{}-{}",
-        std::process::id(),
-        SESSION_MARKER_NONCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    );
+    // newest-file heuristic under concurrent codex processes). The
+    // marker is a hash of (now, pid, counter) — unpredictable, so no
+    // other process can accidentally record it. It is an OWNERSHIP
+    // token, not an auth boundary.
+    let marker_nonce = SESSION_MARKER_NONCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let marker = {
+        use std::hash::{BuildHasher, Hasher};
+        let mut h = std::hash::RandomState::new().build_hasher();
+        h.write_u128(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos()),
+        );
+        h.write_u64(std::process::id().into());
+        h.write_u64(marker_nonce);
+        format!("SESS-OWN-{:016x}", h.finish())
+    };
     let base_prompt = format!(
         "{}\n\n{protocol}\n\n<session-marker>{marker}</session-marker>\n",
         input.spec_text

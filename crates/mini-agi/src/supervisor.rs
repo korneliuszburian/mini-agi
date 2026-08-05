@@ -722,6 +722,9 @@ mod tests {
         let v = parse_review_verdict("Verdict: REWORK\nwe saw 3/8 failures");
         assert_eq!(v.verdict, "REWORK");
         assert_eq!(v.score, None);
+        // "scoreboard 7/8" is NOT the keyword (F5).
+        let v = parse_review_verdict("Verdict: REWORK\nscoreboard 7/8");
+        assert_eq!(v.score, None);
     }
 
     #[test]
