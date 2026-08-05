@@ -164,6 +164,14 @@ struct CodexArgs {
     /// N attempts (default 1 = single shot).
     #[arg(long, default_value_t = 1)]
     iterate: usize,
+    /// Blind-worker mode (EXP-012 isolation as a capability): the
+    /// verifier's hidden suite is moved away during the worker run.
+    #[arg(long)]
+    blind_worker: bool,
+    /// The verifier's private hidden-suite directory (required with
+    /// --blind-worker).
+    #[arg(long)]
+    hidden_dir: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -591,6 +599,8 @@ fn main() -> ExitCode {
             worker_name,
             approve,
             iterate,
+            blind_worker,
+            hidden_dir,
         }) => reparse_log.map_or_else(
             || {
                 worker::cmd_codex(&worker::CodexRunArgs {
@@ -605,6 +615,8 @@ fn main() -> ExitCode {
                     worker_name,
                     approve,
                     iterate,
+                    blind_worker,
+                    hidden_dir,
                 })
             },
             |log| {

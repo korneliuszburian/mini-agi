@@ -84,6 +84,14 @@ pub struct CodexRunArgs<'a> {
     /// failure, re-invoke the worker with the distilled failure
     /// register. 1 = single shot (default).
     pub iterate: usize,
+    /// Blind-worker mode (EXP-012's isolation as a capability): the
+    /// verifier's hidden suite is moved away during the worker's run so
+    /// the worker genuinely cannot self-verify — the kernel's loop is
+    /// the ONLY feedback path. Requires `hidden_dir`.
+    pub blind_worker: bool,
+    /// The verifier's private hidden-suite directory (moved away during
+    /// a blind-worker run, restored before verification).
+    pub hidden_dir: Option<std::path::PathBuf>,
 }
 
 /// Run codex on a slice spec, capture the transcript, emit a truthful
@@ -99,6 +107,8 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     let max_steps = args.max_steps;
     let no_sandbox = args.no_sandbox;
     let iterate = args.iterate;
+    let blind_worker = args.blind_worker;
+    let hidden_dir = args.hidden_dir.as_deref();
     let spec_text = match std::fs::read_to_string(spec) {
         Ok(t) => t,
         Err(e) => return fail(&format!("cannot read spec {}: {e}", spec.display())),
@@ -196,6 +206,20 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
             "--skip-git-repo-check",
             &prompt,
         ];
+        // Blind-worker mode: the hidden suite is unavailable to the
+        // worker — the kernel's loop is the only feedback path.
+        let hidden_away = if blind_worker {
+            match hidden_dir {
+                Some(dir) => hide_verifier(dir).unwrap_or(false),
+                None => {
+                    return fail(
+                        "refusing blind-worker mode without --hidden-dir (the isolation                          requires the verifier's hidden suite to be movable)",
+                    );
+                }
+            }
+        } else {
+            false
+        };
         let worker = match run_worker_sandboxed(
             worker_name,
             workdir,
@@ -205,8 +229,16 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
             &worker_args,
         ) {
             Ok(w) => w,
-            Err(e) => return fail(&format!("{worker_name} not available: {e}")),
+            Err(e) => {
+                if hidden_away && let Some(dir) = hidden_dir {
+                    let _ = restore_verifier(dir);
+                }
+                return fail(&format!("{worker_name} not available: {e}"));
+            }
         };
+        if hidden_away && let Some(dir) = hidden_dir {
+            let _ = restore_verifier(dir);
+        }
         let combined = worker.output;
         final_wall = worker.wall_seconds;
         std::fs::write(
@@ -297,6 +329,31 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     } else {
         exit
     }
+}
+
+/// Blind-worker isolation (EXP-012 as a capability): move the verifier's
+/// hidden-suite directory aside so the worker cannot self-verify.
+/// Returns true when the directory was moved.
+fn hide_verifier(hidden_dir: &Path) -> std::io::Result<bool> {
+    if !hidden_dir.exists() {
+        return Ok(false);
+    }
+    let away = hidden_dir.with_extension("blind-hidden");
+    if away.exists() {
+        let _ = std::fs::remove_dir_all(&away);
+    }
+    std::fs::rename(hidden_dir, &away)?;
+    Ok(true)
+}
+
+/// Restore the hidden-suite directory after the worker run.
+fn restore_verifier(hidden_dir: &Path) -> std::io::Result<bool> {
+    let away = hidden_dir.with_extension("blind-hidden");
+    if !away.exists() {
+        return Ok(false);
+    }
+    std::fs::rename(&away, hidden_dir)?;
+    Ok(true)
 }
 
 /// Distill a verifier failure into a compact, single-sentence binding
@@ -480,5 +537,34 @@ mod iteration_tests {
     fn resolve_worker_name_defaults_to_codex() {
         assert_eq!(resolve_worker_name(None), "codex");
         assert_eq!(resolve_worker_name(Some("claude")), "claude");
+    }
+}
+
+#[cfg(test)]
+mod blind_worker_tests {
+    use super::*;
+
+    #[test]
+    fn hide_and_restore_moves_the_suite() {
+        let root = std::env::temp_dir().join(format!("mag-bw-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let hidden = root.join("hidden-suite");
+        std::fs::create_dir_all(&hidden).unwrap();
+        std::fs::write(hidden.join("test_hidden.py"), "pass").unwrap();
+        // Hide: the suite is gone from its place.
+        assert!(hide_verifier(&hidden).unwrap());
+        assert!(!hidden.exists());
+        assert!(hidden.with_extension("blind-hidden").exists());
+        // Restore: back in place, suite intact.
+        assert!(restore_verifier(&hidden).unwrap());
+        assert!(hidden.join("test_hidden.py").is_file());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn hide_of_missing_dir_is_a_noop() {
+        let root = std::env::temp_dir().join(format!("mag-bw2-{}", std::process::id()));
+        assert!(!hide_verifier(&root.join("nope")).unwrap());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
