@@ -2079,14 +2079,17 @@ fn finish_loop_run(args: &supervisor::SupervisorArgs<'_>) -> ExitCode {
     match supervisor::run(args) {
         Ok(result) => {
             println!(
-                "supervised run: attempts={} verifier_passed={}",
-                result.iteration.attempts_done, result.iteration.verifier_passed
+                "supervised run: attempts={} verifier_passed={} final={} ({})",
+                result.iteration.attempts_done,
+                result.iteration.verifier_passed,
+                result.final_passed,
+                result.final_reason
             );
             println!("  progress: {}", result.progress_path.display());
             println!("  report: {}", result.report_path.display());
             if result.iteration.aborted {
                 ExitCode::from(3)
-            } else if result.iteration.verifier_passed {
+            } else if result.final_passed {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)

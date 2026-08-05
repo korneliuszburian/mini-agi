@@ -94,6 +94,9 @@ pub struct CodexRunArgs<'a> {
     pub hidden_dir: Option<std::path::PathBuf>,
 }
 
+/// Process-wide nonce for session-ownership markers.
+static SESSION_MARKER_NONCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// Inputs for the verified-iteration core (AFK supervisor S1: the
 /// iteration loop extracted from `cmd_codex` so the supervisor reuses
 /// it instead of duplicating).
@@ -196,46 +199,52 @@ pub struct IterationResult {
     pub run: serde_json::Value,
 }
 
-/// The session id of the newest codex rollout file under
-/// `~/.codex/sessions/YYYY/MM/DD/` (AFK v2 session resume). Filenames
-/// are `rollout-<ts>-<uuid>.jsonl`; the uuid is the last five
-/// dash-segments. `None` when no session file exists.
-fn latest_session_id(home: &Path) -> Option<String> {
+/// Find the session whose rollout file CONTAINS the ownership marker
+/// (AFK v2 session resume, codex review F1): content match establishes
+/// ownership — the worker's session is the one that recorded OUR prompt
+/// (the marker is embedded in the base prompt). A newest-file heuristic
+/// would attribute ANY concurrent codex process's session (e.g. an IDE
+/// session) to the worker; content matching cannot.
+fn find_session_with_marker(home: &Path, marker: &str) -> Option<String> {
     let sessions_root = home.join(".codex/sessions");
-    let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
-    scan_sessions(&sessions_root, &mut newest);
-    let (_, path) = newest?;
-    let name = path.file_name()?.to_string_lossy().into_owned();
-    let body = name.strip_prefix("rollout-")?.strip_suffix(".jsonl")?;
-    let parts: Vec<&str> = body.split('-').collect();
-    if parts.len() < 5 {
-        return None;
+    let mut files: Vec<PathBuf> = Vec::new();
+    collect_session_files(&sessions_root, &mut files);
+    // Newest first: the worker's session is the newest file carrying the
+    // marker (the marker appears in exactly one session — ours).
+    files.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+    for p in files.into_iter().rev() {
+        let Ok(text) = std::fs::read_to_string(&p) else {
+            continue;
+        };
+        if text.contains(marker) {
+            let name = p.file_name()?.to_string_lossy().into_owned();
+            let body = name.strip_prefix("rollout-")?.strip_suffix(".jsonl")?;
+            let parts: Vec<&str> = body.split('-').collect();
+            if parts.len() < 5 {
+                continue;
+            }
+            return Some(parts[parts.len() - 5..].join("-"));
+        }
     }
-    Some(parts[parts.len() - 5..].join("-"))
+    None
 }
 
-/// Recursive scanner for `latest_session_id`.
-fn scan_sessions(dir: &Path, newest: &mut Option<(std::time::SystemTime, PathBuf)>) {
+/// Recursive collector of rollout files for `find_session_with_marker`.
+fn collect_session_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
     for e in entries.flatten() {
         let p = e.path();
         if p.is_dir() {
-            scan_sessions(&p, newest);
+            collect_session_files(&p, out);
             continue;
         }
         let Some(name) = p.file_name().map(|n| n.to_string_lossy().into_owned()) else {
             continue;
         };
-        if !name.to_lowercase().ends_with(".jsonl") || !name.starts_with("rollout-") {
-            continue;
-        }
-        let mtime = std::fs::metadata(&p).and_then(|m| m.modified()).ok();
-        if let Some(mt) = mtime
-            && newest.as_ref().is_none_or(|(best, _)| mt > *best)
-        {
-            *newest = Some((mt, p));
+        if name.to_lowercase().ends_with(".jsonl") && name.starts_with("rollout-") {
+            out.push(p);
         }
     }
 }
@@ -258,7 +267,19 @@ pub fn run_verified_iteration(
     mut progress: impl FnMut(ProgressEvent),
 ) -> Result<IterationResult, String> {
     let protocol = "IMPLEMENTATION PROTOCOL (binding): plan first, tests first, never repeat a failing action. When the work is done and your own gate passes, END YOUR FINAL MESSAGE with:\n<promise>COMPLETE</promise>\n<result>{\"summary\": \"one sentence\"}</result>";
-    let base_prompt = format!("{}\n\n{protocol}\n", input.spec_text);
+    // Session-ownership marker (codex review F1): a run-unique string
+    // embedded ONLY in the worker's prompt; the session whose rollout
+    // file contains it is provably the worker's (content match beats the
+    // newest-file heuristic under concurrent codex processes).
+    let marker = format!(
+        "SESS-OWN-{}-{}",
+        std::process::id(),
+        SESSION_MARKER_NONCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
+    let base_prompt = format!(
+        "{}\n\n{protocol}\n\n<session-marker>{marker}</session-marker>\n",
+        input.spec_text
+    );
     let log_path = input.workdir.join("codex.log");
     let mut all_steps: Vec<mini_agi_core::capture::CapturedStep> = Vec::new();
     let mut attempt_verdicts: Vec<serde_json::Value> = Vec::new();
@@ -347,12 +368,11 @@ pub fn run_verified_iteration(
         let idle_cap = input
             .max_idle
             .or_else(|| mini_agi_core::config::Config::load(input.workdir).max_idle_seconds);
-        // Session resume (AFK v2): snapshot the newest session BEFORE
-        // the run; after the run the worker's own session is the newest
-        // file with a newer mtime (the supervisor runs serially).
+        // Session resume (AFK v2): ownership via the marker — the
+        // worker's session is the one containing OUR marker.
         let session_before = std::env::var_os("HOME")
             .map(PathBuf::from)
-            .and_then(|h| latest_session_id(&h));
+            .and_then(|h| find_session_with_marker(&h, &marker));
         let worker = match run_worker_sandboxed(
             input.worker_name,
             input.workdir,
@@ -375,7 +395,7 @@ pub fn run_verified_iteration(
         }
         let worker_session = std::env::var_os("HOME")
             .map(PathBuf::from)
-            .and_then(|h| latest_session_id(&h))
+            .and_then(|h| find_session_with_marker(&h, &marker))
             .filter(|id| session_before.as_ref() != Some(id));
         if worker_session.is_some() {
             resume_session.clone_from(&worker_session);
@@ -1049,13 +1069,16 @@ mod session_resume_tests {
     #[test]
     fn no_sessions_yields_none() {
         let home = tmp_home("none");
-        assert_eq!(latest_session_id(&home), None);
+        assert_eq!(find_session_with_marker(&home, "SESS-OWN-1-1"), None);
         let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]
-    fn newest_rollout_wins_and_uuid_is_last_five_segments() {
-        let home = tmp_home("newest");
+    fn marker_ownership_beats_newest_file() {
+        // A NEWER session WITHOUT our marker (e.g. an IDE session) must
+        // NOT be attributed to the worker — the marker match decides
+        // (codex review F1).
+        let home = tmp_home("own");
         write_rollout(
             &home,
             "05",
@@ -1068,11 +1091,32 @@ mod session_resume_tests {
             "2026-08-06T09-00-00-019fd199-aaaa-bbbb-cccc-ddddeeee0001",
             "019fd199-aaaa-bbbb-cccc-ddddeeee0001",
         );
-        // The newest file by mtime wins (creation order = mtime order
-        // here; the name is not the signal).
-        std::fs::write(&newer, "{}").unwrap();
-        let id = latest_session_id(&home).unwrap();
-        assert_eq!(id, "019fd199-aaaa-bbbb-cccc-ddddeeee0001");
+        // The marker sits in the OLDER session (the worker's); the newer
+        // file (someone else's session) must lose.
+        let dir = home.join(".codex/sessions/2026/08/05");
+        let worker_file =
+            dir.join("rollout-2026-08-05T09-00-00-019fd196-d25d-7390-bbaa-bca2d026e17c.jsonl");
+        std::fs::write(&worker_file, "user: SESS-OWN-1-1 marker recorded").unwrap();
+        std::fs::write(&newer, "unrelated content").unwrap();
+        let id = find_session_with_marker(&home, "SESS-OWN-1-1").unwrap();
+        assert_eq!(id, "019fd196-d25d-7390-bbaa-bca2d026e17c");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn no_marker_match_yields_none() {
+        let home = tmp_home("nomatch");
+        write_rollout(
+            &home,
+            "05",
+            "2026-08-05T09-00-00-019fd196-d25d-7390-bbaa-bca2d026e17c",
+            "019fd196-d25d-7390-bbaa-bca2d026e17c",
+        );
+        assert_eq!(
+            find_session_with_marker(&home, "SESS-OWN-MISSING"),
+            None,
+            "a session without the marker is not the worker's"
+        );
         let _ = std::fs::remove_dir_all(&home);
     }
 
@@ -1081,9 +1125,8 @@ mod session_resume_tests {
         let home = tmp_home("malformed");
         let dir = home.join(".codex/sessions/2026/08/05");
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("rollout-too-short.jsonl"), "{}").unwrap();
-        std::fs::write(dir.join("other-file.jsonl"), "{}").unwrap();
-        assert_eq!(latest_session_id(&home), None);
+        std::fs::write(dir.join("rollout-too-short.jsonl"), "SESS-OWN-1-1").unwrap();
+        assert_eq!(find_session_with_marker(&home, "SESS-OWN-1-1"), None);
         let _ = std::fs::remove_dir_all(&home);
     }
 

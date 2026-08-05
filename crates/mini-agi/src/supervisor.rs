@@ -86,6 +86,48 @@ pub struct SupervisorArgs<'a> {
     pub report: Option<&'a Path>,
 }
 
+/// Final outcome resolution (codex review F2/F3): the pre-review
+/// iteration verdict is NOT the authority once a fix pass ran or was
+/// required-but-impossible. Returns the final verifier-passed flag and
+/// the reason recorded in the report/hook/exit.
+#[must_use]
+pub fn resolve_final_outcome(
+    iteration_passed: bool,
+    template_used: bool,
+    verdict: &str,
+    session: Option<&str>,
+    fix_passed: Option<bool>,
+) -> (bool, String) {
+    if !template_used {
+        return (iteration_passed, "verified iteration".to_string());
+    }
+    match verdict {
+        "APPROVE" => (iteration_passed, "review approved".to_string()),
+        "UNPARSEABLE" => (
+            iteration_passed,
+            "review unparseable — disposition recorded".to_string(),
+        ),
+        // REWORK / FIX-MINOR: the review demands changes.
+        _ => match (session, fix_passed) {
+            (Some(_), Some(p)) => {
+                if p {
+                    (true, "fix verifier passed".to_string())
+                } else {
+                    (
+                        false,
+                        "fix verifier FAILED — the fix regressed or missed".to_string(),
+                    )
+                }
+            }
+            (None, _) => (
+                false,
+                "fix required by review but no worker session to resume".to_string(),
+            ),
+            (Some(_), None) => (false, "fix attempt did not run".to_string()),
+        },
+    }
+}
+
 /// A parsed review verdict (sequential-reviewer template).
 #[derive(Debug, Clone)]
 pub struct ReviewVerdict {
@@ -111,21 +153,32 @@ pub fn parse_review_verdict(text: &str) -> ReviewVerdict {
         let l = line.trim();
         if let Some(v) = l.strip_prefix("Verdict:") {
             let v = v.trim();
-            if v.starts_with("APPROVE") {
-                verdict = "APPROVE".into();
-            } else if v.starts_with("FIX-MINOR") {
-                verdict = "FIX-MINOR".into();
-            } else if v.starts_with("REWORK") {
-                verdict = "REWORK".into();
+            // Exact token match (codex review F5): "APPROVED"/"REWORKING"
+            // must NOT match "APPROVE"/"REWORK".
+            let word: String = v
+                .split(|c: char| !c.is_ascii_alphanumeric() && c != '-')
+                .next()
+                .unwrap_or("")
+                .to_string();
+            match word.as_str() {
+                "APPROVE" => verdict = "APPROVE".into(),
+                "FIX-MINOR" => verdict = "FIX-MINOR".into(),
+                "REWORK" => verdict = "REWORK".into(),
+                _ => {}
             }
         }
-        // The score may sit on the Verdict line ("score 2/8") or on its
-        // own line — scan every line for the X/8 pattern.
-        for tok in l.split(|c: char| !c.is_ascii_digit() && c != '/') {
-            if let Some(s) = tok.strip_suffix("/8")
-                && let Ok(n) = s.parse::<u8>()
-            {
-                score = Some(n.min(8));
+        // The score requires the "score" keyword (F5): a bare "X/8"
+        // token anywhere must not set it.
+        if let Some(rest) = l
+            .strip_prefix("score")
+            .or_else(|| l.find("score").map(|i| &l[i + "score".len()..]))
+        {
+            for tok in rest.split(|c: char| !c.is_ascii_digit() && c != '/') {
+                if let Some(s) = tok.strip_suffix("/8")
+                    && let Ok(n) = s.parse::<u8>()
+                {
+                    score = Some(n.min(8));
+                }
             }
         }
         if l.starts_with("Top findings") || l.starts_with("Findings:") {
@@ -160,6 +213,10 @@ pub struct SupervisorResult {
     pub report_path: PathBuf,
     /// The progress.md path written.
     pub progress_path: PathBuf,
+    /// The final verifier-passed flag (after the review/fix gate).
+    pub final_passed: bool,
+    /// Why (recorded in the report/hook/exit).
+    pub final_reason: String,
 }
 
 /// Run the supervised verified-iteration loop: writes progress.md per
@@ -237,6 +294,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
     // the produced work; REWORK/FIX-MINOR triggers ONE fix attempt via
     // the worker's session resume, then the verifier re-runs.
     let mut review: Option<ReviewVerdict> = None;
+    let mut fix_passed: Option<bool> = None;
     if args.template == Some("sequential-reviewer") && iteration.verifier_passed {
         let review_text = run_review_pass(args)?;
         let verdict = parse_review_verdict(&review_text);
@@ -274,7 +332,9 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
                 &fix_prompt,
             ];
             let wall_cap = args.wall_cap.unwrap_or(600);
-            let idle_cap = mini_agi_core::config::Config::load(args.workdir).max_idle_seconds;
+            let idle_cap = args
+                .max_idle
+                .or_else(|| mini_agi_core::config::Config::load(args.workdir).max_idle_seconds);
             let fix = worker::run_worker_sandboxed(
                 args.worker_name,
                 args.workdir,
@@ -292,6 +352,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
             );
             let passed_after_fix =
                 fix.is_ok() && verifier.is_ok_and(|v| !v.aborted && v.status == Some(0));
+            fix_passed = Some(passed_after_fix);
             append_progress(
                 &progress_path,
                 &format!(
@@ -303,6 +364,14 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         }
     }
 
+    let (final_passed, final_reason) = resolve_final_outcome(
+        iteration.verifier_passed,
+        args.template.is_some(),
+        review.as_ref().map_or("", |v| v.verdict.as_str()),
+        iteration.resume_session.as_deref(),
+        fix_passed,
+    );
+
     // Persist the run draft (the run.json the verifier/loop verify use):
     // the supervisor owns the run record. The run's claim is backed by
     // the kernel's in-loop verifier result (achieved = verifier_passed),
@@ -310,7 +379,8 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
     // by `run verify` / `loop verify` — the in-loop pass is iteration
     // feedback; the claim stays the run's own until then.
     let mut run = iteration.run.clone();
-    run["outcome"]["achieved"] = serde_json::json!(iteration.verifier_passed);
+    run["outcome"]["achieved"] = serde_json::json!(final_passed);
+    run["final_reason"] = serde_json::json!(final_reason);
     let draft_path = args
         .run_out
         .unwrap_or(&args.workdir.join("run.json"))
@@ -339,6 +409,11 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         } else {
             "NOT PASSED"
         }
+    );
+    let _ = writeln!(
+        report,
+        "- final outcome: {} ({final_reason})",
+        if final_passed { "PASSED" } else { "NOT PASSED" }
     );
     let _ = writeln!(
         report,
@@ -378,7 +453,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
     if let Some(cmd) = args.on_done {
         let outcome = if iteration.aborted {
             "3"
-        } else if iteration.verifier_passed {
+        } else if final_passed {
             "0"
         } else {
             "1"
@@ -398,6 +473,8 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         iteration,
         report_path,
         progress_path,
+        final_passed,
+        final_reason,
     })
 }
 
@@ -507,7 +584,9 @@ fn run_review_pass(args: &SupervisorArgs<'_>) -> Result<String, String> {
         args.goal
     );
     let review_args = vec!["exec", "-s", "read-only", "--skip-git-repo-check", &prompt];
-    let idle_cap = mini_agi_core::config::Config::load(args.workdir).max_idle_seconds;
+    let idle_cap = args
+        .max_idle
+        .or_else(|| mini_agi_core::config::Config::load(args.workdir).max_idle_seconds);
     let review = worker::run_worker_sandboxed(
         args.worker_name,
         args.workdir,
@@ -602,6 +681,47 @@ mod tests {
         );
         assert_eq!(v.verdict, "FIX-MINOR");
         assert_eq!(v.score, Some(6));
+    }
+
+    #[test]
+    fn final_outcome_respects_the_fix_gate() {
+        // No template: the iteration verdict is final.
+        assert!(resolve_final_outcome(true, false, "", None, None).0);
+        // APPROVE / UNPARSEABLE: iteration verdict stands.
+        assert!(resolve_final_outcome(true, true, "APPROVE", Some("s"), None).0);
+        assert!(!resolve_final_outcome(false, true, "UNPARSEABLE", None, None).0);
+    }
+
+    #[test]
+    fn fix_verifier_failure_reverts_the_outcome() {
+        let (passed, reason) = resolve_final_outcome(true, true, "REWORK", Some("s"), Some(false));
+        assert!(!passed, "a fix that fails the verifier must fail the run");
+        assert!(reason.contains("FAILED"), "{reason}");
+        let (passed, reason) =
+            resolve_final_outcome(true, true, "FIX-MINOR", Some("s"), Some(true));
+        assert!(passed);
+        assert_eq!(reason, "fix verifier passed");
+    }
+
+    #[test]
+    fn fix_required_without_session_is_not_silent() {
+        let (passed, reason) = resolve_final_outcome(true, true, "REWORK", None, None);
+        assert!(!passed, "a required-but-impossible fix must not pass");
+        assert!(reason.contains("no worker session"), "{reason}");
+    }
+
+    #[test]
+    fn review_verdict_rejects_prefix_false_positives() {
+        // "APPROVED" and "REWORKING" must NOT match (F5).
+        let v = parse_review_verdict("Verdict: APPROVED, everything great");
+        assert_eq!(v.verdict, "UNPARSEABLE");
+        let v = parse_review_verdict("Verdict: REWORKING the design");
+        assert_eq!(v.verdict, "UNPARSEABLE");
+        // A bare "3/8" token without the score keyword must not set the
+        // score (F5).
+        let v = parse_review_verdict("Verdict: REWORK\nwe saw 3/8 failures");
+        assert_eq!(v.verdict, "REWORK");
+        assert_eq!(v.score, None);
     }
 
     #[test]
