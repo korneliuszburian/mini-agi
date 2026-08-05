@@ -238,6 +238,29 @@ pub fn audit_verifier(root: &Path, run_path: &Path) -> Result<String, String> {
     Ok(out)
 }
 
+/// Verifier-strength counterfactual check (S2, wired into --iterate):
+/// run the verifier in an EMPTY dir — if it exits 0 there, it accepts
+/// non-work and the iteration would 'pass' garbage.
+#[must_use]
+pub fn audit_verifier_vacuous(target: &Path, verify_command: &str) -> VerifierVacuousAudit {
+    let tmp = std::env::temp_dir().join(format!("mag-va2-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap_or(());
+    let res = crate::worker::run_capped("sh", &["-c", verify_command], &tmp, Some(120));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let _ = target;
+    VerifierVacuousAudit {
+        is_vacuous: res.is_ok_and(|r| !r.aborted && r.status == Some(0)),
+    }
+}
+
+/// Result of the vacuous-verifier counterfactual check.
+#[derive(Debug, Clone, Copy)]
+pub struct VerifierVacuousAudit {
+    /// True when the verifier passes an EMPTY target (accepts non-work).
+    pub is_vacuous: bool,
+}
+
 /// Judge-calibration record (Phase 9 slice 2): one JSON line per
 /// verification, appended to `memory/derived/calibration.md` — the
 /// verifier-vs-judged disagreement corpus. Never hand-edited.
@@ -708,6 +731,34 @@ mod judge_drift_signal_tests {
             drift.disagreement_cases
         );
         assert!(disagreement_cases(&root).iter().any(|c| c == "case-x"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod vacuous_audit_tests {
+    use super::*;
+
+    #[test]
+    fn always_true_verifier_is_vacuous() {
+        let root = std::env::temp_dir().join(format!("mag-va2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let audit = audit_verifier_vacuous(&root, "true");
+        assert!(
+            audit.is_vacuous,
+            "a verifier that passes empty work is vacuous"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn failing_verifier_is_not_vacuous() {
+        let root = std::env::temp_dir().join(format!("mag-va2b-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let audit = audit_verifier_vacuous(&root, "sh -c 'test -f x.txt'");
+        assert!(!audit.is_vacuous, "an empty dir must fail this verifier");
         let _ = std::fs::remove_dir_all(&root);
     }
 }

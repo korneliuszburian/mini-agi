@@ -189,6 +189,20 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     let mut aborted = false;
     let mut verifier_passed = false;
     let iterations = iterate.max(1);
+    // S2: verify-audit wired into the loop — before trusting the
+    // iteration, confirm the verifier is non-vacuous (it must reject an
+    // empty counterfactual target). A vacuous verifier would make the
+    // loop 'pass' garbage; refuse instead.
+    if iterations > 1 {
+        let audit =
+            mini_agi_core::verifier::audit_verifier_vacuous(std::path::Path::new(&target), &verify);
+        if audit.is_vacuous {
+            return fail(
+                "refusing verified-iteration: the verifier is VACUOUS (passes an empty \
+                 target) — fix the verifier or drop --iterate (verify-audit)",
+            );
+        }
+    }
     for attempt in 1..=iterations {
         attempts_done = attempt;
         let prompt = if attempt == 1 {
