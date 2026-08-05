@@ -27,6 +27,11 @@ if [ -f Cargo.toml ]; then
     step "fmt-check"    sh -c 'cargo fmt --check && echo "fmt-check: clean"' || fail=1
     step "clippy"       cargo clippy --all-targets -- -D warnings || fail=1
     step "tests"        cargo test --all || fail=1
+    if [ -n "$BIN" ] && [ -x "$BIN" ]; then
+        step "skills"       "$BIN" skill verify-all || fail=1
+    else
+        skip "skills" "no kernel binary"
+    fi
 else
     skip "build" "no Cargo.toml (not a Rust workspace)"
     skip "fmt-check" "no Cargo.toml"

@@ -258,6 +258,47 @@ pub fn find_skill(root: &Path, name: &str) -> Result<Skill, SkillError> {
 ///
 /// Returns [`SkillError::NoVerifyHook`] when the skill has no hook, or
 /// [`SkillError::VerifyFailed`] when the command cannot be started.
+/// Aggregate verification of every skill hook (`skill verify --all`).
+#[derive(Debug, Default)]
+pub struct VerifyAllReport {
+    /// Skills whose hook passed.
+    pub passed: Vec<String>,
+    /// Skills whose hook FAILED (the gate fails on these).
+    pub failed: Vec<(String, i32)>,
+    /// Skills WITHOUT a verify hook (reported, not failing — most
+    /// skills are reference/procedure skills).
+    pub no_hook: Vec<String>,
+}
+
+/// Verify every skill's hook; a missing hook is reported, not fatal.
+///
+/// # Errors
+///
+/// Returns when the skill registry cannot be discovered.
+pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
+    let registry = discover_skills(root)?;
+    let mut report = VerifyAllReport::default();
+    for skill in &registry {
+        match skill.verify.as_deref() {
+            None => report.no_hook.push(skill.name.clone()),
+            Some(_) => match verify_skill(skill, root) {
+                Ok(r) if r.passed => report.passed.push(skill.name.clone()),
+                Ok(r) => report
+                    .failed
+                    .push((skill.name.clone(), r.exit_code.unwrap_or(-1))),
+                Err(_) => report.failed.push((skill.name.clone(), -1)),
+            },
+        }
+    }
+    Ok(report)
+}
+
+/// Verify a skill's hook: run the `verify` frontmatter command from
+/// the given cwd; a missing hook is an error.
+///
+/// # Errors
+///
+/// Returns when the hook is missing or cannot be executed.
 pub fn verify_skill(skill: &Skill, cwd: &Path) -> Result<VerifyResult, SkillError> {
     let Some(cmd) = skill.verify.as_deref() else {
         return Err(SkillError::NoVerifyHook(skill.name.clone()));
@@ -524,6 +565,36 @@ description: >
         let root = tempfile_dir("find-unknown");
         let err = find_skill(&root, "missing").unwrap_err();
         assert!(matches!(err, SkillError::Unknown(_)));
+    }
+
+    #[test]
+    fn verify_all_aggregates_pass_fail_and_nohook() {
+        let root = tempfile_dir("va-all");
+        // two skills with hooks (one pass, one fail), one without.
+        std::fs::create_dir_all(root.join(".agents/skills/ok-skill")).unwrap();
+        std::fs::write(
+            root.join(".agents/skills/ok-skill/SKILL.md"),
+            "---\nname: ok-skill\ndescription: ok\nverify: true\n---\n# ok\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(root.join(".agents/skills/bad-skill")).unwrap();
+        std::fs::write(
+            root.join(".agents/skills/bad-skill/SKILL.md"),
+            "---\nname: bad-skill\ndescription: bad\nverify: false\n---\n# bad\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(root.join(".agents/skills/ref-skill")).unwrap();
+        std::fs::write(
+            root.join(".agents/skills/ref-skill/SKILL.md"),
+            "---\nname: ref-skill\ndescription: ref\n---\n# ref\n",
+        )
+        .unwrap();
+        let report = verify_all_skills(&root).unwrap();
+        assert_eq!(report.passed, vec!["ok-skill"]);
+        assert_eq!(report.failed.len(), 1);
+        assert_eq!(report.failed[0].0, "bad-skill");
+        assert_eq!(report.no_hook, vec!["ref-skill"]);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

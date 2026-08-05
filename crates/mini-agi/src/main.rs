@@ -473,6 +473,10 @@ enum SkillAction {
         #[arg(long)]
         disable_on_fail: bool,
     },
+    /// Verify EVERY skill's hook in one pass (the deterministic gate's
+    /// skills step): a failed hook makes the exit non-zero; skills
+    /// without a hook are reported (not fatal).
+    VerifyAll,
     /// Install skills from a git source (repo with `.agents/skills/`, or a
     /// repo that is itself a skill).
     Add {
@@ -650,6 +654,7 @@ fn main() -> ExitCode {
                 name,
                 disable_on_fail,
             } => cmd_skill_verify(&name, disable_on_fail),
+            SkillAction::VerifyAll => cmd_skill_verify_all(),
             SkillAction::Add { source } => cmd_skill_add(&source),
         },
         Command::Checkpoint(CheckpointArgs { action }) => match action {
@@ -1702,6 +1707,35 @@ fn cmd_skill_verify(name: &str, disable_on_fail: bool) -> ExitCode {
             Err(e) => fail(&e.to_string()),
         },
         Err(e) => fail(&e.to_string()),
+    }
+}
+
+fn cmd_skill_verify_all() -> ExitCode {
+    let root = root();
+    match skills::verify_all_skills(&root) {
+        Ok(report) => {
+            for name in &report.passed {
+                println!("PASS: {name}");
+            }
+            for (name, code) in &report.failed {
+                eprintln!("FAIL: {name} (exit {code})");
+            }
+            println!(
+                "skills: {} passed, {} failed, {} without hooks (reported)",
+                report.passed.len(),
+                report.failed.len(),
+                report.no_hook.len()
+            );
+            if !report.no_hook.is_empty() {
+                println!("  no-hook: {}", report.no_hook.join(", "));
+            }
+            if report.failed.is_empty() {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Err(e) => fail(&format!("skill verify --all: {e}")),
     }
 }
 
