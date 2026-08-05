@@ -478,8 +478,8 @@ enum SkillAction {
         all: bool,
     },
     /// Verify EVERY skill's hook in one pass (the deterministic gate's
-    /// skills step): a failed hook makes the exit non-zero; skills
-    /// without a hook are reported (not fatal).
+    /// skills step): a failed hook or a hookless PROCEDURAL skill makes
+    /// the exit non-zero (`type: mode` skills are exempt).
     VerifyAll,
     /// Install skills from a git source (repo with `.agents/skills/`, or a
     /// repo that is itself a skill).

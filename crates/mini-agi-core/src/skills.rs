@@ -471,7 +471,17 @@ pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
 /// Artifact anchors a completion criterion must reference to be
 /// auditable (quoted output / commit / diff / file path) — the lint
 /// rejects self-reports with no artifact anchor.
-const ARTIFACT_ANCHORS: [&str; 6] = ["quoted", "git diff", "commit", "SHA", "file:", "path"];
+const ARTIFACT_ANCHORS: [&str; 9] = [
+    "quoted",
+    "git ",
+    "git:",
+    "commit",
+    "sha",
+    "mini-agi ",
+    "checkpoint.sh",
+    "knowledge/",
+    "path",
+];
 
 fn lint_skill(skill: &Skill) -> bool {
     if skill.kind == "mode" {
@@ -486,17 +496,34 @@ fn lint_skill(skill: &Skill) -> bool {
     let Ok(content) = std::fs::read_to_string(&skill.path) else {
         return false;
     };
-    // The criteria marker must exist AND reference an artifact
-    // (quoted output / commit / diff / file path) — a self-report with
-    // no artifact anchor fails the contract lint.
-    let marker = content.contains("Done when") || content.contains("Completion criteria");
-    if !marker {
-        return false;
+    // The criteria marker must exist AND a CHECKBOX LINE inside the
+    // criteria section must reference an artifact (quoted output /
+    // commit / diff / file path) — a self-report with no anchor fails
+    // the contract lint. The anchor is NOT accepted anywhere in the
+    // doc (a prose `path` outside the criteria must not satisfy it).
+    // The criteria SECTION (from the "Done when"/"Completion
+    // criteria" heading down) must contain a checkbox AND reference an
+    // artifact anchor (wrapped lines are part of the section — the
+    // anchor is never accepted from prose ABOVE the section).
+    let mut in_criteria = false;
+    let mut has_checkbox = false;
+    let mut anchored = false;
+    for line in content.lines() {
+        let l = line.to_lowercase();
+        if l.contains("done when") || l.contains("completion criteria") {
+            in_criteria = true;
+            continue;
+        }
+        if in_criteria {
+            if l.trim_start().starts_with("- [ ]") {
+                has_checkbox = true;
+            }
+            if ARTIFACT_ANCHORS.iter().any(|a| l.contains(a)) {
+                anchored = true;
+            }
+        }
     }
-    content.lines().any(|l| {
-        let l = l.to_lowercase();
-        ARTIFACT_ANCHORS.iter().any(|a| l.contains(a))
-    })
+    has_checkbox && anchored
 }
 
 /// Verify a skill's hook: run the `verify` frontmatter command from
