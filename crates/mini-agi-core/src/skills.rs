@@ -270,6 +270,62 @@ pub struct VerifyAllReport {
     pub no_hook: Vec<String>,
 }
 
+/// Dual-registration drift (D4): local vs global content divergence.
+///
+/// A skill registered in BOTH `.agents/skills/` and the user-global
+/// dir (`~/.agents/skills/`, overridable via `MINIAGI_GLOBAL_SKILLS`)
+/// must have one owner; different content is reported by the gate so
+/// divergence is never silent.
+#[derive(Debug, Default)]
+pub struct DriftReport {
+    /// (name, local sha256[:16], global sha256[:16]).
+    pub drifted: Vec<(String, String, String)>,
+}
+
+/// Hash the SKILL.md content of a skill dir (16-hex).
+fn skill_hash(dir: &Path) -> Option<String> {
+    use std::hash::{BuildHasher, Hasher};
+    let text = std::fs::read_to_string(dir.join("SKILL.md")).ok()?;
+    let mut h = std::hash::RandomState::new().build_hasher();
+    h.write(text.as_bytes());
+    Some(format!("{:016x}", h.finish()))
+}
+
+/// Compare repo-local vs user-global registrations for drift.
+#[must_use]
+pub fn dual_registration_drift(root: &Path) -> DriftReport {
+    let mut report = DriftReport::default();
+    let global = std::env::var("MINIAGI_GLOBAL_SKILLS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| {
+            std::env::var_os("HOME")
+                .map(std::path::PathBuf::from)
+                .map(|h| h.join(".agents/skills"))
+                .unwrap_or_default()
+        });
+    let Ok(entries) = std::fs::read_dir(root.join(".agents/skills")) else {
+        return report;
+    };
+    for e in entries.flatten() {
+        let local = e.path();
+        if !local.join("SKILL.md").is_file() {
+            continue;
+        }
+        let name = e.file_name().to_string_lossy().into_owned();
+        let global_dir = global.join(&name);
+        if !global_dir.join("SKILL.md").is_file() {
+            continue;
+        }
+        let (Some(lh), Some(gh)) = (skill_hash(&local), skill_hash(&global_dir)) else {
+            continue;
+        };
+        if lh != gh {
+            report.drifted.push((name, lh, gh));
+        }
+    }
+    report
+}
+
 /// Verify every skill's hook; a missing hook is reported, not fatal.
 ///
 /// # Errors

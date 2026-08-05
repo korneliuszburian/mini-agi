@@ -1729,6 +1729,13 @@ fn cmd_skill_verify_all() -> ExitCode {
             if !report.no_hook.is_empty() {
                 println!("  no-hook: {}", report.no_hook.join(", "));
             }
+            let drift = skills::dual_registration_drift(&root);
+            if !drift.drifted.is_empty() {
+                println!("  DRIFTED (local vs global content):");
+                for (name, lh, gh) in &drift.drifted {
+                    println!("    {name}: local {lh} != global {gh}");
+                }
+            }
             if report.failed.is_empty() {
                 ExitCode::SUCCESS
             } else {

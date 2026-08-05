@@ -5,6 +5,11 @@ description: Pipeline driver for mini-agi. Use for multi-stage work: ticket -> r
 
 # Orchestrate
 
+SEAM: the mini-agi pipeline driver (kernel-bound: checkpoints, verify,
+review gates). The generic lifecycle skill is `delivery-loop` — use
+delivery-loop for non-mini-agi deliveries, this skill for
+kernel-driven work.
+
 Run the full ticket-to-retro pipeline. You coordinate; delegates do the work.
 
 ## Stages

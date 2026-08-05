@@ -6,7 +6,10 @@ verify: .agents/checks/review-anchor-test.sh
 
 # Review
 
-Review with a rubric, not taste. Read `.agents/checks/review-rubric.md`
+SEAM: kernel-bound review (mini-agi rubric, memory anchors, ADR-0003).
+The generic two-axis review (Standards + Spec) is the separate
+`code-review` skill — use code-review for generic diffs, this skill
+for mini-agi-gated work. Read `.agents/checks/review-rubric.md`
 first — it contains the memory-anchor rule that binds this skill.
 
 1. Read the diff since the last green checkpoint.
