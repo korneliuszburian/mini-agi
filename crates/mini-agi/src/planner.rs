@@ -45,6 +45,7 @@ const EVIDENCE_PATHS: &[&str] = &[
 
 /// One ticket of a parallel batch.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlannerTicket {
     /// Unique ticket id (the merge order is the id order).
     pub id: String,
@@ -67,6 +68,7 @@ fn default_target() -> String {
 
 /// The strict planner manifest.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlannerManifest {
     pub version: u32,
     pub tickets: Vec<PlannerTicket>,
@@ -124,132 +126,83 @@ pub fn valid_verifier_shape(verify: &str) -> bool {
 ///
 /// Returns the first violation as a message; the batch must NOT start.
 pub fn parse_manifest(text: &str) -> Result<PlannerManifest, String> {
-    let value: serde_json::Value =
-        serde_json::from_str(text).map_err(|e| format!("manifest is not valid JSON: {e}"))?;
-    // Strict schema: reject unknown fields at the top level.
-    let obj = value
-        .as_object()
-        .ok_or_else(|| "manifest must be a JSON object".to_string())?;
-    for key in obj.keys() {
-        if key != "version" && key != "tickets" {
-            return Err(format!("unknown manifest field '{key}'"));
-        }
-    }
-    let version = obj
-        .get("version")
-        .and_then(serde_json::Value::as_u64)
-        .ok_or_else(|| "manifest.version must be an integer".to_string())?;
-    if version != u64::from(MANIFEST_VERSION) {
+    // Typed deserialization with deny_unknown_fields: unknown fields AND
+    // duplicate JSON keys are rejected by the derive (serde errors on a
+    // duplicated struct field) — the authority boundary is strict.
+    let manifest: PlannerManifest =
+        serde_json::from_str(text).map_err(|e| format!("manifest is not valid: {e}"))?;
+    if manifest.version != MANIFEST_VERSION {
         return Err(format!(
-            "manifest.version {version} != supported {MANIFEST_VERSION}"
+            "manifest.version {} != supported {MANIFEST_VERSION}",
+            manifest.version
         ));
     }
-    let tickets = obj
-        .get("tickets")
-        .and_then(serde_json::Value::as_array)
-        .ok_or_else(|| "manifest.tickets must be an array".to_string())?;
-    if tickets.is_empty() {
+    if manifest.tickets.is_empty() {
         return Err("manifest.tickets must not be empty".to_string());
     }
-    if tickets.len() > 16 {
+    if manifest.tickets.len() > 16 {
         return Err(format!(
             "manifest.tickets has {} tickets; the batch admission cap is 16",
-            tickets.len()
+            manifest.tickets.len()
         ));
     }
-    let mut manifest = PlannerManifest {
-        version: u32::try_from(version).unwrap_or(MANIFEST_VERSION),
-        tickets: Vec::new(),
-    };
     let mut seen_ids = std::collections::HashSet::new();
     let mut all_scopes: Vec<(String, Vec<String>)> = Vec::new();
-    for (i, t) in tickets.iter().enumerate() {
-        let t = t
-            .as_object()
-            .ok_or_else(|| format!("ticket {i} must be an object"))?;
-        for key in t.keys() {
-            if !["id", "goal", "scope", "verify", "verify_target"].contains(&key.as_str()) {
-                return Err(format!("ticket {i}: unknown field '{key}'"));
-            }
-        }
-        let id = t
-            .get("id")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| format!("ticket {i}: id must be a string"))?;
+    let mut tickets = Vec::new();
+    for ticket in &manifest.tickets {
+        let id = ticket.id.clone();
         if id.trim().is_empty() {
-            return Err(format!("ticket {i}: id must not be empty"));
+            return Err("a ticket id must not be empty".to_string());
         }
         if !id
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         {
             return Err(format!(
-                "ticket {i}: id '{id}' must match [A-Za-z0-9_-]+ (it names the branch and worktree)"
+                "ticket id '{id}' must match [A-Za-z0-9_-]+ (it names the branch and worktree)"
             ));
         }
-        if !seen_ids.insert(id.to_string()) {
+        if !seen_ids.insert(id.clone()) {
             return Err(format!("duplicate ticket id '{id}'"));
         }
-        let goal = t
-            .get("goal")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| format!("ticket {id}: goal must be a string"))?;
-        if goal.trim().is_empty() {
+        if ticket.goal.trim().is_empty() {
             return Err(format!("ticket {id}: goal must not be empty"));
         }
-        let scope = t
-            .get("scope")
-            .and_then(serde_json::Value::as_array)
-            .ok_or_else(|| format!("ticket {id}: scope must be an array"))?;
-        if scope.is_empty() {
+        if ticket.scope.is_empty() {
             return Err(format!("ticket {id}: scope must not be empty"));
         }
         let mut scope_paths = Vec::new();
-        for s in scope {
-            let s = s
-                .as_str()
-                .ok_or_else(|| format!("ticket {id}: scope entries must be strings"))?;
+        for s in &ticket.scope {
             if !valid_relative_path(s) {
                 return Err(format!(
                     "ticket {id}: scope entry '{s}' must be a safe repo-relative path"
                 ));
             }
-            if PROTECTED_PATHS
-                .iter()
-                .any(|p| s == *p || s.starts_with(&format!("{p}/")))
-            {
+            if touches_protected(s) {
                 return Err(format!(
                     "ticket {id}: scope entry '{s}' touches a protected path (the gate must stay immutable)"
                 ));
             }
-            scope_paths.push(s.to_string());
+            scope_paths.push(s.clone());
         }
-        let verify = t
-            .get("verify")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| format!("ticket {id}: verify must be a string"))?;
-        if !valid_verifier_shape(verify) {
+        if !valid_verifier_shape(&ticket.verify) {
             return Err(format!(
                 "ticket {id}: verifier must be worktree-relative with no absolute/traversing/protected paths"
             ));
         }
-        let verify_target = t
-            .get("verify_target")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or(".");
-        if !valid_relative_path(verify_target) {
+        if !valid_relative_path(&ticket.verify_target) {
             return Err(format!(
                 "ticket {id}: verify_target must be a safe relative path"
             ));
         }
-        manifest.tickets.push(PlannerTicket {
-            id: id.to_string(),
-            goal: goal.to_string(),
+        tickets.push(PlannerTicket {
+            id,
+            goal: ticket.goal.clone(),
             scope: scope_paths.clone(),
-            verify: verify.to_string(),
-            verify_target: verify_target.to_string(),
+            verify: ticket.verify.clone(),
+            verify_target: ticket.verify_target.clone(),
         });
-        all_scopes.push((id.to_string(), scope_paths));
+        all_scopes.push((tickets.last().unwrap().id.clone(), scope_paths));
     }
     // Scope disjointness across the batch (second opinion, finding 4):
     // overlapping scopes are refused BEFORE dispatch.
@@ -267,11 +220,12 @@ pub fn parse_manifest(text: &str) -> Result<PlannerManifest, String> {
             }
         }
     }
-    Ok(manifest)
+    Ok(PlannerManifest {
+        version: manifest.version,
+        tickets,
+    })
 }
 
-/// Whether a path is under a protected root (used by the finalize
-/// containment check too).
 pub fn touches_protected(path: &str) -> bool {
     PROTECTED_PATHS
         .iter()
@@ -330,7 +284,9 @@ pub fn provision_batch(
             ));
         }
         let branch = format!("batch/{short}/{}", ticket.id);
-        let status = std::process::Command::new("git")
+        // A rerun after a failed batch may find the branch (evidence
+        // preserved) — attach to it instead of failing.
+        let mut status = std::process::Command::new("git")
             .args(["worktree", "add", "-b"])
             .arg(&branch)
             .arg(&wt)
@@ -342,8 +298,23 @@ pub fn provision_batch(
                 format!("git worktree add failed: {e}")
             })?;
         if !status.success() {
+            status = std::process::Command::new("git")
+                .args(["worktree", "add"])
+                .arg(&wt)
+                .arg(&branch)
+                .current_dir(repo)
+                .status()
+                .map_err(|e| {
+                    cleanup(&created);
+                    format!("git worktree attach failed: {e}")
+                })?;
+        }
+        if !status.success() {
             cleanup(&created);
-            return Err(format!("git worktree add failed for ticket {}", ticket.id));
+            return Err(format!(
+                "git worktree add/attach failed for ticket {} (existing branch?)",
+                ticket.id
+            ));
         }
         created.push(wt.clone());
         // Dry-run (executability): the verifier is a POST-condition —
@@ -353,15 +324,17 @@ pub fn provision_batch(
         let target = wt.join(&ticket.verify_target);
         let dry =
             mini_agi_core::worker::run_capped("sh", &["-c", &ticket.verify], &target, Some(120));
-        if !dry.is_ok_and(|r| !r.aborted) {
+        let dry_ok = dry.is_ok_and(|r| !r.aborted && r.status.is_some_and(|c| c == 0 || c == 1));
+        if !dry_ok {
             cleanup(&created);
             return Err(format!(
-                "ticket {}: verifier dry-run FAILED to execute in the worktree (pre-flight)",
+                "ticket {}: verifier dry-run did not EXECUTE (spawn/abort, or exit outside {{0,1}} — a missing executable?)",
                 ticket.id
             ));
         }
         // Vacuity: the verifier must NOT pass an empty counterfactual.
-        let audit = mini_agi_core::verifier::audit_verifier_vacuous(&wt, &ticket.verify);
+        let audit = mini_agi_core::verifier::audit_verifier_vacuous(&wt, &ticket.verify)
+            .map_err(|e| format!("ticket {}: verify-audit: {e}", ticket.id))?;
         if audit.is_vacuous {
             cleanup(&created);
             return Err(format!(
@@ -413,6 +386,7 @@ pub fn dispatch_batch(
     max_parallel: usize,
     iterate: usize,
     wall_cap: Option<u64>,
+    no_sandbox: bool,
 ) -> Result<BatchDispatchResult, String> {
     let max_parallel = max_parallel.max(1);
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -444,22 +418,28 @@ pub fn dispatch_batch(
                 "{}\n\nBATCH CONSTRAINT (binding): modify ONLY files under the declared scope. Do NOT run checkpoint.sh. Do NOT touch memory/, evals/, scripts/, tickets/, docs/adr/, codex.log, progress.md, run.json, REPORT.md. Do NOT commit anything. The supervised verifier is the gate.",
                 ticket.goal
             );
-            let status = std::process::Command::new(&exe)
-                .args([
-                    "loop",
-                    "run",
-                    &goal,
-                    "--workdir",
-                    &wt.to_string_lossy(),
-                    "--verify",
-                    &ticket.verify,
-                    "--target",
-                    &target.to_string_lossy(),
-                    "--iterate",
-                    &iterate.to_string(),
-                    "--detach",
-                    "--no-sandbox",
-                ])
+            let mut cmd = std::process::Command::new(&exe);
+            cmd.args([
+                "loop",
+                "run",
+                &goal,
+                "--workdir",
+                &wt.to_string_lossy(),
+                "--verify",
+                &ticket.verify,
+                "--target",
+                &target.to_string_lossy(),
+                "--iterate",
+                &iterate.to_string(),
+                "--detach",
+            ]);
+            if let Some(w) = wall_cap {
+                cmd.args(["--max-wall", &w.to_string()]);
+            }
+            if no_sandbox {
+                cmd.arg("--no-sandbox");
+            }
+            let status = cmd
                 .env("MINIAGI_SESSION_TAG", &tag)
                 .stdin(std::process::Stdio::null())
                 .status()
@@ -499,7 +479,7 @@ pub fn dispatch_batch(
         let mut done: Vec<usize> = Vec::new();
         for (i, (id, handle, wt)) in active.iter().enumerate() {
             let st = crate::bg::run_status(handle);
-            if st.report_ready || (!st.alive && st.report.is_some()) {
+            if !st.alive {
                 let report = crate::bg::run_report_text(handle);
                 let passed = report
                     .as_deref()
@@ -672,14 +652,23 @@ pub fn finalize_and_merge(
 /// paths) at the base sha; the merged tree must NOT have drifted on
 /// them — otherwise the final truth could be self-modified.
 pub fn protected_paths_unchanged(repo: &Path, base_sha: &str) -> Result<bool, String> {
+    // Committed drift vs the base.
     let out = std::process::Command::new("git")
         .args(["diff", "--name-only", base_sha, "HEAD", "--"])
         .args(PROTECTED_PATHS)
         .current_dir(repo)
         .output()
         .map_err(|e| e.to_string())?;
-    let changed = String::from_utf8_lossy(&out.stdout).to_string();
-    Ok(changed.trim().is_empty())
+    let committed = String::from_utf8_lossy(&out.stdout).to_string();
+    // Dirty/index drift (the final verifier reads the working tree).
+    let dirty = std::process::Command::new("git")
+        .args(["status", "--porcelain", "--"])
+        .args(PROTECTED_PATHS)
+        .current_dir(repo)
+        .output()
+        .map_err(|e| e.to_string())?;
+    let dirty = String::from_utf8_lossy(&dirty.stdout).to_string();
+    Ok(committed.trim().is_empty() && dirty.trim().is_empty())
 }
 
 /// The planner pass: an INDEPENDENT read-only codex session decomposes
@@ -794,11 +783,23 @@ mod tests {
     fn unknown_fields_fail_closed() {
         expect_err(
             r#"{"version":1,"tickets":[],"extra":1}"#,
-            "unknown manifest field",
+            "unknown field `extra`",
         );
         expect_err(
             r#"{"version":1,"tickets":[{"id":"t","goal":"g","scope":["a"],"verify":"x","bogus":1}]}"#,
-            "ticket 0: unknown field",
+            "unknown field `bogus`",
+        );
+    }
+
+    #[test]
+    fn duplicate_json_keys_fail_closed() {
+        expect_err(
+            r#"{"version":1,"version":2,"tickets":[{"id":"t","goal":"g","scope":["a"],"verify":"x"}]}"#,
+            "duplicate field `version`",
+        );
+        expect_err(
+            r#"{"version":1,"tickets":[{"id":"t","id":"t2","goal":"g","scope":["a"],"verify":"x"}]}"#,
+            "duplicate field `id`",
         );
     }
 

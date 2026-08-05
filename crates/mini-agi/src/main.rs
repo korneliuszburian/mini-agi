@@ -2255,6 +2255,15 @@ fn cmd_loop_parallel(
             t.scope.join(", ")
         );
     }
+    // F5: the Landlock wrapper is incompatible with the codex npm shim
+    // (the e2e proved it in v1-v3) — parallel workers are only sound
+    // with the explicit escape hatch. Refuse instead of silently
+    // running unsandboxed.
+    if !no_sandbox {
+        return fail(
+            "loop parallel requires --no-sandbox (the Landlock wrapper breaks the codex npm shim; an explicit opt-in is required)",
+        );
+    }
     let dispatch = match planner::dispatch_batch(
         &root(),
         &provision,
@@ -2262,11 +2271,14 @@ fn cmd_loop_parallel(
         max_parallel,
         iterate,
         max_wall,
+        no_sandbox,
     ) {
         Ok(d) => d,
+        // F2: evidence + live worker worktrees stay on a dispatch error.
         Err(e) => {
-            planner::teardown_batch(&root(), &provision);
-            return fail(&format!("batch dispatch failed: {e}"));
+            return fail(&format!(
+                "batch dispatch failed: {e} (evidence preserved in .batch/ worktrees + branches)"
+            ));
         }
     };
     for r in &dispatch.results {
