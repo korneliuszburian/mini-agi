@@ -5,6 +5,38 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added (AFK supervisor, AFK-SUPERVISOR S1-S7)
+- `mini-agi loop run <goal-or-case>` — the AFK verified-iteration
+  supervisor: spec resolution (case -> its verifier+target, P0-3; ad-hoc
+  goal -> generated spec), progress.md per attempt, reviewable run
+  report, on-done hook ($1 report path, $2 outcome), run draft
+  persisted with outcome.achieved = the kernel's in-loop verifier
+  verdict.
+- Two-phase liveness: idle timeout (output-file mtime; kill after a
+  full idle interval since the LAST output) via `--max-idle` /
+  `MINIAGI_MAX_IDLE_SECONDS` / config `max_idle_seconds`; completion
+  grace (cap-killed worker with the completion marker = success-with-
+  warning, `attempt_grace`).
+- Verified-iteration core extracted from cmd_codex into
+  `worker::run_verified_iteration` (IterationInput/ProgressEvent/
+  IterationResult) — the supervisor reuses it, cmd_codex is a thin
+  caller.
+- codex integration: `.codex/config.toml` MCP registration (36-tool
+  explicit allow-list, reads auto / writes prompt, memory_signoff stays
+  HITL), server `instructions` in the MCP initialize response,
+  docs/CODEX-INTEGRATION.md.
+- SELF-HOSTING PROOF: `loop run afk-max-idle` (codex worker) built the
+  real `--max-idle` flag, the kernel's verifier passed on attempt 1,
+  `loop verify` closed the gap (composite 0.8409). Dogfood fixes:
+  supervisor draft persistence (run_out), unique per-call temp dir in
+  `audit_verifier_vacuous` (concurrency bug), hermetic pick_target
+  fixture. New eval case afk-max-idle (baseline 25).
+- docs/AFK-SUPERVISOR.md: the pattern, research grounding (Matt
+  Pocock's AFK/Ralph, Sandcastle comparison), two-phase semantics,
+  v2 deferrals with rationale.
+
 ### Added (intelligence layer, ADR-0005 — Sequoia "From Hierarchy to
 Intelligence" direction)
 - `mini-agi loop` (Phase 6.4, proactive composition — Wish Factory

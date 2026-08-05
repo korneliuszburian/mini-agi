@@ -12,6 +12,16 @@ report opens the next layer).
 
 ## A. Executive summary
 
+**AFK supervisor (AFK-SUPERVISOR):** `mini-agi loop run` ships the
+verified-iteration loop as a supervised background runner — progress.md,
+run report, two-phase liveness (idle timeout + completion grace), on-done
+hook, and the run draft persisted with the kernel's own verifier verdict.
+Codex is a first-class client via MCP (docs/CODEX-INTEGRATION.md), and the
+self-hosting proof (S6) demonstrated the kernel building a real kernel
+improvement through itself, verified by itself. Details: docs/AFK-SUPERVISOR.md.
+
+## A. Executive summary
+
 **Where the kernel already leads the field.** The literature is explicit
 that LLM-judge-only evaluation is insufficient without calibration
 (Anthropic, "Demystifying evals for AI agents"). mini-agi's
