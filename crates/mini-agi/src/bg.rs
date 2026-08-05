@@ -134,56 +134,11 @@ pub fn spawn_detached(
         std::process::id(),
         process_starttime(std::process::id())
     );
-    // Claim the lock: create_new (atomic), or recover a stale lock. The
-    // recovery renames the stale lock aside and re-creates; after ANY
-    // claim the content is verified to still be ours before the spawn
-    // (a concurrent recoverer that renamed our fresh lock loses the
-    // verification and refuses).
-    let claim_lock = || -> std::io::Result<()> {
-        let create = || -> std::io::Result<()> {
-            std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&lock)
-                .map(|mut f| {
-                    use std::io::Write;
-                    let _ = f.write_all(me.as_bytes());
-                })
-                .map_err(|_| {
-                    std::io::Error::other("a detached run is already active in this workdir")
-                })
-        };
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&lock)
-        {
-            Ok(mut f) => {
-                use std::io::Write;
-                let _ = f.write_all(me.as_bytes());
-                Ok(())
-            }
-            Err(_) if lock_holder_alive(&handle) => Err(std::io::Error::other(
-                "a detached run is already active in this workdir",
-            )),
-            Err(_) => {
-                // Stale: rename aside (unconditional — the lock content
-                // was verified dead), then create.
-                let gone = lock.with_extension(format!("stale-{}", std::process::id()));
-                let _ = std::fs::rename(&lock, &gone);
-                create()?;
-                // Read-back: ours?
-                let now = std::fs::read_to_string(&lock).unwrap_or_default();
-                if now != me {
-                    return Err(std::io::Error::other(
-                        "a detached run is already active in this workdir",
-                    ));
-                }
-                Ok(())
-            }
-        }
-    };
-    claim_lock()?;
+    // Claim the lock (read-back on BOTH paths): after any acquisition
+    // the content is verified to still be ours before the spawn, so a
+    // concurrent caller that renamed our freshly-created lock loses the
+    // verification and refuses.
+    claim_lock(&handle, &me)?;
     // Any failure BEFORE the spawn releases the lock (no leak); the
     // post-spawn cleanup removes the whole handle dir.
     let fail_before_spawn = |e: std::io::Error| -> std::io::Result<PathBuf> {
@@ -242,7 +197,7 @@ pub fn spawn_detached(
     if no_sandbox {
         args.push("--no-sandbox".into());
     }
-    let mut child = std::process::Command::new(&exe)
+    let mut child = match std::process::Command::new(&exe)
         .args(&args)
         // The child must NOT inherit the parent's stdin: a codex exec
         // would block reading it (no EOF on an MCP server's pipe) and
@@ -252,7 +207,11 @@ pub fn spawn_detached(
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::from(out))
         .stderr(std::process::Stdio::from(err))
-        .spawn()?;
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => return fail_before_spawn(e),
+    };
     // Atomic-ish launch protocol (F5): pid + identity first, launch.json
     // LAST — a failure after the spawn kills the child and removes the
     // handle so no unrecorded run lingers.
@@ -295,6 +254,60 @@ pub fn spawn_detached(
 /// launcher's identity during the launch window, the run's identity
 /// after the spawn. A crashed launcher (dead identity in the lock) is
 /// stale and recovered by the next launch.
+/// Claim the one-run-per-workdir lock, atomically and with read-back.
+///
+/// The identity content (`pid start`) makes the lock's holder
+/// verifiable; `lock_holder_alive` refuses while that identity lives.
+/// A stale lock (dead/crashed holder, or a briefly-empty file) is
+/// renamed aside and re-created; after EVERY acquisition the content
+/// is read back and must still be ours, so a concurrent caller that
+/// renamed the fresh lock loses and refuses. `me` is this caller's
+/// identity.
+fn claim_lock(handle: &Path, me: &str) -> std::io::Result<()> {
+    let lock = handle.join("launch.lock");
+    let create = || -> std::io::Result<()> {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock)
+            .map(|mut f| {
+                use std::io::Write;
+                let _ = f.write_all(me.as_bytes());
+            })
+            .map_err(|_| std::io::Error::other("a detached run is already active in this workdir"))
+    };
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&lock)
+    {
+        Ok(mut f) => {
+            use std::io::Write;
+            let _ = f.write_all(me.as_bytes());
+        }
+        Err(_) if lock_holder_alive(handle) => {
+            return Err(std::io::Error::other(
+                "a detached run is already active in this workdir",
+            ));
+        }
+        Err(_) => {
+            // Stale (dead identity or a briefly-empty lock): rename
+            // aside, then create.
+            let gone = lock.with_extension(format!("stale-{}", std::process::id()));
+            let _ = std::fs::rename(&lock, &gone);
+            create()?;
+        }
+    }
+    // Read-back on BOTH paths: the lock must still say OUR identity.
+    let now = std::fs::read_to_string(&lock).unwrap_or_default();
+    if now != me {
+        return Err(std::io::Error::other(
+            "a detached run is already active in this workdir",
+        ));
+    }
+    Ok(())
+}
+
 fn lock_holder_alive(handle: &Path) -> bool {
     let Ok(content) = std::fs::read_to_string(handle.join("launch.lock")) else {
         return false;
@@ -689,6 +702,48 @@ mod tests {
         std::fs::create_dir_all(&fake).unwrap();
         std::fs::copy(handle.join("launch.json"), fake.join("launch.json")).unwrap();
         assert!(!valid_handle(&fake));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn claim_lock_fresh_and_stale_and_live() {
+        let root = tmp_root("claim");
+        let handle = handle_for(&root);
+        std::fs::create_dir_all(&handle).unwrap();
+        let me = format!(
+            "{} {}",
+            std::process::id(),
+            process_starttime(std::process::id())
+        );
+        // Fresh claim succeeds and the content is ours (read-back).
+        claim_lock(&handle, &me).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(handle.join("launch.lock")).unwrap(),
+            me
+        );
+        // A live holder refuses.
+        let mut holder = std::process::Command::new("sh")
+            .args(["-c", "sleep 30"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let hme = format!("{} {}", holder.id(), process_starttime(holder.id()));
+        std::fs::write(handle.join("launch.lock"), &hme).unwrap();
+        assert!(claim_lock(&handle, &me).is_err(), "a live holder refuses");
+        let _ = holder.kill();
+        let _ = holder.wait();
+        // A stale lock (dead identity) is recovered.
+        std::fs::write(handle.join("launch.lock"), "999999999 1").unwrap();
+        claim_lock(&handle, &me).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(handle.join("launch.lock")).unwrap(),
+            me
+        );
+        // A briefly-EMPTY lock (the race window) is stale, not live.
+        std::fs::write(handle.join("launch.lock"), "").unwrap();
+        assert!(!lock_holder_alive(&handle), "an empty lock is stale");
+        claim_lock(&handle, &me).unwrap();
         let _ = std::fs::remove_dir_all(&root);
     }
 
