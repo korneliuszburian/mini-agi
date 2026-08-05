@@ -92,7 +92,12 @@ Publish the approved tickets:
   `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in
   dependency order (blockers first). Each file's "Blocked by" lists the
   numbers/titles it depends on. Use the per-ticket file template below —
-  one ticket per file, never a single combined file.
+  one ticket per file, never a single combined file. In a mini-agi
+  repo the KERNEL owns the ticket state (leases, locks, the blocking
+  graph): use the ticket tools (`mini-agi ticket claim`,
+  `ticket validate-graph`, `ticket release` via the CLI/MCP) — the
+  skill is the procedure AROUND the tools, never a prose
+  re-implementation of claims or blocking.
 - **A real issue tracker (GitHub, Linear, …)** → publish one issue per
   ticket in dependency order (blockers first) so each ticket's blocking
   edges can reference real identifiers. Use the platform's native blocking
