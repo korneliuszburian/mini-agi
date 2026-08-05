@@ -244,12 +244,27 @@ pub fn audit_verifier(root: &Path, run_path: &Path) -> Result<String, String> {
 #[must_use]
 pub fn audit_verifier_vacuous(target: &Path, verify_command: &str) -> VerifierVacuousAudit {
     // Unique per-call dir: a fixed name would make concurrent audits
-    // stomp each other's cwd mid-run (test-race the vacuous gate found).
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()
-        .map_or(0, |d| d.as_nanos());
-    let tmp = std::env::temp_dir().join(format!("mag-va2-{}-{nonce}", std::process::id()));
+    // stomp each other's cwd mid-run (the vacuous-gate race). A
+    // timestamp alone is not a uniqueness guarantee — the directory is
+    // created atomically with retries on collision.
+    let base = std::env::temp_dir().join(format!("mag-va2-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&base);
+    let mut tmp = base.clone();
+    let mut created = false;
+    for attempt in 0..8 {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map_or(attempt as u128, |d| d.as_nanos());
+        tmp = base.join(format!("{nonce}"));
+        if std::fs::create_dir(&tmp).is_ok() {
+            created = true;
+            break;
+        }
+    }
+    if !created {
+        return VerifierVacuousAudit { is_vacuous: false };
+    }
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(&tmp).unwrap_or(());
     let res = crate::worker::run_capped("sh", &["-c", verify_command], &tmp, Some(120));
@@ -744,6 +759,14 @@ mod judge_drift_signal_tests {
 #[cfg(test)]
 mod vacuous_audit_tests {
     use super::*;
+    use std::env;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = env::temp_dir().join(format!("mag-vac-{}-{}", tag, std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
 
     #[test]
     fn always_true_verifier_is_vacuous() {
@@ -755,6 +778,27 @@ mod vacuous_audit_tests {
             audit.is_vacuous,
             "a verifier that passes empty work is vacuous"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn concurrent_audits_do_not_stomp_each_other() {
+        // The fixed-name race: parallel audits sharing one dir made the
+        // verifier's cwd vanish mid-run. Atomic unique dirs must keep
+        // every concurrent audit independent.
+        let root = tmp_root("va-conc");
+        let root_for_threads = root.clone();
+        let mut handles = Vec::new();
+        for _ in 0..8 {
+            let root = root_for_threads.clone();
+            handles.push(std::thread::spawn(move || {
+                let audit = audit_verifier_vacuous(&root, "true");
+                assert!(audit.is_vacuous, "a 'true' verifier is always vacuous");
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
         let _ = std::fs::remove_dir_all(&root);
     }
 

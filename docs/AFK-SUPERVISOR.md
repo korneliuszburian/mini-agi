@@ -37,8 +37,10 @@ mini-agi loop run <goal-or-case> [--workdir <dir>] [--verify <cmd>]
   goal, attempt chain, verifier verdict, cost proxy, run.json path), and the
   run draft written to the case's run.json (when the goal is a case) or
   `workdir/run.json`.
-- The draft's `outcome.achieved` = the kernel's in-loop verifier verdict
-  (a verified claim, not the worker's word).
+- The draft's `outcome.achieved` = the kernel's in-loop verifier result
+  (the claim is backed by the same deterministic verifier, but per
+  ADR-0011 the TRUSTED verification record is written only by `run
+  verify` / `loop verify` — the claim stays the run's own until then).
 
 ## Two-phase liveness
 

@@ -5,8 +5,6 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ## [Unreleased]
 
-## [Unreleased]
-
 ### Added (AFK supervisor, AFK-SUPERVISOR S1-S7)
 - `mini-agi loop run <goal-or-case>` — the AFK verified-iteration
   supervisor: spec resolution (case -> its verifier+target, P0-3; ad-hoc

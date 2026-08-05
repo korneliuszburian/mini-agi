@@ -10,12 +10,10 @@ report opens the next layer).
 
 ---
 
-## A. Executive summary
-
 **AFK supervisor (AFK-SUPERVISOR):** `mini-agi loop run` ships the
 verified-iteration loop as a supervised background runner — progress.md,
 run report, two-phase liveness (idle timeout + completion grace), on-done
-hook, and the run draft persisted with the kernel's own verifier verdict.
+hook, and the run draft persisted with the kernel's own verifier result.
 Codex is a first-class client via MCP (docs/CODEX-INTEGRATION.md), and the
 self-hosting proof (S6) demonstrated the kernel building a real kernel
 improvement through itself, verified by itself. Details: docs/AFK-SUPERVISOR.md.

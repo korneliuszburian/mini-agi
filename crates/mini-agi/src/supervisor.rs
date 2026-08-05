@@ -147,10 +147,11 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
     })?;
 
     // Persist the run draft (the run.json the verifier/loop verify use):
-    // the supervisor owns the run record. The run's claim is the
-    // kernel's own verifier verdict — achieved = verifier_passed (the
-    // deterministic verifier already confirmed it in-loop, so this is
-    // a verified claim, not a worker claim).
+    // the supervisor owns the run record. The run's claim is backed by
+    // the kernel's in-loop verifier result (achieved = verifier_passed),
+    // but per ADR-0011 the TRUSTED verification record is written only
+    // by `run verify` / `loop verify` — the in-loop pass is iteration
+    // feedback; the claim stays the run's own until then.
     let mut run = iteration.run.clone();
     run["outcome"]["achieved"] = serde_json::json!(iteration.verifier_passed);
     let draft_path = args
