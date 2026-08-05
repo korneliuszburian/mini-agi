@@ -76,12 +76,21 @@ versioned cards, RHI's harness-as-data have no skill-side counterpart).
 
 ## Definition of done (skill layer)
 
+STATUS 2026-08-05: items 1-3 and 5-6 are ENFORCED in the gate (14
+procedural hooks run in verify.sh's skills step; the lint requires
+artifact-anchored criteria + version/source; one-owner = any dual
+registration fails; wayfinder/to-tickets route to the kernel ticket
+tools). Items 4 and 7 (a TESTED PROMPT MATRIX for routed skills +
+routing telemetry) are the DEFERRED Goal C (routing + evaluation) —
+the matrix protocol and telemetry seam are defined here and land with
+the Goal C slice.
+
 A reviewer finds no space when: (1) every procedural skill has a
 verify hook that RUNS in the deterministic gate; (2) every completion
 criterion is auditable against an artifact (no self-reports); (3)
 every skill has exactly one owner (no dual registration, no dead
-symlinks); (4) every routed skill has a tested prompt matrix; (5)
-skills carry version+provenance and install/init can diff; (6) kernel
-state (tickets, verdicts, journal) is the substrate skills call, never
-re-implemented in prose; (7) routing telemetry exists and is reviewed
-in the skill audit.
+symlinks); (4) every routed skill has a tested prompt matrix [GOAL C];
+(5) skills carry version+provenance and install/init can diff; (6)
+kernel state (tickets, verdicts, journal) is the substrate skills
+call, never re-implemented in prose; (7) routing telemetry exists and
+is reviewed in the skill audit [GOAL C].
