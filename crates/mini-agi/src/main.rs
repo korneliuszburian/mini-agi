@@ -1742,6 +1742,12 @@ fn cmd_skill_verify_all() -> ExitCode {
             if !report.no_hook.is_empty() {
                 println!("  no-hook: {}", report.no_hook.join(", "));
             }
+            if !report.no_hook.is_empty() {
+                eprintln!(
+                    "FAIL: procedural skills without a verify hook: {}",
+                    report.no_hook.join(", ")
+                );
+            }
             if !report.no_version.is_empty() {
                 eprintln!(
                     "FAIL: skills missing version/source frontmatter: {}",
@@ -1764,6 +1770,7 @@ fn cmd_skill_verify_all() -> ExitCode {
             if report.failed.is_empty()
                 && report.no_version.is_empty()
                 && report.lint_failed.is_empty()
+                && report.no_hook.is_empty()
                 && drift.drifted.is_empty()
             {
                 ExitCode::SUCCESS

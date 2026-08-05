@@ -236,7 +236,12 @@ pub fn discover_skills(root: &Path) -> Result<Vec<Skill>, SkillError> {
             continue;
         }
         let skill_md = dir_path.join("SKILL.md");
-        if !skill_md.is_file() {
+        let md = match std::fs::symlink_metadata(&skill_md) {
+            Ok(m) => m,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(SkillError::Io(e)),
+        };
+        if !md.is_file() || md.file_type().is_symlink() {
             continue;
         }
         let content = fs::read_to_string(&skill_md).map_err(SkillError::Io)?;
@@ -261,6 +266,16 @@ pub fn discover_skills(root: &Path) -> Result<Vec<Skill>, SkillError> {
 /// Returns [`SkillError::Unknown`] when no `SKILL.md` exists for the name.
 pub fn find_skill(root: &Path, name: &str) -> Result<Skill, SkillError> {
     let dir = agents_dir(root).join(name);
+    // The skill DIR must not be a symlink: traversing
+    // `.agents/skills/<name>` would resolve an outside target.
+    match std::fs::symlink_metadata(&dir) {
+        Ok(m) if m.is_dir() && !m.file_type().is_symlink() => {}
+        Ok(_) => return Err(SkillError::Unknown(name.to_string())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(SkillError::Unknown(name.to_string()));
+        }
+        Err(e) => return Err(SkillError::Io(e)),
+    }
     let skill_md = dir.join("SKILL.md");
     // symlink_metadata: a symlinked skill dir or manifest must not be
     // followed by the single-skill verify path. A missing manifest is
@@ -431,7 +446,10 @@ pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
             report.lint_failed.push(skill.name.clone());
         }
         match skill.verify.as_deref() {
-            None => report.no_hook.push(skill.name.clone()),
+            // A PROCEDURAL skill without a hook is a violation (fatal);
+            // a mode skill (caveman) legitimately has none.
+            None if skill.kind != "mode" => report.no_hook.push(skill.name.clone()),
+            None => {}
             Some(_) => match verify_skill(skill, root) {
                 Ok(r) if r.passed => report.passed.push(skill.name.clone()),
                 Ok(r) => report
@@ -921,6 +939,33 @@ description: >
             std::os::unix::fs::symlink(dir.join("link.md"), dir.join("SKILL.md")).unwrap();
             let err = find_skill(&root, "fake").unwrap_err();
             assert!(matches!(err, SkillError::Unknown(_)));
+            let _ = fs::remove_dir_all(&root);
+        }
+    }
+
+    #[test]
+    fn find_skill_rejects_symlinked_skill_directory() {
+        #[cfg(unix)]
+        {
+            let root = tempfile_dir("find-dir-symlink");
+            let real = root.join("real");
+            fs::create_dir_all(real.join(".agents/skills/real-skill")).unwrap();
+            fs::write(
+                real.join(".agents/skills/real-skill/SKILL.md"),
+                "---\nname: real-skill\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# r\n",
+            )
+            .unwrap();
+            fs::create_dir_all(root.join(".agents/skills")).unwrap();
+            std::os::unix::fs::symlink(
+                real.join(".agents/skills/real-skill"),
+                root.join(".agents/skills/fake"),
+            )
+            .unwrap();
+            let err = find_skill(&root, "fake").unwrap_err();
+            assert!(
+                matches!(err, SkillError::Unknown(_)),
+                "a symlinked skill dir must be Unknown, got {err:?}"
+            );
             let _ = fs::remove_dir_all(&root);
         }
     }
