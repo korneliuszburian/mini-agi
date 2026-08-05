@@ -57,7 +57,7 @@ mini-agi loop run <goal-or-case> [--workdir <dir>] [--verify <cmd>]
 outcome `0` (verifier passed) / `1` (exhausted) / `3` (aborted) in `$1` / `$2`
 — the notification point (ping script, etc.).
 
-## Self-hosting proof (S6)
+## Self-hosting proof #1
 
 `mini-agi loop run afk-max-idle` implemented a real kernel improvement (the
 `--max-idle` flag), the kernel's verifier passed on attempt 1, `loop verify`

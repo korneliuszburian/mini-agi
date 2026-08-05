@@ -30,7 +30,7 @@ enabled_tools = ["loop_status", "memory_query", "run_verify", ...]
 
 ## Per-tool approval — the explicit allowlist
 
-36 tools, no wildcard (`enabled_tools`). Reads (`loop_status`, `memory_query`,
+39 tools, no wildcard (`enabled_tools`). Reads (`loop_status`, `memory_query`,
 `run_verify`, `loop_verify`, `eval_gate`, `checkpoint_audit`, `provenance`,
 ...) run `auto`; writes (`loop_dispatch`, `loop_objective`,
 `ticket_claim/release`, `skill_add`, `run_ingest`, `memory_consolidate/
