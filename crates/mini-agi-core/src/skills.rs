@@ -295,14 +295,15 @@ fn skill_hash(dir: &Path) -> Option<String> {
 #[must_use]
 pub fn dual_registration_drift(root: &Path) -> DriftReport {
     let mut report = DriftReport::default();
-    let global = std::env::var("MINIAGI_GLOBAL_SKILLS")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
+    let global = std::env::var("MINIAGI_GLOBAL_SKILLS").ok().map_or_else(
+        || {
             std::env::var_os("HOME")
                 .map(std::path::PathBuf::from)
                 .map(|h| h.join(".agents/skills"))
                 .unwrap_or_default()
-        });
+        },
+        std::path::PathBuf::from,
+    );
     let Ok(entries) = std::fs::read_dir(root.join(".agents/skills")) else {
         return report;
     };
