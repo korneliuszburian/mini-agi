@@ -386,6 +386,33 @@ enum LoopAction {
         #[arg(long)]
         detach: bool,
     },
+    /// Parallel-planner (AFK v4): decompose a goal into tickets
+    /// (planner pass or --manifest), run them in PARALLEL detached
+    /// worktrees, merge deterministically, and gate the result with
+    /// the goal's protected verifier.
+    Parallel {
+        /// The goal text or an existing case name.
+        goal_or_case: String,
+        /// A pre-written planner manifest (skips the planner pass).
+        #[arg(long)]
+        manifest: Option<PathBuf>,
+        /// Max parallel workers (conservative default).
+        #[arg(long, default_value_t = 2)]
+        max_parallel: usize,
+        /// Iterations per ticket.
+        #[arg(long, default_value_t = 3)]
+        iterate: usize,
+        /// Wall cap per ticket attempt.
+        #[arg(long)]
+        max_wall: Option<u64>,
+        /// Skip the Landlock sandbox for workers.
+        #[arg(long)]
+        no_sandbox: bool,
+        /// The final gate (ad-hoc goals; a case reuses its own
+        /// `verify_command` as the protected final truth).
+        #[arg(long)]
+        verify: Option<String>,
+    },
 }
 /// CLI fields for `loop run` (bundled so the command fn stays under
 /// the clippy arg budget). The bools mirror the CLI flags one-to-one.
@@ -773,6 +800,23 @@ fn main() -> ExitCode {
                 template,
                 detach,
             }),
+            LoopAction::Parallel {
+                goal_or_case,
+                manifest,
+                max_parallel,
+                iterate,
+                max_wall,
+                no_sandbox,
+                verify,
+            } => cmd_loop_parallel(
+                &goal_or_case,
+                manifest.as_deref(),
+                max_parallel,
+                iterate,
+                max_wall,
+                no_sandbox,
+                verify.as_deref(),
+            ),
         },
     }
 }
@@ -2149,4 +2193,144 @@ fn finish_loop_run(args: &supervisor::SupervisorArgs<'_>) -> ExitCode {
         }
         Err(e) => fail(&format!("loop run: {e}")),
     }
+}
+
+fn cmd_loop_parallel(
+    goal_or_case: &str,
+    manifest_path: Option<&Path>,
+    max_parallel: usize,
+    iterate: usize,
+    max_wall: Option<u64>,
+    no_sandbox: bool,
+    verify: Option<&str>,
+) -> ExitCode {
+    // 1. Resolve the goal + its final verifier (the case's own
+    //    verify_command is the protected final gate).
+    let resolved = match supervisor::resolve(&supervisor::ResolveInput {
+        goal_or_case,
+        root: &root(),
+        workdir: &root(),
+        verify,
+        target: None,
+    }) {
+        Ok(r) => r,
+        Err(e) => return fail(&e),
+    };
+    if resolved.verify_cmd.is_empty() {
+        return fail("the goal declares no verifier (P0-3) — the final gate cannot run");
+    }
+    // 2. The manifest: a validated file, or the planner pass.
+    let manifest = match manifest_path {
+        Some(p) => match std::fs::read_to_string(p) {
+            Ok(text) => match planner::parse_manifest(&text) {
+                Ok(m) => m,
+                Err(e) => return fail(&format!("manifest invalid: {e}")),
+            },
+            Err(e) => return fail(&format!("cannot read manifest: {e}")),
+        },
+        None => match planner::run_planner_pass(&resolved.goal, &root(), no_sandbox) {
+            Ok(m) => m,
+            Err(e) => return fail(&format!("planner pass failed: {e}")),
+        },
+    };
+    // 3. Provision (worktrees at HEAD) + dispatch + poll.
+    let base = match git_head(&root()) {
+        Ok(b) => b,
+        Err(e) => return fail(&e),
+    };
+    let provision = match planner::provision_batch(&root(), &manifest, &base) {
+        Ok(p) => p,
+        Err(e) => return fail(&format!("provision failed: {e}")),
+    };
+    println!(
+        "batch: {} tickets at {} (max_parallel={max_parallel})",
+        manifest.tickets.len(),
+        &base[..base.len().min(10)]
+    );
+    for t in &manifest.tickets {
+        println!(
+            "  {}: {} -> [{}]",
+            t.id,
+            &t.goal[..t.goal.len().min(60)],
+            t.scope.join(", ")
+        );
+    }
+    let dispatch = match planner::dispatch_batch(
+        &root(),
+        &provision,
+        &manifest,
+        max_parallel,
+        iterate,
+        max_wall,
+    ) {
+        Ok(d) => d,
+        Err(e) => {
+            planner::teardown_batch(&root(), &provision);
+            return fail(&format!("batch dispatch failed: {e}"));
+        }
+    };
+    for r in &dispatch.results {
+        println!(
+            "  ticket {}: {}",
+            r.id,
+            if r.passed { "PASSED" } else { "NOT PASSED" }
+        );
+    }
+    let all_passed = dispatch.results.iter().all(|r| r.passed)
+        && dispatch.results.len() == manifest.tickets.len();
+    if !all_passed {
+        // Evidence preserved: the worktrees stay (reports, transcripts,
+        // handles) — teardown happens only on the SUCCESS path.
+        return fail(
+            "batch FAILED atomically — a ticket did not pass (evidence preserved in .batch/ worktrees + branches)",
+        );
+    }
+    // 4. Finalize + merge + protected gate + the FINAL verifier.
+    let merged =
+        match planner::finalize_and_merge(&root(), &manifest, &provision, &dispatch.results) {
+            Ok(m) => m,
+            Err(e) => {
+                return fail(&format!(
+                    "merge failed: {e} (evidence preserved in .batch/ worktrees + branches)"
+                ));
+            }
+        };
+    println!(
+        "merged: {} tickets -> {}",
+        merged.merged.len(),
+        merged.merge_sha
+    );
+    match planner::protected_paths_unchanged(&root(), &base) {
+        Ok(true) => {}
+        Ok(false) => {
+            return fail(
+                "PROTECTED-PATH DRIFT: the merged tree changed gate inputs — the final gate cannot be trusted (evidence preserved)",
+            );
+        }
+        Err(e) => return fail(&format!("protected-path check failed: {e}")),
+    }
+    let final_gate =
+        mini_agi_core::worker::run_capped("sh", &["-c", &resolved.verify_cmd], &root(), Some(600));
+    let final_ok = final_gate.is_ok_and(|r| !r.aborted && r.status == Some(0));
+    planner::teardown_batch(&root(), &provision);
+    if final_ok {
+        println!("FINAL GATE: PASSED ({})", resolved.verify_cmd);
+        println!("batch SUCCESS: merged {}", merged.merge_sha);
+        ExitCode::SUCCESS
+    } else {
+        println!("FINAL GATE: FAILED ({})", resolved.verify_cmd);
+        ExitCode::from(1)
+    }
+}
+
+fn git_head(repo: &Path) -> Result<String, String> {
+    let out = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(repo)
+        .output()
+        .map_err(|e| format!("git rev-parse failed: {e}"))?;
+    if !out.status.success() {
+        return Err("git rev-parse HEAD failed".to_string());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }

@@ -29,6 +29,20 @@ pub const PROTECTED_PATHS: &[&str] = &[
     "docs/adr",
 ];
 
+/// Files that are EVIDENCE or discipline artifacts, never repo
+/// content: the supervisor's reports/transcripts in the worktree root
+/// and the worker's own checkpoint journal (a codex worker in a
+/// worktree follows the repo's AGENTS.md and runs checkpoint.sh, which
+/// journals the worktree-local memory/episodic/checkpoints.log — that
+/// trail stays out of the merge and out of the containment check).
+const EVIDENCE_PATHS: &[&str] = &[
+    "REPORT.md",
+    "progress.md",
+    "run.json",
+    "codex.log",
+    "memory/episodic/checkpoints.log",
+];
+
 /// One ticket of a parallel batch.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PlannerTicket {
@@ -332,14 +346,17 @@ pub fn provision_batch(
             return Err(format!("git worktree add failed for ticket {}", ticket.id));
         }
         created.push(wt.clone());
-        // Dry-run: the verifier must pass in ITS worktree.
+        // Dry-run (executability): the verifier is a POST-condition —
+        // it legitimately fails BEFORE the worker runs. Pre-flight only
+        // rejects commands that cannot execute at all (spawn error or
+        // cap abort); a real exit (0 or 1) means the gate runs.
         let target = wt.join(&ticket.verify_target);
         let dry =
             mini_agi_core::worker::run_capped("sh", &["-c", &ticket.verify], &target, Some(120));
-        if !dry.is_ok_and(|r| !r.aborted && r.status == Some(0)) {
+        if !dry.is_ok_and(|r| !r.aborted) {
             cleanup(&created);
             return Err(format!(
-                "ticket {}: verifier dry-run FAILED in the worktree (pre-flight)",
+                "ticket {}: verifier dry-run FAILED to execute in the worktree (pre-flight)",
                 ticket.id
             ));
         }
@@ -419,11 +436,19 @@ pub fn dispatch_batch(
                 &provision.base_sha[..provision.base_sha.len().min(10)],
                 ticket.id
             );
+            // Batch discipline: the worker must ONLY touch the declared
+            // scope — the repo's AGENTS.md would otherwise make it run
+            // checkpoint.sh (mutating memory/) and the containment
+            // check would (correctly) fail the batch.
+            let goal = format!(
+                "{}\n\nBATCH CONSTRAINT (binding): modify ONLY files under the declared scope. Do NOT run checkpoint.sh. Do NOT touch memory/, evals/, scripts/, tickets/, docs/adr/, codex.log, progress.md, run.json, REPORT.md. Do NOT commit anything. The supervised verifier is the gate.",
+                ticket.goal
+            );
             let status = std::process::Command::new(&exe)
                 .args([
                     "loop",
                     "run",
-                    &ticket.goal,
+                    &goal,
                     "--workdir",
                     &wt.to_string_lossy(),
                     "--verify",
@@ -544,7 +569,11 @@ pub fn finalize_and_merge(
                 ticket.id
             ));
         }
-        // Kernel-owned mechanical commit in the worktree.
+        // Kernel-owned mechanical commit in the worktree. The run
+        // EVIDENCE files (the supervisor's reports/transcripts in the
+        // worktree root) are excluded from the merge — they are
+        // evidence, not repo content, and they sit outside every
+        // ticket's declared scope.
         let wt = &result.worktree;
         let status = std::process::Command::new("git")
             .args(["add", "-A"])
@@ -554,18 +583,35 @@ pub fn finalize_and_merge(
         if !status.success() {
             return Err(format!("git add failed in {}", wt.display()));
         }
-        let commit = std::process::Command::new("git")
-            .args(["commit", "-qm", &format!("batch: {}", ticket.id)])
+        let status = std::process::Command::new("git")
+            .args(["reset", "-q", "--"])
+            .args(EVIDENCE_PATHS)
             .current_dir(wt)
             .status()
-            .map_err(|e| format!("git commit in {} failed: {e}", wt.display()))?;
-        if !commit.success() {
-            // Nothing to commit (an empty diff) is still a violation —
-            // a passing ticket that changed nothing is suspicious.
-            return Err(format!(
-                "ticket {}: worktree commit failed (nothing committed?)",
-                ticket.id
-            ));
+            .map_err(|e| format!("git reset in {} failed: {e}", wt.display()))?;
+        if !status.success() {
+            return Err(format!("git reset failed in {}", wt.display()));
+        }
+        // The kernel-owned commit is OPTIONAL: a worker that ran the
+        // repo's checkpoint discipline already committed its changes on
+        // the branch. Commit only when there is an unstaged diff.
+        let staged = std::process::Command::new("git")
+            .args(["diff", "--cached", "--quiet"])
+            .current_dir(wt)
+            .status()
+            .map_err(|e| format!("git diff in {} failed: {e}", wt.display()))?;
+        if !staged.success() {
+            let commit = std::process::Command::new("git")
+                .args(["commit", "-qm", &format!("batch: {}", ticket.id)])
+                .current_dir(wt)
+                .status()
+                .map_err(|e| format!("git commit in {} failed: {e}", wt.display()))?;
+            if !commit.success() {
+                return Err(format!(
+                    "ticket {}: worktree commit failed (nothing committed?)",
+                    ticket.id
+                ));
+            }
         }
         // Containment: the committed diff vs the base must be inside
         // the declared scope. The diff runs INSIDE the worktree — the
@@ -577,6 +623,12 @@ pub fn finalize_and_merge(
             .map_err(|e| format!("containment diff failed: {e}"))?;
         let changed = String::from_utf8_lossy(&changed.stdout).to_string();
         for path in changed.lines() {
+            if EVIDENCE_PATHS
+                .iter()
+                .any(|e| path == *e || path.starts_with(&format!("{e}/")))
+            {
+                continue;
+            }
             let in_scope = ticket
                 .scope
                 .iter()
@@ -628,6 +680,39 @@ pub fn protected_paths_unchanged(repo: &Path, base_sha: &str) -> Result<bool, St
         .map_err(|e| e.to_string())?;
     let changed = String::from_utf8_lossy(&out.stdout).to_string();
     Ok(changed.trim().is_empty())
+}
+
+/// The planner pass: an INDEPENDENT read-only codex session decomposes
+/// the goal into tickets and emits a strict JSON manifest. The output
+/// may carry prose/fences around the JSON — the manifest is extracted
+/// between the first '{' and the last '}' and parsed FAIL-CLOSED.
+pub fn run_planner_pass(
+    goal: &str,
+    workdir: &Path,
+    no_sandbox: bool,
+) -> Result<PlannerManifest, String> {
+    let prompt = format!(
+        "You are the PLANNER for a parallel verified-iteration batch. Decompose the goal into 2-4 independent tickets with DISJOINT file scopes (never overlapping paths; never touch scripts/verify.sh, scripts/gate-lib.sh, evals, memory, tickets, docs/adr). Each ticket's verify command must be a deterministic gate that RUNS FROM THE TICKET WORKTREE ROOT (relative paths only — no absolute paths, no ~, no ..) and must FAIL on an empty directory. Emit ONLY a JSON object, no prose, no markdown fences:\n{{\"version\":1,\"tickets\":[{{\"id\":\"t1\",\"goal\":\"...\",\"scope\":[\"relative/path\"],\"verify\":\"command\",\"verify_target\":\".\"}}]}}\n\nGOAL: {goal}",
+    );
+    let idle_cap = mini_agi_core::config::Config::load(workdir).max_idle_seconds;
+    let planner = crate::worker::run_worker_sandboxed(
+        "codex",
+        workdir,
+        no_sandbox,
+        true,
+        Some(600),
+        idle_cap,
+        &["exec", "-s", "read-only", "--skip-git-repo-check", &prompt],
+    )
+    .map_err(|e| format!("planner pass not available: {e}"))?;
+    let out = planner.output;
+    let start = out
+        .find('{')
+        .ok_or_else(|| "planner emitted no JSON object".to_string())?;
+    let end = out
+        .rfind('}')
+        .ok_or_else(|| "planner emitted no JSON object".to_string())?;
+    parse_manifest(&out[start..=end])
 }
 
 /// Remove a provisioned batch's worktrees (evidence preserved — the

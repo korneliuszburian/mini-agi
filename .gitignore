@@ -5,3 +5,10 @@ target/
 .worker-*
 *.blind-hidden
 .batch/
+# Run transcripts (AFK v4): the supervisor's progress.md/codex.log/run.json
+# are runtime artifacts at the workdir root — gitignored so a worker
+# following AGENTS.md's checkpoint discipline does not deadlock on them.
+# The reviewable evidence (REPORT.md) stays tracked.
+codex.log
+progress.md
+run.json
