@@ -223,5 +223,14 @@
     "tokens": 265897,
     "tool_mismatches": 0,
     "mode": "regression"
+  },
+  {
+    "case": "verify-gate-full-output",
+    "composite": 0.6076,
+    "outcome": 1.0,
+    "cost_usd": 0.0001,
+    "tokens": 0,
+    "tool_mismatches": 0,
+    "mode": "regression"
   }
 ]

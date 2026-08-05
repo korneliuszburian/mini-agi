@@ -17,18 +17,7 @@ export RUSTFLAGS="-D warnings"
 
 fail=0
 
-step() {
-    label="$1"
-    shift
-    out="$("$@" 2>&1)" || { echo "[FAIL] $label:"; echo "$out" | head -20; return 1; }
-    [ -n "$out" ] || { echo "[FAIL] $label: silent target (produced no output)"; return 1; }
-    echo "[ok] $label"
-    return 0
-}
-
-skip() {
-    echo "[skip] $1: $2"
-}
+. scripts/gate-lib.sh
 
 BIN="./target/debug/mini-agi"
 has_cargo=0

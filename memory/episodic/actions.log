@@ -6,3 +6,9 @@
 2026-08-05T10:22:48Z kernel run-verify 4a40f05d981e79e9 afk-max-idle
 2026-08-05T10:22:48Z kernel run-ingest 8c1c70b4607f07cc afk-max-idle
 2026-08-05T10:22:48Z local loop-verify 41d65740a4a1e291 afk-max-idle
+2026-08-05T12:12:12Z kernel run-verify 00081e8a11e42139 verify-gate-full-output
+2026-08-05T12:12:12Z kernel run-ingest e4aa9f8afef1ce43 verify-gate-full-output
+2026-08-05T12:12:12Z local loop-verify 4fc0984b93f10b34 verify-gate-full-output
+2026-08-05T12:12:22Z kernel run-verify a385766d5f9d74da verify-gate-full-output
+2026-08-05T12:12:22Z kernel run-ingest 299a1c6c70d976a1 verify-gate-full-output
+2026-08-05T12:12:22Z local loop-verify a107cad88e511036 verify-gate-full-output
