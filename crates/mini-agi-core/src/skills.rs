@@ -304,10 +304,13 @@ fn skill_hash(dir: &Path) -> Option<String> {
     for f in files {
         let rel = f.strip_prefix(dir).ok()?.to_string_lossy().into_owned();
         acc.push_str(&rel);
-        // Byte hashing: a non-UTF-8 asset must not silently drop the
-        // skill from the drift check.
+        // RAW byte hashing: distinct malformed byte sequences must not
+        // collapse onto one replacement character.
         let bytes = std::fs::read(&f).ok()?;
-        acc.push_str(&String::from_utf8_lossy(&bytes));
+        for b in bytes {
+            use std::fmt::Write as _;
+            let _ = write!(acc, "{b:02x}");
+        }
     }
     Some(crate::hash::source_sha256(&acc))
 }
@@ -551,14 +554,23 @@ fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
         return Ok(skill.name);
     }
     if dest.exists() {
+        // Collision-free backup name (secs + nanos), and an existing
+        // backup is NEVER deleted: two reinstalls within the same
+        // second must not erase the first preserved tree.
+        let base = dest
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_secs());
-        let backup = dest.with_file_name(format!(
-            "{}.local-before-{stamp}",
-            dest.file_name().unwrap_or_default().to_string_lossy()
-        ));
-        let _ = fs::remove_dir_all(&backup);
+            .map_or(0, |d| d.as_nanos());
+        let mut backup = dest.with_file_name(format!("{base}.local-before-{stamp}"));
+        let mut n = 0u32;
+        while backup.exists() {
+            n += 1;
+            backup = dest.with_file_name(format!("{base}.local-before-{stamp}-{n}"));
+        }
         fs::rename(&dest, &backup).map_err(SkillError::Io)?;
     }
     fs::create_dir_all(&dest).map_err(SkillError::Io)?;
@@ -571,6 +583,10 @@ fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
         let target = dest.join(entry.file_name());
         if entry.file_type().is_ok_and(|t| t.is_dir()) {
             copy_dir(&entry.path(), &target)?;
+        } else if entry.file_type().is_ok_and(|t| t.is_symlink()) {
+            // Symlinks are NOT followed at install (skill_hash ignores
+            // them too): copying a file symlink would pull in content
+            // outside the installable unit.
         } else {
             fs::copy(entry.path(), &target).map_err(SkillError::Io)?;
         }
@@ -585,6 +601,7 @@ fn copy_dir(src: &Path, dest: &Path) -> Result<(), SkillError> {
         let target = dest.join(entry.file_name());
         if entry.file_type().is_ok_and(|t| t.is_dir()) {
             copy_dir(&entry.path(), &target)?;
+        } else if entry.file_type().is_ok_and(|t| t.is_symlink()) {
         } else {
             fs::copy(entry.path(), &target).map_err(SkillError::Io)?;
         }
@@ -720,13 +737,46 @@ description: >
             fs::read_to_string(dest.join("SKILL.md")).unwrap(),
             "---\nname: demo\ndescription: d\nversion: 1.1.0\nsource: s\n---\n# v2\n"
         );
-        // The local edit must survive as a backup OUTSIDE the fresh dir.
+        // The local edit must survive as a backup OUTSIDE the fresh dir,
+        // WITH ITS CONTENT intact.
         let backups: Vec<_> = fs::read_dir(root.join(".agents/skills"))
             .unwrap()
             .flatten()
             .filter(|e| e.file_name().to_string_lossy().contains("local-before"))
             .collect();
         assert!(!backups.is_empty(), "the local edit must be preserved");
+        let backup_text =
+            fs::read_to_string(backups.first().unwrap().path().join("SKILL.md")).unwrap();
+        assert!(
+            backup_text.contains("local-edit"),
+            "the backup must carry the local edit, got: {backup_text}"
+        );
+        // A PRE-EXISTING backup must never be deleted: create the next
+        // backup name, reinstall, assert BOTH backups exist.
+        let first_name = backups[0].file_name().to_string_lossy().into_owned();
+        let collision = root
+            .join(".agents/skills")
+            .join(format!("{first_name}-collision"));
+        fs::create_dir_all(&collision).unwrap();
+        fs::write(collision.join("SKILL.md"), "precious").unwrap();
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: demo\ndescription: d\nversion: 1.2.0\nsource: s\n---\n# v3\n",
+        )
+        .unwrap();
+        install_one(&root, &sk.join("SKILL.md")).unwrap();
+        let still = fs::read_dir(root.join(".agents/skills"))
+            .unwrap()
+            .flatten()
+            .filter(|e| {
+                let n = e.file_name().to_string_lossy().into_owned();
+                n.contains("local-before")
+            })
+            .count();
+        assert!(
+            still >= 3,
+            "existing backups must survive reinstalls (found {still})"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -767,13 +817,23 @@ description: >
         let h1 = skill_hash(&sk).unwrap();
         let h2 = skill_hash(&sk).unwrap();
         assert_eq!(h1, h2, "the hash must be deterministic");
-        // A symlinked dir is not followed.
+        // A symlinked dir is not followed (no unbounded traversal).
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink("/etc", sk.join("link")).unwrap();
             let h3 = skill_hash(&sk).unwrap();
             assert_eq!(h1, h3, "symlinked dirs must not be traversed");
         }
+        // Distinct malformed byte sequences must hash DIFFERENTLY
+        // (raw-byte hashing, not lossy text).
+        fs::write(sk.join("bin.dat"), [0x80u8, 0x00]).unwrap();
+        let h_80 = skill_hash(&sk).unwrap();
+        fs::write(sk.join("bin.dat"), [0x81u8, 0x00]).unwrap();
+        let h_81 = skill_hash(&sk).unwrap();
+        assert_ne!(
+            h_80, h_81,
+            "0x80 and 0x81 must not collapse onto one replacement char"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
