@@ -463,15 +463,19 @@ enum SkillAction {
         /// Skill name.
         name: String,
     },
-    /// Run a skill's verify hook; exit non-zero on failure.
+    /// Run a skill's verify hook (or ALL with --all); exit non-zero on
+    /// failure.
     Verify {
-        /// Skill name.
-        name: String,
+        /// Skill name (ignored with --all).
+        name: Option<String>,
         /// Mark the skill disabled in its frontmatter when the hook
         /// fails (HARDENING P2-14): a broken dynamic skill must not
         /// keep running silently.
         #[arg(long)]
         disable_on_fail: bool,
+        /// Verify EVERY skill's hook (the gate's skills step).
+        #[arg(long)]
+        all: bool,
     },
     /// Verify EVERY skill's hook in one pass (the deterministic gate's
     /// skills step): a failed hook makes the exit non-zero; skills
@@ -653,7 +657,16 @@ fn main() -> ExitCode {
             SkillAction::Verify {
                 name,
                 disable_on_fail,
-            } => cmd_skill_verify(&name, disable_on_fail),
+                all,
+            } => {
+                if all {
+                    cmd_skill_verify_all()
+                } else if let Some(name) = name {
+                    cmd_skill_verify(&name, disable_on_fail)
+                } else {
+                    fail("skill verify needs a name or --all")
+                }
+            }
             SkillAction::VerifyAll => cmd_skill_verify_all(),
             SkillAction::Add { source } => cmd_skill_add(&source),
         },
@@ -1730,7 +1743,10 @@ fn cmd_skill_verify_all() -> ExitCode {
                 println!("  no-hook: {}", report.no_hook.join(", "));
             }
             if !report.no_version.is_empty() {
-                println!("  no-version: {}", report.no_version.join(", "));
+                eprintln!(
+                    "FAIL: skills missing version/source frontmatter: {}",
+                    report.no_version.join(", ")
+                );
             }
             let drift = skills::dual_registration_drift(&root);
             if !drift.drifted.is_empty() {
@@ -1739,7 +1755,7 @@ fn cmd_skill_verify_all() -> ExitCode {
                     println!("    {name}: local {lh} != global {gh}");
                 }
             }
-            if report.failed.is_empty() {
+            if report.failed.is_empty() && report.no_version.is_empty() {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)

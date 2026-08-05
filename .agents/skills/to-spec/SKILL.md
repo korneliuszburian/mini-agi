@@ -84,6 +84,16 @@ A list of testing decisions that were made. Include:
 - Which modules will be tested
 - Prior art for the tests (i.e. similar types of tests in the codebase)
 
+## Acceptance Criteria
+
+Every criterion below is CHECKABLE: a deterministic gate (command +
+expected output) or a measurable artifact. A criterion that cannot be
+verified against an artifact must be rephrased or dropped.
+
+- [ ] C1: <command or artifact> → <expected output>
+- [ ] C2: <command or artifact> → <expected output>
+- [ ] C3: <command or artifact> → <expected output>
+
 ## Out of Scope
 
 A description of the things that are out of scope for this spec.

@@ -94,10 +94,14 @@ Publish the approved tickets:
   numbers/titles it depends on. Use the per-ticket file template below —
   one ticket per file, never a single combined file. In a mini-agi
   repo the KERNEL owns the ticket state (leases, locks, the blocking
-  graph): use the ticket tools (`mini-agi ticket claim`,
-  `ticket validate-graph`, `ticket release` via the CLI/MCP) — the
-  skill is the procedure AROUND the tools, never a prose
-  re-implementation of claims or blocking.
+  graph) for `tickets/TICKET-<n>.md`: when the kernel tools are used,
+  publish INTO `tickets/` with the TICKET-<n> naming (the kernel reads
+  only that layout — the `.scratch/<feature>/issues/` form is for
+  non-mini-agi trackers). Use `mini-agi ticket claim` / `ticket
+  release` (CLI; the MCP surface has claim/release/claims but NOT
+  validate-graph — that one is CLI-only) — the skill is the procedure
+  AROUND the tools, never a prose re-implementation of claims or
+  blocking.
 - **A real issue tracker (GitHub, Linear, …)** → publish one issue per
   ticket in dependency order (blockers first) so each ticket's blocking
   edges can reference real identifiers. Use the platform's native blocking

@@ -294,13 +294,35 @@ pub struct DriftReport {
     pub drifted: Vec<(String, String, String)>,
 }
 
-/// Hash the SKILL.md content of a skill dir (16-hex).
+/// Deterministic content hash of a skill dir (the SKILL.md plus any
+/// auxiliary files — the whole installable unit), 16-hex.
 fn skill_hash(dir: &Path) -> Option<String> {
-    use std::hash::{BuildHasher, Hasher};
-    let text = std::fs::read_to_string(dir.join("SKILL.md")).ok()?;
-    let mut h = std::hash::RandomState::new().build_hasher();
-    h.write(text.as_bytes());
-    Some(format!("{:016x}", h.finish()))
+    let mut files: Vec<PathBuf> = Vec::new();
+    collect_files(dir, &mut files);
+    files.sort();
+    let mut acc = String::new();
+    for f in files {
+        let rel = f.strip_prefix(dir).ok()?.to_string_lossy().into_owned();
+        acc.push_str(&rel);
+        let text = std::fs::read_to_string(&f).ok()?;
+        acc.push_str(&text);
+    }
+    Some(crate::hash::source_sha256(&acc))
+}
+
+/// Recursive file collector for `skill_hash`.
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            collect_files(&p, out);
+        } else {
+            out.push(p);
+        }
+    }
 }
 
 /// Compare repo-local vs user-global registrations for drift.
@@ -510,11 +532,22 @@ fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
         )));
     }
     let dest = agents_dir(root).join(&skill.name);
-    // Install-diff (D5): copy only when the content differs — a blind
+    // Install-diff (D5): copy only when the content differs; a blind
     // remove_dir_all would silently destroy local edits on reinstall.
+    // On a difference the existing SKILL.md is PRESERVED as a backup —
+    // nothing is ever destroyed by an install.
     let existing = fs::read_to_string(dest.join("SKILL.md")).ok();
     if existing.as_deref() == Some(content.as_str()) {
         return Ok(skill.name);
+    }
+    if let Some(old_text) = existing {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let _ = fs::write(
+            dest.join(format!("SKILL.md.local-before-{stamp}")),
+            old_text,
+        );
     }
     let _ = fs::remove_dir_all(&dest);
     fs::create_dir_all(&dest).map_err(SkillError::Io)?;

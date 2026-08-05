@@ -234,8 +234,10 @@ one, you pick the next decision, not the user.
 2. Choose the ticket. If the user named one, use it. Otherwise take the
    first frontier ticket in order. **Claim it** BEFORE any work: in a
    mini-agi repo use the KERNEL's ticket tools (`mini-agi ticket claim
-   <ticket>` — lease + lock; `ticket validate-graph`, `ticket release`
-   via the CLI/MCP) — the kernel owns claims and locks; on an external
+   <ticket>` — lease + lock; `ticket release`; `ticket validate-graph`
+   is CLI-only, the MCP surface has claim/release/claims) — the kernel
+   owns claims and locks, and reads `tickets/TICKET-<n>.md` (the
+   `.scratch/` form is for non-mini-agi trackers); on an external
    tracker assign via the tracker. Never re-implement claims in prose
    where the kernel tool exists.
 3. Resolve it — **zoom as needed**: fetch the full body of any related or

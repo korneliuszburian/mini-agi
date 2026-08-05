@@ -48,11 +48,15 @@ literal last line is the in-progress one).
 2. Run the repo gate: `./scripts/verify.sh` and QUOTE the tail.
 3. Request `/code-review` (or the mini-agi `review` skill for
    kernel-gated work), or record the explicit human waiver.
-4. Commit to the current branch.
+4. Commit to the current branch and quote `git rev-parse HEAD` (the
+   commit SHA).
 
 **Done when:** the gate's `verify: ALL GREEN` line is quoted AND the
-diff touches only the Phase-0 scope AND the review verdict or the
-human waiver is recorded.
+scoped diff artifact is quoted (`git diff --stat <base>..HEAD` — the
+changed paths must all be inside the Phase-0 scope) AND the review
+verdict is recorded WITH its location (the review output file or the
+quoted verdict line), or the human waiver is recorded with the
+waiver's timestamp.
 
 ## Completion criteria (all artifact-bound)
 
@@ -60,5 +64,7 @@ human waiver is recorded.
 - [ ] Phase 1: the red output is quoted (test file + failure).
 - [ ] Phase 2: the green output is quoted (test file + pass).
 - [ ] Phase 3: checkpoint journal shows no orphan BEGIN.
-- [ ] Phase 4: `verify: ALL GREEN` quoted, diff within scope, review
-      verdict or human waiver recorded, work committed.
+- [ ] Phase 4: `verify: ALL GREEN` quoted; `git diff --stat
+      <base>..HEAD` quoted and contained in the scope; the commit SHA
+      (`git rev-parse HEAD`) quoted; the review verdict with its
+      location (or the timestamped human waiver) recorded.
