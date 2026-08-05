@@ -11,13 +11,14 @@ server into ANY repo brings all work standards with it?
   implement, tdd, verify, checkpoint, review, code-review,
   diagnosing-bugs, orchestrate, compact, handoff, ingest-knowledge,
   caveman.
-- Global (`~/.agents/skills/`, 19 symlinks into krn-codex-skills):
-  codebase-design, delivery-loop, domain-modeling, prototype,
-  slice-work, source-to-decision, target-repo-work,
-  setup-repository-workflow, typescript-engineering, writing-great-
-  skills, managing-codex-capabilities, omarchy + the 7 overlapping
-  copies of local skills. One DEAD symlink: `reviewer-handoff` (no
-  SKILL.md).
+- Global (`~/.agents/skills/`, 19 symlinks, most into krn-codex-skills
+  except omarchy + cube-css which are opencode-local): codebase-design,
+  delivery-loop, domain-modeling, prototype, slice-work,
+  source-to-decision, target-repo-work, setup-repository-workflow,
+  typescript-engineering, writing-great-skills,
+  managing-codex-capabilities, omarchy + the 5 overlapping copies of
+  local skills (code-review, diagnosing-bugs, implement, to-spec,
+  wayfinder). One DEAD symlink: `reviewer-handoff` (no SKILL.md).
 - opencode-only: cube-css (UI styling).
 
 ## Plane coverage
