@@ -43,9 +43,9 @@ automation (doc only), performance diagnosis, per-language engineering
 (only TypeScript), cross-repo skill-source sync.
 
 OVERLAPS: review vs code-review (two generations of the same idea);
-implement/to-spec/to-tickets/wayfinder/slice-work exist in BOTH
-local and global (version-drift risk); delivery-loop vs orchestrate
-near-twins.
+code-review, diagnosing-bugs, implement, to-spec and wayfinder exist
+in BOTH local and global (version-drift risk); delivery-loop vs
+orchestrate near-twins.
 
 ## The universal standards package
 
