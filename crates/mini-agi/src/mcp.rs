@@ -864,9 +864,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 }
                 v
             };
-            let target = opt_arg!("target")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|| workdir.clone());
+            let target = resolved.target;
             let report = opt_arg!("report")
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| workdir.join("REPORT.md"));

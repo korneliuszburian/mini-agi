@@ -103,11 +103,13 @@ pub fn spawn_detached(
         no_resume,
         no_sandbox,
     };
-    std::fs::write(
-        handle.join("launch.json"),
-        serde_json::to_string_pretty(&launch)?,
-    )?;
     let exe = std::env::current_exe()?;
+    // One run per workdir (F4): refuse when a run is already active.
+    if is_alive(&handle) {
+        return Err(std::io::Error::other(
+            "a detached run is already active in this workdir",
+        ));
+    }
     let out = std::fs::File::create(handle.join("run.out"))?;
     let err = out.try_clone()?;
     let mut args: Vec<String> = vec![
@@ -154,7 +156,7 @@ pub fn spawn_detached(
     if no_sandbox {
         args.push("--no-sandbox".into());
     }
-    let child = std::process::Command::new(&exe)
+    let mut child = std::process::Command::new(&exe)
         .args(&args)
         // The child must NOT inherit the parent's stdin: a codex exec
         // would block reading it (no EOF on an MCP server's pipe) and
@@ -165,28 +167,115 @@ pub fn spawn_detached(
         .stdout(std::process::Stdio::from(out))
         .stderr(std::process::Stdio::from(err))
         .spawn()?;
-    std::fs::write(handle.join("run.pid"), child.id().to_string())?;
+    // Atomic-ish launch protocol (F5): pid + identity first, launch.json
+    // LAST — a failure after the spawn kills the child and removes the
+    // handle so no unrecorded run lingers.
+    let pid = child.id();
+    let mut cleanup = || {
+        let _ = child.kill();
+        let _ = std::fs::remove_dir_all(&handle);
+    };
+    if std::fs::write(handle.join("run.pid"), pid.to_string()).is_err() {
+        cleanup();
+        return Err(std::io::Error::other("cannot write run.pid"));
+    }
+    // Process identity (F2): the Linux start-time from /proc/<pid>/stat
+    // guards against pid reuse; a zombie (state Z) is NOT alive.
+    let start = process_starttime(pid);
+    if std::fs::write(handle.join("run.start"), start.to_string()).is_err() {
+        cleanup();
+        return Err(std::io::Error::other("cannot write run.start"));
+    }
+    let launch_json =
+        serde_json::to_string_pretty(&launch).map_err(|e| std::io::Error::other(e.to_string()))?;
+    if std::fs::write(handle.join("launch.json"), launch_json).is_err() {
+        cleanup();
+        return Err(std::io::Error::other("cannot write launch.json"));
+    }
     Ok(handle)
 }
 
-/// Liveness of a launched run (Linux: `/proc/<pid>`; elsewhere a
-/// launched run reports dead — documented limitation).
+/// Linux process start-time (field 22 of `/proc/<pid>/stat`); 0 when
+/// unreadable. Combined with the pid it identifies a process instance
+/// (guards against pid reuse; zombies keep their start-time but report
+/// state Z).
+fn process_starttime(pid: u32) -> u64 {
+    std::fs::read_to_string(format!("/proc/{pid}/stat"))
+        .ok()
+        .and_then(|stat| stat.split_whitespace().nth(21).and_then(|f| f.parse().ok()))
+        .unwrap_or(0)
+}
+
+/// Liveness of a launched run: the process exists AND its Linux
+/// start-time matches the recorded identity AND it is not a zombie
+/// (state Z). A stale pid (reused or zombie) reports dead.
 #[must_use]
 // Consumed by the MCP tools (AFK v3 S2).
 #[allow(dead_code)]
 pub fn is_alive(handle: &Path) -> bool {
-    let pid = match std::fs::read_to_string(handle.join("run.pid")) {
-        Ok(p) => p.trim().to_string(),
+    let pid: u32 = match std::fs::read_to_string(handle.join("run.pid")) {
+        Ok(p) => p.trim().parse().unwrap_or(0),
         Err(_) => return false,
     };
+    let recorded: u64 = std::fs::read_to_string(handle.join("run.start"))
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0);
     #[cfg(target_os = "linux")]
     {
-        Path::new("/proc").join(&pid).exists()
+        let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+            return false;
+        };
+        let fields: Vec<&str> = stat.split_whitespace().collect();
+        let state = fields.get(2).copied().unwrap_or("?");
+        let starttime = fields
+            .get(21)
+            .and_then(|f| f.parse::<u64>().ok())
+            .unwrap_or(0);
+        state != "Z" && starttime == recorded && recorded != 0
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = pid;
+        let _ = (pid, recorded);
         false
+    }
+}
+
+/// Handle authority (F3): a valid handle is `<workdir>/.supervisor`
+/// whose launch.json names that same workdir. Anything else (an
+/// arbitrary path the client points at) is invalid.
+#[must_use]
+// Consumed by the MCP tools (AFK v3 S2).
+#[allow(dead_code)]
+pub fn valid_handle(handle: &Path) -> bool {
+    if !matches!(handle.file_name(), Some(n) if n == ".supervisor") {
+        return false;
+    }
+    let Some(parent) = handle.parent() else {
+        return false;
+    };
+    std::fs::read_to_string(handle.join("launch.json")).is_ok_and(|text| {
+        serde_json::from_str::<LaunchInfo>(&text).is_ok_and(|l| Path::new(&l.workdir) == parent)
+    })
+}
+
+/// The report path of a launch, constrained to the workdir (F3): the
+/// auto-approved read tools must never follow a path outside the
+/// authorized workdir.
+#[must_use]
+// Consumed by the MCP tools (AFK v3 S2).
+#[allow(dead_code)]
+pub fn launch_report(handle: &Path) -> Option<std::path::PathBuf> {
+    let launch: LaunchInfo = std::fs::read_to_string(handle.join("launch.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())?;
+    let workdir = Path::new(&launch.workdir);
+    let report = Path::new(&launch.report);
+    // The report must live inside the workdir.
+    if report.starts_with(workdir) {
+        Some(report.to_path_buf())
+    } else {
+        None
     }
 }
 
@@ -320,10 +409,132 @@ mod tests {
             .stderr(std::process::Stdio::null())
             .spawn()
             .unwrap();
-        std::fs::write(handle.join("run.pid"), child.id().to_string()).unwrap();
+        let pid = child.id();
+        std::fs::write(handle.join("run.pid"), pid.to_string()).unwrap();
+        std::fs::write(handle.join("run.start"), process_starttime(pid).to_string()).unwrap();
         assert!(is_alive(&handle), "a running process must report alive");
         let _ = child.kill();
         let _ = child.wait();
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn zombie_reports_dead_and_is_reaped_by_wait() {
+        // A real zombie: the child exits, we do NOT reap it -> state Z.
+        let root = tmp_root("zombie");
+        let handle = handle_for(&root);
+        std::fs::create_dir_all(&handle).unwrap();
+        let mut child = std::process::Command::new("sh")
+            .args(["-c", "true"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        std::fs::write(handle.join("run.pid"), pid.to_string()).unwrap();
+        std::fs::write(handle.join("run.start"), process_starttime(pid).to_string()).unwrap();
+        // Give the child a moment to exit and become a zombie.
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
+        let state = stat.split_whitespace().nth(2).unwrap();
+        assert_eq!(state, "Z", "the test must actually observe a zombie");
+        assert!(!is_alive(&handle), "a zombie is NOT alive");
+        let _ = child.wait(); // reap
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn pid_reuse_with_wrong_starttime_reports_dead() {
+        let root = tmp_root("reuse");
+        let handle = handle_for(&root);
+        std::fs::create_dir_all(&handle).unwrap();
+        let child = std::process::Command::new("sh")
+            .args(["-c", "sleep 30"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        std::fs::write(handle.join("run.pid"), pid.to_string()).unwrap();
+        // A start-time that does not match the process.
+        std::fs::write(handle.join("run.start"), "1").unwrap();
+        assert!(
+            !is_alive(&handle),
+            "start-time identity must guard pid reuse"
+        );
+        let mut child = child;
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn handle_authority_and_report_path_are_enforced() {
+        let root = tmp_root("authority");
+        let handle = handle_for(&root);
+        std::fs::create_dir_all(&handle).unwrap();
+        let workdir = root.join("wd");
+        std::fs::create_dir_all(&workdir).unwrap();
+        let launch = LaunchInfo {
+            goal_or_case: "x".into(),
+            workdir: workdir.to_string_lossy().into_owned(),
+            verify: "true".into(),
+            target: workdir.to_string_lossy().into_owned(),
+            iterate: 1,
+            max_wall: None,
+            max_idle: None,
+            blind_worker: false,
+            hidden_dir: None,
+            on_done: None,
+            report: "/etc/passwd".into(),
+            template: None,
+            no_resume: false,
+            no_sandbox: true,
+        };
+        std::fs::write(
+            handle.join("launch.json"),
+            serde_json::to_string(&launch).unwrap(),
+        )
+        .unwrap();
+        // The workdir mismatch (handle parent != launch workdir) invalidates.
+        assert!(
+            !valid_handle(&handle),
+            "workdir must match the handle parent"
+        );
+        // A report path outside the workdir is refused.
+        assert!(
+            launch_report(&handle).is_none(),
+            "no reads outside the workdir"
+        );
+        // Fix the workdir to the handle parent -> valid, but the report
+        // path is still outside.
+        let launch2 = LaunchInfo {
+            workdir: root.to_string_lossy().into_owned(),
+            ..launch
+        };
+        std::fs::write(
+            handle.join("launch.json"),
+            serde_json::to_string(&launch2).unwrap(),
+        )
+        .unwrap();
+        assert!(valid_handle(&handle));
+        assert!(launch_report(&handle).is_none(), "/etc/passwd is outside");
+        // An in-workdir report is readable.
+        let launch3 = LaunchInfo {
+            report: root.join("REPORT.md").to_string_lossy().into_owned(),
+            ..launch2
+        };
+        std::fs::write(
+            handle.join("launch.json"),
+            serde_json::to_string(&launch3).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(launch_report(&handle).unwrap(), root.join("REPORT.md"));
+        // A non-.supervisor name is invalid even with a launch.json.
+        let fake = root.join("other");
+        std::fs::create_dir_all(&fake).unwrap();
+        std::fs::copy(handle.join("launch.json"), fake.join("launch.json")).unwrap();
+        assert!(!valid_handle(&fake));
         let _ = std::fs::remove_dir_all(&root);
     }
 

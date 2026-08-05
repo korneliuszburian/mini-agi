@@ -2052,7 +2052,9 @@ fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
     // pairing), then spawn the same run as a child and exit with the
     // handle. The child runs the NORMAL path below.
     if a.detach {
-        let vt = a.target.as_deref().unwrap_or(&a.workdir);
+        // The RESOLVED target (a case's verify_target honored) — not
+        // the raw flag (codex review F1).
+        let vt = resolved.target.as_path();
         let verify_cmd = if let Some(v) = a.verify.as_deref() {
             v.to_string()
         } else {
