@@ -241,32 +241,20 @@ pub fn audit_verifier(root: &Path, run_path: &Path) -> Result<String, String> {
 /// Verifier-strength counterfactual check (S2, wired into --iterate):
 /// run the verifier in an EMPTY dir — if it exits 0 there, it accepts
 /// non-work and the iteration would 'pass' garbage.
+// Process-wide uniqueness counter for the vacuous-audit temp dirs: a
+// timestamp can collide across concurrent calls (same-nanosecond reads),
+// and a fixed name made concurrent audits stomp each other's cwd.
+static AUDIT_DIR_NONCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[must_use]
 pub fn audit_verifier_vacuous(target: &Path, verify_command: &str) -> VerifierVacuousAudit {
-    // Unique per-call dir: a fixed name would make concurrent audits
-    // stomp each other's cwd mid-run (the vacuous-gate race). A
-    // timestamp alone is not a uniqueness guarantee — the directory is
-    // created atomically with retries on collision.
     let base = std::env::temp_dir().join(format!("mag-va2-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&base);
-    let mut tmp = base.clone();
-    let mut created = false;
-    for attempt in 0..8 {
-        let nonce = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .ok()
-            .map_or_else(|| u128::try_from(attempt).unwrap_or(0), |d| d.as_nanos());
-        tmp = base.join(format!("{nonce}"));
-        if std::fs::create_dir(&tmp).is_ok() {
-            created = true;
-            break;
-        }
-    }
-    if !created {
+    let nonce = AUDIT_DIR_NONCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = base.join(format!("{nonce}"));
+    if std::fs::create_dir(&tmp).is_err() {
         return VerifierVacuousAudit { is_vacuous: false };
     }
-    let _ = std::fs::remove_dir_all(&tmp);
-    std::fs::create_dir_all(&tmp).unwrap_or(());
     let res = crate::worker::run_capped("sh", &["-c", verify_command], &tmp, Some(120));
     let _ = std::fs::remove_dir_all(&tmp);
     let _ = target;
