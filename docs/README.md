@@ -35,6 +35,7 @@ knows is reachable from here; anything not listed is either generated
 | `docs/RESEARCH-2026-08.md` | the AFK/Ralph/Sandcastle research pass | the supervisor's grounding |
 | `docs/VERIFIABLE-REWARD-RESEARCH.md` | the verifiable-reward research (verifier discipline) | verification semantics |
 | `docs/METRICS.md` | metrics/telemetry notes | observability |
+| `docs/STANDARDS-AUDIT.md` | skills/standards inventory, plane coverage, gaps, the universal standards package | standards work |
 | `docs/harness/` | harness evolution records (Phantom Guardrails) | harness changes |
 | `AGENTS.md` | the repo contract (top of the tree, always loaded) | every session start |
 | `CHANGELOG.md` | release history | release notes |
