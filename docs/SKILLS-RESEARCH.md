@@ -13,8 +13,9 @@ docs/RESEARCH-2026-08.md (Matt Pocock / Sandcastle / industry).
 - D2: completion criteria are unverifiable self-reports — implement's
   "tests red before green" has no quoted output; to-spec has no quality
   gate. Contrast verify/review, which demand quoted output.
-- D3: the most-invoked skill (implement) is 26 lines of prose with no
-  procedure; orchestrate's stages have no handoff contract.
+- D3: the core implementation skill (implement) is 26 lines of prose
+  with no procedure, thin for its role; orchestrate's stages have no
+  handoff contract.
 - D4: duplication — review vs code-review (two generations), 7 skills
   dual-registered local+global (silent drift), dead reviewer-handoff
   symlink, delivery-loop vs orchestrate near-twins.
@@ -23,17 +24,20 @@ docs/RESEARCH-2026-08.md (Matt Pocock / Sandcastle / industry).
 - D6: composition is prose ("use /tdd"), not a contract — a rename
   breaks nothing detectably.
 - D7: `disable-model-invocation: true` on wayfinder/to-spec/to-tickets/
-  implement conflicts with the AGENTS.md routing table phrasing — the
-  routing is a HUMAN contract, and that ambiguity is undocumented.
+  implement conflicts with the GLOBAL routing contract's phrasing
+  (~/.claude/CLAUDE.md "Workflow routing" — the repo AGENTS.md has no
+  routing table) — the routing is a HUMAN contract, and that ambiguity
+  is undocumented.
 
 ## Routing
 
-The AGENTS.md table is a flat 19-owner list — good principle,
-incomplete tree: missing leaves (quick answer, skill authoring, repo
-adoption), the wayfinder→to-spec→slice-work→to-tickets pipeline is
-presented as parallel choices with overlapping boundary tests, and
-orchestrate (the pipeline driver) is not routed. No routing telemetry
-(the kernel records runs, not skills).
+The global routing contract (~/.claude/CLAUDE.md) is a flat 19-owner
+list — good principle, incomplete tree: missing leaves (quick answer,
+skill authoring, repo adoption), the wayfinder→to-spec→slice-work→
+to-tickets pipeline is presented as parallel choices with overlapping
+boundary tests, and orchestrate (the pipeline driver) is not routed.
+No routing telemetry exists (the kernel records runs, not skills), so
+"most-invoked" claims are unsupported until telemetry lands.
 
 ## Dogfood seam (state vs prose — currently inverted in two places)
 
