@@ -107,8 +107,14 @@ impl Config {
     }
 
     fn apply_env(&mut self) {
+        self.apply_env_overlay(|name| std::env::var(name).ok());
+    }
+
+    /// Environment overlay behind a lookup closure (testable without
+    /// mutating process env — `unsafe_code = "forbid"`).
+    fn apply_env_overlay(&mut self, get: impl Fn(&str) -> Option<String>) {
         let set_f64 = |name: &str, slot: &mut f64| {
-            if let Some(v) = std::env::var(name).ok().and_then(|s| s.parse::<f64>().ok()) {
+            if let Some(v) = get(name).and_then(|s| s.parse::<f64>().ok()) {
                 *slot = v;
             }
         };
@@ -118,37 +124,22 @@ impl Config {
             &mut self.regression_tolerance,
         );
         let set_usize = |name: &str, slot: &mut Option<usize>| {
-            if let Some(v) = std::env::var(name)
-                .ok()
-                .and_then(|s| s.parse::<usize>().ok())
-            {
+            if let Some(v) = get(name).and_then(|s| s.parse::<usize>().ok()) {
                 *slot = Some(v);
             }
         };
         set_usize("MINIAGI_MAX_STEPS", &mut self.max_steps);
         set_usize("MINIAGI_MAX_REPEATED_STEPS", &mut self.max_repeated_steps);
-        if let Some(v) = std::env::var("MINIAGI_MAX_TOKENS")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-        {
+        if let Some(v) = get("MINIAGI_MAX_TOKENS").and_then(|s| s.parse::<u64>().ok()) {
             self.max_tokens = Some(v);
         }
-        if let Some(v) = std::env::var("MINIAGI_MAX_COST_USD")
-            .ok()
-            .and_then(|s| s.parse::<f64>().ok())
-        {
+        if let Some(v) = get("MINIAGI_MAX_COST_USD").and_then(|s| s.parse::<f64>().ok()) {
             self.max_cost_usd = Some(v);
         }
-        if let Some(v) = std::env::var("MINIAGI_MAX_WALL_SECONDS")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-        {
+        if let Some(v) = get("MINIAGI_MAX_WALL_SECONDS").and_then(|s| s.parse::<u64>().ok()) {
             self.max_wall_seconds = Some(v);
         }
-        if let Some(v) = std::env::var("MINIAGI_MAX_IDLE_SECONDS")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-        {
+        if let Some(v) = get("MINIAGI_MAX_IDLE_SECONDS").and_then(|s| s.parse::<u64>().ok()) {
             self.max_idle_seconds = Some(v);
         }
     }
@@ -175,6 +166,35 @@ mod tests {
 
     fn assert_approx_eq(a: f64, b: f64) {
         assert!((a - b).abs() < 1e-9, "{a} != {b}");
+    }
+
+    #[test]
+    fn file_parses_max_idle_seconds() {
+        let root = tmp_root("idle-file");
+        std::fs::write(root.join(".miniagi.json"), r#"{"max_idle_seconds": 42}"#).unwrap();
+        let cfg = Config::load(&root);
+        assert_eq!(cfg.max_idle_seconds, Some(42));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn env_overlays_max_idle_seconds() {
+        let root = tmp_root("idle-env");
+        std::fs::write(root.join(".miniagi.json"), r#"{"max_idle_seconds": 42}"#).unwrap();
+        let mut cfg = Config::load(&root);
+        cfg.apply_env_overlay(|name| {
+            if name == "MINIAGI_MAX_IDLE_SECONDS" {
+                Some("7".to_string())
+            } else {
+                None
+            }
+        });
+        assert_eq!(
+            cfg.max_idle_seconds,
+            Some(7),
+            "the env var must win over the file (S3 config contract)"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
