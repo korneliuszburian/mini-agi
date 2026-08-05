@@ -620,25 +620,6 @@ pub fn finalize_and_merge(
                 ));
             }
         }
-        // Merge (deterministic id order, --no-ff).
-        let branch = format!(
-            "batch/{}/{}",
-            &provision.base_sha[..provision.base_sha.len().min(10)],
-            ticket.id
-        );
-        let merge = git(&[
-            "merge",
-            "--no-ff",
-            "-m",
-            &format!("batch: merge {}", ticket.id),
-            &branch,
-        ])?;
-        if !merge.status.success() {
-            return Err(format!(
-                "ticket {}: merge CONFLICT — the batch fails atomically (evidence preserved)",
-                ticket.id
-            ));
-        }
         merged.push(ticket.id.clone());
     }
     // ATOMIC merge (F1): assemble the batch on a SCRATCH branch; only
