@@ -534,6 +534,12 @@ pub fn finalize_and_merge(
         std::process::Command::new("git")
             .args(args)
             .current_dir(repo)
+            // Kernel-authored mechanical commits: an explicit identity so
+            // the batch works on hosts without a git user config (CI).
+            .env("GIT_AUTHOR_NAME", "mini-agi")
+            .env("GIT_AUTHOR_EMAIL", "kernel@mini-agi.local")
+            .env("GIT_COMMITTER_NAME", "mini-agi")
+            .env("GIT_COMMITTER_EMAIL", "kernel@mini-agi.local")
             .output()
             .map_err(|e| format!("git {args:?} failed: {e}"))
     };
@@ -1028,8 +1034,7 @@ mod tests {
             .env("GIT_COMMITTER_NAME", "mini-agi tests")
             .env("GIT_COMMITTER_EMAIL", "tests@mini-agi.local")
             .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+            .is_ok_and(|s| s.success())
     }
 
     fn fixture_repo(tag: &str) -> (std::path::PathBuf, String) {
