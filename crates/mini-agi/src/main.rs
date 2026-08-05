@@ -10,6 +10,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 mod bg;
 mod clifmt;
+mod planner;
 #[cfg(target_os = "linux")]
 mod sandbox;
 mod supervisor;
