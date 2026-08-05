@@ -3,6 +3,7 @@ name: orchestrate
 description: Pipeline driver for mini-agi. Use for multi-stage work: ticket -> research -> spec -> implement -> verify -> review -> retro. Coordinates subagents, enforces checkpoints, writes memory. Invoke on any new task entering the pipeline.
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+verify: sh -c "test -f .agents/skills/orchestrate/SKILL.md && grep -q 'SEAM' .agents/skills/orchestrate/SKILL.md && grep -q 'Completion criteria' .agents/skills/orchestrate/SKILL.md"
 ---
 
 # Orchestrate

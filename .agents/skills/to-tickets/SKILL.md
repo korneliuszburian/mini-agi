@@ -4,6 +4,7 @@ description: Break a plan, spec, or the current conversation into a set of trace
 disable-model-invocation: true
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+verify: sh -c "test -f .agents/skills/to-tickets/SKILL.md && grep -q 'ticket claim' .agents/skills/to-tickets/SKILL.md && grep -q 'Completion criteria' .agents/skills/to-tickets/SKILL.md"
 ---
 
 # To Tickets

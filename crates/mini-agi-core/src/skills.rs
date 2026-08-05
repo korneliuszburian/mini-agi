@@ -45,6 +45,9 @@ pub struct Skill {
     /// Frontmatter `source` — where the skill came from (origin path
     /// or URL).
     pub source: Option<String>,
+    /// Frontmatter `type` — "procedural" (default) or "mode" (a mode
+    /// skill like caveman is not a procedure; exempt from the lint).
+    pub kind: String,
 }
 
 /// Result of running a skill's verify hook.
@@ -114,6 +117,10 @@ pub fn parse_skill_md(content: &str) -> Result<Skill, SkillError> {
     );
     let version = fields.get("version").cloned();
     let source = fields.get("source").cloned();
+    let kind = fields
+        .get("type")
+        .cloned()
+        .unwrap_or_else(|| "procedural".into());
     Ok(Skill {
         name,
         description,
@@ -125,6 +132,7 @@ pub fn parse_skill_md(content: &str) -> Result<Skill, SkillError> {
         path: PathBuf::new(),
         version,
         source,
+        kind,
     })
 }
 
@@ -254,7 +262,17 @@ pub fn discover_skills(root: &Path) -> Result<Vec<Skill>, SkillError> {
 pub fn find_skill(root: &Path, name: &str) -> Result<Skill, SkillError> {
     let dir = agents_dir(root).join(name);
     let skill_md = dir.join("SKILL.md");
-    if !skill_md.is_file() {
+    // symlink_metadata: a symlinked skill dir or manifest must not be
+    // followed by the single-skill verify path. A missing manifest is
+    // Unknown; any other metadata error is an Io failure.
+    let md = match std::fs::symlink_metadata(&skill_md) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(SkillError::Unknown(name.to_string()));
+        }
+        Err(e) => return Err(SkillError::Io(e)),
+    };
+    if !md.is_file() || md.file_type().is_symlink() {
         return Err(SkillError::Unknown(name.to_string()));
     }
     let content = fs::read_to_string(&skill_md).map_err(SkillError::Io)?;
@@ -352,7 +370,6 @@ fn skill_contract_hash(dir: &Path) -> Option<String> {
 /// Compare repo-local vs user-global registrations for CONTRACT drift.
 #[must_use]
 pub fn dual_registration_drift(root: &Path) -> DriftReport {
-    let mut report = DriftReport::default();
     let global = std::env::var("MINIAGI_GLOBAL_SKILLS").ok().map_or_else(
         || {
             std::env::var_os("HOME")
@@ -362,6 +379,13 @@ pub fn dual_registration_drift(root: &Path) -> DriftReport {
         },
         std::path::PathBuf::from,
     );
+    dual_registration_drift_with(root, &global)
+}
+
+/// The global-dir parameterized form (testable without env mutation).
+#[must_use]
+pub fn dual_registration_drift_with(root: &Path, global: &Path) -> DriftReport {
+    let mut report = DriftReport::default();
     let Ok(entries) = std::fs::read_dir(root.join(".agents/skills")) else {
         return report;
     };
@@ -375,15 +399,18 @@ pub fn dual_registration_drift(root: &Path) -> DriftReport {
         if !global_dir.join("SKILL.md").is_file() {
             continue;
         }
+        // One-owner enforcement: ANY dual registration is a violation
+        // (identical or drifted) — the local is canonical.
         let (Some(lh), Some(gh)) = (
             skill_contract_hash(&local),
             skill_contract_hash(&global_dir),
         ) else {
+            report
+                .drifted
+                .push((name, "unreadable".into(), "unreadable".into()));
             continue;
         };
-        if lh != gh {
-            report.drifted.push((name, lh, gh));
-        }
+        report.drifted.push((name, lh, gh));
     }
     report
 }
@@ -422,6 +449,9 @@ pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
 /// checkable criteria ("Done when" or "Completion criteria"), so the
 /// gate enforces a contract shape on skills without a shell hook.
 fn lint_skill(skill: &Skill) -> bool {
+    if skill.kind == "mode" {
+        return true;
+    }
     if skill.name.is_empty() || skill.description.is_empty() {
         return false;
     }
@@ -869,6 +899,70 @@ description: >
             fs::read_to_string(root.join(".agents/skills/demo/refs.txt")).unwrap(),
             "new",
             "an aux change must not be ignored just because SKILL.md matches"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn find_skill_rejects_symlinked_manifest() {
+        #[cfg(unix)]
+        {
+            let root = tempfile_dir("find-symlink");
+            let dir = root.join(".agents/skills/fake");
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(
+                dir.join("SKILL.md"),
+                "---\nname: fake\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# f\n",
+            )
+            .unwrap();
+            std::os::unix::fs::symlink(dir.join("SKILL.md"), dir.join("link.md")).unwrap();
+            // The manifest path is a symlink -> unknown.
+            fs::remove_file(dir.join("SKILL.md")).unwrap();
+            std::os::unix::fs::symlink(dir.join("link.md"), dir.join("SKILL.md")).unwrap();
+            let err = find_skill(&root, "fake").unwrap_err();
+            assert!(matches!(err, SkillError::Unknown(_)));
+            let _ = fs::remove_dir_all(&root);
+        }
+    }
+
+    #[test]
+    fn verify_all_fails_on_missing_version_and_lint() {
+        let root = tempfile_dir("va-strict");
+        // A skill with a hook but NO version/source + no criteria.
+        fs::create_dir_all(root.join(".agents/skills/bad")).unwrap();
+        fs::write(
+            root.join(".agents/skills/bad/SKILL.md"),
+            "---\nname: bad\ndescription: bad\nverify: true\n---\n# body\n",
+        )
+        .unwrap();
+        let report = verify_all_skills(&root).unwrap();
+        assert_eq!(report.no_version, vec!["bad"]);
+        assert_eq!(report.lint_failed, vec!["bad"]);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dual_registration_any_dual_fails_the_report() {
+        let root = tempfile_dir("dual-any");
+        let global = root.join("global-skills");
+        fs::create_dir_all(root.join(".agents/skills/dup")).unwrap();
+        fs::write(
+            root.join(".agents/skills/dup/SKILL.md"),
+            "---\nname: dup\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# same\n",
+        )
+        .unwrap();
+        // IDENTICAL content in the global copy: still a violation.
+        fs::create_dir_all(global.join("dup")).unwrap();
+        fs::write(
+            global.join("dup/SKILL.md"),
+            "---\nname: dup\ndescription: d\nversion: 1.0.0\nsource: s\n---\n# same\n",
+        )
+        .unwrap();
+        let report = dual_registration_drift_with(&root, &global);
+        assert_eq!(
+            report.drifted.len(),
+            1,
+            "identical dual registration must still be reported"
         );
         let _ = fs::remove_dir_all(&root);
     }

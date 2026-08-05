@@ -4,6 +4,7 @@ description: Implement a piece of work based on a spec or set of tickets.
 disable-model-invocation: true
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+verify: sh -c "test -f .agents/skills/implement/SKILL.md && grep -q 'Phase 0' .agents/skills/implement/SKILL.md && grep -q 'Completion criteria' .agents/skills/implement/SKILL.md"
 ---
 
 Implement the work described by the user in the spec or tickets, as a

@@ -5,6 +5,7 @@ argument-hint: "What will the next session be used for?"
 disable-model-invocation: true
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+verify: sh -c "test -f .agents/skills/handoff/SKILL.md && grep -q 'Completion criteria' .agents/skills/handoff/SKILL.md"
 ---
 
 Write a handoff document summarising the current conversation so a fresh

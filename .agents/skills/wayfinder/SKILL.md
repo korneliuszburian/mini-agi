@@ -4,6 +4,7 @@ description: Plan a huge chunk of work — more than one agent session can hold 
 disable-model-invocation: true
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+verify: sh -c "test -f .agents/skills/wayfinder/SKILL.md && grep -q 'ticket claim' .agents/skills/wayfinder/SKILL.md && grep -q 'Completion criteria' .agents/skills/wayfinder/SKILL.md"
 ---
 
 A loose idea has arrived — too big for one agent session, and wrapped in

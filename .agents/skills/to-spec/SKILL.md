@@ -4,6 +4,7 @@ description: Turn the current conversation into a spec and publish it to the pro
 disable-model-invocation: true
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+verify: sh -c "test -f .agents/skills/to-spec/SKILL.md && grep -q 'Acceptance Criteria' .agents/skills/to-spec/SKILL.md && grep -q 'Completion criteria' .agents/skills/to-spec/SKILL.md"
 ---
 
 This skill takes the current conversation context and codebase

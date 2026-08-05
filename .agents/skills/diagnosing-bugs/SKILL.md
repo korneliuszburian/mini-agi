@@ -3,6 +3,7 @@ name: diagnosing-bugs
 description: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow.
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+verify: sh -c "test -f .agents/skills/diagnosing-bugs/SKILL.md && grep -q 'red-capable' .agents/skills/diagnosing-bugs/SKILL.md && grep -q 'Done when' .agents/skills/diagnosing-bugs/SKILL.md"
 ---
 
 # Diagnosing Bugs

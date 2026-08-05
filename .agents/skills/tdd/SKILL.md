@@ -3,6 +3,7 @@ name: tdd
 description: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", or wants integration tests.
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+verify: sh -c "test -f .agents/skills/tdd/SKILL.md && grep -q 'red' .agents/skills/tdd/SKILL.md && grep -q 'Done when' .agents/skills/tdd/SKILL.md"
 ---
 
 # Test-Driven Development

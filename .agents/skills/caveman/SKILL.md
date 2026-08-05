@@ -7,6 +7,7 @@ description: >
   "less tokens", "be brief", or invokes /caveman.
 version: 1.0.0
 source: mini-agi repo (.agents/skills)
+type: mode
 ---
 
 Respond terse like smart caveman. All technical substance stay. Only fluff die.
