@@ -105,3 +105,18 @@ Canonical memory import source: `agentic-core@HEAD`.
 - Max 3 implementer retries per ticket, max 40 steps, goal re-check after
   every stage. On any violation: stop, checkpoint, report — no reactive
   loops.
+
+## codex sessions in this repo (AFK-SUPERVISOR S4)
+
+This repo registers mini-agi as an MCP server for codex (`.codex/config.toml`).
+Every codex session here follows the same discipline:
+
+- Session start: `loop_status` (open gaps), `memory_query <topic>` (facts
+  before re-research), `checkpoint_audit` (journal state). Knowledge given
+  once must not be re-asked.
+- Post-run: a run is UNVERIFIED until `run_verify <run.json>` passes — never
+  claim success on an unverified run. Close gaps with `loop_verify <case>`.
+- Writes (loop_dispatch, memory_signoff/consolidate/derive, run_ingest,
+  ticket_claim/release, skill_add, harness) require a prompt (HITL) — the
+  kernel's memory-signoff gate is human by design (ADR-0010).
+- Verification: `./scripts/verify.sh` ALL GREEN before a run is real.

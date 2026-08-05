@@ -1,4 +1,49 @@
-[agents]
-max_concurrent_threads_per_session = 4
-default_subagent_model = "gpt-5.6-terra"
-default_subagent_reasoning_effort = "medium"
+# mini-agi as a codex MCP server (AFK-SUPERVISOR S4).
+# The kernel is a first-class tool of every codex session in this repo:
+# enforcement-bound memory, verified-iteration loop, provenance-bound
+# results. See docs/CODEX-INTEGRATION.md.
+[mcp_servers.mini-agi]
+command = "cargo"
+args = ["run", "-q", "-p", "mini-agi", "--", "mcp"]
+trusted = true
+instructions = "mini-agi kernel: enforcement-bound memory + verified-iteration. Use loop_status (open gaps), memory_query (facts), run_verify <path> (a run stays unverified until this passes), loop_verify <case> (close a gap), checkpoint_audit, eval_gate, provenance. Results are provenance-bound. NEVER claim success on an unverified run; a run's outcome.achieved is only the run's own claim until run_verify passes."
+
+# Per-tool approval — the explicit allowlist (reads auto, writes prompt).
+# memory_signoff stays HITL: the human signs off consolidated memory.
+[mcp_servers.mini-agi.tools]
+audit = { approval = "auto" }
+backlog = { approval = "auto" }
+budget = { approval = "auto" }
+checkpoint_audit = { approval = "auto" }
+eval_gate = { approval = "auto" }
+eval_score = { approval = "auto" }
+eval_steps = { approval = "auto" }
+health = { approval = "auto" }
+insights = { approval = "auto" }
+loop_status = { approval = "auto" }
+loop_verify = { approval = "auto" }
+memory_query = { approval = "auto" }
+provenance = { approval = "auto" }
+resume = { approval = "auto" }
+run_failures = { approval = "auto" }
+run_verify = { approval = "auto" }
+skill_list = { approval = "auto" }
+skill_show = { approval = "auto" }
+skill_verify = { approval = "auto" }
+stats = { approval = "auto" }
+ticket_claims = { approval = "auto" }
+ticket_graph = { approval = "auto" }
+ticket_list = { approval = "auto" }
+ticket_show = { approval = "auto" }
+ticket_validate = { approval = "auto" }
+validate = { approval = "auto" }
+harness = { approval = "prompt" }
+loop_dispatch = { approval = "prompt" }
+loop_objective = { approval = "prompt" }
+memory_consolidate = { approval = "prompt" }
+memory_derive = { approval = "prompt" }
+memory_signoff = { approval = "prompt" }
+run_ingest = { approval = "prompt" }
+skill_add = { approval = "prompt" }
+ticket_claim = { approval = "prompt" }
+ticket_release = { approval = "prompt" }
