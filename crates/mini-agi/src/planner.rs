@@ -921,6 +921,10 @@ mod tests {
             let st = std::process::Command::new("git")
                 .args(args)
                 .current_dir(&root)
+                .env("GIT_AUTHOR_NAME", "mini-agi tests")
+                .env("GIT_AUTHOR_EMAIL", "tests@mini-agi.local")
+                .env("GIT_COMMITTER_NAME", "mini-agi tests")
+                .env("GIT_COMMITTER_EMAIL", "tests@mini-agi.local")
                 .status()
                 .unwrap();
             assert!(st.success(), "git {args:?} failed");
@@ -975,6 +979,10 @@ mod tests {
                 std::process::Command::new("git")
                     .args(args)
                     .current_dir(&root)
+                    .env("GIT_AUTHOR_NAME", "mini-agi tests")
+                    .env("GIT_AUTHOR_EMAIL", "tests@mini-agi.local")
+                    .env("GIT_COMMITTER_NAME", "mini-agi tests")
+                    .env("GIT_COMMITTER_EMAIL", "tests@mini-agi.local")
                     .status()
                     .unwrap()
                     .success()
@@ -1008,6 +1016,22 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// Hermetic git runner: CI runners have no user.name/email — the
+    /// identity is injected via env so fixture commits never depend on
+    /// a host git config.
+    fn git_run(dir: &Path, args: &[&str]) -> bool {
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .env("GIT_AUTHOR_NAME", "mini-agi tests")
+            .env("GIT_AUTHOR_EMAIL", "tests@mini-agi.local")
+            .env("GIT_COMMITTER_NAME", "mini-agi tests")
+            .env("GIT_COMMITTER_EMAIL", "tests@mini-agi.local")
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
     fn fixture_repo(tag: &str) -> (std::path::PathBuf, String) {
         let root = std::env::temp_dir().join(format!("mag-plm-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
@@ -1018,15 +1042,7 @@ mod tests {
             std::fs::write(p, "x").unwrap();
         }
         let git = |args: &[&str]| {
-            assert!(
-                std::process::Command::new("git")
-                    .args(args)
-                    .current_dir(&root)
-                    .status()
-                    .unwrap()
-                    .success(),
-                "git {args:?}"
-            );
+            assert!(git_run(&root, args), "git {args:?}");
         };
         git(&["init", "-q", "-b", "master"]);
         git(&["add", "-A"]);
