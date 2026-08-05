@@ -16,9 +16,11 @@ docs/RESEARCH-2026-08.md (Matt Pocock / Sandcastle / industry).
 - D3: the core implementation skill (implement) is 26 lines of prose
   with no procedure, thin for its role; orchestrate's stages have no
   handoff contract.
-- D4: duplication — review vs code-review (two generations), 7 skills
-  dual-registered local+global (silent drift), dead reviewer-handoff
-  symlink, delivery-loop vs orchestrate near-twins.
+- D4: duplication — review vs code-review (two generations), 5 skills
+  dual-registered local+global via symlinks (code-review,
+  diagnosing-bugs, implement, to-spec, wayfinder — silent drift risk),
+  dead reviewer-handoff symlink, delivery-loop vs orchestrate
+  near-twins.
 - D5: no versioning/provenance in frontmatter; install_skills does
   remove_dir_all + blind copy.
 - D6: composition is prose ("use /tdd"), not a contract — a rename
@@ -31,13 +33,13 @@ docs/RESEARCH-2026-08.md (Matt Pocock / Sandcastle / industry).
 
 ## Routing
 
-The global routing contract (~/.claude/CLAUDE.md) is a flat 19-owner
+The global routing contract (~/.claude/CLAUDE.md) is a flat 13-owner
 list — good principle, incomplete tree: missing leaves (quick answer,
 skill authoring, repo adoption), the wayfinder→to-spec→slice-work→
 to-tickets pipeline is presented as parallel choices with overlapping
 boundary tests, and orchestrate (the pipeline driver) is not routed.
-No routing telemetry exists (the kernel records runs, not skills), so
-"most-invoked" claims are unsupported until telemetry lands.
+No routing telemetry exists (the kernel records runs, not skills);
+invocation-frequency claims are unsupported until telemetry lands.
 
 ## Dogfood seam (state vs prose — currently inverted in two places)
 

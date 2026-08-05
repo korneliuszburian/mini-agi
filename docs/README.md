@@ -18,6 +18,7 @@ knows is reachable from here; anything not listed is either generated
 | `.batch/`, `.supervisor/` | runtime batch/supervisor state | gitignored (parallel batch worktrees at `.batch/<id>`, per-run handles at `<workdir>/.supervisor/`) |
 | `.krn/` | local state | gitignored (review dispositions, local scratch) |
 | `.codex/` | codex integration | `config.toml` MCP registration + approval allowlist |
+| `.agents/` | the skill layer | `skills/` (15 repo-local skills, registry per ADR-0002), `checks/` (the review rubric) |
 | `crates/` | the kernel | `mini-agi-core` (std-only kernel), `mini-agi` (binary: CLI + MCP + sandbox + supervisor) |
 
 ## Docs index
