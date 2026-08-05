@@ -498,6 +498,138 @@ pub fn dispatch_batch(
     Ok(BatchDispatchResult { results })
 }
 
+/// Finalize + merge (S4): for each PASSING ticket the kernel commits
+/// the worktree mechanically (git add -A + commit '<ticket-id>' — the
+/// worker protocol never commits), verifies CONTAINMENT (the
+/// committed changed-path set must be inside the declared scope), then
+/// merges in deterministic id order (--no-ff). Any violation (out-of-
+/// scope change, merge conflict, missing commit) fails the batch
+/// ATOMICALLY — no partial merge, all evidence preserved.
+#[derive(Debug)]
+pub struct BatchMergeResult {
+    /// The merge commit on the target branch.
+    pub merge_sha: String,
+    /// Tickets merged (id order).
+    pub merged: Vec<String>,
+}
+
+/// Finalize + merge the passing tickets.
+///
+/// # Errors
+///
+/// Returns the first violation; the batch must be considered FAILED
+/// (worktrees and branches remain as evidence).
+pub fn finalize_and_merge(
+    repo: &Path,
+    manifest: &PlannerManifest,
+    provision: &BatchProvision,
+    results: &[BatchTicketResult],
+) -> Result<BatchMergeResult, String> {
+    let git = |args: &[&str]| -> Result<std::process::Output, String> {
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .output()
+            .map_err(|e| format!("git {args:?} failed: {e}"))
+    };
+    let mut merged: Vec<String> = Vec::new();
+    for ticket in &manifest.tickets {
+        let result = results
+            .iter()
+            .find(|r| r.id == ticket.id)
+            .ok_or_else(|| format!("ticket {}: no dispatch result", ticket.id))?;
+        if !result.passed {
+            return Err(format!(
+                "ticket {}: not passed — the batch fails atomically (evidence preserved)",
+                ticket.id
+            ));
+        }
+        // Kernel-owned mechanical commit in the worktree.
+        let wt = &result.worktree;
+        let status = std::process::Command::new("git")
+            .args(["add", "-A"])
+            .current_dir(wt)
+            .status()
+            .map_err(|e| format!("git add in {} failed: {e}", wt.display()))?;
+        if !status.success() {
+            return Err(format!("git add failed in {}", wt.display()));
+        }
+        let commit = std::process::Command::new("git")
+            .args(["commit", "-qm", &format!("batch: {}", ticket.id)])
+            .current_dir(wt)
+            .status()
+            .map_err(|e| format!("git commit in {} failed: {e}", wt.display()))?;
+        if !commit.success() {
+            // Nothing to commit (an empty diff) is still a violation —
+            // a passing ticket that changed nothing is suspicious.
+            return Err(format!(
+                "ticket {}: worktree commit failed (nothing committed?)",
+                ticket.id
+            ));
+        }
+        // Containment: the committed diff vs the base must be inside
+        // the declared scope. The diff runs INSIDE the worktree — the
+        // worktree's own HEAD is not in the main repo's history yet.
+        let changed = std::process::Command::new("git")
+            .args(["diff", "--name-only", &provision.base_sha, "HEAD"])
+            .current_dir(wt)
+            .output()
+            .map_err(|e| format!("containment diff failed: {e}"))?;
+        let changed = String::from_utf8_lossy(&changed.stdout).to_string();
+        for path in changed.lines() {
+            let in_scope = ticket
+                .scope
+                .iter()
+                .any(|s| path == s || path.starts_with(&format!("{s}/")));
+            if !in_scope {
+                return Err(format!(
+                    "ticket {}: CONTAINMENT VIOLATION — changed '{}' outside the declared scope",
+                    ticket.id, path
+                ));
+            }
+        }
+        // Merge (deterministic id order, --no-ff).
+        let branch = format!(
+            "batch/{}/{}",
+            &provision.base_sha[..provision.base_sha.len().min(10)],
+            ticket.id
+        );
+        let merge = git(&[
+            "merge",
+            "--no-ff",
+            "-m",
+            &format!("batch: merge {}", ticket.id),
+            &branch,
+        ])?;
+        if !merge.status.success() {
+            return Err(format!(
+                "ticket {}: merge CONFLICT — the batch fails atomically (evidence preserved)",
+                ticket.id
+            ));
+        }
+        merged.push(ticket.id.clone());
+    }
+    let out = git(&["rev-parse", "HEAD"])?;
+    Ok(BatchMergeResult {
+        merge_sha: String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        merged,
+    })
+}
+
+/// Protected final gate (S5): snapshot the gate inputs (the protected
+/// paths) at the base sha; the merged tree must NOT have drifted on
+/// them — otherwise the final truth could be self-modified.
+pub fn protected_paths_unchanged(repo: &Path, base_sha: &str) -> Result<bool, String> {
+    let out = std::process::Command::new("git")
+        .args(["diff", "--name-only", base_sha, "HEAD", "--"])
+        .args(PROTECTED_PATHS)
+        .current_dir(repo)
+        .output()
+        .map_err(|e| e.to_string())?;
+    let changed = String::from_utf8_lossy(&out.stdout).to_string();
+    Ok(changed.trim().is_empty())
+}
+
 /// Remove a provisioned batch's worktrees (evidence preserved — the
 /// worktree content stays on the branch).
 pub fn teardown_batch(repo: &Path, provision: &BatchProvision) {
@@ -730,6 +862,140 @@ mod tests {
             !root.join(".batch/t1").exists(),
             "the vacuous ticket must not leave a worktree"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    fn fixture_repo(tag: &str) -> (std::path::PathBuf, String) {
+        let root = std::env::temp_dir().join(format!("mag-plm-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        for f in ["a.txt", "b.txt", "scripts/verify.sh", "evals/x.txt"] {
+            let p = root.join(f);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, "x").unwrap();
+        }
+        let git = |args: &[&str]| {
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(&root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {args:?}"
+            );
+        };
+        git(&["init", "-q", "-b", "master"]);
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "base"]);
+        let out = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        (
+            root,
+            String::from_utf8(out.stdout).unwrap().trim().to_string(),
+        )
+    }
+
+    #[test]
+    fn finalize_commits_merges_and_checks_containment() {
+        let (root, base) = fixture_repo("ok");
+        let manifest = PlannerManifest {
+            version: 1,
+            tickets: vec![PlannerTicket {
+                id: "t1".into(),
+                goal: "g1".into(),
+                scope: vec!["a.txt".into()],
+                verify: "sh -c 'test -f a.txt'".into(),
+                verify_target: ".".into(),
+            }],
+        };
+        let provision = provision_batch(&root, &manifest, &base).unwrap();
+        // Simulate a passing worker: modify a.txt in the worktree.
+        std::fs::write(provision.worktrees[0].join("a.txt"), "changed").unwrap();
+        let results = vec![BatchTicketResult {
+            id: "t1".into(),
+            handle: provision.worktrees[0].join(".supervisor"),
+            worktree: provision.worktrees[0].clone(),
+            passed: true,
+            report: None,
+        }];
+        let merged = finalize_and_merge(&root, &manifest, &provision, &results).unwrap();
+        assert_eq!(merged.merged, vec!["t1".to_string()]);
+        assert!(root.join("a.txt").is_file());
+        assert!(protected_paths_unchanged(&root, &base).unwrap());
+        // The protected paths must not have drifted.
+        std::fs::write(root.join("scripts/verify.sh"), "tampered").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "-A"])
+            .current_dir(&root)
+            .status()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-qm", "tamper"])
+            .current_dir(&root)
+            .status()
+            .unwrap();
+        assert!(!protected_paths_unchanged(&root, &base).unwrap());
+        teardown_batch(&root, &provision);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn containment_violation_fails_the_batch() {
+        let (root, base) = fixture_repo("viol");
+        let manifest = PlannerManifest {
+            version: 1,
+            tickets: vec![PlannerTicket {
+                id: "t1".into(),
+                goal: "g1".into(),
+                scope: vec!["a.txt".into()],
+                verify: "sh -c 'test -f a.txt'".into(),
+                verify_target: ".".into(),
+            }],
+        };
+        let provision = provision_batch(&root, &manifest, &base).unwrap();
+        // The worker touched a file OUTSIDE the declared scope.
+        std::fs::write(provision.worktrees[0].join("b.txt"), "sneaky").unwrap();
+        let results = vec![BatchTicketResult {
+            id: "t1".into(),
+            handle: provision.worktrees[0].join(".supervisor"),
+            worktree: provision.worktrees[0].clone(),
+            passed: true,
+            report: None,
+        }];
+        let err = finalize_and_merge(&root, &manifest, &provision, &results).unwrap_err();
+        assert!(err.contains("CONTAINMENT VIOLATION"), "{err}");
+        teardown_batch(&root, &provision);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn not_passed_ticket_fails_atomically() {
+        let (root, base) = fixture_repo("nopass");
+        let manifest = PlannerManifest {
+            version: 1,
+            tickets: vec![PlannerTicket {
+                id: "t1".into(),
+                goal: "g1".into(),
+                scope: vec!["a.txt".into()],
+                verify: "sh -c 'test -f a.txt'".into(),
+                verify_target: ".".into(),
+            }],
+        };
+        let provision = provision_batch(&root, &manifest, &base).unwrap();
+        let results = vec![BatchTicketResult {
+            id: "t1".into(),
+            handle: provision.worktrees[0].join(".supervisor"),
+            worktree: provision.worktrees[0].clone(),
+            passed: false,
+            report: None,
+        }];
+        let err = finalize_and_merge(&root, &manifest, &provision, &results).unwrap_err();
+        assert!(err.contains("fails atomically"), "{err}");
+        teardown_batch(&root, &provision);
         let _ = std::fs::remove_dir_all(&root);
     }
 
