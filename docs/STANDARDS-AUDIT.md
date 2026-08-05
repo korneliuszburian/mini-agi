@@ -67,6 +67,12 @@ MISSING (prioritized):
 5. standards-version manifest — versioned package so init can diff and
    upgrade embedded files instead of skip-if-exists.
 
+## Next (per docs/SKILLS-RESEARCH.md)
+
+The skill layer's definition of done + the 3-goal roadmap (verify
+hooks in the gate, dedup, kernel seams, routing) live in
+`docs/SKILLS-RESEARCH.md`.
+
 ## Next
 
 - AFK v4 (parallel-planner) SHIPPED; next: the standards-package goal:
