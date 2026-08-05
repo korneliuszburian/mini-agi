@@ -4,3 +4,4 @@ target/
 .supervisor/
 .worker-*
 *.blind-hidden
+.batch/

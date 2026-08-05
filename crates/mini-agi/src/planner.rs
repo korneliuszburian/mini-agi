@@ -165,6 +165,14 @@ pub fn parse_manifest(text: &str) -> Result<PlannerManifest, String> {
         if id.trim().is_empty() {
             return Err(format!("ticket {i}: id must not be empty"));
         }
+        if !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(format!(
+                "ticket {i}: id '{id}' must match [A-Za-z0-9_-]+ (it names the branch and worktree)"
+            ));
+        }
         if !seen_ids.insert(id.to_string()) {
             return Err(format!("duplicate ticket id '{id}'"));
         }
@@ -260,6 +268,107 @@ pub fn touches_protected(path: &str) -> bool {
 #[must_use]
 pub fn ticket_worktree(base: &Path, id: &str) -> std::path::PathBuf {
     base.join(".batch").join(id)
+}
+
+/// A provisioned batch: one worktree per ticket, each at `base_sha`.
+#[derive(Debug)]
+pub struct BatchProvision {
+    /// The base commit the batch was cut from.
+    pub base_sha: String,
+    /// One worktree per ticket (id order).
+    pub worktrees: Vec<std::path::PathBuf>,
+}
+
+/// Provision the batch: create one git worktree per ticket at
+/// `base_sha` (branch `batch/<short-sha>/<id>`), then PRE-FLIGHT each
+/// ticket: the verifier must pass in its worktree (dry-run) and must
+/// NOT pass an empty counterfactual (vacuity — a vacuous verifier
+/// would let garbage through). Any failure removes everything created
+/// so far and fails the batch (no half-provisioned state).
+///
+/// # Errors
+///
+/// Returns the first failure; all created worktrees are removed.
+pub fn provision_batch(
+    repo: &Path,
+    manifest: &PlannerManifest,
+    base_sha: &str,
+) -> Result<BatchProvision, String> {
+    let short = &base_sha[..base_sha.len().min(10)];
+    let mut created: Vec<std::path::PathBuf> = Vec::new();
+    let cleanup = |created: &[std::path::PathBuf]| {
+        for wt in created {
+            let _ = std::process::Command::new("git")
+                .args(["worktree", "remove", "--force"])
+                .arg(wt)
+                .current_dir(repo)
+                .status();
+        }
+    };
+    for ticket in &manifest.tickets {
+        let wt = ticket_worktree(repo, &ticket.id);
+        if wt.exists() {
+            cleanup(&created);
+            return Err(format!(
+                "ticket {}: worktree path {} already exists (a batch may already be in progress)",
+                ticket.id,
+                wt.display()
+            ));
+        }
+        let branch = format!("batch/{short}/{}", ticket.id);
+        let status = std::process::Command::new("git")
+            .args(["worktree", "add", "-b"])
+            .arg(&branch)
+            .arg(&wt)
+            .arg(base_sha)
+            .current_dir(repo)
+            .status()
+            .map_err(|e| {
+                cleanup(&created);
+                format!("git worktree add failed: {e}")
+            })?;
+        if !status.success() {
+            cleanup(&created);
+            return Err(format!("git worktree add failed for ticket {}", ticket.id));
+        }
+        created.push(wt.clone());
+        // Dry-run: the verifier must pass in ITS worktree.
+        let target = wt.join(&ticket.verify_target);
+        let dry =
+            mini_agi_core::worker::run_capped("sh", &["-c", &ticket.verify], &target, Some(120));
+        if !dry.is_ok_and(|r| !r.aborted && r.status == Some(0)) {
+            cleanup(&created);
+            return Err(format!(
+                "ticket {}: verifier dry-run FAILED in the worktree (pre-flight)",
+                ticket.id
+            ));
+        }
+        // Vacuity: the verifier must NOT pass an empty counterfactual.
+        let audit = mini_agi_core::verifier::audit_verifier_vacuous(&wt, &ticket.verify);
+        if audit.is_vacuous {
+            cleanup(&created);
+            return Err(format!(
+                "ticket {}: verifier is VACUOUS (passes an empty target) — refuse",
+                ticket.id
+            ));
+        }
+    }
+    Ok(BatchProvision {
+        base_sha: base_sha.to_string(),
+        worktrees: created,
+    })
+}
+
+/// Remove a provisioned batch's worktrees (evidence preserved — the
+/// worktree content stays on the branch).
+pub fn teardown_batch(repo: &Path, provision: &BatchProvision) {
+    for wt in &provision.worktrees {
+        let _ = std::process::Command::new("git")
+            .args(["worktree", "remove", "--force"])
+            .arg(wt)
+            .current_dir(repo)
+            .status();
+    }
 }
 
 #[cfg(test)]
@@ -381,6 +490,108 @@ mod tests {
         assert!(!valid_verifier_shape("python3 ~/scripts/check.py"));
         assert!(!valid_verifier_shape("sh ../../evil.sh"));
         assert!(!valid_verifier_shape("sh scripts/verify.sh"));
+    }
+
+    #[test]
+    fn provision_creates_worktrees_and_preflights_verifiers() {
+        // A real fixture repo: two files, two tickets with disjoint
+        // scopes and non-vacuous verifiers (test -f passes in the
+        // worktree, fails in an empty dir).
+        let root = std::env::temp_dir().join(format!("mag-pl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        for f in ["a.txt", "b.txt"] {
+            std::fs::write(root.join(f), "x").unwrap();
+        }
+        let git = |args: &[&str]| {
+            let st = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&root)
+                .status()
+                .unwrap();
+            assert!(st.success(), "git {args:?} failed");
+        };
+        git(&["init", "-q", "-b", "master"]);
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "base"]);
+        let base = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        let base_sha = String::from_utf8(base.stdout).unwrap().trim().to_string();
+        let manifest = PlannerManifest {
+            version: 1,
+            tickets: vec![
+                PlannerTicket {
+                    id: "t1".into(),
+                    goal: "g1".into(),
+                    scope: vec!["a.txt".into()],
+                    verify: "sh -c 'test -f a.txt'".into(),
+                    verify_target: ".".into(),
+                },
+                PlannerTicket {
+                    id: "t2".into(),
+                    goal: "g2".into(),
+                    scope: vec!["b.txt".into()],
+                    verify: "sh -c 'test -f b.txt'".into(),
+                    verify_target: ".".into(),
+                },
+            ],
+        };
+        let provision = provision_batch(&root, &manifest, &base_sha).unwrap();
+        assert_eq!(provision.worktrees.len(), 2);
+        assert!(provision.worktrees[0].join("a.txt").is_file());
+        assert!(provision.worktrees[1].join("b.txt").is_file());
+        // A second provision must fail (worktrees exist).
+        assert!(provision_batch(&root, &manifest, &base_sha).is_err());
+        teardown_batch(&root, &provision);
+        assert!(!provision.worktrees[0].exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn provision_fails_closed_on_vacuous_verifier() {
+        let root = std::env::temp_dir().join(format!("mag-plv-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("a.txt"), "x").unwrap();
+        let git = |args: &[&str]| {
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(&root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-q", "-b", "master"]);
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "base"]);
+        let out = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        let base_sha = String::from_utf8(out.stdout).unwrap().trim().to_string();
+        let manifest = PlannerManifest {
+            version: 1,
+            tickets: vec![PlannerTicket {
+                id: "t1".into(),
+                goal: "g1".into(),
+                scope: vec!["a.txt".into()],
+                verify: "true".into(),
+                verify_target: ".".into(),
+            }],
+        };
+        let err = provision_batch(&root, &manifest, &base_sha).unwrap_err();
+        assert!(err.contains("VACUOUS"), "{err}");
+        assert!(
+            !root.join(".batch/t1").exists(),
+            "the vacuous ticket must not leave a worktree"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
