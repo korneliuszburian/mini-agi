@@ -590,6 +590,10 @@ pub fn finalize_and_merge(
             let commit = std::process::Command::new("git")
                 .args(["commit", "-qm", &format!("batch: {}", ticket.id)])
                 .current_dir(wt)
+                .env("GIT_AUTHOR_NAME", "mini-agi")
+                .env("GIT_AUTHOR_EMAIL", "kernel@mini-agi.local")
+                .env("GIT_COMMITTER_NAME", "mini-agi")
+                .env("GIT_COMMITTER_EMAIL", "kernel@mini-agi.local")
                 .status()
                 .map_err(|e| format!("git commit in {} failed: {e}", wt.display()))?;
             if !commit.success() {
