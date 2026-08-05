@@ -38,6 +38,22 @@ derive`) and `harness` run `prompt` (HITL). `memory_signoff` stays `prompt`
 by design — the signoff gate is human (ADR-0010); a session cannot silently
 merge its own memory.
 
+## The supervisor tools (AFK v3 — launch and poll)
+
+- `loop_run` (approval **prompt** — a write that changes the worker
+  tree; the `approve` reason is required): launches a verified-iteration
+  run in the BACKGROUND (detached child; MCP tool timeouts cannot kill
+  it) and returns the run handle. The resolved case target/verifier are
+  honored; one run per workdir (a second launch while one is active is
+  refused).
+- `run_status` (auto): poll the handle — alive (identity-aware: pid +
+  start-time, zombies report dead), report ready, progress tail.
+- `run_report` (auto): the run report — reads are constrained to the
+  workdir (a handle whose launch.json points elsewhere is invalid).
+- The run ends in a reviewable REPORT.md + run.json (verified by the
+  kernel's own verifier; the sequential-reviewer template can add an
+  independent review pass). `loop verify <case>` still closes gaps.
+
 ## The codex-session contract (AGENTS.md fragment)
 
 1. Session start: `loop_status` + `memory_query` + `checkpoint_audit`.

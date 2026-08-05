@@ -5,6 +5,25 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ## [Unreleased]
 
+### Added (AFK v3 — MCP bridge: launch and poll)
+- `loop run --detach`: background dispatch — the run is spawned as a
+  detached child (stdin nulled — the MCP pipe would block the codex
+  shim), the handle dir (.supervisor/run.pid, run.start, launch.json,
+  launch.lock, run.out) is returned immediately; the run survives the
+  MCP server's exit.
+- MCP tools: `loop_run` (write, HITL approval reason required, parent
+  validation mirrors the CLI), `run_status`, `run_report` (auto reads
+  constrained to the workdir — handle authority validated on a single
+  parsed launch).
+- One run per workdir: identity-carrying launch lock (create_new +
+  read-back; stale recovery is race-free via atomic rename; crashed
+  launchers are recovered).
+- Review gate: codex adversarial review REWORK 3/8 -> APPROVE 7/8
+  (five rounds; each finding fixed, incl. the stdin-inheritance hang
+  the e2e caught).
+- E2E through the MCP stdio protocol: launch -> poll (attempt 1 ->
+  RESUMING worker session -> VERIFIER PASSED) -> report.
+
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
   OWN codex session via `codex exec resume <uuid>` (content-marker
