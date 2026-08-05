@@ -22,7 +22,7 @@ server into ANY repo brings all work standards with it?
   omarchy (not from krn-codex-skills). One DEAD symlink:
   `reviewer-handoff` (no SKILL.md). `cube-css` is Codex-only, at
   `~/.codex/skills/cube-css`, not part of the global list.
-- opencode-only: cube-css (UI styling).
+- Codex-only: cube-css (UI styling, at `~/.codex/skills/cube-css`).
 
 ## Plane coverage
 
@@ -82,5 +82,6 @@ hooks in the gate, dedup, kernel seams, routing) live in
 ## Next
 
 - AFK v4 (parallel-planner) SHIPPED; next: the standards-package goal:
-  repo-adoption + frontend-verification skills + the human-review gate
-  per domain (frontend = mandatory HITL — zero-trust rule).
+  repo-adoption + security-review skills + the human-review gate per
+  domain (frontend-verification is DEFERRED by the user — see the
+  deferral above; frontend = mandatory HITL — zero-trust rule).
