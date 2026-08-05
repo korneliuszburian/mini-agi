@@ -194,3 +194,39 @@ kernel-vs-plain advantage of the session — the kernel's deterministic
 verifier + distilled failure feedback + bounded re-invocation transform
 weak generations into verified passes exactly where solo is below the
 bar, confirming the literature's headroom prediction (Reflexion/AWM).
+
+## Addendum (2026-08-05) — S8 research: improving the verified-iteration boundary
+
+Grounded upgrades from a dedicated research pass (fetched, cited):
+- FEEDBACK QUALITY IS THE BOTTLENECK, not capacity: repair gains are
+  driven by the feedback's content, not the model (Olausson 2306.09896:
+  artificially stronger feedback gives 'substantially larger' gains;
+  Falsification-Not-Exposure 2606.31511: code-plus-facts beats a
+  generic-bullet placebo, p=0.0041). The kernel's per-case checklist is
+  the right lever; escalate specificity across attempts — attempt 1:
+  checklist; attempt 2: checklist + expected/actual + traceback line;
+  attempt 3: block-level runtime trace (LDB 2402.16906; Self-Debug
+  2304.05128; LeTI 2305.10314).
+- FEW HIGH-QUALITY ATTEMPTS, THEN SWITCH: repair worth ~1-3 feedback
+  attempts (Olausson; Huang 2310.01798: self-correction without external
+  feedback degrades), then parallel sampling+filtering (AlphaCode
+  2203.07814; Falsification: blind resampling TIED stalled repair at
+  matched budget). s1 budget-forcing (2501.19393) + difficulty-adaptive
+  allocation (Snell 2408.03314) justify a mode-switch governor: after 2
+  failed repairs, switch to N fresh blind workers filtered by the
+  verifier.
+- MULTI-FUNCTION BOUNDARY (the e6 failure): documented as the hard case
+  (SWE-bench 1.96%; BigCodeBench <=60% vs 97% human; LiveCodeBench Pro
+  0% hard). The evidence-backed treatment is per-function test
+  partitioning (FunPRM 2601.22249 function-as-step; CodePlan 2309.12499
+  staged validation; AlphaCodium 2401.08500) — map failing cases to
+  functions via coverage, repair per function, re-verify composite.
+- THE PATTERN'S PLACE: no canonical paper names the 'blind worker +
+  kernel-held hidden verifier + distilled failing-case feedback'
+  construction — it appears to be novel in this exact form; closest
+  relatives are oracle-guided APR and Prover-Verifier Games (2108.12099,
+  which argues FOR keeping the verifier deterministic and outside the
+  worker — exactly the design). Verifier completeness is a real
+  property (EvalPlus: small suites overstate pass@k by up to 29%) — the
+  kernel's verify-audit + EXP-012/013 (P 25-50% vs K 82.5-100%,
+  non-overlapping CIs, below-bar total separation) carry the evidence.
