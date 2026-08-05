@@ -5,6 +5,25 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ## [Unreleased]
 
+### Added (AFK v4 — parallel-planner)
+- `loop parallel`: the kernel decomposes one goal into N tickets (real
+  planner pass or `--manifest`), validates the manifest fail-closed
+  (typed deny_unknown_fields, disjoint scopes, protected-path policy,
+  verifier-shape allowlist), provisions per-ticket git worktrees with
+  pre-flight executability + vacuity audit, dispatches in PARALLEL
+  (admission cap, per-ticket caps, aggregate deadline, session-marker
+  batch identity), commits + containment-checks passing tickets, merges
+  ATOMICALLY on a scratch branch, and runs the goal's FINAL verifier
+  only when the protected gate inputs are drift-free.
+- Failure semantics: atomic — any ticket failure fails the whole batch
+  with all evidence preserved (worktrees + branches); teardown only on
+  success. `--no-sandbox` explicit opt-in.
+- e2e: real planner session decomposed a goal into t1/t2, both PASSED
+  in parallel, merged, FINAL GATE PASSED. Review gate: REWORK 2/8 ->
+  APPROVE 8/8 (five rounds: atomic merge, evidence preservation,
+  completion semantics, per-worker caps, sandbox honesty, protected
+  drift, provision rerun, authority strictness).
+
 ### Added (AFK v3 — MCP bridge: launch and poll)
 - `loop run --detach`: background dispatch — the run is spawned as a
   detached child (stdin nulled — the MCP pipe would block the codex

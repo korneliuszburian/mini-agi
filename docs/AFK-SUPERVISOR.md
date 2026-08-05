@@ -100,6 +100,37 @@ the raw text, never blocks).
 - **Web dashboard**: rejected by research (MCP + CLI + run-report file is the
   right surface for a solo kernel; a dashboard is team tooling).
 
+## v4 — the parallel-planner template (`loop parallel`)
+
+One goal becomes N parallel verified tickets: a PLANNER pass (read-only
+codex) decomposes the goal into a strict versioned JSON manifest; the
+kernel validates it FAIL-CLOSED (typed deserialization with
+`deny_unknown_fields` — unknown fields and duplicate keys are rejected;
+ids charset-limited; scopes mutually disjoint and never touching the
+PROTECTED paths: `scripts/verify.sh`, `gate-lib.sh`, `evals`, `memory`,
+`tickets`, `docs/adr`); each ticket runs in its OWN git worktree
+(detached `loop run`), admission-capped (`max_parallel`, default 2) with
+per-ticket caps and an aggregate deadline; PASSING tickets are
+kernel-committed (evidence files excluded), containment-checked
+(`git diff base..HEAD` must be inside the declared scope), and merged
+ATOMICALLY on a scratch branch — the target branch moves only via a
+final fast-forward. The FINAL GATE is the goal's own verifier, executed
+only when the protected gate inputs have not drifted (committed AND
+dirty) from the base.
+
+Failure semantics: ATOMIC — any ticket failure (verifier, containment,
+merge conflict, protected drift, validation) fails the whole batch with
+ALL evidence preserved (worktrees, branches, reports); teardown happens
+only on success. `--no-sandbox` is an EXPLICIT opt-in (the Landlock
+wrapper breaks the codex npm shim); the coordinator refuses otherwise.
+
+Blind-worker is NOT used in v1: hidden suites run only once, after the
+merge, from a controller-owned location — the `*.blind-hidden` rename
+would race across parallel workers.
+
+Second-opinion validated (VIABLE-WITH-CHANGES, 6 findings) and
+codex-reviewed to APPROVE 8/8.
+
 ## Self-hosting proofs
 
 - **S6 (v1)**: `loop run afk-max-idle` built the real `--max-idle` flag;
