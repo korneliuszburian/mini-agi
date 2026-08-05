@@ -1,7 +1,7 @@
 ---
 name: verify
 description: Deterministic verification contract. Runs scripts/verify.sh and reports exact exit codes. Use whenever code changed or tests were claimed. Verification is a requirement, not a declaration.
-verify: scripts/verify.sh
+verify: sh -c "test -x scripts/verify.sh && sh -n scripts/verify.sh && grep -q 'verify: ALL GREEN' scripts/verify.sh"
 ---
 
 # Verify
