@@ -13,7 +13,7 @@ knows is reachable from here; anything not listed is either generated
 | `memory/` | kernel memory | `canonical/` hand-written source of truth (append-only, provenance), `derived/` generated (never edit), `episodic/` journal+logs |
 | `evals/` | eval corpus | `cases/<case>/run.json` (load-bearing: baseline, gate, loop), `golden/`, `results/baseline.json`, `references/`, `hidden/` |
 | `scripts/` | the gate | `verify.sh` + `gate-lib.sh` (shared step helpers), `checkpoint.sh`, demo scripts |
-| `tickets/` | issue tracker | TICKET-*.md, load-bearing (ticket_* MCP tools read them) |
+| `tickets/` | issue tracker | TICKET-*.md, load-bearing (ticket_* MCP tools read them); historical tickets may reference phase docs that no longer exist (they are phase records, not live refs) |
 | `artifacts/` | run evidence | `artifacts/<case-name>/` — run reports (REPORT.md stays TRACKED evidence; transcripts codex.log/progress.md/run.json are gitignored runtime artifacts); `artifacts/<ticket>/` holds the orchestrate skill's spec.md drafts |
 | `.batch/`, `.supervisor/` | runtime batch/supervisor state | gitignored (parallel batch worktrees at `.batch/<id>`, per-run handles at `<workdir>/.supervisor/`) |
 | `.krn/` | local state | gitignored (review dispositions, local scratch) |
@@ -26,7 +26,7 @@ knows is reachable from here; anything not listed is either generated
 | --- | --- | --- |
 | `docs/CHALLENGE.md` | the founding charter (verbatim, never paraphrase) | first |
 | `docs/PLAN.md` | master plan / phases | planning |
-| `docs/ADR-*` (docs/adr/) | architecture decisions | changing anything load-bearing |
+| `docs/adr/` | architecture decisions | changing anything load-bearing |
 | `docs/AFK-SUPERVISOR.md` | the supervised verified-iteration loop: `loop run`, session resume, templates, two-phase liveness, self-hosting proofs | working on the supervisor |
 | `docs/CODEX-INTEGRATION.md` | codex as a client: MCP registration, approvals, the supervisor tools (loop_run/run_status/run_report) | working on the codex surface |
 | `docs/PRODUCTION-READINESS.md` | distribution, release, operations | shipping |
@@ -36,6 +36,7 @@ knows is reachable from here; anything not listed is either generated
 | `docs/RESEARCH-2026-08.md` | the AFK/Ralph/Sandcastle research pass | the supervisor's grounding |
 | `docs/VERIFIABLE-REWARD-RESEARCH.md` | the verifiable-reward research (verifier discipline) | verification semantics |
 | `docs/METRICS.md` | metrics/telemetry notes | observability |
+| `docs/INCIDENTS.md` | process-incident postmortems (behind the AGENTS.md Process rules) | process rules context |
 | `docs/STANDARDS-AUDIT.md` | skills/standards inventory, plane coverage, gaps, the universal standards package | standards work |
 | `docs/harness/` | harness evolution records (Phantom Guardrails) | harness changes |
 | `AGENTS.md` | the repo contract (top of the tree, always loaded) | every session start |

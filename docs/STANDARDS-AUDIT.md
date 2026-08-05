@@ -51,7 +51,7 @@ cargo steps skip without Cargo.toml, kernel steps [skip] without the
 kernel), checkpoint.sh, .codex/config.toml (full MCP registration +
 HITL approval map), CLAUDE.md shim, opencode.json. The MCP surface
 delivers the live standards: loop_status/memory_query/run_verify/
-loop_verify/eval_gate/checkpoint_audit/ticket_*/budget/health (37
+loop_verify/eval_gate/checkpoint_audit/ticket_*/budget/health (39
 tools, 11 HITL-gated).
 
 MISSING (prioritized):
