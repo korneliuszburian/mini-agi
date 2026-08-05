@@ -47,6 +47,30 @@ A silent target is a failing target. `checkpoint.sh begin/verify` wraps
 every edit step; the journal is audited by the gate (every VERIFY needs an
 earlier BEGIN).
 
+## Verified iteration — the breakthrough pattern
+
+`mini-agi codex --iterate N` is the kernel's verified-reward loop: a
+worker (e.g. codex, or a blind single-shot generation under
+`--blind-worker`) runs, the kernel verifies the outcome with a
+deterministic verifier the worker cannot see, and on failure it re-
+invokes a fresh worker with a distilled, per-case checklist of the
+failing hidden cases — bounded by budget caps, with the attempt chain
+recorded in the run.json.
+
+Measured (EXP-012 N=5, EXP-013 N=10, 4 hidden-suite task classes, same
+model): plain best-of-k blind single-shots pass 25-50% (Wilson 95% CI
+[0.13-0.30, 0.41-0.70]); the kernel's verified-iteration loop passes
+82.5-100% (CI [0.67-0.84, 0.92-1.00]). Non-overlapping CIs; on below-
+bar tasks the separation is total (P 0/30 vs K 23/30 in EXP-013). The
+pattern pays exactly where solo is below the bar (the literature's
+headroom prediction, Reflexion/AWM) — and it is honest: the same
+controls rejected 7 false kernel-vs-plain claims before this.
+
+```
+mini-agi codex spec.md work/ --verify "make verify" --target work/ \
+  --iterate 5 --blind-worker --hidden-dir /abs/hidden-suite
+```
+
 ## Data-dir contract
 
 The kernel operates on a repo root resolved as: `AGENTIC_ROOT` env var,
