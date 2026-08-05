@@ -372,6 +372,9 @@ enum LoopAction {
         /// Skip the Landlock sandbox.
         #[arg(long)]
         no_sandbox: bool,
+        /// Disable session resume (AFK v2): always cold re-invoke.
+        #[arg(long)]
+        no_resume: bool,
     },
 }
 /// CLI fields for `loop run` (bundled so the command fn stays under
@@ -389,6 +392,7 @@ struct LoopRunArgs {
     max_wall: Option<u64>,
     max_idle: Option<u64>,
     no_sandbox: bool,
+    no_resume: bool,
 }
 
 #[derive(Args, Debug)]
@@ -736,6 +740,7 @@ fn main() -> ExitCode {
                 max_wall,
                 max_idle,
                 no_sandbox,
+                no_resume,
             } => cmd_loop_run(&LoopRunArgs {
                 goal_or_case,
                 workdir,
@@ -749,6 +754,7 @@ fn main() -> ExitCode {
                 max_wall,
                 max_idle,
                 no_sandbox,
+                no_resume,
             }),
         },
     }
@@ -2049,6 +2055,7 @@ fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
         on_done: a.on_done.as_deref(),
         report: a.report.as_deref(),
         run_out: case_run_out.as_deref(),
+        resume: a.iterate.max(1) > 1 && !a.no_resume,
     };
     finish_loop_run(&supervisor_args)
 }

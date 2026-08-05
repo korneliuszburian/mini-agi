@@ -34,6 +34,9 @@ use std::path::{Path, PathBuf};
 use crate::worker::{self, IterationInput, IterationResult, ProgressEvent};
 
 /// Supervisor inputs (fully resolved).
+// The bools mirror the CLI flags one-to-one (no_sandbox, blind_worker,
+// read_only, resume) — grouping them would obscure the CLI mapping.
+#[allow(clippy::struct_excessive_bools)]
 pub struct SupervisorArgs<'a> {
     /// Spec text (case spec or generated ad-hoc spec).
     pub spec_text: &'a str,
@@ -71,6 +74,9 @@ pub struct SupervisorArgs<'a> {
     /// own run.json when the goal resolved from a case, else the
     /// workdir.
     pub run_out: Option<&'a Path>,
+    /// Session resume (AFK v2): resume the worker's own codex session
+    /// on verifier failure. Default: on for iterate > 1.
+    pub resume: bool,
     /// Run report path (default: workdir/REPORT.md).
     pub report: Option<&'a Path>,
 }
@@ -112,6 +118,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         iterate: args.iterate,
         blind_worker: args.blind_worker,
         hidden_dir: args.hidden_dir,
+        resume: args.resume,
     };
     let iteration = worker::run_verified_iteration(&input, |event| {
         let line = match &event {
@@ -135,6 +142,15 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
             }
             ProgressEvent::Aborted { reason } => {
                 format!("- {} ABORTED: {reason}\n", stamp())
+            }
+            ProgressEvent::SessionResumed {
+                attempt,
+                session_id,
+            } => {
+                format!(
+                    "- {} attempt {attempt}: RESUMING worker session {session_id}\n",
+                    stamp()
+                )
             }
         };
         // Best-effort append: a progress write failure must not kill the

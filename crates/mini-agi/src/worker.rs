@@ -97,6 +97,9 @@ pub struct CodexRunArgs<'a> {
 /// Inputs for the verified-iteration core (AFK supervisor S1: the
 /// iteration loop extracted from `cmd_codex` so the supervisor reuses
 /// it instead of duplicating).
+// The bools mirror the CLI flags one-to-one (no_sandbox, read_only,
+// blind_worker, resume).
+#[allow(clippy::struct_excessive_bools)]
 pub struct IterationInput<'a> {
     /// The slice spec text (prompt base for attempt 1).
     pub spec_text: &'a str,
@@ -128,6 +131,11 @@ pub struct IterationInput<'a> {
     pub blind_worker: bool,
     /// Hidden-suite dir for blind-worker.
     pub hidden_dir: Option<&'a Path>,
+    /// Session resume (AFK v2, Sandcastle parity): on verifier failure
+    /// the next attempt resumes the worker's OWN codex session with the
+    /// distilled failure, instead of a cold re-invoke. Falls back to a
+    /// fresh exec when no session was captured.
+    pub resume: bool,
 }
 
 /// A supervision event from the iteration core (the AFK supervisor's
@@ -144,6 +152,8 @@ pub enum ProgressEvent {
     },
     /// The run aborted (budget cap).
     Aborted { reason: String },
+    /// The worker's own session will be resumed (attempt > 1).
+    SessionResumed { attempt: usize, session_id: String },
 }
 
 /// Completion-grace decision (two-phase timeout S3, codex review F3):
@@ -183,6 +193,58 @@ pub struct IterationResult {
     pub run: serde_json::Value,
 }
 
+/// The session id of the newest codex rollout file under
+/// `~/.codex/sessions/YYYY/MM/DD/` (AFK v2 session resume). Filenames
+/// are `rollout-<ts>-<uuid>.jsonl`; the uuid is the last five
+/// dash-segments. `None` when no session file exists.
+fn latest_session_id(home: &Path) -> Option<String> {
+    let sessions_root = home.join(".codex/sessions");
+    let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
+    scan_sessions(&sessions_root, &mut newest);
+    let (_, path) = newest?;
+    let name = path.file_name()?.to_string_lossy().into_owned();
+    let body = name.strip_prefix("rollout-")?.strip_suffix(".jsonl")?;
+    let parts: Vec<&str> = body.split('-').collect();
+    if parts.len() < 5 {
+        return None;
+    }
+    Some(parts[parts.len() - 5..].join("-"))
+}
+
+/// Recursive scanner for `latest_session_id`.
+fn scan_sessions(dir: &Path, newest: &mut Option<(std::time::SystemTime, PathBuf)>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            scan_sessions(&p, newest);
+            continue;
+        }
+        let Some(name) = p.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+            continue;
+        };
+        if !name.to_lowercase().ends_with(".jsonl") || !name.starts_with("rollout-") {
+            continue;
+        }
+        let mtime = std::fs::metadata(&p).and_then(|m| m.modified()).ok();
+        if let Some(mt) = mtime
+            && newest.as_ref().is_none_or(|(best, _)| mt > *best)
+        {
+            *newest = Some((mt, p));
+        }
+    }
+}
+
+/// Resume decision (AFK v2): resume only when enabled, on a re-attempt,
+/// and a worker session was actually captured; otherwise the loop falls
+/// back to the cold re-invoke.
+#[must_use]
+pub const fn should_resume(resume: bool, attempt: usize, session: Option<&String>) -> bool {
+    resume && attempt > 1 && session.is_some()
+}
+
 /// The verified-iteration core (BREAKTHROUGH): run the worker up to N
 /// attempts; on verifier failure distill the failure register and
 /// re-invoke a fresh worker, bounded by budget caps; the verifier must
@@ -218,6 +280,7 @@ pub fn run_verified_iteration(
             );
         }
     }
+    let mut resume_session: Option<String> = None;
     for attempt in 1..=iterations {
         attempts_done = attempt;
         progress(ProgressEvent::AttemptStarted { attempt });
@@ -229,13 +292,32 @@ pub fn run_verified_iteration(
                 prev = attempt - 1
             )
         };
-        let worker_args = vec![
-            "exec",
-            "-s",
-            "workspace-write",
-            "--skip-git-repo-check",
-            &prompt,
-        ];
+        // Resume the worker's OWN session (AFK v2, Sandcastle parity):
+        // the distilled failure goes back into the same context instead
+        // of a cold re-invoke; falls back to a fresh exec when no
+        // session was captured (or --no-resume).
+        let resuming = should_resume(input.resume, attempt, resume_session.as_ref());
+        let worker_args = if resuming {
+            progress(ProgressEvent::SessionResumed {
+                attempt,
+                session_id: resume_session.clone().unwrap_or_default(),
+            });
+            vec![
+                "exec",
+                "resume",
+                resume_session.as_deref().unwrap_or(""),
+                "--skip-git-repo-check",
+                &prompt,
+            ]
+        } else {
+            vec![
+                "exec",
+                "-s",
+                "workspace-write",
+                "--skip-git-repo-check",
+                &prompt,
+            ]
+        };
         // Blind-worker mode: the hidden suite is unavailable to the
         // worker — the kernel's loop is the only feedback path.
         let hidden_away = if input.blind_worker {
@@ -262,6 +344,12 @@ pub fn run_verified_iteration(
         let idle_cap = input
             .max_idle
             .or_else(|| mini_agi_core::config::Config::load(input.workdir).max_idle_seconds);
+        // Session resume (AFK v2): snapshot the newest session BEFORE
+        // the run; after the run the worker's own session is the newest
+        // file with a newer mtime (the supervisor runs serially).
+        let session_before = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .and_then(|h| latest_session_id(&h));
         let worker = match run_worker_sandboxed(
             input.worker_name,
             input.workdir,
@@ -281,6 +369,13 @@ pub fn run_verified_iteration(
         };
         if hidden_away && let Some(dir) = input.hidden_dir {
             let _ = restore_verifier(dir);
+        }
+        let worker_session = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .and_then(|h| latest_session_id(&h))
+            .filter(|id| session_before.as_ref() != Some(id));
+        if worker_session.is_some() {
+            resume_session.clone_from(&worker_session);
         }
         let combined = worker.output;
         final_wall = worker.wall_seconds;
@@ -524,6 +619,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         iterate,
         blind_worker,
         hidden_dir,
+        resume: false,
     };
     let result = match run_verified_iteration(&input, |event| match event {
         ProgressEvent::AttemptStarted { attempt } => {
@@ -545,6 +641,12 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         }
         ProgressEvent::Aborted { reason } => {
             eprintln!("  [abort] {reason}");
+        }
+        ProgressEvent::SessionResumed {
+            attempt,
+            session_id,
+        } => {
+            println!("  resuming session {session_id} for attempt {attempt}");
         }
     }) {
         Ok(r) => r,
@@ -918,5 +1020,77 @@ mod escalation_tests {
         assert!(d2.contains("test_inline_comment —"), "{d2}");
         assert!(d2.contains("!= ("), "attempt 2 carries the detail: {d2}");
         assert!(d2.contains("test_quoted —"), "{d2}");
+    }
+}
+
+#[cfg(test)]
+mod session_resume_tests {
+    use super::*;
+
+    fn tmp_home(tag: &str) -> PathBuf {
+        let home = std::env::temp_dir().join(format!("mag-sess-{}-{}", tag, std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).unwrap();
+        home
+    }
+
+    fn write_rollout(home: &Path, day: &str, ts: &str, uuid: &str) -> PathBuf {
+        let dir = home.join(".codex/sessions/2026/08").join(day);
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join(format!("rollout-{ts}-{uuid}.jsonl"));
+        std::fs::write(&p, "{}").unwrap();
+        p
+    }
+
+    #[test]
+    fn no_sessions_yields_none() {
+        let home = tmp_home("none");
+        assert_eq!(latest_session_id(&home), None);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn newest_rollout_wins_and_uuid_is_last_five_segments() {
+        let home = tmp_home("newest");
+        write_rollout(
+            &home,
+            "05",
+            "2026-08-05T09-00-00-019fd196-d25d-7390-bbaa-bca2d026e17c",
+            "019fd196-d25d-7390-bbaa-bca2d026e17c",
+        );
+        let newer = write_rollout(
+            &home,
+            "06",
+            "2026-08-06T09-00-00-019fd199-aaaa-bbbb-cccc-ddddeeee0001",
+            "019fd199-aaaa-bbbb-cccc-ddddeeee0001",
+        );
+        // The newest file by mtime wins (creation order = mtime order
+        // here; the name is not the signal).
+        std::fs::write(&newer, "{}").unwrap();
+        let id = latest_session_id(&home).unwrap();
+        assert_eq!(id, "019fd199-aaaa-bbbb-cccc-ddddeeee0001");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn malformed_names_are_ignored() {
+        let home = tmp_home("malformed");
+        let dir = home.join(".codex/sessions/2026/08/05");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("rollout-too-short.jsonl"), "{}").unwrap();
+        std::fs::write(dir.join("other-file.jsonl"), "{}").unwrap();
+        assert_eq!(latest_session_id(&home), None);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn resume_decision_falls_back_to_cold_invoke() {
+        assert!(!should_resume(false, 2, Some(&"s".to_string())), "disabled");
+        assert!(
+            !should_resume(true, 1, Some(&"s".to_string())),
+            "first attempt"
+        );
+        assert!(!should_resume(true, 2, None), "no session captured");
+        assert!(should_resume(true, 2, Some(&"s".to_string())), "resume");
     }
 }
