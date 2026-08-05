@@ -238,14 +238,14 @@ pub fn audit_verifier(root: &Path, run_path: &Path) -> Result<String, String> {
     Ok(out)
 }
 
-/// Verifier-strength counterfactual check (S2, wired into --iterate):
-/// run the verifier in an EMPTY dir — if it exits 0 there, it accepts
-/// non-work and the iteration would 'pass' garbage.
 // Process-wide uniqueness counter for the vacuous-audit temp dirs: a
 // timestamp can collide across concurrent calls (same-nanosecond reads),
 // and a fixed name made concurrent audits stomp each other's cwd.
 static AUDIT_DIR_NONCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// Verifier-strength counterfactual check (S2, wired into --iterate):
+/// run the verifier in an EMPTY dir — if it exits 0 there, it accepts
+/// non-work and the iteration would 'pass' garbage.
 #[must_use]
 pub fn audit_verifier_vacuous(target: &Path, verify_command: &str) -> VerifierVacuousAudit {
     let base = std::env::temp_dir().join(format!("mag-va2-{}", std::process::id()));
