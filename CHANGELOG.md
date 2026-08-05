@@ -5,6 +5,23 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ## [Unreleased]
 
+### Added (AFK v2 — session resume + sequential-reviewer)
+- Session resume (Sandcastle parity): verifier failure feeds the worker's
+  OWN codex session via `codex exec resume <uuid>` (content-marker
+  ownership, unpredictable per-run token; `--no-resume` escape hatch;
+  cold-revoke fallback; progress.md RESUMING events).
+- `--template sequential-reviewer`: independent read-only review pass
+  (rubric, verdict+score parsing strict yet tolerant), ONE fix attempt via
+  the worker's session resume with the findings, verifier re-run, and the
+  FINAL outcome resolved from the fix result (a failing fix reverts the
+  run; a required-but-impossible fix is never silent).
+- SELF-HOSTING PROOF #2: `loop run verify-gate-full-output` closed a real
+  kernel gap (verify.sh hid failures behind head -20 — the exact gap that
+  hid the vacuous-audit flake): gate-lib.sh extraction + full
+  line-numbered failure output, kernel-verified, review APPROVE 8/8,
+  loop verify closed (0.6076). New eval case (baseline 26).
+- Review gate: codex adversarial review REWORK 2/8 -> APPROVE 7/8.
+
 ### Added (AFK supervisor, AFK-SUPERVISOR S1-S7)
 - `mini-agi loop run <goal-or-case>` — the AFK verified-iteration
   supervisor: spec resolution (case -> its verifier+target, P0-3; ad-hoc

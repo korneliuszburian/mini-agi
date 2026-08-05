@@ -10,6 +10,12 @@ report opens the next layer).
 
 ---
 
+**AFK v2:** session resume (verifier failure feeds the worker's own codex
+session — content-marker ownership) and the sequential-reviewer template
+(independent read-only review + one fix pass + final outcome resolution)
+are shipped; the second self-hosting proof closed a real kernel gap
+(verify.sh's hidden failure output). Details: docs/AFK-SUPERVISOR.md.
+
 **AFK supervisor (AFK-SUPERVISOR):** `mini-agi loop run` ships the
 verified-iteration loop as a supervised background runner — progress.md,
 run report, two-phase liveness (idle timeout + completion grace), on-done

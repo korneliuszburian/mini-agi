@@ -67,13 +67,47 @@ achieved=verifier_passed, and `audit_verifier_vacuous` uses a unique
 per-call temp dir (concurrency). This is the "our system builds our system"
 loop: kernel drives codex to build the kernel, verified by the kernel.
 
+## v2 — session resume + sequential-reviewer (AFK v2)
+
+**Session resume** (`--no-resume` disables): on verifier failure the next
+attempt resumes the worker's OWN codex session (`codex exec resume <uuid>`)
+with the distilled failure feedback instead of a cold re-invoke. Ownership is
+established by CONTENT, not by the newest file: the worker's prompt embeds a
+run-unique unpredictable marker (`SESS-OWN-<hash>`); the session whose
+rollout file contains it is provably the worker's — concurrent codex
+processes (IDE sessions etc.) can never be attributed. Falls back to a cold
+re-invoke when no session was captured.
+
+**`--template sequential-reviewer`**: after the verified iteration passes, an
+INDEPENDENT read-only codex session reviews the produced work (rubric:
+Correctness/Security/Tests/Scope, APPROVE >=7, FIX-MINOR 5-6, REWORK <5);
+REWORK/FIX-MINOR triggers ONE fix attempt via the worker's session resume
+with the findings, then the deterministic verifier re-runs. The FINAL outcome
+is resolved from the fix result (`resolve_final_outcome`): a fix that fails
+the verifier reverts the run to NOT PASSED (draft, report, hook, exit code);
+a required-but-impossible fix (no session) is never silent. Verdict parsing
+is strict (exact tokens, word boundaries) and tolerant (UNPARSEABLE records
+the raw text, never blocks).
+
 ## Deferred to v2 (with rationale)
 
-- **Session resume** (`codex exec resume` on verifier failure instead of a
-  cold re-invoke): Sandcastle does this; our cold re-invoke already recovers
-  (EXP-013 evidence) and resume has CODEX_HOME gotchas — revisit when
-  iteration cost dominates.
-- **Loop templates** (sequential-reviewer / parallel-planner): issue-tracker
-  shaped; single-loop first, templates when a second consumer exists.
+- **Loop templates beyond sequential-reviewer** (parallel-planner): the
+  sequential reviewer is shipped; parallel-planner needs a second consumer —
+  revisit when issue-tracker integration lands.
+- **Session resume via stdin prompts**: the prompt currently rides in argv;
+  moving it to stdin would hide it from /proc — revisit when the marker
+  needs to be a security boundary (it is an ownership token today).
 - **Web dashboard**: rejected by research (MCP + CLI + run-report file is the
   right surface for a solo kernel; a dashboard is team tooling).
+
+## Self-hosting proofs
+
+- **S6 (v1)**: `loop run afk-max-idle` built the real `--max-idle` flag;
+  kernel verifier passed on attempt 1; `loop verify` closed (0.8409).
+- **S5 (v2)**: `loop run verify-gate-full-output` closed the real gap the
+  kernel itself exposed — verify.sh's `step()` truncated failure output
+  behind `head -20` (the exact gap that hid the vacuous-audit flake for
+  hours). The produced change (gate-lib.sh + full line-numbered failure
+  output) was verified by the kernel (attempt 3; attempts 2-3 resumed the
+  worker's own session), reviewed by an independent read-only pass
+  (APPROVE 8/8), and closed via `loop verify` (0.6076).
