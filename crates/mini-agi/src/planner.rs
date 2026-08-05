@@ -359,6 +359,145 @@ pub fn provision_batch(
     })
 }
 
+/// One ticket's outcome after the batch dispatch.
+#[derive(Debug)]
+pub struct BatchTicketResult {
+    /// The ticket id.
+    pub id: String,
+    /// The bg run handle (evidence: run.out, run.pid, launch.json).
+    pub handle: std::path::PathBuf,
+    /// The worktree (the produced changes live here).
+    pub worktree: std::path::PathBuf,
+    /// The supervisor's final outcome (the report's final line).
+    pub passed: bool,
+    /// The report path when the run finished.
+    pub report: Option<std::path::PathBuf>,
+}
+
+/// The batch outcome after dispatch+poll.
+#[derive(Debug)]
+pub struct BatchDispatchResult {
+    pub results: Vec<BatchTicketResult>,
+}
+
+/// Dispatch the batch: per-ticket detached runs (`loop run --detach`)
+/// in each worktree, admission-capped at `max_parallel`, polled until
+/// every ticket is done or the aggregate deadline passes. The marker
+/// of each worker session carries the ticket identity via
+/// `MINIAGI_SESSION_TAG` (parallel sessions cannot be misattributed).
+///
+/// # Errors
+///
+/// Returns when a launch fails (the batch stops).
+pub fn dispatch_batch(
+    repo: &Path,
+    provision: &BatchProvision,
+    manifest: &PlannerManifest,
+    max_parallel: usize,
+    iterate: usize,
+    wall_cap: Option<u64>,
+) -> Result<BatchDispatchResult, String> {
+    let max_parallel = max_parallel.max(1);
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut results: Vec<BatchTicketResult> = Vec::new();
+    let mut active: Vec<(String, std::path::PathBuf, std::path::PathBuf)> = Vec::new();
+    let mut queue: Vec<&PlannerTicket> = manifest.tickets.iter().collect();
+    let batch_deadline = std::time::Instant::now()
+        + std::time::Duration::from_secs(
+            wall_cap
+                .unwrap_or(1800)
+                .saturating_mul(max_parallel as u64)
+                .max(600),
+        );
+    let launch =
+        |ticket: &PlannerTicket,
+         active: &mut Vec<(String, std::path::PathBuf, std::path::PathBuf)>| {
+            let wt = ticket_worktree(repo, &ticket.id);
+            let target = wt.join(&ticket.verify_target);
+            let tag = format!(
+                "{}/{}",
+                &provision.base_sha[..provision.base_sha.len().min(10)],
+                ticket.id
+            );
+            let status = std::process::Command::new(&exe)
+                .args([
+                    "loop",
+                    "run",
+                    &ticket.goal,
+                    "--workdir",
+                    &wt.to_string_lossy(),
+                    "--verify",
+                    &ticket.verify,
+                    "--target",
+                    &target.to_string_lossy(),
+                    "--iterate",
+                    &iterate.to_string(),
+                    "--detach",
+                    "--no-sandbox",
+                ])
+                .env("MINIAGI_SESSION_TAG", &tag)
+                .stdin(std::process::Stdio::null())
+                .status()
+                .map_err(|e| format!("cannot launch ticket {}: {e}", ticket.id))?;
+            if !status.success() {
+                return Err(format!("loop run --detach failed for ticket {}", ticket.id));
+            }
+            active.push((ticket.id.clone(), wt.join(".supervisor"), wt.clone()));
+            Ok(())
+        };
+    // Admission: fill up to max_parallel, then poll; a finished ticket
+    // is recorded and the next queued ticket launches.
+    while !queue.is_empty() || !active.is_empty() {
+        while !queue.is_empty() && active.len() < max_parallel {
+            let ticket = queue.remove(0);
+            launch(ticket, &mut active)?;
+        }
+        if active.is_empty() {
+            break;
+        }
+        if std::time::Instant::now() >= batch_deadline {
+            for (id, handle, wt) in &active {
+                results.push(BatchTicketResult {
+                    id: id.clone(),
+                    handle: handle.clone(),
+                    worktree: wt.clone(),
+                    passed: false,
+                    report: None,
+                });
+            }
+            return Err(
+                "batch aggregate deadline exceeded — tickets failed (evidence preserved)"
+                    .to_string(),
+            );
+        }
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        let mut done: Vec<usize> = Vec::new();
+        for (i, (id, handle, wt)) in active.iter().enumerate() {
+            let st = crate::bg::run_status(handle);
+            if st.report_ready || (!st.alive && st.report.is_some()) {
+                let report = crate::bg::run_report_text(handle);
+                let passed = report
+                    .as_deref()
+                    .is_some_and(|r| r.contains("final outcome: PASSED"));
+                results.push(BatchTicketResult {
+                    id: id.clone(),
+                    handle: handle.clone(),
+                    worktree: wt.clone(),
+                    passed,
+                    report: report
+                        .map(std::path::PathBuf::from)
+                        .or_else(|| st.report.as_ref().map(std::path::PathBuf::from)),
+                });
+                done.push(i);
+            }
+        }
+        for i in done.into_iter().rev() {
+            active.remove(i);
+        }
+    }
+    Ok(BatchDispatchResult { results })
+}
+
 /// Remove a provisioned batch's worktrees (evidence preserved — the
 /// worktree content stays on the branch).
 pub fn teardown_batch(repo: &Path, provision: &BatchProvision) {

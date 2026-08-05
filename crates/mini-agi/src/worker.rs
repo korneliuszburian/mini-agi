@@ -285,7 +285,16 @@ pub fn run_verified_iteration(
         );
         h.write_u64(std::process::id().into());
         h.write_u64(marker_nonce);
-        format!("SESS-OWN-{:016x}", h.finish())
+        let tag = std::env::var("MINIAGI_SESSION_TAG").unwrap_or_default();
+        format!(
+            "SESS-OWN-{:016x}{}",
+            h.finish(),
+            if tag.is_empty() {
+                String::new()
+            } else {
+                format!("-{tag}")
+            }
+        )
     };
     let base_prompt = format!(
         "{}\n\n{protocol}\n\n<session-marker>{marker}</session-marker>\n",
