@@ -706,12 +706,41 @@ pub fn run_planner_pass(
     )
     .map_err(|e| format!("planner pass not available: {e}"))?;
     let out = planner.output;
+    // Extract the FIRST balanced JSON object (brace-depth scan): the
+    // planner's output may carry a summary + a second echo of the JSON
+    // after it, and first-{-last-} would swallow both copies.
     let start = out
         .find('{')
         .ok_or_else(|| "planner emitted no JSON object".to_string())?;
-    let end = out
-        .rfind('}')
-        .ok_or_else(|| "planner emitted no JSON object".to_string())?;
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut end = None;
+    for (i, c) in out[start..].char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match c {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(start + i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let end = end.ok_or_else(|| "planner emitted no balanced JSON object".to_string())?;
     parse_manifest(&out[start..=end])
 }
 
