@@ -2233,6 +2233,13 @@ fn cmd_loop_parallel(
             Err(e) => return fail(&format!("planner pass failed: {e}")),
         },
     };
+    // F5: refuse unsandboxed workers BEFORE provisioning — an
+    // invocation that must be refused must not leave batch artifacts.
+    if !no_sandbox {
+        return fail(
+            "loop parallel requires --no-sandbox (the Landlock wrapper breaks the codex npm shim; an explicit opt-in is required)",
+        );
+    }
     // 3. Provision (worktrees at HEAD) + dispatch + poll.
     let base = match git_head(&root()) {
         Ok(b) => b,
@@ -2253,15 +2260,6 @@ fn cmd_loop_parallel(
             t.id,
             &t.goal[..t.goal.len().min(60)],
             t.scope.join(", ")
-        );
-    }
-    // F5: the Landlock wrapper is incompatible with the codex npm shim
-    // (the e2e proved it in v1-v3) — parallel workers are only sound
-    // with the explicit escape hatch. Refuse instead of silently
-    // running unsandboxed.
-    if !no_sandbox {
-        return fail(
-            "loop parallel requires --no-sandbox (the Landlock wrapper breaks the codex npm shim; an explicit opt-in is required)",
         );
     }
     let dispatch = match planner::dispatch_batch(

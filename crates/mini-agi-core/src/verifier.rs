@@ -264,11 +264,16 @@ pub fn audit_verifier_vacuous(
             tmp.display()
         ));
     }
-    let res = crate::worker::run_capped("sh", &["-c", verify_command], &tmp, Some(120));
+    let res = crate::worker::run_capped("sh", &["-c", verify_command], &tmp, Some(120))
+        .map_err(|e| {
+            format!(
+                "vacuous-audit could not RUN the verifier ({e}) — refusing to trust a verifier that failed to execute"
+            )
+        })?;
     let _ = std::fs::remove_dir_all(&tmp);
     let _ = target;
     Ok(VerifierVacuousAudit {
-        is_vacuous: res.is_ok_and(|r| !r.aborted && r.status == Some(0)),
+        is_vacuous: !res.aborted && res.status == Some(0),
     })
 }
 

@@ -641,6 +641,45 @@ pub fn finalize_and_merge(
         }
         merged.push(ticket.id.clone());
     }
+    // ATOMIC merge (F1): assemble the batch on a SCRATCH branch; only
+    // when every ticket merged cleanly does the target branch move
+    // (fast-forward). A conflict aborts the scratch — the target is
+    // never left half-merged.
+    let short = &provision.base_sha[..provision.base_sha.len().min(10)];
+    let scratch = format!("batch/{short}/merge");
+    let target_branch = git(&["rev-parse", "--abbrev-ref", "HEAD"])?;
+    let target_branch = String::from_utf8_lossy(&target_branch.stdout)
+        .trim()
+        .to_string();
+    git(&["checkout", "-q", "-b", &scratch, &provision.base_sha])?;
+    for ticket in &manifest.tickets {
+        let branch = format!("batch/{short}/{}", ticket.id);
+        let merge = git(&[
+            "merge",
+            "--no-ff",
+            "-m",
+            &format!("batch: merge {}", ticket.id),
+            &branch,
+        ])?;
+        if !merge.status.success() {
+            let _ = git(&["merge", "--abort"]);
+            let _ = git(&["checkout", "-q", &target_branch]);
+            let _ = git(&["branch", "-D", &scratch]);
+            return Err(format!(
+                "ticket {}: merge CONFLICT — the batch fails atomically (the target branch is untouched; evidence preserved)",
+                ticket.id
+            ));
+        }
+    }
+    git(&["checkout", "-q", &target_branch])?;
+    let ff = git(&["merge", "--ff-only", &scratch])?;
+    if !ff.status.success() {
+        return Err(
+            "batch merge fast-forward FAILED — the target branch is untouched (evidence preserved)"
+                .to_string(),
+        );
+    }
+    let _ = git(&["branch", "-D", &scratch]);
     let out = git(&["rev-parse", "HEAD"])?;
     Ok(BatchMergeResult {
         merge_sha: String::from_utf8_lossy(&out.stdout).trim().to_string(),
