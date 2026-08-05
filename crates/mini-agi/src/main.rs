@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
+mod bg;
 mod clifmt;
 #[cfg(target_os = "linux")]
 mod sandbox;
@@ -379,10 +380,15 @@ enum LoopAction {
         /// review + one fix pass via the worker's session resume).
         #[arg(long)]
         template: Option<String>,
+        /// Launch in the background (AFK v3): spawn the same run as a
+        /// detached child, print the run handle, exit immediately.
+        #[arg(long)]
+        detach: bool,
     },
 }
 /// CLI fields for `loop run` (bundled so the command fn stays under
-/// the clippy arg budget).
+/// the clippy arg budget). The bools mirror the CLI flags one-to-one.
+#[allow(clippy::struct_excessive_bools)]
 struct LoopRunArgs {
     goal_or_case: String,
     workdir: PathBuf,
@@ -398,6 +404,7 @@ struct LoopRunArgs {
     no_sandbox: bool,
     no_resume: bool,
     template: Option<String>,
+    detach: bool,
 }
 
 #[derive(Args, Debug)]
@@ -747,6 +754,7 @@ fn main() -> ExitCode {
                 no_sandbox,
                 no_resume,
                 template,
+                detach,
             } => cmd_loop_run(&LoopRunArgs {
                 goal_or_case,
                 workdir,
@@ -762,6 +770,7 @@ fn main() -> ExitCode {
                 no_sandbox,
                 no_resume,
                 template,
+                detach,
             }),
         },
     }
@@ -2039,40 +2048,80 @@ fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
         ));
     }
     let cfg = Config::load(&a.workdir);
-    let case_run_out = (root()
-        .join("evals/cases")
-        .join(&a.goal_or_case)
-        .join("run.json")
-        .is_file())
-    .then(|| {
-        root()
+    // Detached launch (AFK v3): validate in the parent (resolution +
+    // pairing), then spawn the same run as a child and exit with the
+    // handle. The child runs the NORMAL path below.
+    if a.detach {
+        let vt = a.target.as_deref().unwrap_or(&a.workdir);
+        let verify_cmd = if let Some(v) = a.verify.as_deref() {
+            v.to_string()
+        } else {
+            let v = resolved.verify_cmd;
+            if v.is_empty() {
+                return fail("cannot resolve a verifier for this goal");
+            }
+            v
+        };
+        let report_default = a.workdir.join("REPORT.md");
+        let report = a.report.as_deref().unwrap_or(&report_default);
+        match bg::spawn_detached(
+            &a.goal_or_case,
+            &a.workdir,
+            &verify_cmd,
+            vt,
+            a.iterate,
+            a.max_wall,
+            a.max_idle,
+            a.blind_worker,
+            a.hidden_dir.as_deref(),
+            a.on_done.as_deref(),
+            report,
+            a.template.as_deref(),
+            a.no_resume,
+            a.no_sandbox,
+        ) {
+            Ok(handle) => {
+                println!("detached run launched: {}", handle.display());
+                ExitCode::SUCCESS
+            }
+            Err(e) => fail(&format!("cannot launch detached run: {e}")),
+        }
+    } else {
+        let case_run_out = (root()
             .join("evals/cases")
             .join(&a.goal_or_case)
             .join("run.json")
-    });
-    let supervisor_args = supervisor::SupervisorArgs {
-        spec_text: &resolved.spec_text,
-        goal: &resolved.goal,
-        scope_list: &resolved.scope_list,
-        verify: &resolved.verify_cmd,
-        target: &resolved.target,
-        workdir: &a.workdir,
-        iterate: a.iterate,
-        blind_worker: a.blind_worker,
-        hidden_dir: a.hidden_dir.as_deref(),
-        wall_cap: a.max_wall.or(cfg.max_wall_seconds),
-        max_idle: a.max_idle,
-        step_cap: cfg.max_steps,
-        no_sandbox: a.no_sandbox,
-        worker_name: "codex",
-        read_only: false,
-        on_done: a.on_done.as_deref(),
-        report: a.report.as_deref(),
-        run_out: case_run_out.as_deref(),
-        resume: a.iterate.max(1) > 1 && !a.no_resume,
-        template: a.template.as_deref(),
-    };
-    finish_loop_run(&supervisor_args)
+            .is_file())
+        .then(|| {
+            root()
+                .join("evals/cases")
+                .join(&a.goal_or_case)
+                .join("run.json")
+        });
+        let supervisor_args = supervisor::SupervisorArgs {
+            spec_text: &resolved.spec_text,
+            goal: &resolved.goal,
+            scope_list: &resolved.scope_list,
+            verify: &resolved.verify_cmd,
+            target: &resolved.target,
+            workdir: &a.workdir,
+            iterate: a.iterate,
+            blind_worker: a.blind_worker,
+            hidden_dir: a.hidden_dir.as_deref(),
+            wall_cap: a.max_wall.or(cfg.max_wall_seconds),
+            max_idle: a.max_idle,
+            step_cap: cfg.max_steps,
+            no_sandbox: a.no_sandbox,
+            worker_name: "codex",
+            read_only: false,
+            on_done: a.on_done.as_deref(),
+            report: a.report.as_deref(),
+            run_out: case_run_out.as_deref(),
+            resume: a.iterate.max(1) > 1 && !a.no_resume,
+            template: a.template.as_deref(),
+        };
+        finish_loop_run(&supervisor_args)
+    }
 }
 
 fn finish_loop_run(args: &supervisor::SupervisorArgs<'_>) -> ExitCode {

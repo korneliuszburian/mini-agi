@@ -23,6 +23,7 @@ enabled_tools = [
   "insights",
   "loop_dispatch",
   "loop_objective",
+  "loop_run",
   "loop_status",
   "loop_verify",
   "memory_consolidate",
@@ -33,6 +34,8 @@ enabled_tools = [
   "resume",
   "run_failures",
   "run_ingest",
+  "run_report",
+  "run_status",
   "run_verify",
   "skill_add",
   "skill_list",
@@ -55,6 +58,9 @@ enabled_tools = [
 approval_mode = "prompt"
 
 [mcp_servers.mini-agi.tools.loop_dispatch]
+approval_mode = "prompt"
+
+[mcp_servers.mini-agi.tools.loop_run]
 approval_mode = "prompt"
 
 [mcp_servers.mini-agi.tools.loop_objective]

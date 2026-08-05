@@ -370,6 +370,40 @@ fn tool_definitions() -> Vec<Value> {
             required: &[],
         },
         ToolDef {
+            name: "loop_run",
+            description: "AFK supervisor: launch a verified-iteration run in the BACKGROUND (detached child) and return the run handle; poll with run_status, read the report with run_report. Requires an approval reason (a write that changes the worker tree).",
+            params: &[
+                ("goal_or_case", "string"),
+                ("workdir", "string"),
+                ("verify", "string"),
+                ("target", "string"),
+                ("iterate", "integer"),
+                ("max_wall", "integer"),
+                ("max_idle", "integer"),
+                ("blind_worker", "boolean"),
+                ("hidden_dir", "string"),
+                ("on_done", "string"),
+                ("report", "string"),
+                ("template", "string"),
+                ("no_resume", "boolean"),
+                ("no_sandbox", "boolean"),
+                ("approve", "string"),
+            ],
+            required: &["goal_or_case", "workdir", "approve"],
+        },
+        ToolDef {
+            name: "run_status",
+            description: "Poll a launched background run (handle from loop_run): alive, report ready, progress tail.",
+            params: &[("handle", "string")],
+            required: &["handle"],
+        },
+        ToolDef {
+            name: "run_report",
+            description: "Read the run report of a launched background run (handle from loop_run).",
+            params: &[("handle", "string")],
+            required: &["handle"],
+        },
+        ToolDef {
             name: "loop_verify",
             description: "Verify a rerun; close the gap at the target.",
             params: &[("case", "string"), ("claimant", "string")],
@@ -431,6 +465,11 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     macro_rules! arg {
         ($key:literal) => {
             args.get($key).and_then(Value::as_str).unwrap_or("")
+        };
+    }
+    macro_rules! opt_arg {
+        ($key:literal) => {
+            args.get($key).and_then(Value::as_str)
         };
     }
     match name {
@@ -786,6 +825,100 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                     .join("\n")
             }
         }
+        "loop_run" => {
+            let goal_or_case = arg!("goal_or_case");
+            let workdir = std::path::PathBuf::from(arg!("workdir"));
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: loop_run requires an approval reason (approve) — a write that changes the worker tree".to_string();
+            }
+            // Parent-side validation mirrors the CLI (resolution +
+            // template pairing) so the child starts clean.
+            let resolved = match crate::supervisor::resolve(&crate::supervisor::ResolveInput {
+                goal_or_case,
+                root,
+                workdir: &workdir,
+                verify: opt_arg!("verify"),
+                target: opt_arg!("target").map(std::path::PathBuf::from).as_deref(),
+            }) {
+                Ok(r) => r,
+                Err(e) => return format!("error: {e}"),
+            };
+            if opt_arg!("blind_worker").is_some_and(|b| b == "true")
+                && opt_arg!("hidden_dir").is_none()
+            {
+                return "error: blind_worker requires hidden_dir".to_string();
+            }
+            let template = opt_arg!("template");
+            if let Some(t) = template
+                && t != "sequential-reviewer"
+            {
+                return format!("error: unknown template '{t}' (supported: sequential-reviewer)");
+            }
+            let verify_cmd = if let Some(v) = opt_arg!("verify") {
+                v.to_string()
+            } else {
+                let v = resolved.verify_cmd;
+                if v.is_empty() {
+                    return "error: cannot resolve a verifier for this goal".to_string();
+                }
+                v
+            };
+            let target = opt_arg!("target")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| workdir.clone());
+            let report = opt_arg!("report")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| workdir.join("REPORT.md"));
+            match crate::bg::spawn_detached(
+                goal_or_case,
+                &workdir,
+                &verify_cmd,
+                &target,
+                opt_arg!("iterate")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(3),
+                opt_arg!("max_wall").and_then(|s| s.parse().ok()),
+                opt_arg!("max_idle").and_then(|s| s.parse().ok()),
+                opt_arg!("blind_worker").is_some_and(|b| b == "true"),
+                opt_arg!("hidden_dir")
+                    .map(std::path::PathBuf::from)
+                    .as_deref(),
+                opt_arg!("on_done"),
+                &report,
+                template,
+                opt_arg!("no_resume").is_some_and(|b| b == "true"),
+                opt_arg!("no_sandbox").is_some_and(|b| b == "true"),
+            ) {
+                Ok(handle) => format!(
+                    "launched: handle={} pid={} (approved: {approve})",
+                    handle.display(),
+                    std::fs::read_to_string(handle.join("run.pid"))
+                        .ok()
+                        .map_or_else(|| "?".to_string(), |p| p.trim().to_string())
+                ),
+                Err(e) => format!("error: cannot launch detached run: {e}"),
+            }
+        }
+        "run_status" => {
+            let handle = std::path::PathBuf::from(arg!("handle"));
+            let st = crate::bg::run_status(&handle);
+            serde_json::json!({
+                "alive": st.alive,
+                "workdir": st.workdir,
+                "report": st.report,
+                "report_ready": st.report_ready,
+                "progress_tail": st.progress_tail,
+            })
+            .to_string()
+        }
+        "run_report" => {
+            let handle = std::path::PathBuf::from(arg!("handle"));
+            crate::bg::run_report_text(&handle).map_or_else(
+                || "error: report not ready or handle missing".to_string(),
+                |text| serde_json::json!({ "report": text }).to_string(),
+            )
+        }
         "loop_verify" => {
             let case = arg!("case");
             let claimant = arg!("claimant");
@@ -919,6 +1052,70 @@ mod tests {
         assert!(!arg_bool(&args, "missing"));
         assert_eq!(arg_f64(&args, "rate"), Some(0.5));
         assert_eq!(arg_f64(&args, "missing"), None);
+    }
+
+    #[test]
+    fn supervisor_tools_are_declared_with_required_params() {
+        let tools = tool_definitions();
+        let run = tools
+            .iter()
+            .find(|t| t["name"] == "loop_run")
+            .unwrap_or_else(|| panic!("loop_run must be declared"));
+        let props = &run["inputSchema"]["properties"];
+        for key in [
+            "goal_or_case",
+            "workdir",
+            "verify",
+            "target",
+            "iterate",
+            "template",
+            "approve",
+        ] {
+            assert!(
+                props.get(key).is_some(),
+                "loop_run must declare param {key}"
+            );
+        }
+        assert_eq!(
+            props["iterate"]["type"], "integer",
+            "iterate must be typed integer"
+        );
+        let req = run["inputSchema"]["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect::<Vec<_>>();
+        assert!(req.contains(&"goal_or_case"));
+        assert!(req.contains(&"workdir"));
+        assert!(req.contains(&"approve"), "HITL approval reason required");
+        let status = tools.iter().find(|t| t["name"] == "run_status").unwrap();
+        assert!(status["inputSchema"]["properties"].get("handle").is_some());
+        let report = tools.iter().find(|t| t["name"] == "run_report").unwrap();
+        assert!(report["inputSchema"]["properties"].get("handle").is_some());
+    }
+
+    #[test]
+    fn loop_run_without_approval_reason_is_refused() {
+        // The HITL gate: a write that changes the worker tree requires
+        // an approval reason; missing -> error, no child spawned.
+        let root = std::env::temp_dir().join(format!("mag-mcp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let args = serde_json::json!({
+            "goal_or_case": "some case",
+            "workdir": root.to_string_lossy(),
+        });
+        let out = call_tool("loop_run", &args, &root);
+        assert!(
+            out.starts_with("error: loop_run requires an approval reason"),
+            "{out}"
+        );
+        assert!(
+            !root.join(".supervisor").exists(),
+            "no detached child must be spawned without approval"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
