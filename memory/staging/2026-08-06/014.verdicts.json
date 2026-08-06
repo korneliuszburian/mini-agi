@@ -1,0 +1,251 @@
+{
+  "staged": "014.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "unverifiable: no canonical fact discusses Codex sandbox directory protections",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "unverifiable: no canonical fact discusses Codex project-scoped config loading or trust model",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "unverifiable: no canonical fact discusses Codex allow_managed_hooks_only or requirements.toml semantics",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "unverifiable: no canonical fact discusses Claude Code enforcement/guidance split or CLAUDE.md semantics",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "unverifiable: no canonical fact discusses Claude Code security boundaries or PreToolUse hooks",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "unverifiable: no canonical fact discusses Claude Agent SDK tool evaluation order or callbacks",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "unverifiable: no canonical fact discusses Claude Code deny rules or bypassPermissions behavior",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "unverifiable: no canonical fact discusses Claude Code fail-closed defaults or suspicious-command escalation",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "unverifiable: no canonical fact discusses Codex two-layer sandbox architecture or platform-specific implementations",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "unverifiable: no canonical fact discusses mini-agi gate ordering relative to LLM judge or run-verify protocol (ADR-0011 is cited but not among the canonical facts provided)",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "unverifiable: no canonical fact discusses OpenCode per-call tool gates, external_directory, or doom_loop guards",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "unverifiable: no canonical fact discusses Claude Agent SDK canUseTool callback or MCP user-interaction fallthrough",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "unverifiable: no canonical fact discusses OpenAI Agents SDK, needsApproval, or resumable runs",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "unverifiable: no canonical fact discusses Codex approvals_reviewer, auto_review subagent, or risk-tiered policies",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "unverifiable: no canonical fact discusses Codex granular approval_policy or skill_approval as a category",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable claim about cross-system trust gating; no existing canonical fact addresses workspace-trust dialogs or skill/config loading gates.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New durable architectural fact about mini-agi memory signoff routing; no existing canonical fact covers ADR-0010 or human-queue signoff semantics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable claim about skill frontmatter self-restriction; no existing canonical fact covers skill invocation controls or tool allow/deny lists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "New durable claim about vendor memory separation patterns; no existing canonical fact covers human-written vs agent-written memory separation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New durable claim with specific bounds (200 lines, 25KB, modified ISO-8601); no existing canonical fact covers Claude Code auto-memory limits.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "New durable claim about Codex memory opt-in behavior and secret redaction; no existing canonical fact covers Codex memory semantics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "New durable claim about Claude Code ConfigChange hooks; no existing canonical fact covers session-setting audit hooks.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "New durable architectural fact about mini-agi append-only canonical memory with provenance; no existing canonical fact covers fact-id derivation or derived-view generation rules.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "New durable architectural fact about mini-agi checkpoint journal semantics; no existing canonical fact covers BEGIN/VERIFY-PASS/VERIFY-FAIL records or ADR-0004 rollback behavior.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "New durable claim about OpenAI Agents SDK guardrail architecture with boundary caveat; no existing canonical fact covers model-as-judge guardrails or agent-chain limitation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "New durable claim about Claude Agent SDK PreToolUse hook pattern; no existing canonical fact covers auto-approved-tool bypass or pre-tool hook recommendation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "New durable architectural fact about mini-agi reviewer memory-anchor requirement (ADR-0003) and OWASP mapping (ADR-0014); no existing canonical fact covers reviewer citation gates or memory-poisoning mitigation attribution.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "New durable claim about Codex OTel tool_decision telemetry; no existing canonical fact covers OTel-based authorization audit trails.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "New durable claim about MCP spec security limitations; no existing canonical fact covers MCP protocol-level security constraints or consent-flow requirements.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "New durable architectural fact about mini-agi CI gate sandbox-evidence requirement (ADR-0009) and Landlock containment (ADR-0012); no existing canonical fact covers runner isolation or write-containment semantics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "unsupported by canonical facts — no fact addresses Claude skills sandboxing, context filtering, or file access semantics",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "unsupported by canonical facts — no fact addresses Claude bypassPermissions or tool permission models",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "unsupported by canonical facts — no fact addresses Claude preset replacement or prompt safety",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "unsupported by canonical facts — no fact addresses Codex yolo mode or sandbox flags",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "unsupported by canonical facts — no fact describes tool-call-boundary defense-in-depth, deny rules, or bypass semantics; synthesis fabricated from absent evidence",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "unsupported by canonical facts — no fact describes read-only .codex/.agents dirs, trust-gated project config, or managed org config layering",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "unsupported by canonical facts — no fact describes memory store separation, size caps, secret redaction, or 'context not enforcement' layering",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "unsupported by canonical facts — no fact describes provenance-as-gate semantics, fact-id citations in reviewer systems, or MCP protocol-level enforcement decisions; af2f8fa2493077fd mentions agentic review but carries none of the claimed details",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 38,
+      "reason": "not a verifiable fact (self-labeled uncertain); no canonical fact addresses enforced rollback of config/skills",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 39,
+      "reason": "not a verifiable fact (self-labeled uncertain); no canonical fact contains effectiveness data or ADR-0003 citation details",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 40,
+      "reason": "not a verifiable fact (self-labeled open question); no canonical fact addresses vendor red-team evaluations of permission-layer prompt injection",
+      "verdict": "reject"
+    }
+  ]
+}

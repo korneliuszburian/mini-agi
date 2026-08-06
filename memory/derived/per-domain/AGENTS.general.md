@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 58637d7726f7802e
-# canonical_entries: 50
+# canonical_sha256: 153c3b1b8e9d31a4
+# canonical_entries: 51
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -224,3 +224,18 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `19d6b1929b157a24` No controlled experiment was found isolating any single retention policy (e.g. decay on/off, eviction threshold, supersede vs delete) with retrieval-quality numbers; such numbers are published only for whole systems (Zep, MemGPT) on fixed benchmarks, not for the retention mechanism in isolation.
 - `71bfdcb5d6aea1fa` No reviewed source reports dedup rates, compression ratios, or fact-count growth over time; whether retention actually bounds storage is unanswered in every reviewed source.
 - `7c0a290e885b0a7d` Agent memory systems almost universally keep the long-term fact store append-only and unbounded, solving 'growth' by bounding only the in-context tier and by re-ranking/superseding at retrieval: MemGPT/Letta evicts the context queue to a recursive summary while archival/recall storage grows indefinitely; decay exists as a retrieval-time ranking bias and never deletes; dedup is write-time; invalidation/supersede is timestamp-based and non-destructive; per-item expiry exists as soft-hide (Mem0 expiration_date) and is absent from LangGraph's core store.
+- `e798cc05679df268` Workspace-trust dialogs gate loaded skills/config: Claude project skills take effect for allowed-tools only after the trust dialog is accepted, and a skill can grant itself broad tool access; Codex loads project config only when the project is trusted.
+- `0b90b61b3081c07d` Mini AGI makes memory writes human-signed: contested facts and dream-loop results route through memory signoff / a human queue (ADR-0010 signoff); the reviewer gate is human by design.
+- `1ab0e2db5aa0ab3d` Skills can restrict their own invocation and tools: disable-model-invocation: true (only the user can trigger, recommended for /deploy-style skills) and allowed-tools/disallowed-tools frontmatter.
+- `59816a658ba4962d` Vendors separate human-written memory (CLAUDE.md) from agent-written auto memory; both are loaded at the start of every conversation and treated as context, not enforcement.
+- `44f6ae81403776df` Claude Code auto memory is bounded: per-repo directory ~/.claude/projects/<project>/memory/, MEMORY.md index capped at the first 200 lines or first 25KB; writes over the limit return an error to rewrite the index; a modified ISO-8601 timestamp is stamped on frontmatter.
+- `52f81a90784ffeec` Codex memories are opt-in generated state: off by default, stored under ~/.codex/memories/, treated as generated state not hand-edited, secrets redacted from generated fields; docs recommend keeping required rules in AGENTS.md and treating memories as a recall layer, not the sole source for rules that must always apply.
+- `e18acaa145958ac6` Claude Code ships ConfigChange hooks that can audit or block settings changes during sessions.
+- `2c3f7e1718461895` Mini AGI canonical memory is append-only with provenance on every entry: dated, carries a source, every fact id is sha256[:16]; derived views are generated, never hand-edited, and canonical wins on conflict.
+- `57a4ba0fa591b0c8` Mini AGI checkpoint journal records BEGIN/VERIFY-PASS/VERIFY-FAIL/CHECKPOINT-ABORT in memory/episodic/checkpoints.log; a red gate hard-resets to the last BEGIN commit (rollback always lands on the last checkpoint, ADR-0004); the journal must be repaired via checkpoint.sh, never through git.
+- `dc228d975c9158da` OpenAI Agents SDK guardrails are model-as-judge: input guardrails run before the main model, output guardrails validate final output, tool guardrails check arguments/results, and a tripwire blocks the run. Boundary caveat: input guardrails run only for the first agent in a chain and output guardrails only at the final-output agent, so checks belong next to the side-effecting tool in manager-style workflows.
+- `f84e2ab57f514419` Claude Agent SDK: auto-approved tools never reach canUseTool, so for checks that must run on every call the docs prescribe a PreToolUse hook.
+- `853315f48c90e499` Mini AGI reviewers must cite canonical fact ids they rely on; a verdict without memory anchors is flagged and gated (ADR-0003). The OWASP mapping attributes memory-poisoning mitigation to 'Append-only canonical with content-hash fact ids' and a provenance fingerprint in the audit (ADR-0014).
+- `6a52b10eed388a69` Codex OTel records codex.tool_decision with approved/denied and source (configuration vs user), enabling post-hoc audit of who authorized each action.
+- `ddf4bfc7760221e4` MCP spec: MCP itself cannot enforce security principles at the protocol level; hosts must obtain explicit user consent before invoking any tool, tool annotations should be considered untrusted unless obtained from a trusted server, and implementors SHOULD build robust consent and authorization flows.
+- `bfe28bd5ddad1fe0` Mini AGI CI gate fails unless the runner identifies itself as isolated (non-root + RUNNER_NAME), so 'gate requires sandbox evidence' is literal (ADR-0009); the local worker runs under Landlock write-containment confined to workdir + its own state dir (ADR-0012).
