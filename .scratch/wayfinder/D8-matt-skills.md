@@ -56,3 +56,49 @@ the to-questionnaire hook must verify the template + grill-the-send rule.
 Does not prove: that HTML logic prototypes are better for OUR solo use
 (lab-test will answer); that v1.2's popularity validates its mechanics.
 Tracker record: pending (this ticket) — implementation chosen by user.
+
+## AMENDMENT 2026-08-06 — pipeline-position verdict (user: decide for real)
+
+User directed: decide from OUR pipeline/workflow what is actually needed;
+the fact that we share ~13 skill NAMES with Matt's catalog is worrying;
+integrate everything as one system.
+
+System view (the "worrying" signal, resolved):
+- No literal dual registration: Matt's repo is installed NOWHERE
+  (~/.claude/skills, ~/.codex/skills, opencode config all clean).
+- The overlap is LINEAGE: both catalogs descend from the same genre
+  (Anthropic engineering posts -> skill collections). Names shared.
+- The architecture differs: ours = contracts + hooks in a deterministic
+  gate + one-owner routing + kernel-state seam (enforced); Matt's = prose
+  catalog (advisory, self-describing, collision-prone). His 13 same-named
+  skills are not competitors to ours; each overlap was consciously
+  adjudicated in the disposition table above.
+- The pipeline map (which stage each skill serves) shows the real gaps are
+  NOT where the name-overlaps are:
+  ORIENT/PLAN: wayfinder, setup-repository-workflow | DECIDE:
+  domain-modeling, source-to-decision, slice-work, to-spec, to-tickets |
+  RESEARCH: (gap) | BUILD: implement, tdd, prototype, diagnosing-bugs,
+  codebase-design, typescript-engineering, target-repo-work, omarchy |
+  VERIFY: verify, checkpoint, review, code-review | KNOWLEDGE:
+  ingest-knowledge, compact, handoff | ORCHESTRATE: delivery-loop,
+  orchestrate | MODE: caveman, wait-what.
+
+FINAL DISPOSITIONS (implemented same day):
+- ADOPT to-questionnaire (repo-local, hook-bound): closes the decision
+  chain when a THIRD party holds the knowledge — domain-modeling ->
+  to-questionnaire -> recipient -> decision. The only real chain-break
+  in the DECIDE stage.
+- ADOPT wait-what (global, mode): session-clarity lever for a solo
+  operator; complements caveman; STE100 + CONTEXT.md language.
+- ADOPT writing-for-agents (global rename + port): the context-load
+  economics (two loads, pointers, leading words, negation, no-ops,
+  cache/sediment) directly serve our memory/compact economics; the
+  kernel-seam machinery is retained and NOT duplicated (one-owner).
+- LAB-TEST prototype HTML-logic branch: next logic-prototype task
+  (no observed local TUI failure; shareability value is marginal for
+  solo use).
+- DEFER wizard: trigger = next multi-step human-only provisioning.
+- DEFER research skill: trigger = auto-researcher worker (AGI Phase 2);
+  our wayfinder track pattern already covers research ad-hoc.
+- REJECT grilling (domain-modeling is a superset), reject
+  catalog/marketplace/distribution (popularity != mechanism).
