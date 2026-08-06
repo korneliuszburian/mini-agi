@@ -2832,8 +2832,7 @@ fn cmd_dream(
     let all = mini_agi_core::memory::read_facts(&root);
     let links = mini_agi_core::memory::fact_links(&all);
     let enforced = mini_agi_core::memory::enforced_fact_ids(&root);
-    let selected =
-        mini_agi_core::memory::select_budgeted(&all, &links, &enforced, 6000);
+    let selected = mini_agi_core::memory::select_budgeted(&all, &links, &enforced, 6000);
     let mut audit_lines: Vec<String> = selected
         .iter()
         .map(|(id, _, body)| format!("{id}: {body}"))
