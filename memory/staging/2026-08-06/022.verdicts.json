@@ -1,0 +1,185 @@
+{
+  "staged": "022.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "new domain (seccomp mechanics); no canonical fact covers Linux syscall filtering; claim is specific and sourced to kernel docs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "new domain (Landlock LSM); no canonical fact covers Linux security modules; claim is specific and sourced to kernel docs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "new domain; derives a direct corollary from kernel documentation about seccomp insufficiency without LSM complement; no canonical fact covers this",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "new domain; clear comparison of seccomp vs Landlock capability boundaries; no canonical fact addresses this",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "new domain; capability/privilege gating for both mechanisms; specific and sourced",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "new domain; irreversibility property of both mechanisms; specific and sourced to Landlock man page",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "new domain; kernel version and configuration requirements for both mechanisms; specific and sourced",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "new domain; repo-local ADR-0012 claim about Landlock choice and threat model; no canonical fact covers ADR-0012 or sandboxing decisions",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "new domain; Landlock unmediatable operations; specific and sourced to kernel docs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "new domain; pre-existing FD escape semantics; specific technical claim",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "new domain; OverlayFS divergence from Landlock policy; specific technical claim",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "new domain; Landlock Erratum 3 privilege-escalation bug; specific and well-scoped",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "new domain; Landlock network support timeline and limitations; specific and sourced",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "new domain; Landlock thread semantics and pre-v8 TSYNC absence; specific technical claim",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "new domain; Landlock truncate/ioctl edge cases; specific and detailed",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific, verifiable claim about Landlock scope limitations documented in kernel sources; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Specific claim about Landlock not filtering syscalls directly; verifiable against kernel docs; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Specific claim about seccomp BPF pointer-dereference limitation; documented in man-pages; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Specific claim about seccomp deny-list bypass risk and allow-list recommendation; documented in man-pages; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Specific claims about x32 ABI, __X32_SYSCALL_BIT, and pre-5.4 kernel behavior; verifiable against kernel docs; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Specific claims about ptrace escape via SECCOMP_RET_TRACE and pre-4.8 re-check gap; documented in man-pages; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Specific claim about no_new_privs and setuid attack vector; documented in man-pages; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Specific claims about SECCOMP_RET_USER_NOTIF TOCTOU, CONTINUE race, and filter-install bypass; all documented in man-pages; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Specific claim about PID-reuse race and SECCOMP_IOCTL_NOTIF_ID_VALID mitigation; documented in man-pages; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Specific claims about vDSO/vsyscall bypass and emulation oddities; documented in kernel docs; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Specific claim about seccomp 64-bit register visibility vs 32-bit kernel consumption on i386-on-x86-64; verifiable; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Specific claims about unknown-action kill default, BPF_MAXINSNS 4096, and MAX_INSNS_PER_PATH 32768; all documented constants; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "Specific claim about Landlock and seccomp as composable layers with separate gaps; documented architecture; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "Specific claim about host-specific LSM ordering and kernel-doc forward-looking language being direction not commitment; both verifiable; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "Ephemeral: a scope-note about what research was not conducted, not a durable truth claim about any subject matter.",
+      "verdict": "reject"
+    }
+  ]
+}
