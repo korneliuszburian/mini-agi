@@ -1,0 +1,155 @@
+{
+  "staged": "015.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "no canonical fact addresses CoALA memory taxonomy",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "no canonical fact addresses CoALA procedural-memory risk",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "no canonical fact addresses CoALA multi-agent/memory-isolation scope",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "no canonical fact addresses LangGraph Store namespace semantics",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "no canonical fact addresses LangGraph contamination boundaries",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "no canonical fact addresses CrewAI MemoryScope",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "no canonical fact addresses CrewAI MemorySlice",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "no canonical fact addresses CrewAI private memory semantics",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "no canonical fact addresses CrewAI LanceDB serialization",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "no canonical fact addresses OpenAI Agents SDK session/memory model",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "no canonical fact addresses Mem0 scoping model",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "no canonical fact addresses Mem0 attribution/misattribution semantics",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "no canonical fact addresses Mem0 write semantics",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "no canonical fact addresses AutoGen memory sharing model",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "no canonical fact addresses LangGraph subgraph checkpoint isolation",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "specific, falsifiable claim about CrewAI scope/slice API; no canonical fact discusses this domain — no conflict or duplication detected.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "detailed claim about CrewAI save-time dedup pipeline with concrete threshold and behavior; no canonical fact touches this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "specific claim about Mem0 Dream behavior and opt-in/always-on split; no canonical fact addresses Mem0.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "specific literature observation from CoALA about unlearning being understudied; no canonical fact conflicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "specific claim about CoALA terminology and a concrete mapping of consolidation to three mechanisms; no canonical fact addresses CoALA.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "specific architectural pattern sourced from Anthropic's multi-agent system; no canonical fact discusses this design.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "specific context-engineering guidance with concrete token range; no canonical fact covers Anthropic agent design.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "specific claim about scope-level read/write privilege separation in CrewAI; no canonical fact addresses this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "self-tagged as opinion/analysis; makes universal negative claim ('no empirical benchmark in any source') that is unverifiable; the safety ranking is the author's interpretive judgment, not an audit-ready fact.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "specific claim about Mem0 filter leakage behavior documented as a default; no canonical fact addresses Mem0 or filter semantics.",
+      "verdict": "promote"
+    }
+  ]
+}

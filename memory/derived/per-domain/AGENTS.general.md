@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 153c3b1b8e9d31a4
-# canonical_entries: 51
+# canonical_sha256: f5960cbcf5ecc1b8
+# canonical_entries: 52
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -239,3 +239,27 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `6a52b10eed388a69` Codex OTel records codex.tool_decision with approved/denied and source (configuration vs user), enabling post-hoc audit of who authorized each action.
 - `ddf4bfc7760221e4` MCP spec: MCP itself cannot enforce security principles at the protocol level; hosts must obtain explicit user consent before invoking any tool, tool annotations should be considered untrusted unless obtained from a trusted server, and implementors SHOULD build robust consent and authorization flows.
 - `bfe28bd5ddad1fe0` Mini AGI CI gate fails unless the runner identifies itself as isolated (non-root + RUNNER_NAME), so 'gate requires sandbox evidence' is literal (ADR-0009); the local worker runs under Landlock write-containment confined to workdir + its own state dir (ADR-0012).
+- `8c15dbef1c8dcdeb` CoALA (arXiv:2309.02427v3) defines agent memory as working memory plus long-term episodic, semantic, and procedural memory; 'learning' = writing to long-term memory, retrieval = reading it back. [fact]
+- `a25a4334cdf452aa` CoALA warns learning by writing to procedural memory is significantly riskier than writing to episodic or semantic memory, as it can easily introduce bugs or allow an agent to subvert designers' intentions. [fact]
+- `8835fdd3dfe63826` CoALA contains no treatment of shared memory between agents, memory privacy, or isolation — verified against full text; multi-agent work is mentioned only as grounding/debate/collaboration. [fact]
+- `75f9d3c529016fb3` LangGraph's Store is key-value data accessible from any thread, isolated only by a user-chosen namespace tuple; reads match by namespace prefix; the Store API (put/get/delete/search/list_namespaces) has no permission or ownership parameter. [fact]
+- `1ba70b1569d53382` LangGraph's contamination boundary is convention, not enforcement — safety relies on every writer scoping to the correct namespace and every reader querying within its namespace. [analysis]
+- `6a5c72bff4bd6d67` CrewAI MemoryScope restricts all operations to a branch of the tree; the agent/code using it can only see and write within that subtree. [fact]
+- `8aba31b1c97b13fb` CrewAI MemorySlice with read_only=True allows recall from multiple scopes but remember() raises PermissionError; read-write slices require an explicit scope on every write. [fact]
+- `9f5e02f20f43e4b7` CrewAI private=True memories are visible on recall only when the source matches; include_private=True is an admin escape hatch. [fact]
+- `5025c0afbe426e17` CrewAI serializes concurrent writers at the backend: LanceDB operations are serialized with a shared lock and retried automatically on conflict, handling multiple Memory instances pointing at the same database. [fact]
+- `abc0df15df514356` OpenAI Agents SDK sessions are history stores keyed by session_id; different sessions maintain separate conversation histories; sharing is explicit; RedisSession exists for shared memory across workers/services; no per-agent ACL exists. [fact]
+- `8eefc75285f050fd` Mem0 scopes memory by user_id/agent_id/app_id/run_id on writes and reads to prevent data mixing; unmentioned entities are not constrained — searching {user_id: alice} does not require agent_id to be null, so cross-tagged records still surface (documented subtlety). [fact]
+- `7fd17b84308d883d` Mem0's default extraction attributes facts from user messages with user_id set and agent_id null, assistant messages with agent_id set and user_id null; consequently an AND-filter on user+agent returns nothing for normally-created records — a documented misattribution trap. [fact]
+- `336453c5de421eee` Mem0 writes are additive-only by default: new memories are added without overwriting or deleting existing memories; update/delete are separate operations. [fact]
+- `2eafea4e6eeb8e76` AutoGen (AgentChat): a Memory (e.g. ListMemory, ChromaDBVectorMemory, RedisMemory) is constructed and passed into a specific agent's constructor; the only way two agents share memory is passing the same instance; no framework-level permission scoping, filtering is via metadata you supply. [fact]
+- `b1016827b3e68aa6` LangGraph subgraphs manage their own checkpoint namespace, so the parent does not see subgraph state changes; the docs' prescribed escape hatch for cross-boundary sharing is shared state via Store. [fact]
+- `9e2e2cacd723d017` CrewAI per-agent view is a scope path (e.g. memory.scope('/agent/researcher')); slices compose several scopes into one view. [fact]
+- `93aab397ab2425d6` CrewAI save-time dedup: encoding pipeline compares new content to existing records; above consolidation_threshold (default 0.85) an LLM chooses keep/update/delete/insert_new; near-duplicates within one batch are dropped by pure vector math; agents never decide this themselves. [fact]
+- `4bb028f612142623` Mem0 'Dream' runs in the background, synthesizing recurring patterns, superseding outdated facts, and merging duplicates; synthesis is opt-in, Supersede and Merge are always on. [fact]
+- `34638b8e92dfd7dd` CoALA notes modifying and deleting (unlearning) are understudied in recent language agents. [fact]
+- `9cc983109ba5b4f3` CoALA never uses the term 'consolidation' — verified in full text; the concept maps to three distinct mechanisms: per-agent reflection written back to semantic memory (Reflexion/Generative Agents), save-time pipeline dedup (CrewAI), and background system-owned consolidation (Mem0 Dream). [fact]
+- `b2fee6b8038589fb` Anthropic's multi-agent research system avoids a shared store: subagents have distinct tools/prompts/trajectories, write large outputs to a filesystem and pass only references to the coordinator; the shared context is the coordinator's compressed summary, minimizing the 'game of telephone'. [pattern, fact-sourced]
+- `b364a47fb85065c7` Anthropic context-engineering guidance: subagents return only a condensed, distilled summary (often 1,000-2,000 tokens); detailed search context remains isolated within sub-agents. [pattern, fact-sourced]
+- `5aa99c3328323465` CrewAI scopes/slices are the only sources where read and write privilege are separated at the API level (read-only slices, private/source-matched visibility). [pattern, fact-sourced]
+- `df3c5fffc23e7509` Mem0 documents a leakage-by-default rule: unmentioned entities in a search filter are not constrained, so cross-tagged records still surface if the caller is careless. [fact]
