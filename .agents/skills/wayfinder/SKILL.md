@@ -10,7 +10,8 @@ verify: sh -c "test -f .agents/skills/wayfinder/SKILL.md && grep -q 'ticket clai
 A loose idea has arrived — too big for one agent session, and wrapped in
 fog: the way from here to the **destination** isn't visible yet. Wayfinding
 is about finding that way, not charging at the destination. This skill
-charts the way as a **shared map** on the repo's issue tracker, then works
+charts the way as a **shared map** on the repo's tracker (default: local
+markdown, see The Map), then works
 its **decision tickets** — questions whose resolution is a decision, not
 slices of a build to execute — one at a time until the route is clear.
 
@@ -54,7 +55,9 @@ physically live is tracker-specific.** The default tracker is local
 markdown: the map lives at `.scratch/wayfinder-map.md` and its tickets
 under `.scratch/wayfinder/<name>.md`. If the repo has a real tracker
 configured (see the repo docs), use its native issues, labels, and blocking
-instead.
+instead. In a mini-agi repo, tickets live in the kernel's ticket store
+(`tickets/TICKET-<n>.md`) so the kernel owns claims and locks (see Work
+through the map); the `.scratch/` form is the non-kernel default.
 
 ### The map body
 
