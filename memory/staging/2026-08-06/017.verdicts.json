@@ -1,0 +1,167 @@
+{
+  "staged": "017.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable claim about mini-agi ADR-0011 verification fields; no canonical fact covers this architecture.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific implementation detail of verifier.rs; no canonical fact covers shell execution, exit-code mapping, or timeout semantics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New falsifiable claim about vacuity auditing with FPR/FNR recording; no canonical fact addresses verifier audit.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Repo gate definition; no canonical fact specifies scripts/verify.sh or the cargo gate bindings.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "SWE-bench evaluation design; no canonical fact mentions SWE-bench or containerized test evaluation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "SWE-bench test classification (FAIL_TO_PASS, PASS_TO_PASS); no canonical fact covers this taxonomy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Terminal-Bench/Harbor format specification; no canonical fact mentions Harbor, reward.txt, or pytest-exit-code mapping.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Claude Code guidance on verifiable checks; no canonical fact covers vendor recommendations from Anthropic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Claude Code enforcement tiers; no canonical fact documents in-prompt/goal/hook/verification-subagent tiers.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "OpenAI Evals comparator library; no canonical fact mentions deterministic comparators or their implementations.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Karpathy Software 1.0/2.0 framing and verifiability properties; distinct from existing Karpathy behavioral guidelines in canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "mini-agi verification semantics and ADR-0011 prior-state record; no canonical fact covers run outcome trust or additive verification.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Specific verify_run return value and excerpt; no canonical fact documents the unverified response string.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Voyager paper self-verification claim with explicit scope limit (abstract only); no canonical fact references Voyager or arXiv:2305.16291.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Reflexion feedback-reflection mechanism; no canonical fact mentions Reflexion or arXiv:2303.11366.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific, verifiable claim about OpenAI Evals model-graded evaluation mechanics; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Specific, verifiable claim about Anthropic multi-agent research evaluation strategy; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Specific arXiv-referenced claim about LATS architecture; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Durable claim about mini-agi disagrees outcome semantics; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Durable claim about mini-agi loop verify behavior, test-cited; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Durable claim about mini-agi judge-drift calibration and ADR-0011; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Durable claim about mini-agi verifier-of-verifier diagnostics; self-aware hedging not disqualifying for a meta-claim; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Specific, verifiable claim about OpenAI Evals fact.yaml labels; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Meta-claim about what mini-agi research doc reports; hedging about preprint status is honest qualification, not vagueness; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Specific, verifiable claim about Anthropic disagreement routing; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Specific cross-framework comparison synthesis; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Specific arXiv-referenced claim about process supervision; roadmap status explicitly qualified; no canonical fact covers or contradicts.",
+      "verdict": "promote"
+    }
+  ]
+}
