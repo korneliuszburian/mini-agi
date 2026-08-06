@@ -1,0 +1,23 @@
+{
+  "staged": "026.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Unverifiable: claims industry-wide absence of a token budget schema, but the canon covers only this repo's runs and architectural facts. Cannot verify what the entire industry does or does not define from internal repo data alone.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "FABRICATION: claims specific cost formulas (input-rate × input-tokens + output-rate × output-tokens), per-response usage objects from named vendors, local estimator semantics, overrun control primitives, and MCP token semantics — none of which appear in the canonical facts. The canon only contains run-level token/cost totals and the Sequoia observation that tokens/cost/score per run is the honest signal (6f4c17d5b59854e0); it does not define formulas, APIs, or control mechanisms.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Ephemeral opinion: self-identified as 'industry-observed opinion' and explicitly admits it could not be cited to a primary source. Unverifiable against the canon, which contains no forecasting heuristics or cost-decomposition methods.",
+      "verdict": "reject"
+    }
+  ]
+}
