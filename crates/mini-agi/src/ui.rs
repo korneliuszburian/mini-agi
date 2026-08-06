@@ -134,7 +134,7 @@ fn api_payload(root: &Path) -> ApiPayload {
                 .unwrap_or_default()
             {
                 if e.path().extension().is_some_and(|x| x == "md") {
-                    let preview = std::fs::read_to_string(&e.path())
+                    let preview = std::fs::read_to_string(e.path())
                         .unwrap_or_default()
                         .lines()
                         .take(6)
