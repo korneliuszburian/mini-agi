@@ -2839,23 +2839,44 @@ fn cmd_dream(
         .collect();
     audit_lines.sort();
     let audit_material = audit_lines.join("\n");
-    let prompt = format!(
-        "{}\n\nCANONICAL FACTS (id: body):\n{}",
-        mini_agi_core::dream::auditor_prompt(&staged),
-        audit_material
-    );
-    let aud = match worker::run_opencode_worker(&workdir, auditor, &prompt, Some(max_wall), None) {
-        Ok(w) => w,
-        Err(e) => return fail(&format!("dream auditor not available: {e}")),
-    };
-    let verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, &staged);
-    if verdicts.is_empty() {
-        eprintln!(
-            "  [warn] auditor returned no parseable verdicts ({} bytes, rc {:?}) — \
-             check the worker/model; nothing will promote",
-            aud.output.len(),
-            aud.status
+    // Audit in batches: the strong model stalls on oversized prompts
+    // (observed twice: a 20.8k-char dump and 40 candidates both
+    // returned zero output). 15 candidates per call keeps the prompt
+    // ~9k chars; verdicts are merged with their batch offset.
+    let audit_batch_size = 15usize;
+    let mut verdicts: Vec<mini_agi_core::dream::AuditorVerdict> = Vec::new();
+    for (batch_idx, chunk) in staged.chunks(audit_batch_size).enumerate() {
+        let batch_prompt = format!(
+            "{}\n\nCANONICAL FACTS (id: body):\n{}",
+            mini_agi_core::dream::auditor_prompt(chunk),
+            audit_material
         );
+        let aud = match worker::run_opencode_worker(
+            &workdir,
+            auditor,
+            &batch_prompt,
+            Some(max_wall),
+            None,
+        ) {
+            Ok(w) => w,
+            Err(e) => return fail(&format!("dream auditor not available: {e}")),
+        };
+        let mut batch_verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, chunk);
+        for v in &mut batch_verdicts {
+            v.index += batch_idx * audit_batch_size;
+        }
+        if batch_verdicts.is_empty() {
+            eprintln!(
+                "  [warn] auditor batch {batch_idx} returned no parseable verdicts \
+                 ({} bytes, rc {:?})",
+                aud.output.len(),
+                aud.status
+            );
+        }
+        verdicts.extend(batch_verdicts);
+    }
+    if verdicts.is_empty() {
+        eprintln!("  [warn] auditor returned no verdicts at all — nothing will promote");
     }
     match mini_agi_core::dream::write_verdicts(&root, &staging, &verdicts) {
         Ok(m) => println!("  verdicts manifest: {}", m.display()),
