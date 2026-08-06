@@ -39,7 +39,10 @@ pub fn extract_text_parts(output: &str) -> String {
         if v.get("type").and_then(serde_json::Value::as_str) != Some("text") {
             continue;
         }
-        if let Some(text) = v.get("part").and_then(|p| p.get("text")).and_then(serde_json::Value::as_str)
+        if let Some(text) = v
+            .get("part")
+            .and_then(|p| p.get("text"))
+            .and_then(serde_json::Value::as_str)
         {
             out.push_str(text);
             out.push('\n');
@@ -59,7 +62,11 @@ pub fn parse_distilled_facts(output: &str) -> Vec<StagedFact> {
     // Plain-text outputs (tests, non-streaming workers) have no JSON
     // events: fall back to the raw output when nothing was extracted.
     let extracted = extract_text_parts(output);
-    let text = if extracted.is_empty() { output.to_string() } else { extracted };
+    let text = if extracted.is_empty() {
+        output.to_string()
+    } else {
+        extracted
+    };
     let Some(start) = text.find('[') else {
         return Vec::new();
     };
@@ -180,7 +187,11 @@ pub struct AuditorVerdict {
 #[must_use]
 pub fn parse_audit_verdicts(output: &str, staged: &[StagedFact]) -> Vec<AuditorVerdict> {
     let extracted = extract_text_parts(output);
-    let text = if extracted.is_empty() { output.to_string() } else { extracted };
+    let text = if extracted.is_empty() {
+        output.to_string()
+    } else {
+        extracted
+    };
     let Some(start) = text.find('[') else {
         return Vec::new();
     };
