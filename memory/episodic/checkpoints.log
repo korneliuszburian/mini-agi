@@ -251,3 +251,4 @@
 2026-08-06T08:18:07Z CHECKPOINT-ABORT wayfinder-s1 disallowed dirty paths: .scratch/
 2026-08-06T08:53:00Z BEGIN wayfinder-s1 -> df54523
 2026-08-06T08:53:24Z VERIFY-PASS wayfinder-s1 @ df54523
+2026-08-06T09:43:56Z CHECKPOINT-ABORT skills-s1 disallowed dirty paths: .scratch/wayfinder/D8-matt-skills.md
