@@ -246,3 +246,5 @@
 2026-08-06T07:55:27Z BEGIN compact-s1 -> 8f2575e (restored by rollback)
 2026-08-06T07:55:27Z VERIFY-FAIL compact-s1 @ 8503ee5 -> ROLLBACK to 8f2575e
 2026-08-06T07:58:00Z VERIFY-PASS agi-s1 @ 8503ee5 (repair: work verified green; the gate deadlocked on its own orphan)
+2026-08-06T07:58:30Z BEGIN compact-s2 -> b6478c9
+2026-08-06T07:58:55Z VERIFY-PASS compact-s2 @ b6478c9
