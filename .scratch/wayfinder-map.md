@@ -62,6 +62,25 @@ D1 — layered worker adapter (highest value per track-3 §7: it is the
 economic unlock; smallest build; measurable cost/run within a session).
 Executor stays codex; flash enters via the reviewer/planner/distiller seam.
 
+## IMPROVEMENT BACKLOG (auto-research marathon, 2026-08-06)
+
+Ranked by impact/effort from the marathon cycles (findings in
+research/*.md + canonical):
+
+1. Auditing budgeted canonical index + batching — DONE (fixes in this
+   marathon: select_budgeted for the auditor, 15/batch audit).
+2. Research completeness gate — DONE (is_complete_deliverable).
+3. Archival tier for old superseded facts (retention) — research
+   supports it (Human-Inspired Memory dedup numbers); next build.
+4. Retrieval fusion upgrade: temporal recency is already scored; add
+   entity/mention frequency to select_budgeted when recall gaps show.
+5. Audit-trail hardening: signoff decisions already logged; consider
+   per-fact decision history view (dashboard).
+6. The cadence evidence validates dream --idle (Letta sleep-time ~5x
+   test-time compute reduction); no nightly cron needed.
+7. Open question: cross-worker serialization beyond load-guard
+   (SQLite single-writer is documented; fine at our scale).
+
 ## Gate discipline while mapping
 
 - Tickets stay OPEN until decided; a decided ticket records the decision +
