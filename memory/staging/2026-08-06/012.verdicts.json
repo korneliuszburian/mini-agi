@@ -1,0 +1,227 @@
+{
+  "staged": "012.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable truth — MemGPT architecture (main/external context separation) not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable truth — MemGPT queue manager mechanics not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable truth — MemGPT DMR benchmark results not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New durable truth — Letta dreaming feature not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable truth — MemGPT eviction parameters as examples, not tuned, not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable truth — Generative Agents retrieval score formula not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New durable truth — Mem0 decay as soft ranking bias not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New durable truth — Mem0 lacking measured retrieval-quality numbers not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable truth — decay mechanisms comparison not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable truth — Mem0 ADD-only extraction not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable truth — LangGraph InMemoryStore characteristics not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable truth — Mem0 extraction pipeline not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable truth — Mem0 Dream merge semantics not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable truth — Zep two-stage dedup not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable truth — A-MEM merge semantics not covered by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific, falsifiable literature-gap observation; no overlap with canonical run/guideline/Sequoia facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Concrete technical description of Zep/Graphiti bi-temporal model with citation; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Specific Mem0 supersede mechanism with behavioral detail; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Citable benchmark numbers for Zep time-aware invalidation on LongMemEval; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Synthesis observation backed by specific evidence in other candidates; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Concrete Mem0 expiration mechanism with precise semantics; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Clear Mem0 retention-policy taxonomy with distinct behaviors; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Citable Generative Agents reflection mechanism from arXiv; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Specific Mem0 Dream synthesis details with gates and cadence; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Citable Zep community subgraph mechanism with caveat; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Specific literature-gap observation about missing compression-ratio reporting; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Citable DMR benchmark comparison numbers; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "Citable LongMemEvalS benchmark numbers with latency and accuracy comparisons; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "Citable Zep paper caveat about DMR limitations; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "Citable LongMemEval accuracy-drop finding from ICLR 2025 paper; new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "Specific, verifiable benchmark result citing LongMemEval arXiv:2410.10813 Fig 3a with exact numeric scores. No canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "Specific, verifiable design-delta measurements with exact percentage improvements from LongMemEval. No canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "Specific, verifiable storage-granularity finding from LongMemEval: tradeoff between per-session compression loss and multi-session reasoning gain. No canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "Specific, verifiable A-MEM arXiv:2502.12110 Table 4 benchmarks with exact timing, memory, and token-cost numbers. No canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "Specific, verifiable negative finding: literature search for isolated retention-policy experiments returned only whole-system benchmarks. Falsifiable by citing a counterexample. No canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "Specific, verifiable negative finding: no reviewed source reports storage-bound metrics (dedup rate, compression ratio, fact-count growth). Falsifiable by citing a counterexample. No canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "Specific, verifiable architectural generalization (append-only unbounded stores) with named-system examples (MemGPT/Letta, Mem0, LangGraph) and specific mechanism descriptions. No canonical fact covers this domain.",
+      "verdict": "promote"
+    }
+  ]
+}
