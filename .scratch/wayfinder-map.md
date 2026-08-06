@@ -80,6 +80,15 @@ research/*.md + canonical):
    test-time compute reduction); no nightly cron needed.
 7. Open question: cross-worker serialization beyond load-guard
    (SQLite single-writer is documented; fine at our scale).
+8. Auditor batching (15/call) — DONE in the marathon (stall fix).
+9. Research completeness gate — DONE in the marathon.
+10. Signoff UX findings (cycle 4) — batch decisions, fatigue
+    reduction patterns: apply when the user builds the UI.
+11. Retention/archival tier — highest remaining build (cycle 5).
+12. Enforcement-bound facts: our enforced_by->human queue is the
+    measured production pattern (cycle 6 + AuthMem-Bench).
+13. Multi-agent sharing (cycle 8): shared store + kernel-owned
+    writes = our architecture; per-agent views when workers >5.
 
 ## Gate discipline while mapping
 
