@@ -1,0 +1,167 @@
+{
+  "staged": "027.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Specific, verifiable taxonomy claim with concrete percentage breakdowns; no canonical fact covers failure-mode taxonomies.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Verifiable methodology claim with kappa scores; new durable knowledge not in canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Specific taxonomy structure (41 modes, 9 components, 3 families); distinct from MAST and absent from canonical.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Methodology grounded in 40 worked examples with kappa scores; verifiable and novel relative to canonical.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Concrete enumeration of mode names gives the taxonomy operational meaning; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "CORRUPTION + unverifiable: candidate itself states arXiv HTML returned 404, PDF unreadable, and category names not enumerated; cannot verify any claim against the source.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Five mechanism-oriented classes (A-E) are specific and verifiable; novel to canonical.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Concrete study metrics (8 weeks, 22 incidents, ~70% human-caught, 0% ex-ante prevention) are verifiable; distinct knowledge.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Specific 6-mode taxonomy in 3 categories plus Resource Exhaustion; verifiable and absent from canonical.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Concrete measurement claims (142 traces, 5 benchmarks, 3 models, 45%/83% resource exhaustion) are verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Specific 14-mode taxonomy with precise percentages; verifiable and novel.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Rigorous methodology with 5-LLM coder panel, 3 ICR rounds, saturation check, alpha ~0.80-0.90; verifiable and novel.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Five major classes are specific and verifiable despite sub-classes not all reproduced; core claim is durable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Concrete measurement (2,997 actions, 90 tasks, 555 error points, 63% overlap); verifiable and novel.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Specific taxonomy aligned to task phases with benchmarked metrics (~50% completion); verifiable and novel.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific paper (Xiong et al., arXiv 2507.15296) with five named failure categories, 15 input perturbation methods, and an explicit causal finding (parameter-name-hallucination -> LLM limits). The honest caveat about unverifiable category names does not invalidate the durable claim about the taxonomy's existence and structure.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Specific paper (Guo, Wu, Yiu; arXiv 2604.23581, ACL 2026 Industry) with a described structure: hierarchical, 3 levels, 21 subcategories, DAG-structured step-level evaluation with root-cause attribution. Sufficiently concrete to be durable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Quantitative measurements from the AgentEval paper: 450 test cases, 3 workflows, 2 model families, Cohen's kappa=0.84, 72% root-cause accuracy, recall 0.89 vs 0.41. Specific and verifiable against the paper.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Specific paper (Huang, Malwe, Wang; arXiv 2601.16280, ICAIBD 2026) with 12 categories spanning tool initialization, parameter handling, execution, and result interpretation; 1,980 test instances across named open-weight and proprietary models; a concrete finding about tool-initialization bottlenecks for smaller models.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Vague: 'domain-specific' is the only taxonomy characterization; no categories, structure, or error types enumerated; n=20 is stated but the taxonomy itself is not described. Insufficient substance for a durable fact.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Specific paper (Zhu et al., arXiv 2606.29955) with named dominant bottlenecks: insufficient spreadsheet inspection and incorrect target-cell selection. Concrete and useful.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Specific paper (Giannouris & Ananiadou; arXiv 2511.22409) with three enumerated error categories: structural, relationship, and semantic/logical errors for LLM-generated UML. Concrete.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Specific paper (Cho et al., arXiv 2605.26731) with six labels, 432-run controlled experiment, and a concrete differential finding: format_violation dominates capable models, wrong_file dominates low-capability models. Durable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Synthetic research finding about field fragmentation: no single canonical taxonomy exists, the space is fragmented by scope and symptom-vs-component classification, and no survey was located. This is a durable orientation claim backed by the breadth of preceding candidates.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Process metadata about unreadable arXiv PDFs, not a fact about failure taxonomies. The same limitation is already honestly acknowledged in candidate [0] where it is directly relevant.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Secondhand claim sourced from a related-work section and not independently verified. Vague ('exist') without structure, counts, or any taxonomy detail. Fails the verifiability threshold.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Specific synthesis naming five strongest-documented taxonomies with their modes/categories and validation metrics (kappa=0.76, Krippendorff's-alpha, 40 worked examples, 555 annotated error points, 22 production incidents). Durable summary finding.",
+      "verdict": "promote"
+    }
+  ]
+}
