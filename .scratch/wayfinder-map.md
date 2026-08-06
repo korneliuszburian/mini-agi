@@ -31,12 +31,12 @@ parallel dispatch) + opencode (deepseek v4 flash = cheap worker).
 
 | # | Decision | Status | Effort | Feeds |
 |---|---|---|---|---|
-| D1 | Worker economics: LAYERED — codex executes, opencode/flash plans+reviews (role model: user 2026-08-06) | OPEN (recommend layered; batch/subscription lever for execution) | S | everything (24/7 affordance) |
+| D1 | Worker economics: LAYERED — codex executes, opencode/flash plans+reviews (role model: user 2026-08-06) | **IMPLEMENTED 2026-08-06** (adapter + telemetry, commit 8055af7) | S | everything (24/7 affordance) |
 | D2 | Dream-loop cadence + model assignment | OPEN (recommend event-triggered + gated promotion) | M | brain layer |
 | D3 | Memory quality: merge/supersede + retrieval budget + directed consolidation | OPEN (F-012 decided; design+build pending) | M-L | brain layer |
 | D4 | Supervision surface: read mirror + worker status | OPEN (user builds UI; kernel exposes status JSON) | S (kernel side) | surface |
 | D5 | A2A / daemon shape | OPEN (recommend DEFER A2A; bg.rs+serve is enough) | — | orchestration |
-| D6 | Crash recovery: respawn + run-state index | OPEN (recommend build) | S | 24/7 reliability |
+| D6 | Crash recovery: respawn + run-state index | **IMPLEMENTED 2026-08-06** (respawn 0295cb7, status 551c6df) | S | 24/7 reliability |
 | D7 | Agent-managed harness CRUD vs append-only | OPEN (recommend keep append-only + gate-bound) | — | guarantees |
 
 ## Roadmap (ordering by dependency + economics)
