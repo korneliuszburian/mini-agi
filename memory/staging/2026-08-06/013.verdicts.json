@@ -1,0 +1,95 @@
+{
+  "staged": "013.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
+      "verdict": "reject"
+    }
+  ]
+}
