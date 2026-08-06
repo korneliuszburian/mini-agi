@@ -50,12 +50,22 @@ button.copy:hover{background:#30363d}
   <div class="card" id="card-workers"><h2>Workers</h2><div id="workers">…</div></div>
   <div class="card" id="card-memory"><h2>Memory</h2><div id="memory">…</div></div>
   <div class="card" id="card-journal"><h2>Journal tail</h2><div id="journal">…</div></div>
+  <div id="actbar" style="margin-top:12px;font-size:13px"></div>
   <div class="card" id="card-queues"><h2>Human queue (signoff)</h2><div id="queues">…</div></div>
   <div class="card" id="card-tickets"><h2>Tickets</h2><div id="tickets">…</div></div>
 </div>
 <script>
 const ESC = t => (t ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const COPY = cmd => `<button class="copy" onclick="navigator.clipboard.writeText(${JSON.stringify(cmd)})">copy</button>`;
+async function action(path){
+  try{
+    const r = await fetch(path, {method:'POST'});
+    const d = await r.json();
+    document.getElementById('actlog').textContent = (d.output||'').slice(0,300);
+    setTimeout(tick, 400);
+  }catch(e){ document.getElementById('actlog').textContent = 'action failed: '+e; }
+}
+const ACT = (path,label) => `<button class="copy" onclick="action('${path}')">${label}</button>`;
 async function tick(){
   try{
     const r = await fetch('/api/status', {cache:'no-store'});
@@ -84,8 +94,16 @@ function render(d){
     return `<div class="dim">${ESC(s.file)} — ${s.candidates} candidates, ${s.verdicts} verdicts, ${s.promoted?'<span class="ok">promoted</span>':'<span class="warn">pending</span>'}</div>${vd}`;
   }).join('') || '<span class="dim">no staging — the brain is idle</span>';
   document.getElementById('dream').innerHTML = st;
-  const q = (d.queues||[]).map(x => `<div class="warn" style="white-space:pre">${ESC(x.slice(0,400))}</div>`).join('') || '<span class="dim">queue empty — nothing waits for you</span>';
+  const q = (d.queues||[]).map(x => {
+    const its = (x.items||[]).map(it => `<div class="warn">[${it.index}] ${ESC(it.payload)} ${ACT('/api/act/signoff?q='+encodeURIComponent(x.file)+'&i='+it.index,'sign off')}</div>`).join('');
+    return `<div class="dim">${ESC(x.file)}</div>${its}`;
+  }).join('') || '<span class="dim">queue empty — nothing waits for you</span>';
   document.getElementById('queues').innerHTML = q;
+  document.getElementById('actbar').innerHTML =
+    ACT('/api/act/dream-promote','dream promote') + ' ' +
+    ACT('/api/act/dream-idle','dream idle') + ' ' +
+    ACT('/api/act/mem-verify','mem verify') +
+    ' <span id="actlog" class="dim"></span>';
   // gaps
   const gl = (d.gaps||[]).slice(0,8).map(g => `<div>${g.composite.toFixed(4)} <span class="dim">${ESC(g.case)}</span> ${g.ticket?`· ${ESC(g.ticket)}`:''}</div>`).join('') || '<span class="dim">no open gaps</span>';
   document.getElementById('gaps').innerHTML = gl;
@@ -108,7 +126,7 @@ tick(); setInterval(tick, 2500);
 struct ApiPayload {
     status: serde_json::Value,
     gaps: serde_json::Value,
-    queues: Vec<String>,
+    queues: Vec<serde_json::Value>,
     staging: serde_json::Value,
     tickets: serde_json::Value,
     memory: serde_json::Value,
@@ -124,7 +142,7 @@ fn api_payload(root: &Path) -> ApiPayload {
         .map(|s| s.cases)
         .unwrap_or_default();
     // Human queues.
-    let mut queues = Vec::new();
+    let mut queues: Vec<serde_json::Value> = Vec::new();
     if let Ok(days) = std::fs::read_dir(root.join("memory/review")) {
         for day in days.flatten() {
             for e in day
@@ -134,13 +152,27 @@ fn api_payload(root: &Path) -> ApiPayload {
                 .unwrap_or_default()
             {
                 if e.path().extension().is_some_and(|x| x == "md") {
-                    let preview = std::fs::read_to_string(e.path())
-                        .unwrap_or_default()
-                        .lines()
-                        .take(6)
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    queues.push(format!("{}:\n{preview}", e.path().to_string_lossy()));
+                    let items: Vec<serde_json::Value> =
+                        mini_agi_core::memory::queued_facts(&e.path())
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, (_, payload))| {
+                                serde_json::json!({
+                                    "index": i + 1,
+                                    "payload": payload.chars().take(160).collect::<String>(),
+                                })
+                            })
+                            .collect();
+                    let rel = e
+                        .path()
+                        .strip_prefix(root)
+                        .unwrap_or(&e.path())
+                        .to_string_lossy()
+                        .into_owned();
+                    queues.push(serde_json::json!({
+                        "file": rel,
+                        "items": items,
+                    }));
                 }
             }
         }
@@ -224,29 +256,46 @@ pub fn serve(root: &Path, port: u16) -> std::io::Result<()> {
         let root = root.to_path_buf();
         let running = Arc::clone(&running);
         std::thread::spawn(move || {
-            let mut buf = [0u8; 4096];
+            let mut buf = [0u8; 8192];
             let _ = stream.read(&mut buf);
             let req = String::from_utf8_lossy(&buf[..]).to_string();
-            let path = req.split_whitespace().nth(1).unwrap_or("/").to_string();
-            let (status, ctype, body) = match path.as_str() {
-                "/" => ("200 OK", "text/html; charset=utf-8", INDEX_HTML.to_string()),
-                "/api/status" => {
-                    let payload = api_payload(&root);
-                    let json = serde_json::json!({
-                        "runs": payload.status,
-                        "gaps": payload.gaps,
-                        "queues": payload.queues,
-                        "staging": payload.staging,
-                        "tickets": payload.tickets,
-                        "memory": payload.memory,
-                    });
-                    (
-                        "200 OK",
-                        "application/json",
-                        serde_json::to_string(&json).unwrap_or_default(),
-                    )
+            let mut parts = req.split_whitespace();
+            let method = parts.next().unwrap_or("GET").to_string();
+            let path = parts.next().unwrap_or("/").to_string();
+            let (status, ctype, body) = if method == "POST" && path.starts_with("/api/act/") {
+                // HITL actions: the HUMAN clicks on localhost — the server
+                // executes the exact kernel command the human could type.
+                let action = act(&root, &path);
+                (
+                    if action.ok {
+                        "200 OK"
+                    } else {
+                        "400 Bad Request"
+                    },
+                    "application/json",
+                    serde_json::json!({"ok": action.ok, "output": action.output}).to_string(),
+                )
+            } else {
+                match path.as_str() {
+                    "/" => ("200 OK", "text/html; charset=utf-8", INDEX_HTML.to_string()),
+                    "/api/status" => {
+                        let payload = api_payload(&root);
+                        let json = serde_json::json!({
+                            "runs": payload.status,
+                            "gaps": payload.gaps,
+                            "queues": payload.queues,
+                            "staging": payload.staging,
+                            "tickets": payload.tickets,
+                            "memory": payload.memory,
+                        });
+                        (
+                            "200 OK",
+                            "application/json",
+                            serde_json::to_string(&json).unwrap_or_default(),
+                        )
+                    }
+                    _ => ("404 Not Found", "text/plain", "not found".to_string()),
                 }
-                _ => ("404 Not Found", "text/plain", "not found".to_string()),
             };
             let _ = write!(
                 stream,
@@ -257,6 +306,74 @@ pub fn serve(root: &Path, port: u16) -> std::io::Result<()> {
         });
     }
     Ok(())
+}
+
+/// One HITL action result.
+struct ActResult {
+    ok: bool,
+    output: String,
+}
+
+/// Execute a human-triggered kernel action from the dashboard. The
+/// action names map 1:1 to CLI commands; each is logged to the action
+/// log (audit trail). `act` is a pure router: unknown actions are a
+/// 400, never executed.
+fn act(root: &Path, path: &str) -> ActResult {
+    let action = path.strip_prefix("/api/act/").unwrap_or("");
+    let (args, label): (Vec<String>, String) = match action.split('?').next().unwrap_or("") {
+        "dream-promote" => (
+            vec!["dream".into(), "--promote".into()],
+            "dream promote".into(),
+        ),
+        "dream-idle" => (vec!["dream".into(), "--idle".into()], "dream idle".into()),
+        "mem-verify" => (vec!["mem".into(), "verify".into()], "mem verify".into()),
+        "signoff" => {
+            let q = action.split("?q=").nth(1).unwrap_or("");
+            let i = action.split("&i=").nth(1).unwrap_or("");
+            if q.is_empty() || !i.chars().all(|c| c.is_ascii_digit()) {
+                return ActResult {
+                    ok: false,
+                    output: "signoff: bad query (expect ?q=<queue>&i=<index>)".into(),
+                };
+            }
+            let queue = root.join(q);
+            if !queue.is_file() {
+                return ActResult {
+                    ok: false,
+                    output: format!("signoff: queue not found: {}", queue.display()),
+                };
+            }
+            let queue = queue.to_string_lossy().into_owned();
+            (
+                vec!["mem".into(), "signoff".into(), queue, i.to_string()],
+                format!("human signoff {i} from {q}"),
+            )
+        }
+        _ => {
+            return ActResult {
+                ok: false,
+                output: format!("unknown action: {action}"),
+            };
+        }
+    };
+    let _ = mini_agi_core::audit::append_action(root, "ui", "human", &label);
+    let exe = std::env::current_exe().unwrap_or_default();
+    let output = std::process::Command::new(exe)
+        .args(&args)
+        .current_dir(root)
+        .output()
+        .map_or_else(
+            |e| format!("cannot execute: {e}"),
+            |o| {
+                let mut s = String::from_utf8_lossy(&o.stdout).to_string();
+                s.push_str(&String::from_utf8_lossy(&o.stderr));
+                s
+            },
+        );
+    ActResult {
+        ok: !output.trim().is_empty(),
+        output: output.trim().to_string(),
+    }
 }
 
 #[cfg(test)]
@@ -270,5 +387,22 @@ mod tests {
         assert!(INDEX_HTML.contains("Attention"));
         assert!(INDEX_HTML.contains("Brain"));
         assert!(INDEX_HTML.contains("copy"));
+        assert!(INDEX_HTML.contains("POST"));
+        assert!(INDEX_HTML.contains("action("));
+    }
+
+    #[test]
+    fn act_router_rejects_unknown_and_malformed() {
+        let root = std::env::temp_dir().join(format!("mag-ui-act-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&root);
+        let r = act(&root, "/api/act/rm-rf");
+        assert!(!r.ok);
+        assert!(r.output.contains("unknown action"));
+        let r = act(&root, "/api/act/signoff?q=none.md&i=abc");
+        assert!(!r.ok);
+        assert!(r.output.contains("bad query"));
+        let r = act(&root, "/api/act/signoff?q=none.md&i=1");
+        assert!(!r.ok, "missing queue file must fail closed");
+        assert!(r.output.contains("queue not found"));
     }
 }
