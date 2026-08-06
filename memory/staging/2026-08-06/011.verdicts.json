@@ -1,0 +1,185 @@
+{
+  "staged": "011.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable fact about GitHub PR review outcomes; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable fact about GitLab MR approval UI; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable fact about Stripe Radar review queue; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New durable fact about AWS CodePipeline manual approval; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable fact about Google Cloud Deploy approval workflow; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable fact about Azure Pipelines ManualValidation; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New durable fact about Spinnaker Manual Judgment stage; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New durable fact about LaunchDarkly approval delivery channels; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable fact about Amazon A2I work team routing; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable fact about GitHub code review auto-assignment algorithms; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable fact about GitLab automatic reviewer assignment strategies; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable fact about Danziger et al. parole study; carefully distinguishes observation from contested causal interpretation; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable fact about Stripe review-time best practice; explicitly tags source as vendor guidance; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable fact about AWS A2I confidence-range and random-sampling triggers; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable fact about Stripe Radar auto-review rules and Smart Refunds ranking; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "unverifiable: claim about Stripe review-queue auto-close behavior has no supporting canonical fact in this domain; no source material to audit for omission/corruption/fabrication.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "unverifiable: claim about Azure Manual Validation timeout defaults has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "unverifiable: claim about GitLab auto-approval of impossible rules has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "unverifiable: claim about LaunchDarkly per-environment approval requirements has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "unverifiable: claim about AWS IAM identity restrictions on approval updates has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "unverifiable: claim about Stripe review-queue UI features has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "unverifiable: claim about Stripe reviewer self-assignment and timeline recording has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "unverifiable: claim about absence of bulk-approve actions across verified systems has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "unverifiable: claim about Cloud Deploy Pub/Sub topic and external workflow integration has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "unverifiable: claim about Stripe review timeline history and API events has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "unverifiable: claim about Cloud Deploy audit log entries and IAM permission types has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "unverifiable: claim about Cloud Deploy APPROVAL_REJECTED state and re-promotion requirement has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "unverifiable: claim about GitLab/GitHub reviewer tracking and MR freezing has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "unverifiable: claim about Amazon A2I S3 output paths, CloudWatch Events, and DescribeHumanLoop has no supporting canonical fact in this domain.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "unverifiable: self-labeled 'Uncertain'; a claim of absence across all vendors (no controlled evaluations exist) is inherently unverifiable and outside the canonical domain.",
+      "verdict": "reject"
+    }
+  ]
+}
