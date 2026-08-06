@@ -1,0 +1,107 @@
+{
+  "staged": "037.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable fact about Bazel flaky attribute; sourced from Bazel Build Encyclopedia; no overlap with canonical facts (all about mini-agi kernel runs).",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable fact about Bazel --flaky_test_attempts flag; verifiable against Bazel docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable fact about Bazel --runs_per_test and --runs_per_test_detects_flakes; verifiable against Bazel docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New durable fact about Gradle Test Retry plugin; verifiable against plugin README.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable fact about pytest-rerunfailures; verifiable against plugin docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable fact about JUnit Pioneer @RetryingTest; verifiable against JUnit Pioneer docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New durable fact about Google test flakiness handling (2016); sourced from Google Testing Blog.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Candidate self-identifies attribution as unverified ('the reliability of this attribution is unverified'); an anonymous commenter's claim is ephemeral and unverifiable.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable fact about Google automated quarantine tool; sourced from Google Testing Blog 2016.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable fact about Kubernetes [Flaky] naming and quarantine policy; verifiable against Kubernetes test conventions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable fact about Kubernetes zero-flake policy effective 2019-12-13; verifiable against Kubernetes test policy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable fact about pytest.mark.xfail strict=False as manual quarantine; verifiable against pytest docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable fact about Develocity/Gradle retry-only warning; sourced from gradle.com blog.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable fact about Develocity flaky detection and Tests Dashboard; sourced from gradle.com blog.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable fact about Google flaky test metrics (1.5%, 16%, 84%) from 2016; sourced from Google Testing Blog.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific, verifiable enumeration of Kubernetes flakiness detection tools (flakes-latest.json, go.k8s.io/triage, testgrid, kind/flake label, golang stress). No canonical fact addresses this domain — new durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Well-formed negative finding with a concrete evidentiary target (Leinen et al., TUM/CQSE 2023). Specific, appropriately hedged, and durable as a gap-identification fact. No canonical fact conflicts.",
+      "verdict": "promote"
+    }
+  ]
+}
