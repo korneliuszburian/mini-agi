@@ -1,0 +1,233 @@
+{
+  "staged": "036.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "new domain (eval methodology) not covered by canonical facts; SMA+R criteria are concrete, verifiable, and actionable",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "design principles with explicit trade-offs (automated over manual, volume over quality); non-overlapping with existing memory",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "operational agent-eval practice with falsifiable claim (0% pass@100 signals broken task); durable truth",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "specific, cited statistics (68.3% filtered, 93 annotators, 3x labeling, max-severity ensemble); verifiable against SWE-bench publication",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "concrete, named examples (CORE-Bench 42->95%, METR time-horizon misconfiguration); specific enough to trace to source",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "clear taxonomy with trade-offs per grader type; actionable for harness design",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "design motivation for LiveBench is a specific, well-documented methodological claim",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "specific tool features (VERSION field, --check_integrity); verifiable against the harness source",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "concrete collaboration detail (Docker-containerized harness, unit test reliability); factual claim",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "operational harness guidance with specific failure mode (git history leaking between trials); durable and actionable",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "structural observation about eval-team ownership; durable organizational insight",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "clear capability/regression split with graduation mechanic; actionable taxonomy",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "well-established definition of test-set contamination; cited from LiveBench authors",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "specific ACL 2022 finding with named authors, nuanced conclusion (memorization vs exploitation); verifiable against the paper",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "concrete mitigation techniques (monthly refresh, contamination-limited variants); specific and verifiable",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "new durable claim about EleutherAI harness decontamination utility; no canonical fact covers eval decontamination tooling",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "specific claim about MLE-bench investigating pre-training contamination; no canonical fact addresses agent-bench contamination methodology",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "attributed OpenAI statement on SWE-bench contamination and static-dataset limits; no canonical fact discusses benchmark contamination or dataset staleness",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "specific claim about OpenAI Evals private-eval feature; no canonical fact covers private/internal eval infrastructure",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "specific Anthropic guidance on multi-trial eval noise, pass@k/pass^k metrics, with verifiable math (0.75^3 ≈ 0.42); no canonical fact discusses trial-noise or pass-at-k metrics",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "specific OpenAI acknowledgment of single-seed noise in SWE-bench Verified runs; no canonical fact addresses seed-dependent eval variance",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "specific SWE-bench Verified diagnosis of three reliability problems and containerized fix; no canonical fact covers benchmark reliability engineering",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "specific Anthropic failure-triage guidance on transcript review, grader resistance, and partial credit; no canonical fact covers grader or triage design",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "specific METR claim about 68% golden-patch merge rate and score normalization; no canonical fact addresses golden-baseline normalization",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "specific Chen/Zaharia/Zou finding on GPT-4 performance drift (84%→51% primes, instruction-following decline); no canonical fact covers LLM temporal drift",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "specific OpenAI regression-eval recipe (baseline + candidate comparison); no canonical fact covers regression-eval workflow",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "specific OpenAI eval API capability claim (per-criteria counts, webhook events); no canonical fact covers eval API automation",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "specific Anthropic guidance on regression-evail baseline expectations; no canonical fact covers regression-eval score interpretation",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "specific Anthropic observation on eval saturation and the SWE-bench Verified ~30%→>80% trajectory; no canonical fact covers eval saturation dynamics",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "specific METR observation on analysis-choice sensitivity under task-suite saturation; no canonical fact covers saturation-induced sensitivity",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "Specific, attributable claim about OpenAI's SWE-bench Lite results and evaluation cadence; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "Specific, attributable claim about LiveBench design rationale; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "Specific, attributable claim about Anthropic's LLM-as-judge practices with quoted material; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "Specific, attributable claim about Anthropic's structured-output approach for subjective eval; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "Self-negating: claims a METR finding could not be located and its numbers should not be treated as verified — the candidate is a non-fact (absence of evidence), not a durable truth.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "Self-marked unverified; declares the underlying anecdotes are secondary reports lacking independent verification — the candidate is a provenance warning, not a durable truth.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "Self-marked unverified; declares verification limited to arXiv abstracts and that full methodology requires PDFs/code not reached — the candidate is a caveat about incomplete verification, not a durable truth.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "Specific, verifiable claim with exact arXiv IDs (2305.10348 vs 2203.08242) and a concrete finding about citation-by-recollection unreliability; no canonical conflict.",
+      "verdict": "promote"
+    }
+  ]
+}
