@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 6e855dd9b38375a8
-# canonical_entries: 46
+# canonical_sha256: 849f9e910659dfe2
+# canonical_entries: 47
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
