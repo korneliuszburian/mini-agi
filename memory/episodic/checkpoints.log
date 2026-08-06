@@ -269,3 +269,5 @@
 2026-08-06T17:29:46Z BEGIN ui-act-s1 -> 28d8da9 (clean)
 2026-08-06T17:35:40Z VERIFY-PASS ui-act-s1 @ b13283c
 2026-08-06T19:45:38Z BEGIN ar9-s1 -> 2dc42be (clean)
+2026-08-06T20:06:23Z BEGIN ar-s1 -> 96f712c (restored by rollback)
+2026-08-06T20:06:23Z VERIFY-FAIL ar-s1 @ 78b2ca4 -> ROLLBACK to 96f712c
