@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 697d82415c346bd8
-# canonical_entries: 39
+# canonical_sha256: af328d79acb5454b
+# canonical_entries: 40
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -12,7 +12,6 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `4ae6e387c68760c2` User direction: FULL AGI with a brain/memory layer so good it all ties
 - `786416899b0bd2c2` Method: wayfinder skill (map + decision tickets). .scratch/wayfinder-
 - `eb88bee62f23ab41` Research tracks: TRACK 1 DONE (brain/memory: CoALA, MemGPT/Letta,
-- `e883e4a0899c97f4` NEW SOURCES (user-provided, to integrate):
 - `7dfd93402ddc4aaf` Prime Agent (primeintellect.ai/blog/prime-agent, Aug 05 2026,
 - `b9b79e0f2cdaacf4` Mastra Observational Memory (mastra.ai/docs/memory/observational-
 - `0fc5cf16dc6d0efd` REJECTED: web dashboard for solo kernel (AFK-SUPERVISOR v2 doc) —
@@ -22,3 +21,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `4efccafe428586c9` DECIDED: memory consolidation = fact merge/supersede + selective
 - `e40bb0673ce72f70` DECIDED: skills = contracts with hooks in the gate (built);
 - `6ae0cbe9df28755d` DECIDED: opencode as the worker harness (deepseek v4 flash economics)
+- `497abf139d49369e` Source integration (2026-08-06): prime-agent (RLM+Continual Harness) and Mastra Observational Memory (observer+reflector, dense observation log) — both researched, dispositions in wayfinder D8

@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 697d82415c346bd8
-# canonical_entries: 39
+# canonical_sha256: af328d79acb5454b
+# canonical_entries: 40
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -106,6 +106,8 @@ Read this before starting any session. Canonical wins over this file.
   links: a49b169111deb842, 4992782a5790d742, a588d4401a139d71
 - `38e05948dad83b29` [general] docs/MEMORY-RESEARCH.md (deep memory+skills pass): Anthropic context
   links: 7cd074b862efb583, eb88bee62f23ab41
+- `497abf139d49369e` [general] Source integration (2026-08-06): prime-agent (RLM+Continual Harness) and Mastra Observational Memory (observer+reflector, dense observation log) — both researched, dispositions in wayfinder D8
+  links: 7dfd93402ddc4aaf, b9b79e0f2cdaacf4
 - `4a5f57ac7c60c061` [strategy] Sequoia thesis (Dorsey & Botha, From Hierarchy to Intelligence, 2026-03-31): organizations built as intelligence, not hierarchy; AI replaces the information routing that middle management existed to provide.
   links: 649dd34541d01977, d7db7ff6b44040c9
 - `5491303b97d5f0bf` [eval] run reactive-loop is a failed run (composite 0.0).
@@ -132,6 +134,10 @@ Read this before starting any session. Canonical wins over this file.
   links: eb88bee62f23ab41
 - `7cd074b862efb583` [general] docs/SKILLS-RESEARCH.md: 7 skill-design defects, routing gaps, dogfood
   links: 38e05948dad83b29
+- `7dfd93402ddc4aaf` [general] Prime Agent (primeintellect.ai/blog/prime-agent, Aug 05 2026,
+  links: 497abf139d49369e
+- `b9b79e0f2cdaacf4` [general] Mastra Observational Memory (mastra.ai/docs/memory/observational-
+  links: 497abf139d49369e
 - `d406cf06c1a1df90` [general] DECIDED: per-domain human-review gate — frontend = mandatory HITL
   links: af2f8fa2493077fd
 - `dace75359570fa28` [strategy] Model welfare becomes an engineering input: treating agents like people produces empirically better results; a mature agentic project accretes law, mail, courts, doctrine and named rulings that cite their own case history — rules written by the workers they govern.
@@ -150,17 +156,14 @@ Read this before starting any session. Canonical wins over this file.
 - `4efccafe428586c9` [general] DECIDED: memory consolidation = fact merge/supersede + selective
 - `6ae0cbe9df28755d` [general] DECIDED: opencode as the worker harness (deepseek v4 flash economics)
 - `786416899b0bd2c2` [general] Method: wayfinder skill (map + decision tickets). .scratch/wayfinder-
-- `7dfd93402ddc4aaf` [general] Prime Agent (primeintellect.ai/blog/prime-agent, Aug 05 2026,
 - `884021c45935bdf5` [strategy] D6: Rerun semantics: a passing `<case>-rerun` (>= 0.5) closes the gap;
 - `93838f49f75ed388` [strategy] 8 reruns created: reactive-loop (0.7225), real-ticket-001..007-v2
 - `9cf6af3d7d744da7` [strategy] D1: Tool parity treats `write`/`edit` as one family (ADR-0006).
 - `a573e7c2f8f88cae` [dogfood] the dogfood ticket proves the pipeline runs through the kernel CLI alone
 - `b12eb24657e56781` [strategy] D5: Proactive composition (Phase 6.4): `mini-agi loop status|dispatch|
-- `b9b79e0f2cdaacf4` [general] Mastra Observational Memory (mastra.ai/docs/memory/observational-
 - `cb2ce921cfe88cea` [strategy] D4: Sandbox attestation (ADR-0009): verify.sh `sandbox` target —
 - `da7617f1e8f01004` [general] REJECTED: parallel-planner "needs a second consumer" deferral —
 - `e40bb0673ce72f70` [general] DECIDED: skills = contracts with hooks in the gate (built);
-- `e883e4a0899c97f4` [general] NEW SOURCES (user-provided, to integrate):
 - `f4491eb884521013` [strategy] D7: Fixture policy (ADR-0010): insights reports
 - `f4b002f6ac6123e7` [strategy] R5: Deleting or moving failing fixtures out of evals/cases/ — rejected
 - `f840e928415fa051` [strategy] D8: Gate baseline is refreshed via `eval gate --write-baseline` after
