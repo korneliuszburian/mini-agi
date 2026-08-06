@@ -2824,9 +2824,17 @@ fn cmd_dream(
         Ok(p) => p,
         Err(e) => return fail(&format!("dream: staging write failed: {e}")),
     };
-    // 2. Audit (strong worker).
-    let canonical = mini_agi_core::memory::read_facts(&root);
-    let mut audit_lines: Vec<String> = canonical
+    // 2. Audit (strong worker). The canonical index is BUDGETED (D3
+    // select_budgeted): dumping the whole store bloats the auditor's
+    // prompt and the strong model stalls (observed: a 20.8k-char audit
+    // prompt timed out with zero output). The auditor only needs the
+    // most relevant facts — enforced, linked, recent.
+    let all = mini_agi_core::memory::read_facts(&root);
+    let links = mini_agi_core::memory::fact_links(&all);
+    let enforced = mini_agi_core::memory::enforced_fact_ids(&root);
+    let selected =
+        mini_agi_core::memory::select_budgeted(&all, &links, &enforced, 6000);
+    let mut audit_lines: Vec<String> = selected
         .iter()
         .map(|(id, _, body)| format!("{id}: {body}"))
         .collect();
@@ -2842,6 +2850,14 @@ fn cmd_dream(
         Err(e) => return fail(&format!("dream auditor not available: {e}")),
     };
     let verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, &staged);
+    if verdicts.is_empty() {
+        eprintln!(
+            "  [warn] auditor returned no parseable verdicts ({} bytes, rc {:?}) — \
+             check the worker/model; nothing will promote",
+            aud.output.len(),
+            aud.status
+        );
+    }
     match mini_agi_core::dream::write_verdicts(&root, &staging, &verdicts) {
         Ok(m) => println!("  verdicts manifest: {}", m.display()),
         Err(e) => return fail(&format!("dream: verdict manifest write failed: {e}")),

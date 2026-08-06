@@ -1,0 +1,161 @@
+{
+  "staged": "007.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New domain (memory-system consolidation taxonomy) with no overlapping canonical facts; specific, sourced claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific quantitative claim with source [S4] §4.2; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Specific ablation data with TrueSkill/Cohen's d metrics and source; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Direct quote from [S1] §2.4; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Specific mechanism description with source [S1] §2.2; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Specific benchmark result with source [S1] §3.1.1; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Specific characterization with source [S3]; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Direct quote from [S3]; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Direct quote from [S3]; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Specific quantitative claims from [S2] abstract; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Specific design rationale with source [S5] §2.3; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Specific mechanism description with source [S5] §2.1-2.2; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Specific benchmark results with source [S5] §4.3.2; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Specific caveats from source [S5] §4.2, §4.3.2; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Specific mechanism description with source [S6] §2.1; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific latency/cost claims from [S6] abstract, §4.4; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Specific benchmark result from [S6] abstract, §4.4; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Specific cross-vendor result from [S6] §4.1.3; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Specific mechanism description with source [S7] §3.1-3.3; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Specific cost/performance data from [S7] §4.3; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Specific benchmark results from [S7] §4.3, §4.6; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Well-qualified meta-claim with source grounding; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Generic methodological observation; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Terminology fact with source grounding; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Specific gap-identification claim; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Honest caveat about truncated fetch; no canonical overlap.",
+      "verdict": "promote"
+    }
+  ]
+}
