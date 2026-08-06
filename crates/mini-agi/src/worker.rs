@@ -205,14 +205,26 @@ pub struct IterationResult {
 /// (the marker is embedded in the base prompt). A newest-file heuristic
 /// would attribute ANY concurrent codex process's session (e.g. an IDE
 /// session) to the worker; content matching cannot.
+/// How many newest sessions the marker scan reads before giving up.
+///
+/// The marker is embedded in THIS run's prompt, so the owning session is
+/// brand new and always near the top of the newest-first order. Without
+/// the bound the scan reads the whole `~/.codex/sessions` tree (observed
+/// at 30 GB / 3372 rollout files — a minutes-long hang on every run);
+/// the marker match lives in the newest handful, so the cap is a
+/// correctness-neutral bound, not a heuristic.
+const MAX_SESSION_SCAN: usize = 200;
+
 fn find_session_with_marker(home: &Path, marker: &str) -> Option<String> {
     let sessions_root = home.join(".codex/sessions");
     let mut files: Vec<PathBuf> = Vec::new();
     collect_session_files(&sessions_root, &mut files);
     // Newest first: the worker's session is the newest file carrying the
-    // marker (the marker appears in exactly one session — ours).
+    // marker (the marker appears in exactly one session — ours). Only the
+    // newest MAX_SESSION_SCAN files are read; older sessions cannot hold
+    // our marker (this run wrote it minutes ago).
     files.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
-    for p in files.into_iter().rev() {
+    for p in files.into_iter().rev().take(MAX_SESSION_SCAN) {
         let Ok(text) = std::fs::read_to_string(&p) else {
             continue;
         };
@@ -307,6 +319,9 @@ pub fn run_verified_iteration(
     let mut final_wall = 0u64;
     let mut total_wall = 0u64;
     let mut total_bytes = 0u64;
+    let mut total_tokens_in = 0u64;
+    let mut total_tokens_out = 0u64;
+    let mut total_cost = 0.0f64;
     let mut attempts_done = 0;
     let mut aborted = false;
     let mut completion_grace = false;
@@ -342,26 +357,15 @@ pub fn run_verified_iteration(
         // of a cold re-invoke; falls back to a fresh exec when no
         // session was captured (or --no-resume).
         let resuming = should_resume(input.resume, attempt, resume_session.as_ref());
+        let worker_kind = worker_kind(input.worker_name);
         let worker_args = if resuming {
             progress(ProgressEvent::SessionResumed {
                 attempt,
                 session_id: resume_session.clone().unwrap_or_default(),
             });
-            vec![
-                "exec",
-                "resume",
-                resume_session.as_deref().unwrap_or(""),
-                "--skip-git-repo-check",
-                &prompt,
-            ]
+            build_worker_args(&worker_kind, true, resume_session.as_deref(), &prompt)
         } else {
-            vec![
-                "exec",
-                "-s",
-                "workspace-write",
-                "--skip-git-repo-check",
-                &prompt,
-            ]
+            build_worker_args(&worker_kind, false, None, &prompt)
         };
         // Blind-worker mode: the hidden suite is unavailable to the
         // worker — the kernel's loop is the only feedback path.
@@ -391,9 +395,16 @@ pub fn run_verified_iteration(
             .or_else(|| mini_agi_core::config::Config::load(input.workdir).max_idle_seconds);
         // Session resume (AFK v2): ownership via the marker — the
         // worker's session is the one containing OUR marker.
-        let session_before = std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .and_then(|h| find_session_with_marker(&h, &marker));
+        // The marker scan reads codex's own session tree; opencode keeps
+        // its sessions in its own store and resumes via `--continue`/`-s`
+        // (D1), so the scan runs for codex workers only.
+        let session_before = if matches!(worker_kind, WorkerKind::Codex) {
+            std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .and_then(|h| find_session_with_marker(&h, &marker))
+        } else {
+            None
+        };
         let worker = match run_worker_sandboxed(
             input.worker_name,
             input.workdir,
@@ -401,7 +412,7 @@ pub fn run_verified_iteration(
             input.read_only,
             input.wall_cap,
             idle_cap,
-            &worker_args,
+            &worker_args.iter().map(String::as_str).collect::<Vec<_>>(),
         ) {
             Ok(w) => w,
             Err(e) => {
@@ -422,6 +433,19 @@ pub fn run_verified_iteration(
             resume_session.clone_from(&worker_session);
         }
         let combined = worker.output;
+        // D1 telemetry: the opencode adapter reports usage in its JSON
+        // stream; the kernel folds it into the run draft (codex runs
+        // keep reporting None).
+        let worker_usage = if matches!(worker_kind, WorkerKind::OpenCode { .. }) {
+            mini_agi_core::worker::parse_opencode_usage(&combined)
+        } else {
+            None
+        };
+        if let Some(u) = worker_usage {
+            total_tokens_in += u.tokens_in;
+            total_tokens_out += u.tokens_out;
+            total_cost += u.cost_usd;
+        }
         final_wall = worker.wall_seconds;
         total_wall += worker.wall_seconds;
         total_bytes += combined.len() as u64;
@@ -549,6 +573,15 @@ pub fn run_verified_iteration(
     run["attempts"] = serde_json::json!(attempts_done);
     run["verifier_passed"] = serde_json::json!(verifier_passed);
     run["attempt_verdicts"] = serde_json::json!(attempt_verdicts);
+    // D1 layered economics: fold the adapter's telemetry into the draft.
+    run["worker"] = serde_json::json!(input.worker_name);
+    run["cost_usd"] = serde_json::json!(total_cost);
+    run["tokens_total"] = serde_json::json!(total_tokens_in + total_tokens_out);
+    run["usage"] = serde_json::json!({
+        "tokens_in": total_tokens_in,
+        "tokens_out": total_tokens_out,
+        "cost_usd": total_cost,
+    });
     Ok(IterationResult {
         attempts_done,
         verifier_passed,
@@ -668,7 +701,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     };
     let result = match run_verified_iteration(&input, |event| match event {
         ProgressEvent::AttemptStarted { attempt } => {
-            println!("codex attempt {attempt} started");
+            println!("{worker_name} attempt {attempt} started");
         }
         ProgressEvent::Verifier {
             attempt,
@@ -833,6 +866,91 @@ fn resolve_worker_name(name: Option<&str>) -> &str {
     name.unwrap_or("codex")
 }
 
+/// Which worker adapter drives the run (D1 layered economics).
+///
+/// `codex` (default) keeps the existing exec/resume contract. Any
+/// `opencode`-prefixed name selects the thin opencode adapter: the same
+/// budget/sandbox/capture contract, but `run --format json` with the
+/// usage telemetry parsed back into the run.
+#[derive(Debug, Clone, PartialEq)]
+enum WorkerKind {
+    Codex,
+    OpenCode { model: Option<String> },
+}
+
+fn worker_kind(name: &str) -> WorkerKind {
+    name.strip_prefix("opencode-").map_or_else(
+        || {
+            if name == "opencode" {
+                WorkerKind::OpenCode { model: None }
+            } else {
+                WorkerKind::Codex
+            }
+        },
+        |model| WorkerKind::OpenCode {
+            model: Some(model.to_string()),
+        },
+    )
+}
+
+/// Build the worker argv for one attempt (D1). Codex keeps the existing
+/// `exec`/`resume` shapes byte-identical; opencode maps them to
+/// `run --format json [-m <model>] [--continue|-s <session>] <prompt>`
+/// (opencode 1.18.11 CLI, grounded 2026-08-06).
+fn build_worker_args(
+    kind: &WorkerKind,
+    resuming: bool,
+    session_id: Option<&str>,
+    prompt: &str,
+) -> Vec<String> {
+    match kind {
+        WorkerKind::Codex => {
+            if resuming {
+                vec![
+                    "exec".to_string(),
+                    "resume".to_string(),
+                    session_id.unwrap_or("").to_string(),
+                    "--skip-git-repo-check".to_string(),
+                    prompt.to_string(),
+                ]
+            } else {
+                vec![
+                    "exec".to_string(),
+                    "-s".to_string(),
+                    "workspace-write".to_string(),
+                    "--skip-git-repo-check".to_string(),
+                    prompt.to_string(),
+                ]
+            }
+        }
+        WorkerKind::OpenCode { model } => {
+            let mut args = vec![
+                "run".to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ];
+            if let Some(m) = model {
+                args.push("-m".to_string());
+                args.push(m.clone());
+            }
+            if resuming {
+                if let Some(s) = session_id.filter(|s| !s.is_empty()) {
+                    args.push("-s".to_string());
+                    args.push(s.to_string());
+                } else {
+                    args.push("--continue".to_string());
+                }
+            }
+            // `--` ends flag parsing: the spec prompt starts with
+            // `- goal:` and yargs would misread it as flags (observed:
+            // opencode dumped --help instead of running).
+            args.push("--".to_string());
+            args.push(prompt.to_string());
+            args
+        }
+    }
+}
+
 /// Production-readiness D.2: does the spec declare a read-only sandbox?
 fn is_read_only_spec(spec_text: &str) -> bool {
     spec_text
@@ -849,6 +967,13 @@ pub fn run_worker_sandboxed(
     idle_cap: Option<u64>,
     worker_args: &[&str],
 ) -> std::io::Result<mini_agi_core::worker::WorkerResult> {
+    // D1: the opencode adapter's EXECUTABLE is always `opencode` — the
+    // model suffix (`opencode-<model>`) rides in the args, never in the
+    // spawn command.
+    let exe = match worker_kind(worker_name) {
+        WorkerKind::OpenCode { .. } => "opencode",
+        WorkerKind::Codex => worker_name,
+    };
     #[cfg(target_os = "linux")]
     {
         if !no_sandbox {
@@ -872,13 +997,27 @@ pub fn run_worker_sandboxed(
                         wrapper.push(dir.to_string_lossy().into_owned());
                     }
                 }
+                // D1: the opencode adapter keeps its session/auth state
+                // under XDG data (~/.local/share/opencode) — include it
+                // or the sandboxed worker fails (EACCES).
+                if worker_name.starts_with("opencode") {
+                    for state_dir in [".local/share/opencode", ".opencode", ".cache/opencode"] {
+                        let dir = std::path::Path::new(&home).join(state_dir);
+                        if dir.is_dir() {
+                            wrapper.push("--allow-write".to_string());
+                            wrapper.push(dir.to_string_lossy().into_owned());
+                        }
+                    }
+                }
             }
             wrapper.push("--".to_string());
             // The wrapper runs `<worker_name> <worker_args...>` — the
             // command itself is NOT part of worker_args (a real bug the
             // proof-of-advantage experiment caught: the wrapper tried to
-            // run `exec` instead of `codex exec`).
-            wrapper.push(worker_name.to_string());
+            // run `exec` instead of `codex exec`). For the opencode
+            // adapter the executable is `opencode`, never the
+            // `opencode-<model>` name.
+            wrapper.push(exe.to_string());
             wrapper.extend(worker_args.iter().map(|s| (*s).to_string()));
             let arg_refs: Vec<&str> = wrapper.iter().map(String::as_str).collect();
             if let Ok(exe) = std::env::current_exe() {
@@ -899,7 +1038,7 @@ pub fn run_worker_sandboxed(
     // Multi-worker (production-readiness P2/E): the runner resolves the
     // worker command from the parameter — codex today, a second type
     // (e.g. claude) behind the same budget/sandbox/capture contract.
-    mini_agi_core::worker::run_capped_idle(worker_name, worker_args, workdir, wall_cap, idle_cap)
+    mini_agi_core::worker::run_capped_idle(exe, worker_args, workdir, wall_cap, idle_cap)
 }
 
 /// `exec-sandbox`: apply the Landlock write-containment policy to the
@@ -960,6 +1099,94 @@ mod tests {
         assert_eq!(resolve_worker_name(None), "codex");
         assert_eq!(resolve_worker_name(Some("claude")), "claude");
         assert_eq!(resolve_worker_name(Some("codex")), "codex");
+    }
+
+    #[test]
+    fn worker_kind_resolves_codex_opencode_and_model() {
+        assert_eq!(worker_kind("codex"), WorkerKind::Codex);
+        assert_eq!(worker_kind("anything-else"), WorkerKind::Codex);
+        assert_eq!(
+            worker_kind("opencode"),
+            WorkerKind::OpenCode { model: None }
+        );
+        assert_eq!(
+            worker_kind("opencode-deepseek-v4-flash"),
+            WorkerKind::OpenCode {
+                model: Some("deepseek-v4-flash".to_string())
+            }
+        );
+    }
+
+    #[test]
+    fn opencode_args_map_run_continue_and_model() {
+        // D1 adapter: the codex-shaped resume contract maps to
+        // `run --format json` with --continue / -s; the model rides on -m.
+        let s = |v: Vec<&str>| v.into_iter().map(str::to_string).collect::<Vec<_>>();
+        assert_eq!(
+            build_worker_args(&WorkerKind::OpenCode { model: None }, false, None, "do it"),
+            s(vec!["run", "--format", "json", "--", "do it"])
+        );
+        assert_eq!(
+            build_worker_args(
+                &WorkerKind::OpenCode {
+                    model: Some("deepseek-v4-flash".to_string())
+                },
+                false,
+                None,
+                "do it"
+            ),
+            s(vec![
+                "run",
+                "--format",
+                "json",
+                "-m",
+                "deepseek-v4-flash",
+                "--",
+                "do it"
+            ])
+        );
+        assert_eq!(
+            build_worker_args(
+                &WorkerKind::OpenCode { model: None },
+                true,
+                Some("ses_abc"),
+                "do it"
+            ),
+            s(vec![
+                "run", "--format", "json", "-s", "ses_abc", "--", "do it"
+            ])
+        );
+        assert_eq!(
+            build_worker_args(&WorkerKind::OpenCode { model: None }, true, None, "do it"),
+            s(vec!["run", "--format", "json", "--continue", "--", "do it"])
+        );
+    }
+
+    #[test]
+    fn codex_args_keep_the_existing_shapes() {
+        // Byte-identical to the pre-D1 contract: any drift breaks the
+        // codex worker (existing behavior is locked).
+        let s = |v: Vec<&str>| v.into_iter().map(str::to_string).collect::<Vec<_>>();
+        assert_eq!(
+            build_worker_args(&WorkerKind::Codex, false, None, "do it"),
+            s(vec![
+                "exec",
+                "-s",
+                "workspace-write",
+                "--skip-git-repo-check",
+                "do it"
+            ])
+        );
+        assert_eq!(
+            build_worker_args(&WorkerKind::Codex, true, Some("ses_abc"), "do it"),
+            s(vec![
+                "exec",
+                "resume",
+                "ses_abc",
+                "--skip-git-repo-check",
+                "do it"
+            ])
+        );
     }
 }
 

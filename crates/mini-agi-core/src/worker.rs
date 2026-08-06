@@ -24,6 +24,73 @@ pub struct WorkerResult {
     pub aborted: bool,
     /// Combined stdout+stderr.
     pub output: String,
+    /// Cost/usage telemetry when the worker reports it (opencode
+    /// `--format json`; None for workers without usage reporting).
+    pub usage: Option<WorkerUsage>,
+}
+
+/// Token/cost telemetry for one worker run (D1 layered economics).
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub struct WorkerUsage {
+    /// Prompt/context tokens consumed by the run.
+    pub tokens_in: u64,
+    /// Completion tokens produced by the run.
+    pub tokens_out: u64,
+    /// USD; the worker's own figure when reported, otherwise the
+    /// deepseek-v4-flash rate-card estimate (D1, track-3.md).
+    pub cost_usd: f64,
+}
+
+/// deepseek-v4-flash rate card (USD per 1M tokens, Aug 2026, track-3.md).
+const FLASH_IN_PER_1M: f64 = 0.14;
+const FLASH_OUT_PER_1M: f64 = 0.28;
+
+/// Rate-card estimate for a token volume (fractional M-tokens).
+fn estimate_flash_cost(tokens_in: u64, tokens_out: u64) -> f64 {
+    let in_m = f64::from(u32::try_from(tokens_in).unwrap_or(u32::MAX)) / 1e6;
+    let out_m = f64::from(u32::try_from(tokens_out).unwrap_or(u32::MAX)) / 1e6;
+    in_m * FLASH_IN_PER_1M + out_m * FLASH_OUT_PER_1M
+}
+
+/// Parse usage telemetry from an opencode `--format json` run.
+///
+/// The final `step_finish` event carries `part.tokens{input,output}` and
+/// `part.cost` (USD). Defensive: scans JSON-lines, keeps the last
+/// well-formed event, falls back to the rate-card estimate when the
+/// worker reports no cost.
+#[must_use]
+pub fn parse_opencode_usage(output: &str) -> Option<WorkerUsage> {
+    let mut usage: Option<WorkerUsage> = None;
+    for line in output.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if v.get("type").and_then(|t| t.as_str()) != Some("step_finish") {
+            continue;
+        }
+        let Some(part) = v.get("part") else {
+            continue;
+        };
+        let Some(tokens) = part.get("tokens") else {
+            continue;
+        };
+        let (Some(tokens_in), Some(tokens_out)) = (
+            tokens.get("input").and_then(serde_json::Value::as_u64),
+            tokens.get("output").and_then(serde_json::Value::as_u64),
+        ) else {
+            continue;
+        };
+        let cost_usd = part
+            .get("cost")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or_else(|| estimate_flash_cost(tokens_in, tokens_out));
+        usage = Some(WorkerUsage {
+            tokens_in,
+            tokens_out,
+            cost_usd,
+        });
+    }
+    usage
 }
 
 /// Run `command` to completion in `cwd`, killing it if it exceeds
@@ -133,6 +200,7 @@ pub fn run_capped_idle(
         wall_seconds: start.elapsed().as_secs(),
         aborted,
         output,
+        usage: None,
     })
 }
 
@@ -223,6 +291,52 @@ mod tests {
         let _ = std::io::Error::other(err);
         let _ = write!(&mut std::io::stderr(), "spawn err ok");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn opencode_usage_parses_step_finish_event() {
+        // Grounded in a real opencode 1.18.11 --format json probe
+        // (2026-08-06): the final step_finish carries part.tokens and
+        // part.cost.
+        let out = r#"{"type":"step_start","timestamp":1,"sessionID":"s1","part":{"type":"step-start"}}
+{"type":"text","timestamp":2,"sessionID":"s1","part":{"type":"text","text":"OK"}}
+{"type":"step_finish","timestamp":3,"sessionID":"s1","part":{"id":"p1","type":"step-finish","tokens":{"total":11159,"input":9226,"output":2,"reasoning":11,"cache":{"write":0,"read":1920}},"cost":0.001300656}}
+"#;
+        let u = parse_opencode_usage(out).expect("usage parsed");
+        assert_eq!(u.tokens_in, 9226);
+        assert_eq!(u.tokens_out, 2);
+        assert!(
+            (u.cost_usd - 0.001_300_656).abs() < 1e-9,
+            "worker-reported cost wins"
+        );
+    }
+
+    #[test]
+    fn opencode_usage_falls_back_to_rate_card_without_cost() {
+        let out = r#"{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":1000000,"output":1000000}}}
+"#;
+        let u = parse_opencode_usage(out).unwrap();
+        assert_eq!(u.tokens_in, 1_000_000);
+        assert!(
+            (u.cost_usd - (0.14 + 0.28)).abs() < 1e-9,
+            "flash rate estimate: {}",
+            u.cost_usd
+        );
+    }
+
+    #[test]
+    fn opencode_usage_ignores_garbage_and_keeps_last_event() {
+        assert!(parse_opencode_usage("not json at all").is_none());
+        assert!(parse_opencode_usage("").is_none());
+        assert!(parse_opencode_usage(r#"{"type":"text","part":{"text":"hi"}}"#).is_none());
+        // Multiple step_finish events: the LAST one wins (per-attempt runs
+        // stream one finish per step).
+        let out = r#"{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":10,"output":1},"cost":0.001}}
+{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":20,"output":2},"cost":0.002}}
+"#;
+        let u = parse_opencode_usage(out).unwrap();
+        assert_eq!(u.tokens_in, 20);
+        assert!((u.cost_usd - 0.002).abs() < 1e-9);
     }
 }
 
