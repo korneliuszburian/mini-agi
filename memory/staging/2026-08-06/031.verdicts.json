@@ -1,0 +1,179 @@
+{
+  "staged": "031.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Synthesis claim without specific sources; 'production systems converge on three-tier context strategy' is presented as a universal pattern but no vendors are named and no source is cited. The claim that 'each tier's loss profile is documented by its vendor' is unverifiable against canonical facts.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific, sourced definition of compaction from Anthropic Engineering (effective-context-engineering, 2025-09-29) with precise behavioral detail. No canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Terse operational definition of compaction from Claude Code Glossary; distinct formulation from candidate 1 (glossary vs. engineering doc) though overlapping in domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Clear definitional distinction: summarization as LLM-written prose condensation, positioned relative to Anthropic (engine inside compaction) and OpenAI (cookbook pattern). New durable concept.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Clean definition of pruning/truncation as raw transcript deletion without summary replacement. No canonical fact covers this distinction.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Specific Claude Agent SDK auto-compaction behavior with PreCompact hook and transcript archiving — operational detail not in canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Enumerates exactly what Claude Code structured summary preserves and discards, with practical note about CLAUDE.md for persistent rules. Actionable, sourced.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Specific post-compaction reload behavior detail: CLAUDE.md, auto memory, MCP tools reload; skills are the one exception. Falsifiable technical claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Documents the ~12% summary-to-input token ratio from Claude Code's context-window simulation, qualified as illustrative not measured. Useful heuristic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Critical constraint: evidence is not destroyed, only removed from model-visible window. Cites JSONL persistence path and SDK S3/Redis mirroring for session resumption.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Prompt-cache economics: documents that compaction intentionally invalidates cached prefix, /compact reads from cache for warm resume, /rewind reuses cached prefix, and post-break summary resume exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "OpenAI server-side compaction mechanics: threshold config, /responses/compact endpoint, opaque encrypted state item, previous_response_id chaining, explicit 'do not manually prune' directive.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Meaningful vendor contrast derived from candidates 1-2 and 11: Anthropic output is readable structured summary; OpenAI output is opaque encrypted state item. The fidelity gap is a durable architectural difference.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Direct Anthropic guidance: over-aggressive compaction risks losing subtle context; recommended strategy is recall-first then precision iteration. Actionable design constraint.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Anthropic positions tool-result clearing (context editing) as the safest, lightest-touch compaction form — a specific operational recommendation distinct from the full compaction path.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Concrete, sourced finding from a specific paper (Maharana et al., arXiv:2402.17753); no canonical fact covers it.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Concrete benchmark numbers from LoCoMo (arXiv:2402.17753); no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Existence claim only — 'content not read' by the candidate's own admission. No durable knowledge; the notebook's content is unknown.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Interpretive claim ('default failure mode') upgrades a specific API behavior note to a general assertion. The underlying fact (truncation may occur) is basic API knowledge, not a new durable truth for this memory system.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Concrete vendor description of Claude's context editing behavior; sourced, no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Concrete API behavior for OpenAI Realtime; specific, sourced, no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Landmark finding from Liu et al. (TACL 2023); concrete, sourced, no canonical overlap. Directly relevant to context pruning strategy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Documented pattern from Anthropic's context-management blog; concrete description of external-memory pattern, no canonical fact captures this specific vendor-articulated formulation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Concrete architectural pattern for subagent context management; sourced, no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Concrete paper finding from Packer et al. (arXiv:2310.08560); sourced, no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Concrete benchmark numbers from a second research group (Rasmussen et al., arXiv:2501.13956); sourced, includes both MemGPT baseline and Zep system results, no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Sourced vendor claims with appropriate caveats ('methodology internal and not reproducible') noted in the candidate itself; represents directional evidence, no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "Concrete evaluation across 18 models (Jul 2025); specific finding about focused vs full prompts on LongMemEval; sourced, no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "Meta-observation about the state of evaluation in the field; verifiable claim about lack of apples-to-apples benchmarks; acts as a constraint on interpreting the other evidence.",
+      "verdict": "promote"
+    }
+  ]
+}
