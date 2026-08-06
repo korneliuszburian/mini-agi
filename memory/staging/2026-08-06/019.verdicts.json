@@ -1,0 +1,53 @@
+{
+  "staged": "019.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Verified source; claims faithfully reflect cited Anthropic engineering blog; no omission/corruption/fabrication detected.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Verified source; candidate carefully scopes the 10x claim as context-window multiplier, not token-cost reduction; no misrepresentation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Verified source; candidate correctly distinguishes reported accuracy figures from claimed token savings; no inflation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Verified source; candidate honestly notes no token-savings numbers are reported; accurate description of memory stream mechanism.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Verified source; candidate correctly scopes LLMLingua to whole-prompt compression (not agent memory); compression ratios faithfully reported.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "FABRICATION risk: candidate admits SDK docs page 'could not be fully loaded in that environment'; the specific claims about message injection mechanics (last N messages verbatim, older collapsed to summary) cannot be verified against the primary source.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "FABRICATION risk: candidate is auditor synthesis, not a claim from any single verifiable source. 'Across the sources reviewed' is the auditor's own interpretive framing—no primary source states these two categories as such. Durable memory must anchor to a source, not the auditor's conclusions.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Qualified negative finding ('to the reviewer's knowledge no such published benchmark exists') is a falsifiable gap statement, not a fabrication; useful durable knowledge about the limits of current evidence.",
+      "verdict": "promote"
+    }
+  ]
+}
