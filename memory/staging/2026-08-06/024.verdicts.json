@@ -1,0 +1,185 @@
+{
+  "staged": "024.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "unverifiable: no canonical fact covers PostgreSQL WAL mechanics; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "unverifiable: no canonical fact covers SQLite WAL design; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "unverifiable: no canonical fact covers MongoDB/WiredTiger recovery; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "unverifiable: no canonical fact covers WiredTiger journal durability; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "unverifiable: no canonical fact covers RocksDB WAL contract; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "unverifiable: no canonical fact covers LevelDB log format; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "unverifiable: no canonical fact covers SQLite WAL bugs or version history; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "unverifiable: no canonical fact covers SQLite checkpoint mechanics; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "unverifiable: no canonical fact covers WiredTiger checkpoint design; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "unverifiable: no canonical fact covers RocksDB Checkpoint API; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "unverifiable: no canonical fact covers etcd Raft snapshotting; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "unverifiable: no canonical fact covers compaction failure models; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "unverifiable: no canonical fact covers etcd restore procedures; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "unverifiable: no canonical fact covers etcd file-level WAL/snap split; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "unverifiable: no canonical fact covers PostgreSQL PITR; cannot apply omission/corruption/fabrication check without source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Actionable design guidance: snapshot frequency bounds recovery cost; explicitly declares no universal numbers exist and defers to workload-specific RTO/RPO choice. No conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Cites Fowler; clear definition of event sourcing with replay, temporal query, and explicit snapshot pairing. Durable technical knowledge.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Correctly identifies the side-effect replay problem and the Gateway pattern solution; links to durable-execution idempotency. Technical, verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Technical claim mapping Temporal's durable execution to event sourcing (Commands→Events→Event History→replay). Substantive and specific.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Clear definition of Temporal's durability guarantee: Event History records state at each step; resume from last recorded event.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Technical description of LangGraph's checkpoint-per-superstep model and thread-organized resume. Specific and verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Documents LangGraph's three durability modes (exit/async/sync) with explicit durability-vs-throughput trade; mirrors WAL synchronous settings. Concrete.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Describes LangGraph's two-tier durability: per-node pending writes survive within a super-step, while time-travel/replay resumes at full checkpoints. Specific design detail.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Documents LangGraph's unbounded-growth failure mode with pruning/retention/DeltaChannel mitigations. Actionable technical knowledge.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Technical comparison of AWS Step Functions Standard vs Express workflows with durability and exactly-once semantics. Specific and sourced.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Synthetic claim unifying WAL+checkpoint, snapshot-restore, and event sourcing as one family; maps PostgreSQL, SQLite, MongoDB, RocksDB, etcd, Temporal, LangGraph, and Step Functions into a single model. Durable architectural insight.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Design heuristic for agent durability strategy selection; self-labeled as opinion/sourced inference; concrete trade-offs for WAL+checkpoint, snapshot-restore, and event sourcing. Actionable even if not measured.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "Documents known unknowns: no quantified RTO/RPO for arbitrary agent workloads, no cost model, no crash-proof guarantee even in battle-tested implementations. Meta-fact about evidence gaps.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "Normative claim that recovery verification requires executing the verifier; aligns with canonical Karpathy guideline a588d440 on goal-driven verified execution. Actionable discipline.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "Research agenda: crash-injection harness, measured RPO curves, replay-cost curves, and reference-trajectory verifier. Not a fact but a durable research direction statement.",
+      "verdict": "promote"
+    }
+  ]
+}
