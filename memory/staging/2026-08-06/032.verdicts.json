@@ -1,0 +1,293 @@
+{
+  "staged": "032.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable truth about MCP trust model; no canonical fact covers MCP security or trust boundaries.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable truth about MCP intended behaviors vs. vulnerability scope; no canonical fact covers MCP.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable truth about MCP stdio transport non-sandbox status and DoS scope; no canonical fact covers MCP.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New durable truth about MCP in-scope security categories; no canonical fact covers MCP.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable truth about MCP clientInfo/serverInfo being untrusted for security decisions; no canonical fact covers MCP.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable truth about MCP tool annotations being untrusted; no canonical fact covers MCP.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New durable truth about Confused Deputy attack and mitigations; no canonical fact covers MCP or OAuth proxy attacks.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New durable truth about MCP token passthrough rules; no canonical fact covers MCP token handling.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable truth about SSRF during OAuth metadata discovery and mitigations; no canonical fact covers MCP or SSRF.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable truth about state handle hijacking and per-request authorization; no canonical fact covers MCP state handling.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable truth about local MCP server compromise mitigations; no canonical fact covers MCP.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable truth about OAuth authorization URL validation; no canonical fact covers MCP or OAuth URL safety.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable truth about mix-up attacks and iss-based validation vs PKCE; no canonical fact covers MCP or mix-up attacks.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable truth about scope minimization and progressive least-privilege; no canonical fact covers MCP.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable truth about MCP auth transport applicability and STDIO credential sourcing; no canonical fact covers MCP.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "new durable truth: MCP tool-level security requirements (input validation, access controls, rate-limiting, output sanitization, client-side timeout/logging) — no canonical fact covers MCP spec details",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "new durable truth: MCP human-in-the-loop requirement for trust/safety — no canonical fact covers MCP spec details",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "new durable truth: MCP tools list stability per-connection with authorization-scoped exposure — no canonical fact covers MCP spec details",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "new durable truth: MCP JSON Schema $ref security posture (no auto-network-deref, DoS bounds for composition keywords) — no canonical fact covers MCP spec details",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "new durable truth: MCP x-mcp-header constraints (token-safe names, primitive types, no secrets/PII in headers) — no canonical fact covers MCP spec details",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "new durable truth: MCP icon security (untrusted URIs/bytes, scheme rejection, magic-byte validation, SVG JS risks) — no canonical fact covers MCP spec details",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "new durable truth: MCP architecture isolation principle (host-enforced server boundaries, no cross-server conversation access) — no canonical fact covers MCP spec details",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "new durable truth: TS SDK CVE-2026-25536 (GHSA-345p-7cg4-v4c7, CVSS 7.1, CWE-362, StreamableHTTP transport cross-client data leak, patched 1.26.0) — no canonical fact covers SDK CVEs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "new durable truth: TS SDK CVE-2026-0621 (GHSA-cqwc-fm46-7fff, CWE-1333, UriTemplate ReDoS DoS, patched 1.25.2) — no canonical fact covers SDK CVEs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "new durable truth: TS SDK CVE-2025-66414 (GHSA-w48q-cv73-mx4w, CWE-1188, DNS-rebinding disabled by default on localhost HTTP, patched 1.24.0) — no canonical fact covers SDK CVEs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "new durable truth: Python SDK CVE-2026-52870 (GHSA-hvrp-rf83-w775, CVSS 7.6, CWE-862, experimental tasks cross-client access, patched 1.27.2) — no canonical fact covers SDK CVEs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "new durable truth: Python SDK CVE-2026-52869 (GHSA-jpw9-pfvf-9f58, CVSS 7.1, CWE-639, SSE/Streamable HTTP session injection via session ID, patched 1.27.2) — no canonical fact covers SDK CVEs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "new durable truth: Python SDK CVE-2026-59950 (GHSA-vj7q-gjh5-988w, CWE-346/CWE-1385, deprecated WebSocket no Host/Origin validation, patched 1.28.1) — no canonical fact covers SDK CVEs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "new durable truth: Python SDK CVE-2025-66416 (GHSA-9h52-p55h-vw2f, CWE-1188, DNS-rebinding disabled by default, patched 1.23.0) — no canonical fact covers SDK CVEs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "new durable truth: Python SDK CVE-2025-53366 (GHSA-3qhf-m339-9g5v, CVSS 8.7) and CVE-2025-53365 (GHSA-j975-95f5-7wqh, CVSS 8.7), unhandled exception DoS, patched 1.9.4/1.10.0 — no canonical fact covers SDK CVEs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "New durable truth: rmcp CVE with specific identifiers (CVE-2026-42559, GHSA-89vp-x53w-74fx, CVSS 8.8), concrete vulnerability description, and fix version. No canonical fact covers rmcp or MCP SDK security.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "New durable truth: rmcp DoS CVE with specific identifiers and quantitative impact (~75 GB/day). No canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "New durable truth: rmcp OAuth token-theft CVE with specific identifiers. No canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "New durable truth: rmcp header-forwarding CVE with specific identifiers. No canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "New durable truth: rmcp SSRF advisory with GHSA ID and CWE reference. No canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "New durable truth: MCP Registry moderation scope policy. No canonical fact covers MCP registry governance.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "New durable truth: reference servers are not production-ready — source-attributed to modelcontextprotocol/servers README. No canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "New durable truth: SEP-1024 consent-dialog requirements for one-click MCP server install. No canonical fact covers MCP standards.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 38,
+      "reason": "New durable truth: arXiv 2601.17549 findings on MCP architectural weaknesses with quantitative estimates. No canonical fact covers MCP threat modeling.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 39,
+      "reason": "New durable truth: two arXiv studies on MCP client tool poisoning with per-client disparities. No canonical fact covers MCP client security.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 40,
+      "reason": "New durable truth: MPMA/GAPMA preference manipulation attack on MCP tool naming. No canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 41,
+      "reason": "New durable truth: MCP-38 threat taxonomy and companion SoK, with framework mappings. No canonical fact covers MCP threat taxonomies.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 42,
+      "reason": "New durable truth: MCP-Guard detection pipeline and MCP-ATTACKBENCH benchmark with study-reported metrics. No canonical fact covers MCP defenses.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 43,
+      "reason": "New durable truth: MCP marketplace measurement study with specific server count and findings. No canonical fact covers MCP ecosystem health.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 44,
+      "reason": "New durable truth: MCPApps empirical study finding only 37.2% gate tool execution. No canonical fact covers MCP app security posture.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 45,
+      "reason": "Synthesis (opinion) about MCP capability exposure — no canonical fact covers MCP, no source material provided to verify against omission/corruption/fabrication checks; unverifiable within this knowledge base.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 46,
+      "reason": "Claims about MCP trust model, SECURITY.md, mandated mitigations, and 14+ GHSAs/CVEs — no canonical fact addresses MCP at all; factual claims are unverifiable against the provided canonical set.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 47,
+      "reason": "Uncertain material verdict about MCP implementation gaps, spec acceptance, and third-party patch status — explicitly uncertain and unverifiable against canonical facts, none of which cover MCP.",
+      "verdict": "reject"
+    }
+  ]
+}
