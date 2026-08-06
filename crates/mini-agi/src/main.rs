@@ -807,8 +807,7 @@ fn main() -> ExitCode {
             promote,
             dry_run,
             max_wall,
-            idle,
-            idle_load,
+            idle.then_some(idle_load),
         ),
         Command::Codex(CodexArgs {
             spec,
@@ -2678,23 +2677,21 @@ fn cmd_dream(
     promote: bool,
     dry_run: bool,
     max_wall: u64,
-    idle: bool,
-    idle_load: f64,
+    idle_load: Option<f64>,
 ) -> ExitCode {
     let root = root();
     if promote {
         return cmd_dream_promote(&root, dry_run);
     }
-    let source = if idle {
+    let source = if let Some(idle_load) = idle_load {
         // D2 idle trigger: only when the machine is quiet (a busy box
         // would contend with the worker + the shared opencode state).
-        let load1 = match std::fs::read_to_string("/proc/loadavg")
+        let Some(load1) = std::fs::read_to_string("/proc/loadavg")
             .ok()
             .and_then(|l| l.split_whitespace().next().map(str::to_string))
             .and_then(|v| v.parse::<f64>().ok())
-        {
-            Some(l) => l,
-            None => return fail("dream --idle: cannot read load average"),
+        else {
+            return fail("dream --idle: cannot read load average");
         };
         if load1 >= idle_load {
             println!("dream --idle: load1 {load1:.2} >= {idle_load} — busy, skipping");
@@ -2713,14 +2710,15 @@ fn cmd_dream(
                 let Ok(entries) = std::fs::read_dir(day.path()) else {
                     continue;
                 };
-                for e in entries.flatten() {
-                    if e.path().extension().is_some_and(|x| x == "md") {
-                        if let Ok(meta) = std::fs::metadata(e.path())
-                            && let Ok(m) = meta.modified()
-                            && newest.is_none_or(|n| m > n)
-                        {
-                            newest = Some(m);
-                        }
+                for e in entries
+                    .flatten()
+                    .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
+                {
+                    if let Ok(meta) = std::fs::metadata(e.path())
+                        && let Ok(m) = meta.modified()
+                        && newest.is_none_or(|n| m > n)
+                    {
+                        newest = Some(m);
                     }
                 }
             }
