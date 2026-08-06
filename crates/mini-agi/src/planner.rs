@@ -368,6 +368,9 @@ pub struct BatchTicketResult {
 #[derive(Debug)]
 pub struct BatchDispatchResult {
     pub results: Vec<BatchTicketResult>,
+    /// Respawn events (D6): crashed tickets relaunched by the
+    /// dispatcher, MAST-classified, never silent.
+    pub respawns: Vec<String>,
 }
 
 /// Dispatch the batch: per-ticket detached runs (`loop run --detach`)
@@ -379,6 +382,24 @@ pub struct BatchDispatchResult {
 /// # Errors
 ///
 /// Returns when a launch fails (the batch stops).
+/// Max respawns per crashed ticket (D6): a dead worker without a report
+/// is relaunched this many times before the batch records it as failed.
+const MAX_TICKET_RESPAWNS: usize = 2;
+
+/// D6 crash classification: a dead ticket is a CRASH when no report
+/// exists — a verdict always lands in a report, so "dead and silent" is
+/// an abnormal termination, never a result.
+const fn is_crash(report_ready: bool, report_text: Option<&str>) -> bool {
+    !report_ready && report_text.is_none()
+}
+
+/// D6 respawn budget: a crashed ticket is relaunched while its respawn
+/// count is below the bound; the batch then records it as failed with
+/// the crash evidence (never silently).
+const fn respawn_allowed(respawn_count: usize) -> bool {
+    respawn_count < MAX_TICKET_RESPAWNS
+}
+
 pub fn dispatch_batch(
     repo: &Path,
     provision: &BatchProvision,
@@ -393,6 +414,8 @@ pub fn dispatch_batch(
     let mut results: Vec<BatchTicketResult> = Vec::new();
     let mut active: Vec<(String, std::path::PathBuf, std::path::PathBuf)> = Vec::new();
     let mut queue: Vec<&PlannerTicket> = manifest.tickets.iter().collect();
+    let mut respawns: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut respawn_log: Vec<String> = Vec::new();
     let batch_deadline = std::time::Instant::now()
         + std::time::Duration::from_secs(
             wall_cap
@@ -480,8 +503,49 @@ pub fn dispatch_batch(
         for (i, (id, handle, wt)) in active.iter().enumerate() {
             let st = crate::bg::run_status(handle);
             if !st.alive {
-                let report = crate::bg::run_report_text(handle);
-                let passed = report
+                // D6: a dead ticket WITHOUT a report is a crash, not a
+                // verdict — the dispatcher respawns it (bounded,
+                // MAST-classified FM-3.1 premature termination, never
+                // silent). A dead ticket WITH a report is a normal
+                // finish and is recorded as today.
+                let report_text = crate::bg::run_report_text(handle);
+                if is_crash(st.report_ready, report_text.as_deref()) {
+                    let Some(ticket) = manifest.tickets.iter().find(|t| t.id == *id) else {
+                        results.push(BatchTicketResult {
+                            id: id.clone(),
+                            handle: handle.clone(),
+                            worktree: wt.clone(),
+                            passed: false,
+                            report: None,
+                        });
+                        done.push(i);
+                        continue;
+                    };
+                    let n = respawns.entry(id.clone()).or_default();
+                    if respawn_allowed(*n) {
+                        *n += 1;
+                        eprintln!(
+                            "  [respawn] ticket {id} crashed without a report (FM-3.1                              premature termination), relaunching ({n}/{MAX_TICKET_RESPAWNS})"
+                        );
+                        respawn_log.push(format!(
+                            "{id}: respawned {n}x (FM-3.1 premature termination)"
+                        ));
+                        queue.insert(0, ticket);
+                        done.push(i);
+                        continue;
+                    }
+                    eprintln!("  [respawn] ticket {id} crashed {n}x — respawn budget exhausted");
+                    results.push(BatchTicketResult {
+                        id: id.clone(),
+                        handle: handle.clone(),
+                        worktree: wt.clone(),
+                        passed: false,
+                        report: None,
+                    });
+                    done.push(i);
+                    continue;
+                }
+                let passed = report_text
                     .as_deref()
                     .is_some_and(|r| r.contains("final outcome: PASSED"));
                 results.push(BatchTicketResult {
@@ -489,7 +553,7 @@ pub fn dispatch_batch(
                     handle: handle.clone(),
                     worktree: wt.clone(),
                     passed,
-                    report: report
+                    report: report_text
                         .map(std::path::PathBuf::from)
                         .or_else(|| st.report.as_ref().map(std::path::PathBuf::from)),
                 });
@@ -500,7 +564,10 @@ pub fn dispatch_batch(
             active.remove(i);
         }
     }
-    Ok(BatchDispatchResult { results })
+    Ok(BatchDispatchResult {
+        results,
+        respawns: respawn_log,
+    })
 }
 
 /// Finalize + merge (S4): for each PASSING ticket the kernel commits
@@ -786,6 +853,20 @@ pub fn teardown_batch(repo: &Path, provision: &BatchProvision) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crash_classification_and_respawn_budget() {
+        // D6 contract: dead + no report = crash; dead + report = verdict.
+        assert!(is_crash(false, None));
+        assert!(!is_crash(true, None));
+        assert!(!is_crash(false, Some("final outcome: PASSED")));
+        assert!(!is_crash(true, Some("final outcome: FAILED")));
+        // Bounded: 2 respawns then the budget gives up.
+        assert!(respawn_allowed(0));
+        assert!(respawn_allowed(1));
+        assert!(!respawn_allowed(2));
+        assert!(!respawn_allowed(5));
+    }
 
     const VALID: &str = r#"{
         "version": 1,
