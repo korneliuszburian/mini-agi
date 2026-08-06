@@ -1,0 +1,215 @@
+{
+  "staged": "018.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "No canonical fact addresses Anthropic API skills; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "No canonical fact addresses OpenAI hosted skills; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "No canonical fact addresses MCP Registry server.json versioning; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "No canonical fact addresses MCP spec versioning or feature lifecycle; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "No canonical fact addresses MCP tool versioning or naming; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "No canonical fact addresses Claude Code plugins; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "No canonical fact addresses CrewAI; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "No canonical fact addresses LangChain/LangGraph tool versioning; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "No canonical fact addresses MCP tool listing or wire contract; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "No canonical fact addresses OpenAI Agents SDK; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "No canonical fact addresses Anthropic skills registration; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "No canonical fact addresses Claude Code plugins; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "No canonical fact addresses OpenAI hosted skills; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "No canonical fact addresses LangChain @tool decorator; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "No canonical fact addresses CrewAI BaseTool; claim is unverifiable against the attached evidence.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable fact about MCP skills standardization; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New durable fact about OpenAI Agents SDK hooks API; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable fact about Claude Code hook architecture; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "New durable fact about MCP change notification protocol; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New durable fact about LangChain tool execution middleware; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "New durable fact about CrewAI structured tool events; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "New durable fact about OpenAI Agents SDK three-layer guardrails; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "New durable fact about OpenAI allowed_callers access gate; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "New durable fact about MCP enforced contract requirements; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "New durable fact about Anthropic enterprise skills gates; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "New durable fact about Claude Code hooks not being enforcement layer; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "New durable fact about LangChain schema contract; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "New durable fact about CrewAI tool failure handling; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "New durable fact about Anthropic enterprise drift detection; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "New durable fact about LangChain LangSmith Engine drift detection; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "new durable truth — MCP protocol internals not covered by any canonical fact; specific, verifiable against MCP spec",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "new durable truth — negative finding scoped to pages reached; no canonical fact covers OpenAI drift detection",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "new durable truth — CrewAI internals not covered by any canonical fact; specific, verifiable claim",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "new durable truth — comparative synthesis across frameworks; not ephemeral/vague/unverifiable; no canonical fact covers this cross-framework analysis",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "ephemeral — documents research gaps (pages not yet read), not a durable truth; becomes obsolete when full pages are read",
+      "verdict": "reject"
+    }
+  ]
+}

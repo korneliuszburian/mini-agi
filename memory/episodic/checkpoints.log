@@ -272,3 +272,4 @@
 2026-08-06T20:06:23Z BEGIN ar-s1 -> 96f712c (restored by rollback)
 2026-08-06T20:06:23Z VERIFY-FAIL ar-s1 @ 78b2ca4 -> ROLLBACK to 96f712c
 2026-08-06T20:10:00Z VERIFY-PASS ar9-s1 @ 11bea88 (repair: cycle 9 was gate-green at that commit; the checkpoint was left open through the marathon re-scope)
+2026-08-06T20:08:17Z BEGIN ar11-s1 -> cf2498c (clean)
