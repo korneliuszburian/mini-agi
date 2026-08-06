@@ -33,7 +33,7 @@ parallel dispatch) + opencode (deepseek v4 flash = cheap worker).
 |---|---|---|---|---|
 | D1 | Worker economics: LAYERED — codex executes, opencode/flash plans+reviews (role model: user 2026-08-06) | **IMPLEMENTED 2026-08-06** (adapter + telemetry, commit 8055af7) | S | everything (24/7 affordance) |
 | D2 | Dream-loop cadence + model assignment | OPEN (recommend event-triggered + gated promotion) | M | brain layer |
-| D3 | Memory quality: merge/supersede + retrieval budget + directed consolidation | OPEN (F-012 decided; design+build pending) | M-L | brain layer |
+| D3 | Memory quality: merge/supersede + retrieval budget + directed consolidation | **IMPLEMENTED 2026-08-06** (mem supersede/preserve/verify + query --budget + preserved routing; 35eb321) | M-L | brain layer |
 | D4 | Supervision surface: read mirror + worker status | OPEN (user builds UI; kernel exposes status JSON) | S (kernel side) | surface |
 | D5 | A2A / daemon shape | OPEN (recommend DEFER A2A; bg.rs+serve is enough) | — | orchestration |
 | D6 | Crash recovery: respawn + run-state index | **IMPLEMENTED 2026-08-06** (respawn 0295cb7, status 551c6df) | S | 24/7 reliability |
