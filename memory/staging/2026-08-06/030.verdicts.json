@@ -1,0 +1,125 @@
+{
+  "staged": "030.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "new domain (AWS CloudTrail principal model); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "new domain (AWS service identity kind); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "new domain (GCP audit log classes); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "new domain (GCP audit caller identity and callerIp redaction); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "new domain (Kubernetes audit event schema); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "new domain (Kubernetes principal naming convention); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "new domain (Kubernetes userAgent trust level); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "new domain (AWS sessionContext identity chain); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "new domain (Kubernetes impersonation audit records); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "new domain (GCP service agent attribution model); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "new domain (GitHub audit log token identification); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "new domain (AWS credential identification in logs); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "new domain (OpenAI Agents SDK tracing model); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "new domain (multi-agent attribution unit synthesis); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "new domain (GCP MCP audit log channel); no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable truth: immutability of Cloud Audit Logs entries is a distinct claim not covered by any canonical fact (which are all about mini-agi runs, Karpathy guidelines, or Sequoia/Yegge architecture observations).",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New durable truth: k8s audit pipeline lifecycle is a distinct domain claim with no overlap against canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable truth: the non-verifiability of a cross-vendor agent identity standard is a concrete negative finding — distinct from all canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "New durable truth: the gap in LLM-native-to-host audit trail mapping beyond GCP MCP is a bounded, sourced observation — not covered by canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New durable truth: the ambiguity of userAgent/token fields for agent identification (with k8s explicit untrusted flag) is a verifiable claim — distinct from canonical facts.",
+      "verdict": "promote"
+    }
+  ]
+}
