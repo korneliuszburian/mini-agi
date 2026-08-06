@@ -2862,16 +2862,27 @@ fn cmd_dream(
             Err(e) => return fail(&format!("dream auditor not available: {e}")),
         };
         let mut batch_verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, chunk);
+        if batch_verdicts.is_empty() {
+            // One retry per batch: the strong model occasionally answers
+            // in prose instead of the JSON array (observed: rc 0 with a
+            // 15.7k-char prose answer). A second call fixes most of them.
+            eprintln!(
+                "  [warn] auditor batch {batch_idx} returned no parseable verdicts \
+                 ({} bytes, rc {:?}) — retrying once",
+                aud.output.len(),
+                aud.status
+            );
+            let retry =
+                worker::run_opencode_worker(&workdir, auditor, &batch_prompt, Some(max_wall), None);
+            if let Ok(aud) = retry {
+                batch_verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, chunk);
+            }
+        }
         for v in &mut batch_verdicts {
             v.index += batch_idx * audit_batch_size;
         }
         if batch_verdicts.is_empty() {
-            eprintln!(
-                "  [warn] auditor batch {batch_idx} returned no parseable verdicts \
-                 ({} bytes, rc {:?})",
-                aud.output.len(),
-                aud.status
-            );
+            eprintln!("  [warn] auditor batch {batch_idx} failed after retry — skipped");
         }
         verdicts.extend(batch_verdicts);
     }
