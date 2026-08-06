@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 454d486990964198
-# canonical_entries: 73
+# canonical_sha256: 3ffd546fb4fd3127
+# canonical_entries: 74
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -677,3 +677,12 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `d2375864da7ee620` Google defines a flaky test result as a test exhibiting both a passing and a failing result with the same code, and reports a continual rate of about 1.5% of all test runs being 'flaky', almost 16% of tests having some flakiness, and about 84% of observed pass-to-fail transitions involving a flaky test; these figures are single-company 2016 self-reports. A second Google tool detects changes in a test's flakiness level and works to identify the change that caused it.
 - `f8e399d3786cdd54` Kubernetes flakiness detection tooling: flakes-latest.json (top 10 flakes per week across PR jobs), go.k8s.io/triage (interactive 2-week failure drill-down), testgrid's sort-by-flakiness view, the kind/flake GitHub label, and unit-test stress reproduction via golang.org/x/tools/cmd/stress with -race -count=1.
 - `3158dabb8476e655` No primary source was found publishing a quantitative quarantine threshold (the Google post's 'too high' is unspecified) or an optimal retry-count trade-off; the verdict lists a published flakiness-rate threshold for auto-quarantine or a CI cost/retry study such as Leinen et al. 'Cost of Flaky Tests in Continuous Integration' (TUM/CQSE 2023) as evidence that would settle the thresholds.
+- `9caf76fe8e25e99b` A Cache Version mismatch causes a silent cache miss: same key but different path, compression tool, or OS yields a different version; cross-OS reuse is opt-in via `enableCrossOsArchive: true`.
+- `081b26a9420810cb` GitHub Actions cache eviction: entries unused for 7 days are removed; total cache per repo is capped at 10 GB by default (usage above is billed) and at the cap GitHub deletes oldest-accessed caches, warning this may cause cache thrashing; branch-scoped caches occupy quota even though other scopes cannot use them.
+- `981a18a75e3286e0` GitHub announced (Sept 2025) changing cache eviction checks from every 24 hours to every hour, noting increased eviction frequency could lead to additional cache thrashing.
+- `16adddbad37f6c5c` The 10 GB per-repository Actions cache limit was doubled from 5 GB in 2021.
+- `4355cae9f899ac1c` GitHub Actions cache rate limits are 200 uploads/min and 1,500 downloads/min per repository; exceeding them fails uploads/downloads until the limit resets, signaled via the Retry-After header.
+- `1c96892b7fff88dd` A restore-keys hit restores the most recent prefix-matching cache, which may predate the current lockfile; docs recommend still running the install step on a non-exact hit.
+- `9dd4e21efea78cca` Read-only cache saves do not fail the job: in low-trust contexts a denied save logs a warning and continues without saving; since June 2026 default-branch cache tokens are read-only for untrusted triggers (pull_request_target, issue_comment, fork workflow_run), so such workflows lose cache-write benefit unless a trusted push/schedule workflow maintains the cache.
+- `541a91d2c3223ea4` Cache poisoning threat model: only push, workflow_dispatch, repository_dispatch, delete, registry_package, page_build, and schedule may create/overwrite default-branch-scope caches; cache contents are unsigned and any workflow run that can read a cache may extract its contents, leading to malicious code execution.
+- `e0f6a491f31c824a` Actions cache downloads are segmented (now 128 MB, previously 1-2 GB); stuck segments previously hung jobs, fixed by a 10-minute segment download timeout (SEGMENT_DOWNLOAD_TIMEOUT_MINS).

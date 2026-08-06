@@ -1,0 +1,155 @@
+{
+  "staged": "038.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "canonical corpus contains zero facts about GitHub Actions caching; unverifiable against provided canon",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific, verifiable technical claim about cache versioning and cross-OS opt-in — no canonical fact covers Actions caching, no conflict detected.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Specific eviction rules: 7-day stale removal, 10 GB cap, oldest-accessed deletion, branch-scope quota note, thrashing warning — no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Concrete historical announcement (Sept 2025): eviction frequency changed from 24h to 1h with thrashing caveat — no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Concrete historical claim: 5 GB -> 10 GB increase in 2021 — no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Specific rate-limit numbers (200 uploads/min, 1500 downloads/min, Retry-After header) — no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Specific restore-keys behavior and install-step recommendation — no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Specific read-only save semantics, per-trigger trust model since June 2026, default-branch token scope — no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Specific threat model listing trusted event types and unsigned cache contents — no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Candidate self-identifies as 'opinion/claim, not confirmed fact' — fails the durable-truth requirement.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Specific segment-size values (128 MB now, 1-2 GB previously) and timeout constant — no canonical conflict.",
+      "verdict": "promote"
+    }
+  ]
+}
