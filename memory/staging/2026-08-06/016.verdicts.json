@@ -1,0 +1,95 @@
+{
+  "staged": "016.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New domain (LLM memory consolidation) — no overlap with canonical facts; source-material verification deferred (arXiv:2605.16045 not attached).",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific measured claim citing RecMem Table 1 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Specific measured claim citing RecMem Table 1 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Specific measured claim citing RecMem Table 2 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Includes explicit hedge ('the authors argue, opinion, their claim') — honest representation; no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Specific measured claim citing LightMem Table 2 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Specific claim citing LightMem Abstract, §5.2 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Specific measured claim citing LightMem Table 2 — includes cost of batch pass honestly; no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Specific claim citing Mem0 Abstract, §1, Table 2 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Specific measured claim citing Mem0 Table 2, §4.3-4.4 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Specific measured claim citing Zep Table 2, §4.3.2 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Specific claim citing LightMem §5.2 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Specific claim citing Letta Abstract, §5.1 — no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Specific measured claim citing RecMem Tables 1-2 — includes limitation ('not free on small contexts') honestly; no canonical conflict; source deferred.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Specific measured claim citing LightMem Table 2, §5.4 — notes no measured tradeoff honestly; no canonical conflict; source deferred.",
+      "verdict": "promote"
+    }
+  ]
+}
