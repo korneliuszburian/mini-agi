@@ -1,0 +1,107 @@
+{
+  "staged": "025.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable claim from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable claim from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable claim from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New durable claim from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable claim with specific quantitative evidence from a cited primary source; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "No overlap with any canonical fact; specific, verifiable claims citing RouterArena and measurable dimensions (quality gap, deferral curve, overhead vs generation cost).",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "No overlap with any canonical fact; specific methodological critique naming RouteLLM, FrugalGPT, and paper 2502.11021 with concrete incomparability dimensions (pools, metrics, cost ratios, temporal price baselines).",
+      "verdict": "promote"
+    }
+  ]
+}
