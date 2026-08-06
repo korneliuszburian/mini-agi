@@ -1,0 +1,155 @@
+{
+  "staged": "028.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Specific, verifiable claim from published research citing exact paper, section, and metric — new truth with no overlap in canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific task-level result with exact numbers and section reference; no existing canonical fact covers Reflexion ALFWorld results.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Specific HotpotQA result with exact percentage gains and section reference; no conflict or duplication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Specific ablation result on HumanEval Rust with exact table reference and baseline numbers; passes omission/corruption/fabrication check.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Specific episodic-memory ablation result with exact boost and paper section; new durable claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Specific MBPP negative result with exact pass@1 numbers and documented false-positive rate; well-sourced and non-overlapping.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Specific ReAct paper results with exact SR numbers across tasks and the hallucination grounding finding; arXiv reference provided.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Specific ReAct ablation against Inner-Monologue with exact percentages and section; new truth about reflection-content value.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Reports paper existence and author claims with honest caveat about unverified per-benchmark numbers; the claim is scoped to what the abstract asserts, which is verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Specific ACL Findings paper with concrete result about mistake-finding bottleneck and classifier-vs-prompting evidence; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Specific preprint results with exact model/framework names and per-benchmark deltas; preprint status is noted transparently in the candidate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Specific Retroformer paper argument with arXiv reference; no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Specific ICLR paper finding with direct quote and arXiv reference; no duplication or conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Specific Self-Refine GSM8K near-zero-gain finding with per-model numbers and paper's own explanation; well-sourced.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Specific Self-Refine ablation table with exact numbers across three conditions and the Vicuna-13B failure; all verifiable from cited source.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "specific peer-reviewed publication (EMNLP 2024) with arXiv ID, verifiable claims about Degeneration-of-Thought; no overlap with canonical facts (all runs/guidelines/industry).",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "specific preprint (arXiv:2604.22273) with named models, benchmarks, and numeric deltas; verifiable and no overlap with canon.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "two specific preprints (arXiv:2605.27559, arXiv:2606.02646) with concrete findings; verifiable and no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "specific preprint (arXiv:2606.05976) with numeric effect sizes and settings count; verifiable and no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "published paper (FLLM 2024, arXiv:2405.06682) with methodology, numbers, and self-stated caveats; honest reporting, verifiable, no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "synthesis grounded in named papers and specific ablation numbers (Reflexion +11/-8pp, ReAct +34pp); verifiable against cited sources, no overlap with canon.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "synthesis grounded in named papers and specific numbers (Huang, Self-Refine ≈0pp, Reflexion ablation 0.52<0.60); verifiable, no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "synthesis grounded in named papers and specific claims (Tyen, Self-Refine 94%); verifiable, no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "explicitly flagged as contested with cited sources on all sides; honest meta-assessment, not vague or fabricated, no overlap with canon.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "methodological caveats about the fact set itself; verifiable meta-information (sources labeled preprint/abstract-only), no overlap with canon.",
+      "verdict": "promote"
+    }
+  ]
+}
