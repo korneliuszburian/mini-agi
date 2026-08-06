@@ -50,6 +50,7 @@ button.copy:hover{background:#30363d}
   <div class="card" id="card-workers"><h2>Workers</h2><div id="workers">…</div></div>
   <div class="card" id="card-memory"><h2>Memory</h2><div id="memory">…</div></div>
   <div class="card" id="card-journal"><h2>Journal tail</h2><div id="journal">…</div></div>
+  <div class="card" id="card-queues"><h2>Human queue (signoff)</h2><div id="queues">…</div></div>
   <div class="card" id="card-tickets"><h2>Tickets</h2><div id="tickets">…</div></div>
 </div>
 <script>
@@ -78,8 +79,13 @@ function render(d){
   let rows = (d.runs.rows||[]).slice(0,14).map(r => `<tr><td>${r.achieved?'<span class="ok">✓</span>':'<span class="bad">✗</span>'}</td><td>${ESC(r.case)}</td><td>$${r.cost_usd.toFixed(5)}</td><td>${r.tokens_total}</td><td class="dim">${ESC(r.worker||'')}</td></tr>`).join('');
   document.getElementById('runs').innerHTML = `<div class="dim">${d.runs.total_runs} runs · $${d.runs.total_cost_usd.toFixed(4)} · ${d.runs.total_tokens} tokens</div><table><tr><th></th><th>case</th><th>cost</th><th>tok</th><th>worker</th></tr>${rows}</table>`;
   // dream / staging
-  const st = (d.staging||[]).map(s => `<div class="dim">${ESC(s.file)} — ${s.candidates} candidates, ${s.verdicts} verdicts, ${s.promoted?'<span class="ok">promoted</span>':'<span class="warn">pending</span>'}</div>`).join('') || '<span class="dim">no staging — the brain is idle</span>';
+  const st = (d.staging||[]).map(s => {
+    const vd = (s.verdict_detail||[]).map(v => `<div class="dim">· [${v.index}] <span class="${v.verdict==='promote'?'ok':v.verdict==='reject'?'bad':'warn'}">${ESC(v.verdict)}</span> ${ESC((v.reason||'').slice(0,90))}</div>`).join('');
+    return `<div class="dim">${ESC(s.file)} — ${s.candidates} candidates, ${s.verdicts} verdicts, ${s.promoted?'<span class="ok">promoted</span>':'<span class="warn">pending</span>'}</div>${vd}`;
+  }).join('') || '<span class="dim">no staging — the brain is idle</span>';
   document.getElementById('dream').innerHTML = st;
+  const q = (d.queues||[]).map(x => `<div class="warn" style="white-space:pre">${ESC(x.slice(0,400))}</div>`).join('') || '<span class="dim">queue empty — nothing waits for you</span>';
+  document.getElementById('queues').innerHTML = q;
   // gaps
   const gl = (d.gaps||[]).slice(0,8).map(g => `<div>${g.composite.toFixed(4)} <span class="dim">${ESC(g.case)}</span> ${g.ticket?`· ${ESC(g.ticket)}`:''}</div>`).join('') || '<span class="dim">no open gaps</span>';
   document.getElementById('gaps').innerHTML = gl;
@@ -87,7 +93,7 @@ function render(d){
   const wl = (d.workers||[]).map(w => `<div>${w.alive?'<span class="ok">●</span>':'<span class="bad">○</span>'} <span class="dim">${ESC(w.handle)}</span>${w.report_ready?' · report ready':''}</div>`).join('') || '<span class="dim">no detached workers</span>';
   document.getElementById('workers').innerHTML = wl;
   // memory
-  document.getElementById('memory').innerHTML = `<div>entries: ${ESC(d.memory.entries)} · facts: ${ESC(d.memory.facts)}</div><div class="dim">derived: ${ESC(d.memory.derived_views)} views</div><div class="dim">mem verify: ${ESC(d.memory.verify)}</div>`;
+  document.getElementById('memory').innerHTML = `<div>entries: ${ESC(d.memory.entries)} · facts: ${ESC(d.memory.facts)}</div><div class="dim">derived: ${ESC(d.memory.derived_views)} · superseded: ${ESC(d.memory.superseded)} · preserved: ${ESC(d.memory.preserved)}</div><div class="dim">mem verify: ${ESC(d.memory.verify)}</div>`;
   // journal
   document.getElementById('journal').innerHTML = (d.journal_tail||[]).map(j => `<div class="dim">${ESC(j)}</div>`).join('');
   // tickets
@@ -128,7 +134,13 @@ fn api_payload(root: &Path) -> ApiPayload {
                 .unwrap_or_default()
             {
                 if e.path().extension().is_some_and(|x| x == "md") {
-                    queues.push(e.path().to_string_lossy().into_owned());
+                    let preview = std::fs::read_to_string(&e.path())
+                        .unwrap_or_default()
+                        .lines()
+                        .take(6)
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    queues.push(format!("{}:\n{preview}", e.path().to_string_lossy()));
                 }
             }
         }
@@ -150,6 +162,7 @@ fn api_payload(root: &Path) -> ApiPayload {
                         "file": p.to_string_lossy(),
                         "candidates": candidates,
                         "verdicts": verdicts.len(),
+                        "verdict_detail": verdicts,
                         "promoted": false,
                     }));
                 }
@@ -191,6 +204,8 @@ fn api_payload(root: &Path) -> ApiPayload {
             "entries": metrics.entries,
             "facts": metrics.facts,
             "derived_views": metrics.derived_views,
+            "superseded": mini_agi_core::memory::superseded_ids(root).len(),
+            "preserved": mini_agi_core::memory::preserved_ids(root).len(),
             "verify": "ok",
         }),
     }

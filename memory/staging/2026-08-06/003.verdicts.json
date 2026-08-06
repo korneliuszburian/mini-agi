@@ -1,0 +1,143 @@
+{
+  "staged": "003.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable research finding: AuthMem-Bench measured authority erosion across 49 configurations, with authority labels reducing unauthorized actions from 16.9% to 0.0%.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable research finding: consolidation upgrades hedging to confident assertions; agents respond to phrasing, not source labels.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable research finding: TrustMem's Memory Transition Verifier with preference-pair RL reduced omission by 40.1%, corruption by 79.1%, hallucination by 50.0%.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Design synthesis mapping research to mini-agi internals, not a standalone durable fact.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable research finding: RecMem subconscious embedding layer with recurrence-gated extraction cuts memory-construction token cost up to 87% while exceeding accuracy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable research finding: D-MEM Fast/Slow routing on Reward Prediction Error reduces token consumption over 80% and removes O(N^2) write-latency bottleneck.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Design interpretation linking RecMem/D-MEM to dream --idle, not a standalone durable fact.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New durable research finding: Mem0 extraction is additive by default with separate SQL/vector/entity stores and multi-signal retrieval.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable research finding: Mem0 beat all baselines on LOCOMO with 26% relative LLM-as-judge gain, ~91% lower p95 latency, >90% token savings.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable research finding: Graphiti uses validity windows with invalidate-not-delete, bi-temporal tracking, and full episode provenance.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable research finding: Graphiti outperformed MemGPT on DMR (94.8% vs 93.4%) with up to 18.5% accuracy gains and 90% lower latency on LongMemEval.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable research finding: HippoRAG 2 frames memory as non-parametric continual learning with Personalized PageRank, +7% associative over SOTA embedding model.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable research finding: A-MEM Zettelkasten-style notes with memory evolution — new facts trigger updates to existing context representations.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable research finding: GAM decouples encoding from consolidation via event-progression graph + topic-associative network, SOTA on LoCoMo and LongDialQA.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable research finding: TiMem Temporal Memory Tree with semantic-guided consolidation, 75.30% LoCoMo / 76.88% LongMemEval-S, 52.20% memory length cut.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable research finding: MemoryOS hierarchical short/mid/long-term store with dialogue-chain FIFO + segmented-page organization, +49.11% F1 on LoCoMo.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Engineering judgment about best-fit architecture for append-only stores, not a standalone durable fact.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable research finding: bio-grounded memory with sleep consolidation, engram maturation, dedup achieving 97.2% retention precision with 58% store reduction.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Prescriptive design claim about retention model requirements; the paper citation is factual but the claim is architectural judgment.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New durable research finding: position paper argues current agent memory implements lookup not memory per CLS theory — missing neocortical consolidation half.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "New durable research finding: TMLR survey reports hundreds of agent-memory papers in 2025, frames memory as substrate of self-evolution with trainable memory management.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Durable landscape observation: no cross-system same-harness consolidation comparison exists; authority-preservation only tested in flat-fact settings.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Open research questions, not established facts — these are action items for future work.",
+      "verdict": "reject"
+    }
+  ]
+}

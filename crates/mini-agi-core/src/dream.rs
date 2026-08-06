@@ -133,6 +133,11 @@ pub fn distiller_prompt(material: &str) -> String {
          constraints. Skip ephemera (status updates, task noise, greetings). \
          Emit ONLY a JSON array, no prose:\n\
          [{{\"body\": \"<fact>\", \"domain\": \"general\"}}]\n\n\
+         EVIDENTIAL REGISTER (binding, Manufactured Confidence 2606.29279): keep the \
+         source's register — NEVER upgrade hedged, casual, or tentative statements \
+         into confident facts. If the material hedges ('likely', 'reported', \
+         'suggests', 'appears'), the fact body MUST carry that hedge. A passive \
+         'unverified' tag stays 'unverified'.\n\n\
          MATERIAL:\n{material}"
     )
 }
@@ -152,7 +157,11 @@ pub fn auditor_prompt(staged: &[StagedFact]) -> String {
          \"existing_id\": \"<16-hex id when duplicate/conflict, else omit>\"}}]\n\n\
          promote = new durable truth; duplicate = same as an existing fact; conflict = \
          contradicts an existing fact; reject = ephemeral, vague, or unverifiable. \
-         Emit ONLY the JSON array.\n\n\
+         FAILURE-MODE CHECK (binding, TrustMem 2606.25161): before promoting, test the \
+         candidate for OMISSION (it drops a constraint or source limit the material \
+         carried), CORRUPTION (wording upgrades hedging to confidence), and \
+         FABRICATION (a claim the material does not support). Any of the three -> \
+         conflict or reject with the reason, never promote. Emit ONLY the JSON array.\n\n\
          CANDIDATES:\n{}\n\nCANONICAL FACTS (id: body):\n{}",
         items.join("\n"),
         canonical_index()
@@ -498,6 +507,22 @@ mod tests {
         assert_eq!(vs[0].verdict, "promote");
         assert_eq!(vs[1].verdict, "conflict");
         assert_eq!(vs[1].existing_id.as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn prompts_carry_the_evidential_register_and_failure_modes() {
+        let d = distiller_prompt("x");
+        assert!(d.contains("EVIDENTIAL REGISTER"));
+        assert!(d.contains("NEVER upgrade hedged"));
+        assert!(d.contains("'unverified' tag stays 'unverified'"));
+        let a = auditor_prompt(&[StagedFact {
+            body: "y".into(),
+            domain: "general".into(),
+        }]);
+        assert!(a.contains("OMISSION"));
+        assert!(a.contains("CORRUPTION"));
+        assert!(a.contains("FABRICATION"));
+        assert!(a.contains("never promote"));
     }
 
     #[test]
