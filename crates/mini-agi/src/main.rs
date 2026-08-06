@@ -455,6 +455,13 @@ struct DreamArgs {
     /// Apply the latest staging manifest's verdicts into canonical.
     #[arg(long)]
     promote: bool,
+    /// Idle trigger (D2): when the machine is idle (load1 below
+    /// `--idle-load`), distill the newest run's report into staging.
+    #[arg(long)]
+    idle: bool,
+    /// Load threshold for the idle trigger.
+    #[arg(long, default_value = "0.8")]
+    idle_load: f64,
     /// Report without writing anything.
     #[arg(long)]
     dry_run: bool,
@@ -791,6 +798,8 @@ fn main() -> ExitCode {
             promote,
             dry_run,
             max_wall,
+            idle,
+            idle_load,
         }) => cmd_dream(
             source.as_deref(),
             &distiller,
@@ -798,6 +807,8 @@ fn main() -> ExitCode {
             promote,
             dry_run,
             max_wall,
+            idle,
+            idle_load,
         ),
         Command::Codex(CodexArgs {
             spec,
@@ -2667,15 +2678,70 @@ fn cmd_dream(
     promote: bool,
     dry_run: bool,
     max_wall: u64,
+    idle: bool,
+    idle_load: f64,
 ) -> ExitCode {
     let root = root();
     if promote {
         return cmd_dream_promote(&root, dry_run);
     }
-    let Some(source) = source else {
-        return fail("dream: give --source <episodic material> or --promote");
+    let source = if idle {
+        // D2 idle trigger: only when the machine is quiet (a busy box
+        // would contend with the worker + the shared opencode state).
+        let load1 = match std::fs::read_to_string("/proc/loadavg")
+            .ok()
+            .and_then(|l| l.split_whitespace().next().map(str::to_string))
+            .and_then(|v| v.parse::<f64>().ok())
+        {
+            Some(l) => l,
+            None => return fail("dream --idle: cannot read load average"),
+        };
+        if load1 >= idle_load {
+            println!("dream --idle: load1 {load1:.2} >= {idle_load} — busy, skipping");
+            return ExitCode::SUCCESS;
+        }
+        // Newest run report newer than the newest staging file.
+        let idx = status::index_runs(&root.join("evals/cases"));
+        let Some(newest_run) = idx.rows.first() else {
+            println!("dream --idle: no runs to distill");
+            return ExitCode::SUCCESS;
+        };
+        let staging_root = root.join(mini_agi_core::dream::STAGING_REL);
+        let newest_staging = std::fs::read_dir(&staging_root).ok().and_then(|days| {
+            let mut newest = None;
+            for day in days.flatten() {
+                let Ok(entries) = std::fs::read_dir(day.path()) else {
+                    continue;
+                };
+                for e in entries.flatten() {
+                    if e.path().extension().is_some_and(|x| x == "md") {
+                        if let Ok(meta) = std::fs::metadata(e.path())
+                            && let Ok(m) = meta.modified()
+                            && newest.is_none_or(|n| m > n)
+                        {
+                            newest = Some(m);
+                        }
+                    }
+                }
+            }
+            newest
+        });
+        if let Some(st) = newest_staging
+            && st >= newest_run.modified
+        {
+            println!("dream --idle: no newer runs since the last staging");
+            return ExitCode::SUCCESS;
+        }
+        root.join("evals/cases")
+            .join(&newest_run.case)
+            .join("run.json")
+    } else {
+        let Some(source) = source else {
+            return fail("dream: give --source <episodic material>, --idle, or --promote");
+        };
+        source.to_path_buf()
     };
-    let material = match std::fs::read_to_string(source) {
+    let material = match std::fs::read_to_string(&source) {
         Ok(t) => t,
         Err(e) => return fail(&format!("dream: cannot read {}: {e}", source.display())),
     };
