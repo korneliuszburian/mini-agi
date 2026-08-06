@@ -52,8 +52,14 @@ pub fn research_prompt(question: &str) -> String {
          6. End with a short VERDICT section: what is established, what is \
          uncertain, and what evidence would settle it.\n\n\
          QUESTION: {question}\n\n\
-         OUTPUT FORMAT: a markdown document with sections: ## Findings \
-         (claims with sources), ## Sources (full list), ## Verdict."
+         7. Do NOT narrate your process — no 'I will research', no \
+         'now fetching', no progress commentary. The output is ONLY the \
+         deliverable document.\n\
+         8. If the sources are PDFs you cannot fully read, say so in the \
+         Verdict and cite what you could verify — never invent the rest.\n\n\
+         OUTPUT FORMAT: a markdown document with exactly these sections: \
+         ## Findings (claims with sources), ## Sources (full list), \
+         ## Verdict. The document is NOT complete without all three."
     )
 }
 
@@ -62,6 +68,20 @@ pub fn research_prompt(question: &str) -> String {
 pub fn findings_path(root: &Path, question: &str) -> std::path::PathBuf {
     root.join("research")
         .join(format!("{}.md", slugify(question)))
+}
+
+/// Completeness gate: a research run is only a deliverable when the
+/// answer carries all three required sections (Findings / Sources /
+/// Verdict). Narration-only or truncated answers fail the gate — the
+/// kernel must NOT write them as findings (observed: flash workers
+/// stalled mid-investigation and returned only process narration).
+#[must_use]
+pub fn is_complete_deliverable(findings: &str) -> bool {
+    let lower = findings.to_lowercase();
+    lower.contains("## findings")
+        && lower.contains("## sources")
+        && lower.contains("## verdict")
+        && lower.contains("fact") // a Findings section without claims is empty
 }
 
 #[cfg(test)]
@@ -81,6 +101,25 @@ mod tests {
         for c in slugify("A/B\\C:D*E?F\"G<H>I|J").chars() {
             assert!(c.is_ascii_alphanumeric() || c == '-', "only safe chars");
         }
+    }
+
+    #[test]
+    fn completeness_gate_rejects_narration_only_and_truncated() {
+        assert!(is_complete_deliverable(
+            "## Findings\n- fact: x (source: y)\n## Sources\n- y\n## Verdict\n- established"
+        ));
+        // Process narration only (observed in the wild): rejected.
+        assert!(!is_complete_deliverable(
+            "I'll research this. Now fetching primary docs. Abstracts retrieved..."
+        ));
+        // Missing one section: rejected.
+        assert!(!is_complete_deliverable(
+            "## Findings\n- fact: x\n## Sources\n- y"
+        ));
+        // Empty Findings: rejected.
+        assert!(!is_complete_deliverable(
+            "## Findings\n## Sources\n- y\n## Verdict\n- unknown"
+        ));
     }
 
     #[test]

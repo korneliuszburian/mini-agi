@@ -2983,6 +2983,11 @@ fn cmd_research(question: &str, worker: &str, max_wall: u64) -> ExitCode {
     if findings.trim().is_empty() {
         return fail("research: worker returned no findings");
     }
+    if !research::is_complete_deliverable(&findings) {
+        return fail(
+            "research: INCOMPLETE deliverable (missing ## Findings / ## Sources /              ## Verdict or no claims) — not written, re-run the question",
+        );
+    }
     let out_path = research::findings_path(&root, question);
     if let Some(parent) = out_path.parent() {
         let _ = std::fs::create_dir_all(parent);

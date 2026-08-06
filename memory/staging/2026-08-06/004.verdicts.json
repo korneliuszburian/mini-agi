@@ -1,0 +1,239 @@
+{
+  "staged": "004.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "new durable truth: SQLite reader/writer locking model; no canonical fact covers SQLite internals",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "new durable truth: SQLite concurrency guidance; no matching or conflicting canonical fact",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "new durable truth: SQLite five lock states and PENDING starvation avoidance; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "new durable truth: WAL-mode single-writer constraint; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "new durable truth: WAL network-filesystem and shared-memory host constraint; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "new durable truth: wal-index mmap + chroot corruption vector; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "new durable truth: SQLITE_BUSY causes in WAL mode; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "new durable truth: WAL checkpoint starvation mechanics; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "new durable truth: WAL-reset corruption bug version range 3.7.0-3.51.2, fix 3.51.3; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "new durable truth: rollback journal atomic commit and hot-journal replay; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "new durable truth: SQLite crash recovery and corruption caveat; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "new durable truth: hot-journal interference breaks recovery; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "new durable truth: synchronous=OFF corruption risk, FULL default, WAL sync forgiveness; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "new durable truth: SQLite files are plain OS files with filesystem-only protection; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "new durable truth: POSIX advisory locking unreliability on NFS; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "new durable truth: cross-thread close() cancels POSIX locks, partial fix in 3.51.0; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "new durable truth: documented SQLite corruption sources (dual linking, rename, hardlinks); no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "new durable truth: fork() after sqlite3_open corrupts database; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "new durable truth: read-only WAL-mode mount failure modes; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "new durable truth: OpenAI Agents SDK session backend assignments and documented production path; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "new durable truth: SQLAlchemySession supports any SQLAlchemy backend; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "new durable truth: OpenAI Agents SDK session_id-based concurrency model; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "new durable truth: LangGraph SqliteSaver/PostgresSaver documented split; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "new durable truth: synthesis that shared-SQLite is undocumented as a production pattern by either framework; explicitly hedged as estimate and supported by facts [19] and [22]; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "new durable truth: LangGraph checkpoint and pending-writes durability semantics; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "new durable truth: LangGraph exit/async/sync durability mode tradeoffs; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "new durable truth: OpenAI sandbox session_state and SnapshotSpec lifecycle; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "new durable truth: layering of SQLite crash recovery under framework checkpoint/resume; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "new durable truth: OpenAI Agents SDK automatic per-run token tracking fields; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "new durable truth: AdvancedSQLiteSession turn_usage table and store_run_usage requirement; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "new durable truth: Anthropic usage object fields and billing semantics; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "new durable truth: Anthropic count_tokens is estimate-only and free; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "new durable truth: Anthropic tokenizer change ~30% more tokens post-Opus-4.7; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "new durable truth: OpenAI tracing span defaults and flush_traces() for per-job delivery; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "new durable truth: OpenAI SDK architecture keeps state out of sandbox; session distinct from sandbox session; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "new durable truth: sandbox manifest path grants are trusted config only; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "new durable truth: both SDKs document encrypted session-at-rest (EncryptedSerializer, EncryptedSession); no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "new durable truth: synthesis that shared-SQLite is not a vendor-blessed concurrent-worker topology; explicitly hedged as opinion and consistent with [19], [22], [23]; no canonical coverage",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 38,
+      "reason": "new durable truth: SQLite's own characterization of WAL-reset bug occurrence rate vs SSD failure rate; no canonical coverage",
+      "verdict": "promote"
+    }
+  ]
+}
