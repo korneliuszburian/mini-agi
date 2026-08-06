@@ -1,0 +1,113 @@
+{
+  "staged": "021.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "No canonical fact covers DMR or MSC; well-sourced, specific claim about a benchmark task.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "No canonical fact covers DMR metrics or accuracy numbers; specific, verifiable claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "No canonical fact covers DMR evaluation criticism; specific, sourced critique from Zep.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "No canonical fact covers LoCoMo dataset; specific, well-defined claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "No canonical fact covers LoCoMo tasks; specific, structured claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "No canonical fact covers LoCoMo findings; specific, numeric claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "No canonical fact covers LongMemEval; specific, well-defined claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "No canonical fact covers LongMemEval KU definition; specific, sourced claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "No canonical fact covers LongMemEval findings; specific, numeric claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "No canonical fact covers temporal-reasoning or KU retrieval requirements; specific, sourced claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "No canonical fact covers RoMem static-dynamic dilemma; specific, well-argued claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "No canonical fact covers RoMem cross-benchmark numbers; specific, numeric claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "No canonical fact covers detail-level extraction tradeoff; specific, sourced claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "No canonical fact covers adversarial/abstention failure surface; specific, cross-paper analysis.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "No canonical fact covers DMR as static-fact-store success case; specific, cross-paper synthesis.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable knowledge: specific, sourced observations about benchmark comparability gaps (RoMem metric vs LoCoMo paper, question-count discrepancies across sources, Zep self-reported metrics, absence of controlled append-only vs updating-store head-to-head). Hedging is explicit and honest — no corruption of confidence. No canonical fact covers benchmark-methodology landscape.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Primarily a prescriptive experiment design ('Evidence that would settle...'), not a durable truth about the world. While it references concrete artifacts (LongMemEval repo, RoMem protocol), its core framing is methodological guidance rather than a verifiable factual claim.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable knowledge: concrete synthesis of three memory benchmarks (DMR/MemGPT 2023, LoCoMo 2024, LongMemEval ICLR 2025) with specific metrics (human 87.9 F1 vs ~37.8, 30-60% long-context drops, 37-64% commercial assistant drops), paper provenance, and distinct measurement axes. No canonical fact covers benchmark characterization.",
+      "verdict": "promote"
+    }
+  ]
+}
