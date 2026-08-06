@@ -1,7 +1,7 @@
 # Wayfinder Map — Full AGI on the mini-agi kernel
 
 Date: 2026-08-06. Method: wayfinder (map + decision tickets).
-Status: phases 0-1 IMPLEMENTED (D1, D2, D3, D6). D5/D7 DECIDED (defer / keep append-only). D4 = user domain (HITL), Phase 2.
+Status: phases 0-2 IMPLEMENTED (D1, D2, D3, D6, auto-researcher). D5/D7 DECIDED (defer / keep append-only). D4 UI = user domain (HITL); kernel seam (status --json + mini-agi ui) done.
 
 ## Destination (charter, user direction, 2026-08-05)
 
