@@ -13,6 +13,7 @@ mod clifmt;
 mod planner;
 #[cfg(target_os = "linux")]
 mod sandbox;
+mod status;
 mod supervisor;
 pub(crate) mod worker;
 use mini_agi_core::contract;
@@ -90,6 +91,8 @@ enum Command {
     Health,
     /// Repo invariants: provenance drift, baseline freshness, tree state.
     Audit,
+    /// Run-state index (D6): every run, journal tail, live workers.
+    Status(StatusArgs),
     /// Proactive composition loop (Phase 6.4): status/dispatch/verify.
     Loop(LoopArgs),
     /// Codex integration (Phase 8 slice 4, EXP-003): run codex on a
@@ -436,6 +439,13 @@ struct LoopRunArgs {
 }
 
 #[derive(Args, Debug)]
+struct StatusArgs {
+    /// Machine-readable JSON output (D6 run-state index surface).
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args, Debug)]
 struct CheckpointArgs {
     #[command(subcommand)]
     action: CheckpointAction,
@@ -708,6 +718,7 @@ fn main() -> ExitCode {
         Command::Resume => cmd_resume(),
         Command::Health => cmd_health(),
         Command::Audit => cmd_audit(),
+        Command::Status(StatusArgs { json }) => cmd_status(json),
         Command::Codex(CodexArgs {
             spec,
             workdir,
@@ -2420,4 +2431,48 @@ fn git_head(repo: &Path) -> Result<String, String> {
         return Err("git rev-parse HEAD failed".to_string());
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// Run-state index (D6): runs + totals, journal tail, live workers.
+fn cmd_status(json: bool) -> ExitCode {
+    let root = root();
+    let idx = status::index_runs(&root.join("evals/cases"));
+    let journal = status::journal_tail(&root, 4);
+    let workers = status::live_workers(&root);
+    if json {
+        let out = serde_json::json!({
+            "runs": idx,
+            "journal_tail": journal,
+            "workers": workers,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&out).unwrap_or_else(|e| e.to_string())
+        );
+        return ExitCode::SUCCESS;
+    }
+    println!(
+        "RUN-STATE INDEX — {} runs, {} achieved, ${:.4} total, {} tokens",
+        idx.total_runs, idx.achieved_runs, idx.total_cost_usd, idx.total_tokens
+    );
+    for r in &idx.rows {
+        let w = r.worker.as_deref().unwrap_or("(unreported)");
+        let case: String = r.case.chars().take(28).collect();
+        println!(
+            "  {:<28}  ${:.6}  {:>8} tok  achieved={}  {}",
+            case, r.cost_usd, r.tokens_total, r.achieved, w
+        );
+    }
+    println!("journal tail:");
+    for l in &journal {
+        println!("  {l}");
+    }
+    println!("workers ({}):", workers.len());
+    for w in &workers {
+        println!(
+            "  {}  alive={} report_ready={}",
+            w.handle, w.alive, w.report_ready
+        );
+    }
+    ExitCode::SUCCESS
 }
