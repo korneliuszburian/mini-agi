@@ -92,11 +92,9 @@ research/*.md + canonical):
 
 ## MARATHON QUEUE (100-cycle overnight run, 2026-08-06)
 
-Consumed: 1-15 (cadence, observability, retrieval, approval UX,
-retention, enforcement, self-modification, memory sharing,
-consolidation economics, run-claim verification, skill registries,
-context assembly, [13 prompt-caching = stalled, logged], OTel GenAI,
-retrieval benchmarks). Archival tier BUILT (mem archive). When the
+Consumed: 1-25 (..21-25: failure taxonomies, reflection loops, trust
+calibration, identity/attribution, transcript compaction). Fixes en
+route: auditor batch retry, archival tier BUILT. When the
 queue empties, generate fresh
 project-improving questions from the backlog + prior findings.
 
