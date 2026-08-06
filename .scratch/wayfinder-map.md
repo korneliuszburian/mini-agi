@@ -90,6 +90,46 @@ research/*.md + canonical):
 13. Multi-agent sharing (cycle 8): shared store + kernel-owned
     writes = our architecture; per-agent views when workers >5.
 
+## MARATHON QUEUE (100-cycle overnight run, 2026-08-06)
+
+Consumed: 1-9 (cadence, observability, retrieval, approval UX,
+retention, enforcement, self-modification, memory sharing,
+consolidation economics). When the queue empties, generate fresh
+project-improving questions from the backlog + prior findings.
+
+10. Run-claim self-verification: how systems verify agent self-reports deterministically; reproducibility patterns.
+11. Skill registry systems: how production agent frameworks version, hook, and gate skills.
+12. Context engineering: what context-assembly strategies measurably reduce token waste in agents.
+13. Prompt caching economics: measured cache hit rates and cost curves for long agent sessions.
+14. OTel GenAI semantic conventions: agent telemetry standards for runs/traces/metrics.
+15. Memory retrieval benchmarks: DMR, LoCoMo, LongMemEval — what do they actually measure and where do fact stores fail?
+16. Sandbox enforcement: Landlock/Seccomp comparison for agent workers; escape vectors reported in the wild.
+17. Deterministic gates in CI: what makes a gate non-vacuous; verifier design patterns.
+18. Checkpoint/journaling: crash-consistent state machines for long-running agents.
+19. Multi-model routing: measured cost/quality tradeoffs of routing between cheap and strong models.
+20. Cost forecasting: how production agent systems budget and forecast token spend.
+21. Failure taxonomies beyond MAST: other empirically derived agent failure modes.
+22. Reflection loops: measured value of self-critique passes (Reflexion and successors).
+23. Human-AI trust calibration: how to present uncertainty and confidence to operators.
+24. Agent identity and attribution: audit trails for multi-agent work.
+25. Log compaction: how systems shrink long transcripts without losing evidence.
+26. MCP security: documented MCP server/client vulnerabilities and mitigations.
+27. Filesystem-first architectures: tradeoffs of file-as-state vs databases for agent tools.
+28. Incremental derivation: how view/materialization systems avoid full recomputation.
+29. Audit trails for ML decisions: record-keeping patterns for model-influenced actions.
+30. Eval harness design: what makes an eval suite reliable over time (leakage, flakiness).
+31. Flaky test management: quarantine patterns with reported numbers.
+32. GitHub Actions caching: measured build time reductions and cache-invalidation bugs.
+33. LLM JSON output reliability: schema enforcement, retries, repair patterns with numbers.
+34. Prompt injection defenses: what actually works against indirect injection in tool-use agents.
+35. Sandbox escape vectors: reported escapes from LLM-tool sandboxes and their fixes.
+36. Session resume: measured continuity gains from session persistence in agent loops.
+37. Token budget management: how agents budget context across long runs.
+38. Fact store vs knowledge graph: measured tradeoffs for agent memory retrieval.
+39. Declarative agent config: how frameworks encode agent definitions and permissions.
+40. Verification-driven development: how verified claims change agent reliability.
+(Then: generate fresh questions.)
+
 ## Gate discipline while mapping
 
 - Tickets stay OPEN until decided; a decided ticket records the decision +
