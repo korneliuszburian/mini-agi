@@ -92,9 +92,12 @@ research/*.md + canonical):
 
 ## MARATHON QUEUE (100-cycle overnight run, 2026-08-06)
 
-Consumed: 1-9 (cadence, observability, retrieval, approval UX,
+Consumed: 1-15 (cadence, observability, retrieval, approval UX,
 retention, enforcement, self-modification, memory sharing,
-consolidation economics). When the queue empties, generate fresh
+consolidation economics, run-claim verification, skill registries,
+context assembly, [13 prompt-caching = stalled, logged], OTel GenAI,
+retrieval benchmarks). Archival tier BUILT (mem archive). When the
+queue empties, generate fresh
 project-improving questions from the backlog + prior findings.
 
 10. Run-claim self-verification: how systems verify agent self-reports deterministically; reproducibility patterns.
