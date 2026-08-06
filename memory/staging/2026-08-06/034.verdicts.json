@@ -1,0 +1,197 @@
+{
+  "staged": "034.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable technical truth about PostgreSQL MVs; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable technical truth about CONCURRENTLY semantics; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable technical truth about Oracle refresh modes; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New durable technical truth about Oracle fast refresh prerequisites; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable technical truth about Oracle refresh timings; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable technical truth about Oracle real-time MVs; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New durable technical truth about pg_ivm incremental maintenance; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New durable technical truth about pg_ivm unique index strategy; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable technical truth about pg_ivm documented performance; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable technical truth about pg_ivm documented limitations; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable technical truth about CouchDB map function execution; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable technical truth about CouchDB view invalidation and batching; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable technical truth about CouchDB B-tree cached reductions; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable technical truth about CouchDB view definition invalidation; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable technical truth about SQL Server indexed views; no overlapping canonical fact exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "New durable truth; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "New durable truth; self-labeled opinion on source-constrained patterns; no overlapping canonical fact in this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "Durable meta-fact about verification provenance: two specific doc sources were unreachable, and compacted-topic-as-derived-state / projection-over-event-stream claims must not be attributed to primary sources until fetched. No omission, corruption, or fabrication detected — the constraint (unreachable docs) is stated explicitly.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "Durable meta-fact about evidence quality: performance/cost figures for Oracle, BigQuery, pg_ivm, and Materialize are sourced from vendor docs or docs, not benchmarks. Wording is appropriately conservative — it downgrades confidence, not upgrades it. No omission, corruption, or fabrication detected.",
+      "verdict": "promote"
+    }
+  ]
+}
