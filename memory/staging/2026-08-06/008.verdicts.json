@@ -1,0 +1,173 @@
+{
+  "staged": "008.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable knowledge about LangSmith annotation queues; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable knowledge about LangSmith collaborator/reservation settings; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable knowledge about Langfuse annotation queues; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New durable knowledge about Braintrust human review UI and assignment; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable knowledge about Braintrust independent scoring and blind-review stance; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable knowledge about LangSmith pairwise reservation locking; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New durable knowledge about LangSmith automation rules; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New durable knowledge about LangSmith routing user-feedback runs to queues; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable knowledge about Braintrust Topics auto-classification and online scoring; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable knowledge about Datadog Patterns and Insights; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable knowledge about LangSmith Engine auto-diagnosis; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable knowledge about LangGraph dynamic/static interrupts; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable knowledge about LangGraph time travel; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable knowledge about LangSmith alert thresholds and routing; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable knowledge about LangSmith alert noise controls; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable knowledge about Langfuse monitor severity state machine; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New durable knowledge about Braintrust daily Topics digest; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable knowledge about Braintrust score visibility; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "New durable knowledge about OpenAI Agents SDK trace/volume reduction; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New durable knowledge about OpenAI Agents SDK session grouping; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "New durable knowledge about Langfuse session grouping; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "New durable knowledge about HumanLayer deprecation and pivot; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "New durable knowledge about absence of quantified noise-reduction data in vendor docs; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "New durable knowledge about Arize Phoenix limited surface reach; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "New durable knowledge about cross-vendor HITL review-queue standardization; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "New durable knowledge about pre-filtering attention routing into HITL queues; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "New durable knowledge about cross-vendor notification-noise reduction mechanisms; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "New durable knowledge about session-grouping surfaces for parallel agent supervision; no canonical fact covers this topic.",
+      "verdict": "promote"
+    }
+  ]
+}
