@@ -1,0 +1,167 @@
+{
+  "staged": "033.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable technical observation about agent framework persistence defaults and LangGraph's checkpoint/store split; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Factual claim about OpenAI Agents SDK's SQLiteSession purpose; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Microsoft Agent Framework in-memory default documented; new domain, no duplication or conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "LangGraph backend hierarchy (Memory→Sqlite→Postgres) and routing guidance; no canonical fact covers persistence backends.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "OpenAI Agents SDK multi-backend inventory with operational routing; new domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Microsoft durable agents external-storage architecture and scale-out rationale; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Checkpoint accumulation scaling cost documented; no canonical fact addresses this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "LangGraph DeltaChannel O(1) optimization documented; new domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "LangGraph custom-checkpointer indexing guidance; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "LangGraph durability modes and tradeoffs; new domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Claude Code filesystem-as-state limits (MEMORY.md lines/size, topic files, auto memory locality, CLAUDE.md line budget); new domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "MCP Knowledge Graph Memory Server JSONL persistence model; new domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "First-party observation of mini-agi's filesystem-as-state hazards with documented operational scars (git-restore journal corruption, grep -c chain break); canonical facts hold run scores but none record these specific file-model hazards.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "SQLite self-description as fopen() competitor; new domain, no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "SQLite concurrency model (unlimited readers, single writer); new domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific verifiable claim about SQLite's own documented warning on network filesystem locking bugs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Verifiable claim about SQLite's own documented guidance on when client/server RDBMS may work better.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Honest research finding documenting scaling-curve implications in vendor menus and absence of published benchmarks; properly caveated as ESTIMATE.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Specific verifiable technical details about LangGraph's long-term memory Store abstraction, backends, and schema.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Specific verifiable claim about Microsoft Agent Framework's feature areas.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Accurate general architectural claim about run state durability trade-offs applicable across frameworks.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Verifiable comparative claim about production durability routing across three major agent frameworks with specific backend names.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Verifiable characteristics of flat-file memory with specific product references (Claude Code, MCP memory server).",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Verifiable technical claims about file/SQLite concurrency bounds citing sqlite.org; aligns with candidate 0.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Properly caveated research-gap documentation: states what was not found and marks uncertainty honestly.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Documented observation about Claude Code and MCP memory server being single-machine/single-process; marked as Unverified honestly.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Primarily a hypothetical research design (what would be needed), not a durable truth; the core factual claim is a subset of candidate 9. Ephemeral/vague.",
+      "verdict": "reject"
+    }
+  ]
+}
