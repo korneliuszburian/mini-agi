@@ -53,6 +53,7 @@ if [ -n "$BIN" ]; then
     step "eval-gate"    "$BIN" eval gate || fail=1
     step "checkpoint"   "$BIN" checkpoint audit || fail=1
     step "provenance"   "$BIN" provenance || fail=1
+    step "mem-dedup"     "$BIN" mem verify || fail=1
     step "stats"        "$BIN" stats || fail=1
     step "budget"       "$BIN" budget || fail=1
     step "insights"     "$BIN" insights || fail=1

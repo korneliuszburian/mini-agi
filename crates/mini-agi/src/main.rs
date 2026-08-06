@@ -591,7 +591,38 @@ enum MemAction {
         /// Print raw (id, domain, body) triples instead of rendered lines.
         #[arg(long)]
         raw: bool,
+        /// Token-budgeted selective retrieval (D3): keep only the top
+        /// facts by enforced/link/recency score within this many chars.
+        #[arg(long)]
+        budget: Option<usize>,
     },
+    /// Supersede one or more canonical facts (D3): a NEW fact whose entry
+    /// records the soft-deleted lineage (`- supersedes: <id,...>`). The
+    /// superseded facts stay on disk; the derived views stop showing them.
+    Supersede {
+        /// Body of the superseding fact.
+        body: String,
+        /// 16-hex fact ids being superseded (repeatable).
+        #[arg(long = "supersedes", value_delimiter = ',')]
+        supersedes: Vec<String>,
+        /// Domain assigned to the new fact.
+        #[arg(long, default_value = "general")]
+        domain: String,
+        /// Provenance source string for the entry.
+        #[arg(long, default_value = "mem supersede")]
+        source: String,
+    },
+    /// Append fact ids to the preservation list
+    /// (`memory/canonical/preserved.md`) — load-bearing facts exempt
+    /// from merge/supersede (D3).
+    Preserve {
+        /// 16-hex fact ids to preserve (repeatable).
+        ids: Vec<String>,
+    },
+    /// Dedup + lineage integrity gate (D3): exact-duplicate bodies with
+    /// different ids, supersede refs to unknown ids, preserved ids that
+    /// do not exist. Exits non-zero on findings.
+    Verify,
 }
 
 #[derive(Args, Debug)]
@@ -632,7 +663,16 @@ fn main() -> ExitCode {
                 keyword,
                 domain,
                 raw,
-            } => cmd_mem_query(keyword.as_deref(), domain.as_deref(), raw),
+                budget,
+            } => cmd_mem_query(keyword.as_deref(), domain.as_deref(), raw, budget),
+            MemAction::Supersede {
+                body,
+                supersedes,
+                domain,
+                source,
+            } => cmd_mem_supersede(&body, &supersedes, &domain, &source),
+            MemAction::Preserve { ids } => cmd_mem_preserve(&ids),
+            MemAction::Verify => cmd_mem_verify(),
         },
         Command::Derive(DeriveArgs {
             brief_only,
@@ -2073,11 +2113,23 @@ fn cmd_signoff(queue: &Path, index: usize, domain: &str) -> ExitCode {
     }
 }
 
-fn cmd_mem_query(keyword: Option<&str>, domain: Option<&str>, raw: bool) -> ExitCode {
-    if keyword.is_none() && domain.is_none() {
+fn cmd_mem_query(
+    keyword: Option<&str>,
+    domain: Option<&str>,
+    raw: bool,
+    budget: Option<usize>,
+) -> ExitCode {
+    if keyword.is_none() && domain.is_none() && budget.is_none() {
         return fail("mem query: give a keyword and/or --domain to filter by");
     }
     let facts = memory::query_facts(&root(), domain, keyword);
+    let mut facts = budget.map_or(facts, |budget_chars| {
+        let all = memory::read_facts(&root());
+        let links = memory::fact_links(&all);
+        let enforced = memory::enforced_fact_ids(&root());
+        memory::select_budgeted(&all, &links, &enforced, budget_chars)
+    });
+    facts.sort_by(|a, b| a.0.cmp(&b.0));
     if facts.is_empty() {
         println!("no facts match (domain={domain:?}, keyword={keyword:?})");
         return ExitCode::from(1);
@@ -2093,6 +2145,95 @@ fn cmd_mem_query(keyword: Option<&str>, domain: Option<&str>, raw: bool) -> Exit
     }
     println!("{} fact(s) matched", facts.len());
     ExitCode::SUCCESS
+}
+
+fn cmd_mem_supersede(body: &str, supersedes: &[String], domain: &str, source: &str) -> ExitCode {
+    let root = root();
+    if supersedes.is_empty() {
+        return fail("mem supersede: give at least one --supersedes <16-hex id>");
+    }
+    let known = memory::existing_fact_ids(&root);
+    for id in supersedes {
+        if !known.contains(id) {
+            return fail(&format!(
+                "mem supersede: {id} is not a known canonical fact id"
+            ));
+        }
+    }
+    let h = mini_agi_core::hash::fact_id(body);
+    let entry = match memory::write_supersede_entry(
+        &root,
+        &[(body.to_string(), h.clone())],
+        source,
+        domain,
+        supersedes,
+    ) {
+        Ok(e) => e,
+        Err(MemoryError::Io(e)) => return fail(&format!("mem supersede: {e}")),
+        Err(_) => return fail("mem supersede: unexpected memory error"),
+    };
+    let rel = entry.path.strip_prefix(&root).unwrap_or(&entry.path);
+    println!(
+        "superseded {} fact(s) with `{h}` ({domain})\nentry: {}",
+        supersedes.len(),
+        rel.display()
+    );
+    ExitCode::SUCCESS
+}
+
+fn cmd_mem_preserve(ids: &[String]) -> ExitCode {
+    let root = root();
+    let known = memory::existing_fact_ids(&root);
+    for id in ids {
+        if !known.contains(id) {
+            return fail(&format!(
+                "mem preserve: {id} is not a known canonical fact id"
+            ));
+        }
+    }
+    match memory::preserve_ids(&root, ids) {
+        Ok(list) => {
+            println!("preserved {} fact(s): {}", ids.len(), list.display());
+            ExitCode::SUCCESS
+        }
+        Err(MemoryError::Io(e)) => fail(&format!("mem preserve: {e}")),
+        Err(_) => fail("mem preserve: unexpected memory error"),
+    }
+}
+
+fn cmd_mem_verify() -> ExitCode {
+    let root = root();
+    let mut findings: Vec<String> = Vec::new();
+    for (a, b) in memory::exact_duplicates(&root) {
+        findings.push(format!(
+            "exact duplicate bodies: {a} == {b} (supersede one)"
+        ));
+    }
+    let known = memory::existing_fact_ids(&root);
+    for (superseding, superseded) in memory::supersede_edges(&root) {
+        for id in superseded {
+            if !known.contains(&id) {
+                findings.push(format!(
+                    "supersede ref to unknown id {id} (from {superseding})"
+                ));
+            }
+        }
+    }
+    for id in memory::preserved_ids(&root) {
+        if !known.contains(&id) {
+            findings.push(format!("preserved id {id} does not exist in canonical"));
+        }
+    }
+    if findings.is_empty() {
+        println!("mem verify: OK — no duplicates, no broken lineage, preservation intact");
+        ExitCode::SUCCESS
+    } else {
+        for f in &findings {
+            println!("[finding] {f}");
+        }
+        println!("mem verify: {} finding(s)", findings.len());
+        ExitCode::from(1)
+    }
 }
 
 fn signoff_text(queue: &Path, index: usize, domain: &str, root: &Path) -> Result<String, String> {

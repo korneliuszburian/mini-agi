@@ -132,11 +132,224 @@ pub fn canonical_entries(root: &Path) -> Vec<PathBuf> {
     out
 }
 
+/// Parse `- supersedes: <id, ...>` lineage from a canonical entry's
+/// frontmatter (D3 soft-delete lineage: the superseded fact stays on
+/// disk, the entry records who replaced it).
+fn entry_supersedes(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let Some(rest) = line.strip_prefix("- supersedes:") else {
+            continue;
+        };
+        for id in rest.split(',') {
+            let id = id.trim();
+            if id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()) {
+                out.push(id.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// `(superseding_id, superseded_ids)` edges across all canonical entries.
+#[must_use]
+pub fn supersede_edges(root: &Path) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    for entry in canonical_entries(root) {
+        let Ok(text) = fs::read_to_string(&entry) else {
+            continue;
+        };
+        let superseded = entry_supersedes(&text);
+        if superseded.is_empty() {
+            continue;
+        }
+        let ids: Vec<String> = parse_canonical_facts(&text)
+            .into_iter()
+            .map(|(_, id)| id)
+            .collect();
+        for id in ids {
+            out.push((id, superseded.clone()));
+        }
+    }
+    out
+}
+
+/// All soft-deleted fact ids (superseded, per the lineage frontmatter).
+#[must_use]
+pub fn superseded_ids(root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    for (_, superseded) in supersede_edges(root) {
+        out.extend(superseded);
+    }
+    out
+}
+
+/// Exact-duplicate scan: identical flat fact bodies carrying DIFFERENT
+/// ids (the dedup gate's finding; the fix is a supersede, never an edit).
+#[must_use]
+pub fn exact_duplicates(root: &Path) -> Vec<(String, String)> {
+    let mut by_body: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for (id, _, flat) in read_all_facts(root) {
+        by_body.entry(flat).or_default().push(id);
+    }
+    let mut out = Vec::new();
+    for (_, ids) in by_body {
+        for pair in ids.windows(2) {
+            out.push((pair[0].clone(), pair[1].clone()));
+        }
+    }
+    out
+}
+
+/// Preserved fact ids from `memory/canonical/preserved.md`.
+///
+/// One 16-hex id per line, `#` comments. Load-bearing facts exempt from
+/// merge/supersede; a consolidation colliding with one routes to the
+/// human queue (directed consolidation, D3).
+#[must_use]
+pub fn preserved_ids(root: &Path) -> Vec<String> {
+    let Ok(text) = fs::read_to_string(root.join("memory/canonical/preserved.md")) else {
+        return Vec::new();
+    };
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter(|l| l.len() == 16 && l.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Append one or more fact ids to the preservation list.
+///
+/// # Errors
+///
+/// Returns [`MemoryError::Io`] when the list cannot be written.
+pub fn preserve_ids(root: &Path, ids: &[String]) -> Result<PathBuf, MemoryError> {
+    let list = root.join("memory/canonical/preserved.md");
+    if let Some(parent) = list.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&list)?;
+    for id in ids {
+        writeln!(f, "{id}")?;
+    }
+    Ok(list)
+}
+
+/// Write a superseding canonical entry (D3): a NEW fact whose frontmatter
+/// records the soft-deleted lineage — `- supersedes: <id, ...>`.
+///
+/// # Errors
+///
+/// Returns [`MemoryError::Io`] when the entry cannot be written.
+pub fn write_supersede_entry(
+    root: &Path,
+    facts: &[(String, String)],
+    source: &str,
+    domain: &str,
+    supersedes: &[String],
+) -> Result<EntryFile, MemoryError> {
+    let entry = crate::store::next_entry(root, &utc_now_date());
+    if let Some(parent) = entry.path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let stamp = utc_now_stamp();
+    let stem = entry
+        .path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("entry");
+    let mut content = format!("# Canonical entry {stem} (supersedes from {source})\n\n");
+    let _ = writeln!(
+        content,
+        "- date: {stamp}\n- source: {source}\n- domain: {domain}\n- kind: supersede"
+    );
+    let _ = writeln!(content, "- supersedes: {}", supersedes.join(", "));
+    for (i, (fact, digest)) in facts.iter().enumerate() {
+        let _ = writeln!(content, "\n## F-{i:03} `{digest}`\n\n{fact}");
+    }
+    fs::write(&entry.path, content)?;
+    Ok(entry)
+}
+
+/// Fact ids of enforcement-bound facts (ADR-0010): bodies carrying an
+/// `enforced_by:` check. The budgeted selector always ranks them first.
+#[must_use]
+pub fn enforced_fact_ids(root: &Path) -> Vec<String> {
+    read_all_facts(root)
+        .into_iter()
+        .filter(|(_, _, body)| body.contains("enforced_by"))
+        .map(|(id, _, _)| id)
+        .collect()
+}
+
+/// Budgeted selective retrieval (D3): rank facts by
+/// enforced(3) + link-degree(2) + recency, then fill until the char
+/// budget. Enforced facts (ADR-0010) always survive when they fit.
+#[must_use]
+pub fn select_budgeted(
+    facts: &[(String, String, String)],
+    links: &std::collections::BTreeMap<String, Vec<String>>,
+    enforced: &[String],
+    budget_chars: usize,
+) -> Vec<(String, String, String)> {
+    if budget_chars == 0 {
+        return Vec::new();
+    }
+    let mut scored: Vec<(i64, usize, &(String, String, String))> = facts
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let mut score = 0i64;
+            if enforced.iter().any(|e| e == &f.0) {
+                score += 3;
+            }
+            let degree = i64::try_from(links.get(&f.0).map_or(0, |v| v.len().min(2))).unwrap_or(0);
+            score += degree;
+            let recency = i64::try_from(facts.len().saturating_sub(i)).unwrap_or(0);
+            (score * 100_000 + recency, i, f)
+        })
+        .collect();
+    scored.sort_by_key(|s| std::cmp::Reverse(s.0));
+    let mut out = Vec::new();
+    let mut used = 0usize;
+    for (_, _, fact) in scored {
+        let cost = fact.2.len() + 1;
+        if used + cost > budget_chars && !out.is_empty() {
+            break;
+        }
+        used += cost;
+        out.push((fact.0.clone(), fact.1.clone(), fact.2.clone()));
+    }
+    out
+}
+
+/// All facts INCLUDING superseded (lineage reads; the derived views use
+/// [`read_facts`], which soft-excludes them).
+#[must_use]
+pub fn read_all_facts(root: &Path) -> Vec<(String, String, String)> {
+    read_facts_impl(root, false)
+}
+
 /// `(fact_id, domain, body)` triples from canonical entries (`PoC` `read_facts`).
 ///
 /// Body is whitespace-flattened exactly like `" ".join(m.group(2).split())`.
+/// Soft-deleted facts (superseded, D3) are excluded from the VIEW.
 #[must_use]
 pub fn read_facts(root: &Path) -> Vec<(String, String, String)> {
+    read_facts_impl(root, true)
+}
+
+fn read_facts_impl(root: &Path, exclude_superseded: bool) -> Vec<(String, String, String)> {
+    let excluded: Vec<String> = if exclude_superseded {
+        superseded_ids(root)
+    } else {
+        Vec::new()
+    };
     let mut facts = Vec::new();
     for entry in canonical_entries(root) {
         let Ok(text) = fs::read_to_string(&entry) else {
@@ -150,6 +363,9 @@ pub fn read_facts(root: &Path) -> Vec<(String, String, String)> {
             }
         }
         for (body, id) in parse_canonical_facts(&text) {
+            if exclude_superseded && excluded.contains(&id) {
+                continue;
+            }
             let flat = body.split_whitespace().collect::<Vec<_>>().join(" ");
             facts.push((id, domain.clone(), flat));
         }
@@ -387,6 +603,39 @@ pub fn consolidate(
                 old_fact.starts_with(&fact[..take]) && *old_fact != fact
             })
             .map(|(_, old_hash)| old_hash.clone());
+        // Directed consolidation (D3): a candidate colliding with a
+        // PRESERVED fact is never silently merged or superseded — it
+        // routes to the human queue unconditionally (preservation is a
+        // stronger contract than the general contested path). The
+        // preserved ids resolve to their canonical BODIES; the candidate
+        // prefix is matched against them (same char-boundary-safe
+        // prefix rule as the contested check).
+        let preserved_bodies: Vec<&str> = canonical
+            .iter()
+            .filter(|(_, id)| preserved_ids(root).contains(id))
+            .map(|(body, _)| body.as_str())
+            .collect();
+        let preserved_collision = (!preserved_bodies.is_empty())
+            .then(|| {
+                let take = fact
+                    .char_indices()
+                    .nth(fact.chars().count().min(40))
+                    .map_or(fact.len(), |(i, _)| i);
+                preserved_bodies
+                    .iter()
+                    .find(|old_fact| {
+                        old_fact.starts_with(&fact[..take]) || fact[..take].starts_with(**old_fact)
+                    })
+                    .map(|_| preserved_bodies[0].to_string())
+            })
+            .flatten();
+        if let Some(preserved) = preserved_collision {
+            if !opts.dry_run {
+                append_contested(root, &fact, &h, source, &preserved)?;
+            }
+            skipped += 1;
+            continue;
+        }
         if opts.require_signoff
             && let Some(old_hash) = contested
         {
@@ -695,6 +944,183 @@ pub fn canonical_fingerprint(root: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-mem3-{}-{}", tag, std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn supersede_writes_lineage_and_soft_deletes_from_views() {
+        let root = tmp_root("supersede");
+        let e1 = write_canonical_entry(
+            &root,
+            &[(
+                "old fact about the widget".to_string(),
+                fact_id("old fact about the widget"),
+            )],
+            "t1",
+            "general",
+            "consolidation",
+        )
+        .unwrap();
+        let old_id = parse_canonical_facts(&fs::read_to_string(&e1.path).unwrap())
+            .into_iter()
+            .map(|(_, id)| id)
+            .next()
+            .unwrap();
+        // Supersede it with a NEW fact.
+        let new_body = "the widget is now spelled widget-2 in the docs";
+        let e2 = write_supersede_entry(
+            &root,
+            &[(new_body.to_string(), fact_id(new_body))],
+            "mem supersede",
+            "general",
+            std::slice::from_ref(&old_id),
+        )
+        .unwrap();
+        // Lineage recorded.
+        let text = fs::read_to_string(&e2.path).unwrap();
+        assert!(text.contains(&format!("- supersedes: {old_id}")));
+        // The view excludes the superseded fact, the lineage keeps it.
+        let view_contains_old = read_facts(&root).into_iter().any(|(id, _, _)| id == old_id);
+        assert!(!view_contains_old, "superseded fact must leave the view");
+        let edges = supersede_edges(&root);
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].1, vec![old_id.clone()]);
+        // read_all_facts still sees it (lineage reads).
+        assert!(
+            read_all_facts(&root)
+                .into_iter()
+                .any(|(id, _, _)| id == old_id)
+        );
+    }
+
+    #[test]
+    fn exact_duplicates_scan_finds_identical_bodies() {
+        let root = tmp_root("dups");
+        let body = "identical fact body";
+        write_canonical_entry(
+            &root,
+            &[(body.to_string(), fact_id(body))],
+            "t1",
+            "general",
+            "consolidation",
+        )
+        .unwrap();
+        write_canonical_entry(
+            &root,
+            &[(body.to_string(), fact_id(body))],
+            "t2",
+            "general",
+            "consolidation",
+        )
+        .unwrap();
+        let dups = exact_duplicates(&root);
+        assert_eq!(dups.len(), 1, "{dups:?}");
+        assert_eq!(
+            dups[0].0, dups[0].1,
+            "same body -> same id (content-addressed)"
+        );
+    }
+
+    #[test]
+    fn preserve_list_routes_collisions_to_the_queue() {
+        let root = tmp_root("preserve");
+        let body = "load-bearing fact about pricing";
+        let id = fact_id(body);
+        write_canonical_entry(
+            &root,
+            &[(body.to_string(), id.clone())],
+            "t1",
+            "general",
+            "consolidation",
+        )
+        .unwrap();
+        preserve_ids(&root, std::slice::from_ref(&id)).unwrap();
+        assert_eq!(preserved_ids(&root), vec![id]);
+        // A candidate sharing the prefix routes to the queue even without
+        // require_signoff (preservation is unconditional).
+        let candidate = "load-bearing fact about pricing in USD";
+        let outcome = consolidate(
+            &root,
+            &format!("FACT: {candidate}"),
+            "buffer",
+            &ConsolidateOptions {
+                domain: "general".to_string(),
+                require_signoff: false,
+                dry_run: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(outcome.new_facts, 0);
+        assert_eq!(outcome.skipped, 1);
+        let queue = root.join(REVIEW_REL);
+        let queued: Vec<_> = fs::read_dir(&queue)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
+            .collect();
+        assert_eq!(
+            queued.len(),
+            1,
+            "preserved collision must land in the queue"
+        );
+    }
+
+    #[test]
+    fn budgeted_selection_ranks_enforced_and_links_first() {
+        let a = (
+            "aaa".to_string(),
+            "g".to_string(),
+            "alpha fact with widget".to_string(),
+        );
+        let b = (
+            "bbb".to_string(),
+            "g".to_string(),
+            "beta fact with widget".to_string(),
+        );
+        let c = (
+            "ccc".to_string(),
+            "g".to_string(),
+            "gamma enforced_by review rubric".to_string(),
+        );
+        let facts = vec![a, b, c];
+        let mut links = std::collections::BTreeMap::new();
+        links.insert(
+            "aaa".to_string(),
+            vec!["bbb".to_string(), "ccc".to_string(), "ddd".to_string()],
+        );
+        let enforced = vec!["ccc".to_string()];
+        // Budget fits only one fact: the enforced one wins.
+        let picked = select_budgeted(&facts, &links, &enforced, 30);
+        assert_eq!(picked.len(), 1);
+        assert_eq!(picked[0].0, "ccc");
+        // Zero budget = nothing.
+        assert!(select_budgeted(&facts, &links, &enforced, 0).is_empty());
+    }
+
+    #[test]
+    fn supersede_ref_to_unknown_id_is_detected_by_the_gate() {
+        let root = tmp_root("gate");
+        write_supersede_entry(
+            &root,
+            &[("new fact".to_string(), fact_id("new fact"))],
+            "mem supersede",
+            "general",
+            &["0000000000000000".to_string()],
+        )
+        .unwrap();
+        let known = existing_fact_ids(&root);
+        for (_, superseded) in supersede_edges(&root) {
+            for id in superseded {
+                assert!(!known.contains(&id), "unknown ref fixture");
+            }
+        }
+        assert!(!superseded_ids(&root).is_empty());
+    }
 
     #[test]
     fn utc_stamp_matches_poc_format() {
