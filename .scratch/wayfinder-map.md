@@ -31,7 +31,7 @@ parallel dispatch) + opencode (deepseek v4 flash = cheap worker).
 
 | # | Decision | Status | Effort | Feeds |
 |---|---|---|---|---|
-| D1 | Worker economics: opencode+v4-flash swap vs hybrid vs status quo | OPEN (recommend hybrid) | S | everything (24/7 affordance) |
+| D1 | Worker economics: LAYERED — codex executes, opencode/flash plans+reviews (role model: user 2026-08-06) | OPEN (recommend layered; batch/subscription lever for execution) | S | everything (24/7 affordance) |
 | D2 | Dream-loop cadence + model assignment | OPEN (recommend event-triggered + gated promotion) | M | brain layer |
 | D3 | Memory quality: merge/supersede + retrieval budget + directed consolidation | OPEN (F-012 decided; design+build pending) | M-L | brain layer |
 | D4 | Supervision surface: read mirror + worker status | OPEN (user builds UI; kernel exposes status JSON) | S (kernel side) | surface |
@@ -41,9 +41,10 @@ parallel dispatch) + opencode (deepseek v4 flash = cheap worker).
 
 ## Roadmap (ordering by dependency + economics)
 
-Phase 0 — UNLOCK (D1, D6): worker adapter on opencode+v4-flash (worker.rs
-seam), cost/run telemetry, respawn-on-crash + rebuildable run-state index.
-Makes the 24/7 brain affordable and crash-safe. No UI, no memory changes.
+Phase 0 — UNLOCK (D1, D6): layered worker adapter — codex keeps executing,
+opencode/flash runs the planner/reviewer/distiller stages (worker.rs seam),
+cost/run telemetry, respawn-on-crash + rebuildable run-state index. Makes
+the 24/7 brain affordable and crash-safe. No UI, no memory changes.
 
 Phase 1 — BRAIN (D2, D3): dream-loop (cheap distiller event-triggered,
 strong auditor + human signoff on enforced facts per ADR-0010, nightly full
@@ -56,8 +57,9 @@ decision-docs unless evidence changes.
 
 ## First build
 
-D1 — opencode worker swap (highest value per track-3 §7: it is the economic
-unlock; smallest build; measurable cost/run within a session).
+D1 — layered worker adapter (highest value per track-3 §7: it is the
+economic unlock; smallest build; measurable cost/run within a session).
+Executor stays codex; flash enters via the reviewer/planner/distiller seam.
 
 ## Gate discipline while mapping
 

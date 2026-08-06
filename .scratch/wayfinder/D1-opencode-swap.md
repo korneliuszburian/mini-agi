@@ -1,43 +1,52 @@
-# D1 — Worker economics: opencode + deepseek-v4-flash swap
+# D1 — Worker economics: executor/reviewer layering
 
-Status: OPEN (recommend: HYBRID — flash for loop work, strong model for judgment)
-Date: 2026-08-06. Source: track-3.md §1, §7; observed runs in canonical memory.
+Status: OPEN (recommend: LAYERED — codex executes, opencode/flash plans+reviews)
+Date: 2026-08-06 (amended: role model corrected by user). Source: track-3.md
+§1, §7; observed runs in canonical memory.
+
+## Role model (user, 2026-08-06, authoritative)
+
+CODEX = main executor (owns ~/.codex/skills + krn-codex-skills catalog +
+mini-agi MCP). OPENCODE (deepseek v4 flash) = REVIEWER/PLANNER — the
+bounded read-only advisory role (opencode-second-opinion skill) plus the
+cheap stages of the brain layer. NOT a swap: the executor stays codex.
 
 ## Context
-Workers today = codex (gpt-5.6-terra). Verified rate cards (Aug 2026): terra
-$2/$12 per M (miss/cached), v4-flash $0.14/$0.28, flash cached $0.0028.
-Observed own runs: codex fresh $0.27-1.31/run, resumed $0.04-0.09/run.
-Per-1,000-runs: codex ≈ $600, flash ≈ $25, hybrid ≈ $40. 24/7 at 24 runs/day:
-$430/mo vs $18/mo vs $30/mo. The kernel already resolves worker_name + model
-per call (worker.rs) — the swap is a config + adapter, not new machinery.
-opencode ships the daemon pattern at worker level (serve + run --attach +
---format json), so the kernel needs a thin adapter, not a new runner.
+Verified rate cards (Aug 2026): terra $2/$12 per M (miss/cached),
+v4-flash $0.14/$0.28, flash cached $0.0028. Observed own codex runs:
+fresh $0.27-1.31/run, resumed $0.04-0.09/run. Per-1,000-runs: codex
+≈ $600, flash ≈ $25. 24/7 at 24 runs/day: codex ≈ $430/mo, flash
+≈ $18/mo. The kernel resolves worker_name + model per call (worker.rs);
+opencode ships serve + run --attach + --format json (thin adapter at
+worker.rs seam, per track-3 §7). The distiller/planner/reviewer stages
+(D2 dream-loop) run on flash; execution stays codex.
 
 ## Options
-- (a) Full swap: every run on flash. Cheapest; judgment quality ceiling.
-- (b) HYBRID (recommended): flash for implement/verify/distill/link/
-  summarize; strong model (terra or sonnet 5) for ~10% of runs — auditor,
-  conflict resolution, promotions (ADR-0010 trust root), planner pass.
-  ≈ $1/day at 24 runs/day.
-- (c) Status quo: all-strong; $400+/mo, or subscription ($20-100/mo) with
-  lost per-run cost telemetry.
+- (a) LAYERED (recommended, corrected): codex executes (implement/verify/
+  promotion), opencode/flash runs planner passes, second opinions,
+  distiller/linker/summarizer, review drafts. Cost: codex $430/mo at
+  24 runs/day is the real envelope — lever = batch API (halves terra to
+  $1/$6) or $20-100/mo subscription for execution, flash advisory ~$5/mo.
+- (b) Full swap executor → flash: rejected by the role model (codex owns
+  execution + its skill surface).
+- (c) Status quo single-tier: no cheap layer at all; the brain layer's
+  stages burn terra tokens.
 
 ## Evidence
-- Rate-card arithmetic (track-3.md): 20-30x gap is arithmetic, not estimate.
-- Our observed cache-first codex runs (T007: 1.7M/1.8M cached) prove the
-  cache lever; flash's 1h cache TTL (Mastra activateAfterIdle mapping) makes
-  it moot at idle-triggered cadence.
+- Rate-card arithmetic (track-3.md): 20-30x gap; flash 1h cache TTL.
+- opencode-second-opinion skill (exists in BOTH ~/.agents/skills and
+  ~/.codex/skills): the reviewer/planner role is already a designed seam.
 - prime-agent RLM: cheap model + context-as-variable survives compaction —
-  validates a cheap default worker for long-horizon loops.
-- RISK: DeepSeek officially announced "significant price increase expected" —
-  re-check the rate card at build time; selection is already config.
+  validates flash for the long-horizon cheap stages (distill/link).
+- RISK: DeepSeek price increase announced — re-check at build time.
 
 ## Decision
-OPEN. Recommended: (b) hybrid — flash default worker via opencode adapter,
-strong-model tier configurable per stage (auditor/conflict/promotion/planner).
+OPEN. Recommended: (a) — codex executor with batch/subscription lever,
+flash for planner/reviewer/distiller stages; adapter + cost/run telemetry
+in run.json.
 
 ## Effort
-S. Adapter at the worker seam (worker.rs:900), cost/run telemetry into run.json.
+S (adapter + telemetry). D2's cheap stages consume this.
 
 ## Dependencies
-None. Blocks: everything 24/7 (the whole AGI affordance).
+None. Feeds: everything 24/7 (the AGI affordance).
