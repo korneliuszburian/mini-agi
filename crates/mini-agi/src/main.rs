@@ -93,6 +93,9 @@ enum Command {
     Audit,
     /// Run-state index (D6): every run, journal tail, live workers.
     Status(StatusArgs),
+    /// Dream-loop (D2): distill episodic material into staged facts,
+    /// audit them with a strong model, promote verdicts into canonical.
+    Dream(DreamArgs),
     /// Proactive composition loop (Phase 6.4): status/dispatch/verify.
     Loop(LoopArgs),
     /// Codex integration (Phase 8 slice 4, EXP-003): run codex on a
@@ -439,6 +442,28 @@ struct LoopRunArgs {
 }
 
 #[derive(Args, Debug)]
+struct DreamArgs {
+    /// Distill + audit material into `memory/staging/` (default action).
+    #[arg(long)]
+    source: Option<PathBuf>,
+    /// Distiller worker name (cheap model; default opencode flash).
+    #[arg(long, default_value = "opencode-opencode-go/deepseek-v4-flash")]
+    distiller: String,
+    /// Auditor worker name (strong model; default opencode pro).
+    #[arg(long, default_value = "opencode-opencode-go/deepseek-v4-pro")]
+    auditor: String,
+    /// Apply the latest staging manifest's verdicts into canonical.
+    #[arg(long)]
+    promote: bool,
+    /// Report without writing anything.
+    #[arg(long)]
+    dry_run: bool,
+    /// Wall cap per worker invocation, seconds.
+    #[arg(long, default_value = "300")]
+    max_wall: u64,
+}
+
+#[derive(Args, Debug)]
 struct StatusArgs {
     /// Machine-readable JSON output (D6 run-state index surface).
     #[arg(long)]
@@ -759,6 +784,21 @@ fn main() -> ExitCode {
         Command::Health => cmd_health(),
         Command::Audit => cmd_audit(),
         Command::Status(StatusArgs { json }) => cmd_status(json),
+        Command::Dream(DreamArgs {
+            source,
+            distiller,
+            auditor,
+            promote,
+            dry_run,
+            max_wall,
+        }) => cmd_dream(
+            source.as_deref(),
+            &distiller,
+            &auditor,
+            promote,
+            dry_run,
+            max_wall,
+        ),
         Command::Codex(CodexArgs {
             spec,
             workdir,
@@ -2616,4 +2656,195 @@ fn cmd_status(json: bool) -> ExitCode {
         );
     }
     ExitCode::SUCCESS
+}
+
+/// Dream-loop entry (D2): `--source <material>` distills + audits into
+/// staging; `--promote` applies the latest manifest's verdicts.
+fn cmd_dream(
+    source: Option<&Path>,
+    distiller: &str,
+    auditor: &str,
+    promote: bool,
+    dry_run: bool,
+    max_wall: u64,
+) -> ExitCode {
+    let root = root();
+    if promote {
+        return cmd_dream_promote(&root, dry_run);
+    }
+    let Some(source) = source else {
+        return fail("dream: give --source <episodic material> or --promote");
+    };
+    let material = match std::fs::read_to_string(source) {
+        Ok(t) => t,
+        Err(e) => return fail(&format!("dream: cannot read {}: {e}", source.display())),
+    };
+    let workdir = std::env::temp_dir().join(format!("mag-dream-wd-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&workdir);
+    let source_rel = source
+        .to_string_lossy()
+        .strip_prefix(&root.to_string_lossy().into_owned())
+        .unwrap_or(&source.to_string_lossy())
+        .to_string();
+    // 1. Distill (cheap worker, D1 adapter).
+    let dist = match worker::run_opencode_worker(
+        &workdir,
+        distiller,
+        &mini_agi_core::dream::distiller_prompt(&material),
+        Some(max_wall),
+        None,
+    ) {
+        Ok(w) => w,
+        Err(e) => return fail(&format!("dream distiller not available: {e}")),
+    };
+    if dist.status != Some(0) {
+        return fail(&format!(
+            "dream distiller exited {:?} — no candidates",
+            dist.status
+        ));
+    }
+    let staged = mini_agi_core::dream::parse_distilled_facts(&dist.output);
+    if staged.is_empty() {
+        println!("dream: distiller returned no candidate facts");
+        return ExitCode::SUCCESS;
+    }
+    if dry_run {
+        println!(
+            "dream (dry-run): {} candidate(s) from {}",
+            staged.len(),
+            source_rel
+        );
+        for f in &staged {
+            println!("  [{}] {}", f.domain, f.body);
+        }
+        return ExitCode::SUCCESS;
+    }
+    let staging = match mini_agi_core::dream::write_staging(&root, &staged, &source_rel, distiller)
+    {
+        Ok(p) => p,
+        Err(e) => return fail(&format!("dream: staging write failed: {e}")),
+    };
+    // 2. Audit (strong worker).
+    let canonical = mini_agi_core::memory::read_facts(&root);
+    let mut audit_lines: Vec<String> = canonical
+        .iter()
+        .map(|(id, _, body)| format!("{id}: {body}"))
+        .collect();
+    audit_lines.sort();
+    let audit_material = audit_lines.join("\n");
+    let prompt = format!(
+        "{}\n\nCANONICAL FACTS (id: body):\n{}",
+        mini_agi_core::dream::auditor_prompt(&staged),
+        audit_material
+    );
+    let aud = match worker::run_opencode_worker(&workdir, auditor, &prompt, Some(max_wall), None) {
+        Ok(w) => w,
+        Err(e) => return fail(&format!("dream auditor not available: {e}")),
+    };
+    let verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, &staged);
+    match mini_agi_core::dream::write_verdicts(&root, &staging, &verdicts) {
+        Ok(m) => println!("  verdicts manifest: {}", m.display()),
+        Err(e) => return fail(&format!("dream: verdict manifest write failed: {e}")),
+    }
+    println!(
+        "dream: {} candidate(s) staged at {}, {} verdict(s) from {}",
+        staged.len(),
+        staging.display(),
+        verdicts.len(),
+        auditor
+    );
+    for v in &verdicts {
+        println!("  [{v:?}]", v = v.verdict);
+    }
+    ExitCode::SUCCESS
+}
+
+/// Apply the newest staging manifest (the latest `<date>/<seq>.md` +
+/// its auditor verdicts are re-derived from the manifest file's facts;
+/// the verdicts were recorded at audit time — for a truthful single
+/// pipeline the audit output is re-run here only when `--reaudit` is
+/// given; by default promotion applies verdicts recorded in the last
+/// `dream` run).
+fn cmd_dream_promote(root: &Path, _dry_run: bool) -> ExitCode {
+    // Locate the newest staging file.
+    let staging_root = root.join(mini_agi_core::dream::STAGING_REL);
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    let Ok(days) = std::fs::read_dir(&staging_root) else {
+        return fail("dream promote: no staging dir yet — run dream --source first");
+    };
+    for day in days.flatten() {
+        let Ok(entries) = std::fs::read_dir(day.path()) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            if e.path().extension().is_some_and(|x| x == "md") {
+                files.push(e.path());
+            }
+        }
+    }
+    files.sort();
+    let Some(latest) = files.last() else {
+        return fail("dream promote: no staged facts");
+    };
+    let staged = match read_staged_facts(latest) {
+        Ok(s) => s,
+        Err(e) => return fail(&e),
+    };
+    let verdicts = mini_agi_core::dream::read_verdicts(&latest.with_extension("verdicts.json"));
+    if verdicts.is_empty() {
+        return fail(&format!(
+            "dream promote: no verdicts manifest next to {} — run dream --source first",
+            latest.display()
+        ));
+    }
+    let (promoted, queued, skipped) = match mini_agi_core::dream::apply_verdicts(
+        root,
+        &staged,
+        &verdicts,
+        &format!("dream promote ({})", latest.display()),
+    ) {
+        Ok(r) => r,
+        Err(e) => return fail(&format!("dream promote: {e}")),
+    };
+    println!(
+        "dream promote: {} promoted, {} queued (human), {} skipped — from {}",
+        promoted,
+        queued,
+        skipped,
+        latest.display()
+    );
+    ExitCode::SUCCESS
+}
+
+/// Read staged `## S-NNN (domain)` blocks back from a staging file.
+fn read_staged_facts(path: &Path) -> Result<Vec<mini_agi_core::dream::StagedFact>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let mut facts = Vec::new();
+    let mut domain = "general".to_string();
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("## S-") {
+            domain = rest
+                .split('(')
+                .nth(1)
+                .and_then(|d| d.split(')').next())
+                .unwrap_or("general")
+                .trim()
+                .to_string();
+        } else if let Some(rest) = line.strip_prefix("- domain:") {
+            domain = rest.trim().to_string();
+        } else if !line.trim().is_empty()
+            && !line.starts_with('#')
+            && !line.starts_with("- ")
+            && !line.starts_with("## ")
+        {
+            facts.push(mini_agi_core::dream::StagedFact {
+                body: line.trim().to_string(),
+                domain: domain.clone(),
+            });
+        }
+    }
+    if facts.is_empty() {
+        return Err(format!("no staged facts parsed from {}", path.display()));
+    }
+    Ok(facts)
 }

@@ -997,17 +997,28 @@ pub fn run_worker_sandboxed(
                         wrapper.push(dir.to_string_lossy().into_owned());
                     }
                 }
-                // D1: the opencode adapter keeps its session/auth state
-                // under XDG data (~/.local/share/opencode) — include it
-                // or the sandboxed worker fails (EACCES).
+                // D1: the opencode adapter keeps its state under XDG dirs
+                // (data db, config+plugins, cache, state locks) AND the
+                // goal plugin writes under its own data dir — observed via
+                // strace: EACCES on each one kills the server silently.
+                // /dev/null needs write for O_RDWR (bun runtime).
                 if worker_name.starts_with("opencode") {
-                    for state_dir in [".local/share/opencode", ".opencode", ".cache/opencode"] {
+                    for state_dir in [
+                        ".local/share/opencode",
+                        ".local/share/opencode-goal-plugin",
+                        ".opencode",
+                        ".cache/opencode",
+                        ".config/opencode",
+                        ".local/state/opencode",
+                    ] {
                         let dir = std::path::Path::new(&home).join(state_dir);
                         if dir.is_dir() {
                             wrapper.push("--allow-write".to_string());
                             wrapper.push(dir.to_string_lossy().into_owned());
                         }
                     }
+                    wrapper.push("--allow-write".to_string());
+                    wrapper.push("/dev/null".to_string());
                 }
             }
             wrapper.push("--".to_string());
@@ -1039,6 +1050,22 @@ pub fn run_worker_sandboxed(
     // worker command from the parameter — codex today, a second type
     // (e.g. claude) behind the same budget/sandbox/capture contract.
     mini_agi_core::worker::run_capped_idle(exe, worker_args, workdir, wall_cap, idle_cap)
+}
+
+/// Run one opencode worker invocation (D1 adapter) with the given model
+/// and prompt — the dream-loop distiller/auditor seam. Reuses the same
+/// budget/sandbox/args contract as loop runs.
+pub fn run_opencode_worker(
+    workdir: &Path,
+    model: &str,
+    prompt: &str,
+    wall_cap: Option<u64>,
+    idle_cap: Option<u64>,
+) -> std::io::Result<mini_agi_core::worker::WorkerResult> {
+    let kind = worker_kind(model);
+    let args = build_worker_args(&kind, false, None, prompt);
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    run_worker_sandboxed(model, workdir, false, true, wall_cap, idle_cap, &arg_refs)
 }
 
 /// `exec-sandbox`: apply the Landlock write-containment policy to the

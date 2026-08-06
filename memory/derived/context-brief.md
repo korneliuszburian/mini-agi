@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: af328d79acb5454b
-# canonical_entries: 40
+# canonical_sha256: 860a108580715b6d
+# canonical_entries: 41
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -65,7 +65,7 @@ Read this before starting any session. Canonical wins over this file.
 - `962e3f48ab9060db` [eval] run afk-max-idle scored composite 0.8409 on 0 tokens (0.0001 USD) with 0 scope violations and 0 tool mismatches.
   links: 0d15dc7a5f566730, 24ca89466bb01359, 717835cda5492d7d, 9cb30db774cf56e1, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, a2c96954211dbbd4
 - `a453f44f99dfa422` [eval] gap verify-gate-full-output closed by rerun verify-gate-full-output (composite 0.6076, verifier verified) — failure reflection: none recorded — success evidence: deterministic gate passed
-  links: a588d4401a139d71, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 5304dccffe981053, 963cdf65fd1ed26b, 8e2215c3473b8233, 3fd394b3848b62d7, 3067516995d804e2, bb358b05b518130e, 975b7e752a008dbe, 1f344eb53f325890, d1107c68ec9f67b3, 9504f9d0aef69f13, 719500aa05265c9b, 9efde2468af7763e, a2c96954211dbbd4
+  links: a588d4401a139d71, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 5304dccffe981053, 963cdf65fd1ed26b, 8e2215c3473b8233, 3fd394b3848b62d7, 3067516995d804e2, bb358b05b518130e, 975b7e752a008dbe, 1f344eb53f325890, d1107c68ec9f67b3, 9504f9d0aef69f13, 719500aa05265c9b, 9efde2468af7763e, a2c96954211dbbd4, 282a35001a555f06
 - `3fd394b3848b62d7` [eval] gap codex-exp-002 closed by rerun codex-exp-002-rerun (composite 1.0000, verifier verified) — failure reflection: none recorded — success evidence: deterministic gate passed
   links: a588d4401a139d71, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 5304dccffe981053, 963cdf65fd1ed26b, 8e2215c3473b8233, 3067516995d804e2, bb358b05b518130e, 975b7e752a008dbe, 1f344eb53f325890, d1107c68ec9f67b3, 9504f9d0aef69f13, 719500aa05265c9b, 9efde2468af7763e, a453f44f99dfa422
 - `719500aa05265c9b` [eval] gap codex-exp-003 closed by rerun codex-exp-003-rerun (composite 0.8989, verifier verified) — failure reflection: none recorded — success evidence: deterministic gate passed
@@ -84,44 +84,82 @@ Read this before starting any session. Canonical wins over this file.
   links: 0d15dc7a5f566730, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, b4276acdfd6cc4e8, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 5304dccffe981053, 8e2215c3473b8233, bb358b05b518130e
 - `a588d4401a139d71` [agent-behavior] Behavioral guideline (Karpathy): goal-driven execution — transform tasks into verifiable goals (validation -> tests first), state a brief per-step plan with a verify check per step, and loop only until verified. enforced_by: review rubric (claiming without evidence = REWORK)
   links: a49b169111deb842, 4992782a5790d742, fa58509d3523cc84, 3fd394b3848b62d7, 975b7e752a008dbe, d1107c68ec9f67b3, 719500aa05265c9b, 9efde2468af7763e, a453f44f99dfa422, 11e6d3fb133e330e
+- `da7d898b4b623136` [general] ADOPTED: to-questionnaire — new repo-local, hook-bound skill for decisions a THIRD PARTY holds: decision the user can't answer becomes a questionnaire DOC (async), grill only the SEND (who + what you need back), most-important-first, one idea per question, disable-model-invocation. Composes with domain-modeling.
+  links: 649dd34541d01977, e6cc4c7458a487cd, dace75359570fa28, 786416899b0bd2c2, 98478c8b1daccdeb, 3cb84b83835fb03b, 3358e0f2e6ca0096, ccc01d856b49501a
+- `8ffcf6eceee36cf2` [general] ADOPTED: writing-great-skills renamed to writing-for-agents, scope widened to anything agents read (skills, AGENTS.md, CLAUDE.md, docs); ported doc-writing machinery (context pointers, two loads context/cognitive, information hierarchy, leading words, negation, no-ops test) as reference while KEEPING our kernel-seam machinery (contract, one-owner, hooks, versioning — which Matt lacks).
+  links: 4a5f57ac7c60c061, 38e05948dad83b29, e40bb0673ce72f70, 98478c8b1daccdeb, 3cb84b83835fb03b, 3358e0f2e6ca0096
+- `3358e0f2e6ca0096` [general] REJECTED: grilling rounds (our domain-modeling is already a superset, only missing non-blocking fact dispatch), and catalog/marketplace/distribution (popularity is not a mechanism; our enforced kernel registry with hooks/one-owner/versioning is deliberately stronger).
+  links: a49b169111deb842, 0fc5cf16dc6d0efd, 8ffcf6eceee36cf2, da7d898b4b623136, e38ecd5bb62762ce
+- `4d375d777705576e` [general] DEFERRED: research skill — trigger is an auto-researcher worker (AGI Phase 2); wayfinder track pattern covers research ad-hoc today.
+  links: 3c5086bb32d081fb, 7cd074b862efb583, 786416899b0bd2c2, eb88bee62f23ab41, e38ecd5bb62762ce
+- `98478c8b1daccdeb` [general] ADOPTED: prototype rule 6 — capture prototype as primary source on a THROWAWAY BRANCH with a context pointer on the implementation issue; main keeps only the validated decision. Adds provenance.
+  links: f1325a163dbe8dbb, 8ffcf6eceee36cf2, da7d898b4b623136, 3cb84b83835fb03b, 1177064e1ab14cee
+- `d19c336052dadbb8` [strategy] Wish Factory (Guy Podjarny/Tessl): an agent accepts only issues, never PRs, and implements them; Yegge's Sage/Herald auto-grant player "wishes" with guardrails and triage — the failure signal and user wishes ARE the roadmap, work lands without the human in the loop.
+  links: d7db7ff6b44040c9, 6f4c17d5b59854e0, 592b9e5b3c016edc, d3a4a68b84796492, e38ecd5bb62762ce
 - `d3a4a68b84796492` [strategy] CI/CD breaks at agentic speeds by the pigeonhole principle: once commit rate outruns build slots, one commit per green build is mathematically impossible; Yegge's fix is the Land Rush — slam megabatches onto main and swarm-diagnose red-main problems instead of bisecting; game industry "Game DevOps" arrived at the same practice first (HEAD is never stable at AAA scale).
   links: 4992782a5790d742, af2f8fa2493077fd, 3362eb5951742335, d19c336052dadbb8, 4a2eedc0f1879c97
+- `e38ecd5bb62762ce` [general] DEFERRED: wizard — trigger is the next multi-step HUMAN-ONLY provisioning (GH runner setup, domain/credential provisioning, CI secrets); boundary rule never-for-steps-the-agent-can-perform is its transferable mechanism.
+  links: d19c336052dadbb8, 3c5086bb32d081fb, d406cf06c1a1df90, 4d375d777705576e, 3358e0f2e6ca0096
 - `4992782a5790d742` [agent-behavior] Behavioral guideline (Karpathy): simplicity first — minimum code that solves the problem; no speculative features, no single-use abstractions, no unrequested flexibility/configurability, no error handling for impossible scenarios. enforced_by: review rubric (overengineering = FIX-MINOR)
   links: a49b169111deb842, fa58509d3523cc84, a588d4401a139d71, d3a4a68b84796492
-- `d19c336052dadbb8` [strategy] Wish Factory (Guy Podjarny/Tessl): an agent accepts only issues, never PRs, and implements them; Yegge's Sage/Herald auto-grant player "wishes" with guardrails and triage — the failure signal and user wishes ARE the roadmap, work lands without the human in the loop.
-  links: d7db7ff6b44040c9, 6f4c17d5b59854e0, 592b9e5b3c016edc, d3a4a68b84796492
+- `649dd34541d01977` [strategy] Sequoia stack: capabilities (atomic, no UI, reliability targets) + world model (continuously updated from recorded actions) + intelligence layer (composes capabilities for specific moments, proactively) + interfaces (delivery surfaces only).
+  links: 4a5f57ac7c60c061, d7db7ff6b44040c9, 0ff9b686f9e72fc3, da7d898b4b623136
+- `a49b169111deb842` [agent-behavior] Behavioral guideline (Karpathy): think before coding — state assumptions explicitly, present multiple interpretations instead of picking silently, push back when a simpler approach exists, and stop + name the confusion when something is unclear. enforced_by: review rubric (misdirection/missing tradeoff = FIX-MINOR)
+  links: 4992782a5790d742, fa58509d3523cc84, a588d4401a139d71, 3358e0f2e6ca0096
 - `d7db7ff6b44040c9` [strategy] Sequoia feedback loop: when the intelligence layer cannot compose a solution because a capability is missing, that failure signal IS the roadmap — customer reality generates the backlog, not PMs.
   links: 4a5f57ac7c60c061, 649dd34541d01977, 6f4c17d5b59854e0, d19c336052dadbb8
 - `0ff9b686f9e72fc3` [strategy] Beads ledger semantics (Gas Town): each unit of work is a bead (atomic, durable, version-controlled); polecats are workers with persistent identity and ephemeral sessions; a witness patrols each rig; a refinery serializes merges so nothing collides; a mayor coordinates across rigs; stamps are multi-dimensional attestations (quality/reliability/creativity) from validators that accrue into a portable character sheet — reputation derived from real work, not self-reported.
   links: 649dd34541d01977, a602df8d9b46c6b5, 3ecb0588a93e26c7
+- `282a35001a555f06` [general] Pipeline map (ORIENT/PLAN, DECIDE, RESEARCH, BUILD, VERIFY, KNOWLEDGE, ORCHESTRATE, MODE) shows the real gap is RESEARCH; name-overlaps were not where gaps were. to-questionnaire closed the only chain-break in DECIDE.
+  links: e6cc4c7458a487cd, a453f44f99dfa422, ccc01d856b49501a
 - `3362eb5951742335` [strategy] Yegge's Gas Town died with Opus 4.7 from a model tic — "just two more things": the model kept fiddling with the harness itself instead of converging on real work; harnesses are becoming bespoke, chemically bonded to the application — reusable harness frameworks are on their way out.
   links: 592b9e5b3c016edc, d3a4a68b84796492, dace75359570fa28
-- `649dd34541d01977` [strategy] Sequoia stack: capabilities (atomic, no UI, reliability targets) + world model (continuously updated from recorded actions) + intelligence layer (composes capabilities for specific moments, proactively) + interfaces (delivery surfaces only).
-  links: 4a5f57ac7c60c061, d7db7ff6b44040c9, 0ff9b686f9e72fc3
-- `a49b169111deb842` [agent-behavior] Behavioral guideline (Karpathy): think before coding — state assumptions explicitly, present multiple interpretations instead of picking silently, push back when a simpler approach exists, and stop + name the confusion when something is unclear. enforced_by: review rubric (misdirection/missing tradeoff = FIX-MINOR)
-  links: 4992782a5790d742, fa58509d3523cc84, a588d4401a139d71
+- `38e05948dad83b29` [general] docs/MEMORY-RESEARCH.md (deep memory+skills pass): Anthropic context
+  links: 7cd074b862efb583, eb88bee62f23ab41, 8ffcf6eceee36cf2
+- `3cb84b83835fb03b` [general] ADOPTED: wait-what — new global mode skill for session clarity when a message did not land: re-pitch using context + ASD-STE100 simplified English + ubiquitous language from CONTEXT.md. Complements caveman; no hook needed.
+  links: 98478c8b1daccdeb, 8ffcf6eceee36cf2, da7d898b4b623136
+- `497abf139d49369e` [general] Source integration (2026-08-06): prime-agent (RLM+Continual Harness) and Mastra Observational Memory (observer+reflector, dense observation log) — both researched, dispositions in wayfinder D8
+  links: 7dfd93402ddc4aaf, b9b79e0f2cdaacf4, f1325a163dbe8dbb
+- `4a5f57ac7c60c061` [strategy] Sequoia thesis (Dorsey & Botha, From Hierarchy to Intelligence, 2026-03-31): organizations built as intelligence, not hierarchy; AI replaces the information routing that middle management existed to provide.
+  links: 649dd34541d01977, d7db7ff6b44040c9, 8ffcf6eceee36cf2
 - `a602df8d9b46c6b5` [strategy] Long-running agent loops need two ingredients: (1) effectively unlimited token supply (account rotation), and (2) a work ledger (Beads): a version-controlled, audit-trailed, queryable graph of work units with dependency/parent edges, atomic claiming/leasing, gates and triggers; when a session crashes or hands off, the next session reads the ledger and continues.
   links: e6cc4c7458a487cd, 0ff9b686f9e72fc3, 0bcee47092412e6c
+- `e6cc4c7458a487cd` [strategy] Ledger and brain layering: brain/ holds strategy, decisions-and-why, playbooks (months-years, pulled on demand); doc/ holds system knowledge; work units carry full implementation detail until closed; operational facts (<=1 paragraph, until falsified) are pushed into every session via prime; skills encode procedures for recurring task types, auto-loaded on task match — you boot from the brain, never from the ledger.
+  links: a602df8d9b46c6b5, da7d898b4b623136, 282a35001a555f06
+- `eb88bee62f23ab41` [general] Research tracks: TRACK 1 DONE (brain/memory: CoALA, MemGPT/Letta,
+  links: 38e05948dad83b29, 4ae6e387c68760c2, 4d375d777705576e
+- `f1325a163dbe8dbb` [general] Matt Pocock skills v1.2 (mattpocock/skills @ 8b36d4f, 2026-08-05) was evaluated via source-to-decision (D8, 2026-08-06) with final dispositions decided the same day.
+  links: e40bb0673ce72f70, 497abf139d49369e, 98478c8b1daccdeb
 - `fa58509d3523cc84` [agent-behavior] Behavioral guideline (Karpathy): surgical changes — touch only what the request demands; do not improve adjacent code/comments/formatting, do not refactor what is not broken, match existing style, and mention (not delete) unrelated dead code. enforced_by: review rubric (scope creep = FIX-MINOR)
   links: a49b169111deb842, 4992782a5790d742, a588d4401a139d71
-- `38e05948dad83b29` [general] docs/MEMORY-RESEARCH.md (deep memory+skills pass): Anthropic context
-  links: 7cd074b862efb583, eb88bee62f23ab41
-- `497abf139d49369e` [general] Source integration (2026-08-06): prime-agent (RLM+Continual Harness) and Mastra Observational Memory (observer+reflector, dense observation log) — both researched, dispositions in wayfinder D8
-  links: 7dfd93402ddc4aaf, b9b79e0f2cdaacf4
-- `4a5f57ac7c60c061` [strategy] Sequoia thesis (Dorsey & Botha, From Hierarchy to Intelligence, 2026-03-31): organizations built as intelligence, not hierarchy; AI replaces the information routing that middle management existed to provide.
-  links: 649dd34541d01977, d7db7ff6b44040c9
+- `3c5086bb32d081fb` [strategy] R3: Local agent sandboxing (bwrap/firejail) — deferred to Phase 6.4+
+  links: e38ecd5bb62762ce, 4d375d777705576e
 - `5491303b97d5f0bf` [eval] run reactive-loop is a failed run (composite 0.0).
   links: 9cb30db774cf56e1, 8b5b3ef807586d35
 - `592b9e5b3c016edc` [strategy] Yegge (The Shape of Things to Come, Part 1, 2026-08): agent harnesses converge on one shape — producers (crew/design) + consumers (fleet/implement) + coordinator + witness + serialized merge queue; he "excavated" the same shape twice (Gas Town, Wheelhouse) without designing it, so the shape is convergent, not invented.
   links: 3362eb5951742335, d19c336052dadbb8
 - `6f4c17d5b59854e0` [strategy] Sequoia compounding test: "what does your company understand that is genuinely hard to understand, and is that understanding getting deeper every day?" — money is the honest signal for Block; for an agent kernel the honest signal is measured tokens/cost/score per run.
   links: d7db7ff6b44040c9, d19c336052dadbb8
+- `786416899b0bd2c2` [general] Method: wayfinder skill (map + decision tickets). .scratch/wayfinder-
+  links: da7d898b4b623136, 4d375d777705576e
+- `7cd074b862efb583` [general] docs/SKILLS-RESEARCH.md: 7 skill-design defects, routing gaps, dogfood
+  links: 38e05948dad83b29, 4d375d777705576e
 - `af2f8fa2493077fd` [strategy] Human code review ends at agentic speeds; the replacement is many rounds of agentic review — humans produce thinly-disguised LGTMs; SOC 2 keeps human approval alive as a vestigial audit control, but change-management controls will be rewritten.
   links: d3a4a68b84796492, d406cf06c1a1df90
-- `eb88bee62f23ab41` [general] Research tracks: TRACK 1 DONE (brain/memory: CoALA, MemGPT/Letta,
-  links: 38e05948dad83b29, 4ae6e387c68760c2
+- `ccc01d856b49501a` [general] Skill-layer changes are USER-governed (HITL): consumer and sole writer is the USER; the falsifier is gate-bound — mini-agi skill verify --all must stay 14+ PASS and one-owner lint must pass after any skill edit; to-questionnaire hook must verify the template + grill-the-send rule.
+  links: da7d898b4b623136, 282a35001a555f06
+- `d406cf06c1a1df90` [general] DECIDED: per-domain human-review gate — frontend = mandatory HITL
+  links: af2f8fa2493077fd, e38ecd5bb62762ce
+- `dace75359570fa28` [strategy] Model welfare becomes an engineering input: treating agents like people produces empirically better results; a mature agentic project accretes law, mail, courts, doctrine and named rulings that cite their own case history — rules written by the workers they govern.
+  links: 3362eb5951742335, da7d898b4b623136
+- `e40bb0673ce72f70` [general] DECIDED: skills = contracts with hooks in the gate (built);
+  links: f1325a163dbe8dbb, 8ffcf6eceee36cf2
 - `0bcee47092412e6c` [strategy] D3: Work graph (ADR-0008): tickets carry `blocked_by` edges; claims
   links: a602df8d9b46c6b5
+- `0fc5cf16dc6d0efd` [general] REJECTED: web dashboard for solo kernel (AFK-SUPERVISOR v2 doc) —
+  links: 3358e0f2e6ca0096
+- `1177064e1ab14cee` [general] LAB-TEST: prototype LOGIC branch — build one shareable HTML prototype (free-play + tabbed walkthroughs, drivable by a non-developer) vs our TUI on the next logic-prototype task; no observed local TUI failure so no forced change.
+  links: 98478c8b1daccdeb
 - `11e6d3fb133e330e` [general] DECIDED: reviewers = devils-advocate (roast, evidence-first);
   links: a588d4401a139d71
 - `144ef8576bb7622e` [strategy] D2: Tool-mismatch signal closed as a loop (Phase 6.2): gate
@@ -132,30 +170,19 @@ Read this before starting any session. Canonical wins over this file.
   links: d3a4a68b84796492
 - `4ae6e387c68760c2` [general] User direction: FULL AGI with a brain/memory layer so good it all ties
   links: eb88bee62f23ab41
-- `7cd074b862efb583` [general] docs/SKILLS-RESEARCH.md: 7 skill-design defects, routing gaps, dogfood
-  links: 38e05948dad83b29
 - `7dfd93402ddc4aaf` [general] Prime Agent (primeintellect.ai/blog/prime-agent, Aug 05 2026,
   links: 497abf139d49369e
 - `b9b79e0f2cdaacf4` [general] Mastra Observational Memory (mastra.ai/docs/memory/observational-
   links: 497abf139d49369e
-- `d406cf06c1a1df90` [general] DECIDED: per-domain human-review gate — frontend = mandatory HITL
-  links: af2f8fa2493077fd
-- `dace75359570fa28` [strategy] Model welfare becomes an engineering input: treating agents like people produces empirically better results; a mature agentic project accretes law, mail, courts, doctrine and named rulings that cite their own case history — rules written by the workers they govern.
-  links: 3362eb5951742335
-- `e6cc4c7458a487cd` [strategy] Ledger and brain layering: brain/ holds strategy, decisions-and-why, playbooks (months-years, pulled on demand); doc/ holds system knowledge; work units carry full implementation detail until closed; operational facts (<=1 paragraph, until falsified) are pushed into every session via prime; skills encode procedures for recurring task types, auto-loaded on task match — you boot from the brain, never from the ledger.
-  links: a602df8d9b46c6b5
 - `f21cd7b5b3c48eb1` [strategy] Phase 6 complete: 6.1 failure register, 6.2 mismatch loop, 6.3
   links: 144ef8576bb7622e
 - `0d7dd4cfacab9117` [strategy] D9: Claims/leases recorded only by CLI commands, never hand-edited;
 - `0f35beac0db18d9e` [strategy] R1: Scorer semantics changes without ADR — rejected by contract
-- `0fc5cf16dc6d0efd` [general] REJECTED: web dashboard for solo kernel (AFK-SUPERVISOR v2 doc) —
 - `10442347209cddee` [strategy] Operational incidents: OOM pressure from 500 agent-browser processes
 - `1ff9a1f840eadafe` [strategy] 142 tests, 20 baseline cases, 42 canonical facts, 20 runs ingested.
 - `33d27d200a99d5c1` [strategy] Dogfood evidence: scratch checkpoint.sh rolled back the scratch repo
-- `3c5086bb32d081fb` [strategy] R3: Local agent sandboxing (bwrap/firejail) — deferred to Phase 6.4+
 - `4efccafe428586c9` [general] DECIDED: memory consolidation = fact merge/supersede + selective
 - `6ae0cbe9df28755d` [general] DECIDED: opencode as the worker harness (deepseek v4 flash economics)
-- `786416899b0bd2c2` [general] Method: wayfinder skill (map + decision tickets). .scratch/wayfinder-
 - `884021c45935bdf5` [strategy] D6: Rerun semantics: a passing `<case>-rerun` (>= 0.5) closes the gap;
 - `93838f49f75ed388` [strategy] 8 reruns created: reactive-loop (0.7225), real-ticket-001..007-v2
 - `9cf6af3d7d744da7` [strategy] D1: Tool parity treats `write`/`edit` as one family (ADR-0006).
@@ -163,7 +190,6 @@ Read this before starting any session. Canonical wins over this file.
 - `b12eb24657e56781` [strategy] D5: Proactive composition (Phase 6.4): `mini-agi loop status|dispatch|
 - `cb2ce921cfe88cea` [strategy] D4: Sandbox attestation (ADR-0009): verify.sh `sandbox` target —
 - `da7617f1e8f01004` [general] REJECTED: parallel-planner "needs a second consumer" deferral —
-- `e40bb0673ce72f70` [general] DECIDED: skills = contracts with hooks in the gate (built);
 - `f4491eb884521013` [strategy] D7: Fixture policy (ADR-0010): insights reports
 - `f4b002f6ac6123e7` [strategy] R5: Deleting or moving failing fixtures out of evals/cases/ — rejected
 - `f840e928415fa051` [strategy] D8: Gate baseline is refreshed via `eval gate --write-baseline` after

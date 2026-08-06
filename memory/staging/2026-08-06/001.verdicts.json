@@ -1,0 +1,77 @@
+{
+  "staged": "001.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Durable event fact with date (2026-08-06), source (source-to-decision D8), and artifact reference (mattpocock/skills @ 8b36d4f). No existing canonical fact covers this specific evaluation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Adopted decision establishing a prototype branching rule with provenance. No existing canonical fact covers prototype capture workflow.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Adopted decision: skill renamed and scope widened to anything agents read, with explicit border against our kernel-seam machinery. New durable design ruling.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Adopted decision: new hook-bound skill for third-party-held decisions. Consistent with e40bb0673ce72f70 (skills=contracts with hooks). No conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Adopted decision: new global mode skill for session clarity. Consistent with e40bb0673ce72f70. No conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Lab-test disposition with concrete trigger (next logic-prototype task) and falsifiable condition. Durable experimental decision.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Deferred decision with concrete trigger (next multi-step HUMAN-ONLY provisioning) and transferable boundary rule. Durable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Deferred decision with concrete trigger (auto-researcher worker, AGI Phase 2) and existing coverage note (wayfinder track). Durable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Rejected proposals with explicit reasoning (domain-modeling superset, popularity is not a mechanism, kernel registry is stronger). Rejected dispositions are durable decisions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Ephemeral state observation: 'clean' install state at a point in time. No durable truth — the state can change at any moment without contradiction.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Durable analytical finding: pipeline gap map and skill-overlap resolution. No existing canonical fact covers this mapping.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Durable governance rule for skill-layer changes. Refines d406cf06c1a1df90 (per-domain HITL) and e40bb0673ce72f70 (skills as contracts) without contradiction — extends HITL to skill edits with specific gate (skill verify --all, one-owner lint).",
+      "verdict": "promote"
+    }
+  ]
+}

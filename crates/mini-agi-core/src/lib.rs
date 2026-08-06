@@ -9,6 +9,7 @@ pub mod audit;
 pub mod capture;
 pub mod config;
 pub mod contract;
+pub mod dream;
 pub mod eval;
 pub mod failure;
 pub mod harness;
