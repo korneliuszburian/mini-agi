@@ -378,7 +378,13 @@ pub fn consolidate(
         let contested = canonical
             .iter()
             .find(|(old_fact, _)| {
-                old_fact.starts_with(&fact[..fact.len().min(40)]) && *old_fact != fact
+                // Char-boundary-safe prefix: a multibyte fact prefix must
+                // not panic on a non-char boundary slice.
+                let take = fact
+                    .char_indices()
+                    .nth(fact.chars().count().min(40))
+                    .map_or(fact.len(), |(i, _)| i);
+                old_fact.starts_with(&fact[..take]) && *old_fact != fact
             })
             .map(|(_, old_hash)| old_hash.clone());
         if opts.require_signoff
