@@ -249,3 +249,5 @@
 2026-08-06T07:58:30Z BEGIN compact-s2 -> b6478c9
 2026-08-06T07:58:55Z VERIFY-PASS compact-s2 @ b6478c9
 2026-08-06T08:18:07Z CHECKPOINT-ABORT wayfinder-s1 disallowed dirty paths: .scratch/
+2026-08-06T08:53:00Z BEGIN wayfinder-s1 -> df54523
+2026-08-06T08:53:24Z VERIFY-PASS wayfinder-s1 @ df54523
