@@ -1,0 +1,173 @@
+{
+  "staged": "029.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New domain (human-automation trust calibration); well-cited landmark paper; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New domain (AI-assisted decision trust calibration); well-cited FAT* paper; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New domain (algorithm aversion); well-cited JEPG paper; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New domain (temperature scaling for calibration); well-cited ICML paper; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New domain (conformal prediction); well-cited survey; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New domain (conformal prediction for LM outputs); ICLR 2024 paper; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New domain (verbalized confidence); OpenAI paper, verified abstract; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New domain (P(True)/self-evaluation); Anthropic paper, verified abstract; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New domain (semantic entropy for hallucination detection); Nature paper; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New domain (supervised hidden-state estimator for wrong-answer detection); verified abstract; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New domain (self-consistency improves reasoning accuracy); ICLR 2023 paper, verified abstract; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Ephemeral synthesis/opinion connecting self-consistency to entropy-based UQ methods; not a standalone verifiable fact, and the claim that self-consistency is the premise of semantic entropy's method is interpretive and not independently sourced.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New domain (Good-Turing lower bound on hallucination for calibrated LMs); STOC 2024 paper, verified abstract; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Ephemeral synthesis/opinion drawing a normative implication ('confidence display is insufficient — abstention/verification is required') from candidate [12]; not a standalone verifiable fact, and the 'display implication is synthesis' label concedes it is not a source claim.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New domain (UQ methods degrade on ambiguous data, conflating epistemic and aleatoric uncertainty); verified abstract; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "orphaned reference 'this ambiguity failure' — unverifiable without the antecedent; opinion label confirms it is derived, not anchored to a specific cited source",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "specific, cited research finding from a named paper (Zhang, Liao, Bellamy 2020, FAT*); no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "specific, cited research finding with effect sizes and p-values from Steyvers et al., PNAS 2022; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "specific, cited finding on complementarity preconditions from Steyvers et al., PNAS 2022; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "specific, cited finding from Buçinca et al., CSCW 2021 with participant count and design details; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "specific, cited finding from Fok & Weld, arXiv 2305.07722 on explanation efficacy; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "specific, cited clinical finding with exact accuracy deltas and p-values from Wienholt et al., Eur Radiol 2026; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "specific, cited finding with AUROC comparison from Karimi et al., IJCAI 2026; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "honest absence-of-evidence claim with explicit scope limitation and self-labeled 'unverified' — a verifiable negative finding, not a fabrication",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "synthesis of three independently-promoted findings (Zhang 2020, Steyvers 2022, Wienholt 2026) into a durable compound claim; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "synthesis of two independently-promoted findings (Buçinca 2021, Fok & Weld 2024) into a durable compound claim; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "synthesis of cited hard-limit findings (Kalai & Vempala 2024, Tomov 2025) into a durable compound claim; no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "methodological-limitation claim cataloging unverified assertions and unread full-texts — honest scope statement, not fabrication; no canonical fact covers this domain",
+      "verdict": "promote"
+    }
+  ]
+}
