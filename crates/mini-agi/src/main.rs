@@ -15,6 +15,7 @@ mod planner;
 mod sandbox;
 mod status;
 mod supervisor;
+mod ui;
 pub(crate) mod worker;
 use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
@@ -96,6 +97,9 @@ enum Command {
     /// Dream-loop (D2): distill episodic material into staged facts,
     /// audit them with a strong model, promote verdicts into canonical.
     Dream(DreamArgs),
+    /// Live supervision dashboard (D4): std-only HTTP server serving a
+    /// self-refreshing page over /api/status.
+    Ui(UiArgs),
     /// Proactive composition loop (Phase 6.4): status/dispatch/verify.
     Loop(LoopArgs),
     /// Codex integration (Phase 8 slice 4, EXP-003): run codex on a
@@ -439,6 +443,13 @@ struct LoopRunArgs {
     no_resume: bool,
     template: Option<String>,
     detach: bool,
+}
+
+#[derive(Args, Debug)]
+struct UiArgs {
+    /// TCP port for the dashboard.
+    #[arg(long, default_value = "8199")]
+    port: u16,
 }
 
 #[derive(Args, Debug)]
@@ -791,6 +802,10 @@ fn main() -> ExitCode {
         Command::Health => cmd_health(),
         Command::Audit => cmd_audit(),
         Command::Status(StatusArgs { json }) => cmd_status(json),
+        Command::Ui(UiArgs { port }) => match ui::serve(&root(), port) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => fail(&format!("ui: {e}")),
+        },
         Command::Dream(DreamArgs {
             source,
             distiller,
@@ -2878,6 +2893,11 @@ fn cmd_dream_promote(root: &Path, _dry_run: bool) -> ExitCode {
         latest.display()
     );
     ExitCode::SUCCESS
+}
+
+/// Candidate count in a staging file (ui.rs surface).
+pub(crate) fn read_staged_facts_count(path: &Path) -> usize {
+    read_staged_facts(path).map_or(0, |f| f.len())
 }
 
 /// Read staged `## S-NNN (domain)` blocks back from a staging file.
