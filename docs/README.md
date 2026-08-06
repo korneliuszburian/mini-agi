@@ -40,6 +40,7 @@ knows is reachable from here; anything not listed is either generated
 | `docs/INCIDENTS.md` | process-incident postmortems (behind the AGENTS.md Process rules) | process rules context |
 | `docs/STANDARDS-AUDIT.md` | skills/standards inventory, plane coverage, gaps, the universal standards package | standards work |
 | `docs/SKILLS-RESEARCH.md` | the deep skill-layer research: design defects, routing, dogfood seams, roadmap, definition of done | skill work |
+| `docs/MEMORY-RESEARCH.md` | the deep memory research: Anthropic/OpenAI/Codex/CoALA/MemGPT/Karpathy patterns, our gaps, the top-10 changes | memory work |
 | `docs/harness/` | harness evolution records (Phantom Guardrails) | harness changes |
 | `AGENTS.md` | the repo contract (top of the tree, always loaded) | every session start |
 | `CHANGELOG.md` | release history | release notes |
