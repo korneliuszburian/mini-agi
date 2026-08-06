@@ -1,0 +1,95 @@
+{
+  "staged": "023.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Specific, verifiable academic citation with DOI; no canonical conflict; claim is concrete and falsifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Meta-statement about what could NOT be verified from sources; not a durable truth, documents a research gap.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Specific codebase implementation detail with file/line references; verifiable by reading the cited source.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Self-labeled as opinion; unverifiable informal definition without provenance.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Specific, verifiable academic citation with DOI and publication details; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Meta-statement about source limitations (abstract-only reading); not a durable truth.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Specific repo-internal behavioral rule from AGENTS.md; verifiable against the cited file.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Specific codebase implementation detail with file/line references; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Specific, verifiable claim citing Bash Reference Manual section; critical operational knowledge for verifier design.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Specific, verifiable claim citing Bash Reference Manual; critical operational knowledge for pipeline-based gates.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Specific, verifiable claim citing Bash Reference Manual; critical for understanding errexit footguns in verifier scripts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Specific, verifiable claim citing GNU Findutils manual; critical for gate design with xargs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Specific, verifiable claim citing GNU Findutils manual; critical for understanding find -exec exit status semantics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Specific, verifiable claim citing GNU Grep manual; operational knowledge for non-vacuous gate construction.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Specific, verifiable claim citing pytest docs; operational knowledge for test-suite-as-gate design.",
+      "verdict": "promote"
+    }
+  ]
+}
