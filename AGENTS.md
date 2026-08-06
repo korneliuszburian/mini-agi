@@ -77,6 +77,11 @@ Canonical memory import source: `agentic-core@HEAD`.
 - Facts are enforced or reference: a fact with an `enforced_by` check is
   bound to a gate that runs in CI (ADR-0010). The kernel's own memory is a
   first-class dogfood user.
+- Dream-loop (D2): `mini-agi dream --source <material>` distills episodic
+  material via the cheap distiller, audits with the strong model, and
+  `dream --promote` lands verdicts in canonical; enforced facts and
+  conflicts route to the human queue (ADR-0010 signoff). The cadence is
+  `dream --idle` (load + freshness guarded) — a busy box skips.
 - Read the brief + index before working. Knowledge given once must not be
   re-asked or re-researched.
 

@@ -1,7 +1,7 @@
 # Wayfinder Map — Full AGI on the mini-agi kernel
 
 Date: 2026-08-06. Method: wayfinder (map + decision tickets).
-Status: mapping phase — research tracks 1-3 done, decisions OPEN.
+Status: phases 0-1 IMPLEMENTED (D1, D2, D3, D6). D5/D7 DECIDED (defer / keep append-only). D4 = user domain (HITL), Phase 2.
 
 ## Destination (charter, user direction, 2026-08-05)
 
@@ -34,10 +34,10 @@ parallel dispatch) + opencode (deepseek v4 flash = cheap worker).
 | D1 | Worker economics: LAYERED — codex executes, opencode/flash plans+reviews (role model: user 2026-08-06) | **IMPLEMENTED 2026-08-06** (adapter + telemetry, commit 8055af7) | S | everything (24/7 affordance) |
 | D2 | Dream-loop cadence + model assignment | OPEN (recommend event-triggered + gated promotion) | M | brain layer |
 | D3 | Memory quality: merge/supersede + retrieval budget + directed consolidation | **IMPLEMENTED 2026-08-06** (mem supersede/preserve/verify + query --budget + preserved routing; 35eb321) | M-L | brain layer |
-| D4 | Supervision surface: read mirror + worker status | OPEN (user builds UI; kernel exposes status JSON) | S (kernel side) | surface |
-| D5 | A2A / daemon shape | OPEN (recommend DEFER A2A; bg.rs+serve is enough) | — | orchestration |
+| D4 | Supervision surface: read mirror + worker status | **DECIDED 2026-08-06**: kernel side done (status --json); UI = user-built (HITL), Phase 2 | S (kernel side) | surface |
+| D5 | A2A / daemon shape | **DECIDED 2026-08-06**: DEFER — files+kernel state beat a wire protocol at ≤5 workers; revisit only past 5 concurrent or live turn-taking | — | orchestration |
 | D6 | Crash recovery: respawn + run-state index | **IMPLEMENTED 2026-08-06** (respawn 0295cb7, status 551c6df) | S | 24/7 reliability |
-| D7 | Agent-managed harness CRUD vs append-only | OPEN (recommend keep append-only + gate-bound) | — | guarantees |
+| D7 | Agent-managed harness CRUD vs append-only | **DECIDED 2026-08-06**: KEEP append-only + gate-bound; supersede is the only mutation path; prime-agent reward-hack validated the gates | — | guarantees |
 
 ## Roadmap (ordering by dependency + economics)
 
@@ -51,9 +51,10 @@ strong auditor + human signoff on enforced facts per ADR-0010, nightly full
 audit), merge/supersede + dedup gate, selective token-budgeted retrieval,
 directed consolidation. The memory layer becomes self-maintaining.
 
-Phase 2 — SURFACE (D4, D7): kernel exposes machine-readable worker/run
-status; user builds the 7-panel files-first read mirror (HITL). D5/D7 stay
-decision-docs unless evidence changes.
+Phase 2 — SURFACE (D4): kernel status --json exists; the user builds the
+7-panel files-first read mirror (HITL, frontend = mandatory human gate).
+Dream-loop cadence (D2): dream --idle IS the cadence (load + freshness
+guards), invoked from cron at idle times.
 
 ## First build
 
