@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: cf5c48a88dbd7eab
-# canonical_entries: 56
+# canonical_sha256: a046b93acc484c6d
+# canonical_entries: 57
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -303,3 +303,26 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `86494d2770f9e1c6` Generative Agents (Park et al., UIST 2023, arXiv:2304.03442) uses a memory stream with retrieval by recency/importance/relevance, and observations summarized on the fly into higher-level reflections stored back into the stream. No token-savings numbers are reported; the mechanism keeps only salient memories in context. Source: https://arxiv.org/abs/2304.03442
 - `7d97975df00109c5` LLMLingua (Jiang et al., Microsoft, EMNLP 2023, arXiv:2310.05736) reports coarse-to-fine prompt compression achieving a ratio up to 20x with minimal performance loss (budgets 1x/3x/5x/10x/20x), with measured savings in compressed token count and FLOPs reduction. It targets whole prompts (demonstrations, instructions, chain-of-thought), not agent memory. Source: https://arxiv.org/abs/2310.05736
 - `0a3013221a215aa2` No single primary study directly A/Bs selective retrieval vs summary vs compression vs full-context and reports token savings as the outcome metric for long-running agents was found; each source reports a different metric (accuracy at fixed context, context-window multiplier, compression ratio, per-call context bounds). Settling evidence would be a controlled experiment on a long-running agent benchmark (e.g., SWE-bench agentic runs or long-horizon tool use) measuring billed input tokens and task success across the four arms with identical model and task; to the reviewer's knowledge no such published benchmark exists.
+- `31eed941a6bf3c22` OpenTelemetry GenAI semantic conventions moved out of the main opentelemetry/semantic-conventions repo into a dedicated repository open-telemetry/semantic-conventions-genai; the old pages at opentelemetry.io/docs/specs/semconv/gen-ai/ are redirect stubs pointing there.
+- `211ef594acd91688` The GenAI semantic convention set is NOT yet stable — every span, attribute, and metric carries Development stability (as of fetch from main branch on 2026-08-06).
+- `8402661c95f9d43c` The semantic-conventions-genai repo covers GenAI (LLM, agent, embeddings, retrieval) and MCP operations; shared attributes not specific to GenAI (e.g. server.address, error.type, db.*) continue to live in the upstream semantic-conventions repo, pinned at a version (docs reference v1.44.0 / spec v1.56.0).
+- `00b76328e304b094` The semantic-conventions-genai repo's Schema URL field is still marked TODO.
+- `e7f5d7ddbd0506aa` GenAI spans represent logical operations as observed by the caller, covering the operation duration including automatic retries.
+- `69e042353c67161a` The inference span (gen_ai.inference.client) SHOULD be span kind CLIENT (or INTERNAL for same-process models); span name SHOULD be {gen_ai.operation.name} {gen_ai.request.model}.
+- `122ebf323a7b873b` Required attributes on the inference span are gen_ai.operation.name and gen_ai.provider.name.
+- `4c19d9b8fed90b2c` Conditionally required attributes on the inference span: error.type (if error), gen_ai.conversation.id (when available), gen_ai.output.type (when output format requested), gen_ai.prompt.name/gen_ai.prompt.version (when named template used), gen_ai.request.choice.count, gen_ai.request.model (if available), gen_ai.request.seed, gen_ai.request.stream, gen_ai.request.top_k, server.port (if server.address set).
+- `31afd4aa76fb215a` Recommended attributes on the inference span include gen_ai.conversation.compacted, gen_ai.request.frequency_penalty, gen_ai.request.max_tokens, gen_ai.request.presence_penalty, gen_ai.request.previous_response.id, gen_ai.request.reasoning.level, gen_ai.request.stop_sequences, gen_ai.request.temperature, gen_ai.request.top_p, gen_ai.response.finish_reasons, gen_ai.response.id, gen_ai.response.model, gen_ai.response.time_to_first_chunk (streaming), token-usage attributes gen_ai.usage.input_tokens/output_tokens/reasoning.output_tokens/cache_creation.input_tokens/cache_read.input_tokens, plus server.address.
+- `5dca42b84576ac81` Opt-in content attributes on GenAI spans (PII warning): gen_ai.input.messages, gen_ai.output.messages, gen_ai.prompt.variable.<key>, gen_ai.system_instructions, gen_ai.tool.definitions; these MUST follow JSON schemas in model/gen-ai/.
+- `2e18ebad8d315465` Sampling attributes that SHOULD be set at span creation time: gen_ai.operation.name, gen_ai.provider.name, gen_ai.request.model, server.address, server.port.
+- `3bdf61d670b97831` gen_ai.operation.name well-known values (snapshot of main on fetch date; the enumeration will grow over time): chat, create_agent, create_memory, create_memory_store, delete_memory, delete_memory_store, embeddings, execute_tool, fetch_response, generate_content, invoke_agent, invoke_workflow, plan, retrieval, search_memory, text_completion, update_memory, upsert_memory.
+- `2eea1cc6e5d5294f` gen_ai.provider.name well-known values (snapshot of main on fetch date; the enumeration will grow over time): anthropic, aws.bedrock, azure.ai.inference, azure.ai.openai, cohere, deepseek, gcp.gemini, gcp.gen_ai, gcp.vertex_ai, groq, ibm.watsonx.ai, mistral_ai, moonshot_ai, openai, perplexity, x_ai.
+- `96dfb8000058662e` gen_ai.output.type well-known values: text, json, image, speech.
+- `7baa4e0fc447c393` Embeddings span (gen_ai.embeddings.client): operation name = embeddings; required gen_ai.operation.name and gen_ai.provider.name; recommended gen_ai.embeddings.dimension.count, gen_ai.request.encoding_formats, gen_ai.response.model, gen_ai.usage.input_tokens.
+- `0a74dadc333efd53` gen_ai.server.request.duration metric: unit s; required gen_ai.operation.name and gen_ai.provider.name; conditional error.type, gen_ai.request.model, server.port; recommended gen_ai.response.model and server.address.
+- `a374d61735af78e8` gen_ai.server.time_to_first_token metric: unit s; required gen_ai.operation.name and gen_ai.provider.name; conditional gen_ai.request.model; recommended gen_ai.response.model and server.address; no error.type attribute (successful responses only).
+- `0f71428eedb1157f` gen_ai.server.time_per_output_token metric: unit s; time per output token after the first; same attribute set as time_to_first_token.
+- `e113f24a5245b284` gen_ai.invoke_workflow.duration metric: unit s; conditional error.type and gen_ai.workflow.name.
+- `55a5de088bb8a4cb` gen_ai.invoke_agent.duration metric: unit s; conditional error.type and gen_ai.agent.name; recommended gen_ai.request.model.
+- `f640281634a3ed98` gen_ai.invoke_agent.inference_calls metric: unit {inference_call}; recommended gen_ai.agent.name.
+- `34b2aac2c52f66d1` gen_ai.invoke_agent.tool_calls metric: unit {tool_call}; recommended gen_ai.agent.name.
+- `176d8ed99f2c76c6` gen_ai.execute_tool.duration metric: unit s; required gen_ai.tool.name; conditional error.type and gen_ai.agent.name; recommended gen_ai.tool.type.

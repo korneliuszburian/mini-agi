@@ -1,0 +1,143 @@
+{
+  "staged": "020.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Specific, verifiable claim about repo migration and redirect stubs; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific, date-bound stability claim about GenAI semantic conventions; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Specific, verifiable scope boundary between semantic-conventions-genai and upstream; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Specific, verifiable claim about TODO Schema URL field; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Specific, definitional claim about GenAI span semantics; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Specific, verifiable span kind and naming convention for inference span; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Specific, verifiable required attributes on inference span; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Specific, verifiable conditionally required attributes; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Specific, verifiable recommended attributes; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Specific, verifiable opt-in content attributes with PII warning and schema references; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Specific, verifiable sampling attributes for span creation; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Specific, verifiable well-known operation name values with explicit snapshot caveat; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Specific, verifiable well-known provider name values with explicit snapshot caveat; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Specific, verifiable well-known output type values; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Specific, verifiable embeddings span specification; no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "No canonical fact covers gen_ai server metrics; specific, durable, and verifiable against OTel semantic conventions. No source material provided for fidelity check — no omission/corruption/fabrication detectable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "No canonical fact covers gen_ai server TTFT; specific, durable, and verifiable against OTel semantic conventions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "No canonical fact covers gen_ai server TPOT; specific, durable, and verifiable against OTel semantic conventions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "No canonical fact covers gen_ai workflow metrics; specific, durable, and verifiable against OTel semantic conventions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "No canonical fact covers gen_ai agent duration metrics; specific, durable, and verifiable against OTel semantic conventions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "No canonical fact covers gen_ai agent inference_calls metric; specific, durable, and verifiable against OTel semantic conventions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "No canonical fact covers gen_ai agent tool_calls metric; specific, durable, and verifiable against OTel semantic conventions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "No canonical fact covers gen_ai execute_tool metrics; specific, durable, and verifiable against OTel semantic conventions.",
+      "verdict": "promote"
+    }
+  ]
+}
