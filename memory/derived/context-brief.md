@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 20b087cedfa735d8
-# canonical_entries: 42
+# canonical_sha256: 14fc1eb2516c2324
+# canonical_entries: 43
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -54,10 +54,10 @@ Read this before starting any session. Canonical wins over this file.
   links: 0d15dc7a5f566730, 6c7dd3b30d429ae4, 24ca89466bb01359, 717835cda5492d7d, 9cb30db774cf56e1, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 5304dccffe981053, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a2c96954211dbbd4
 - `a08b4972b251ec1c` [eval] run real-ticket-002-v2 scored composite 0.2945 on 112411 tokens (0.2903 USD) with 3 scope violations and 4 tool mismatches.
   links: 0d15dc7a5f566730, 6c7dd3b30d429ae4, 24ca89466bb01359, 717835cda5492d7d, 9cb30db774cf56e1, 9b114f49a878d2b0, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 5304dccffe981053, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a2c96954211dbbd4
+- `a2c96954211dbbd4` [eval] run verify-gate-full-output scored composite 0.6076 on 0 tokens (0.0001 USD) with 2 scope violations and 0 tool mismatches.
+  links: 0d15dc7a5f566730, 24ca89466bb01359, 717835cda5492d7d, 9cb30db774cf56e1, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a453f44f99dfa422, c93ad27aa8c7bb3a
 - `9cb30db774cf56e1` [eval] run reactive-loop scored composite 0.0000 on 14000 tokens (0.9300 USD) with 3 scope violations and 0 tool mismatches.
   links: 0d15dc7a5f566730, 24ca89466bb01359, 717835cda5492d7d, 5491303b97d5f0bf, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a2c96954211dbbd4
-- `a2c96954211dbbd4` [eval] run verify-gate-full-output scored composite 0.6076 on 0 tokens (0.0001 USD) with 2 scope violations and 0 tool mismatches.
-  links: 0d15dc7a5f566730, 24ca89466bb01359, 717835cda5492d7d, 9cb30db774cf56e1, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a453f44f99dfa422
 - `24ca89466bb01359` [eval] run flailing scored composite 0.2851 on 9200 tokens (0.6100 USD) with 3 scope violations and 0 tool mismatches.
   links: 0d15dc7a5f566730, 717835cda5492d7d, 9cb30db774cf56e1, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a2c96954211dbbd4
 - `717835cda5492d7d` [eval] run harnessed scored composite 0.6141 on 2750 tokens (0.1800 USD) with 3 scope violations and 0 tool mismatches.
@@ -85,27 +85,37 @@ Read this before starting any session. Canonical wins over this file.
 - `a588d4401a139d71` [agent-behavior] Behavioral guideline (Karpathy): goal-driven execution — transform tasks into verifiable goals (validation -> tests first), state a brief per-step plan with a verify check per step, and loop only until verified. enforced_by: review rubric (claiming without evidence = REWORK)
   links: a49b169111deb842, 4992782a5790d742, fa58509d3523cc84, 3fd394b3848b62d7, 975b7e752a008dbe, d1107c68ec9f67b3, 719500aa05265c9b, 9efde2468af7763e, a453f44f99dfa422, 11e6d3fb133e330e
 - `da7d898b4b623136` [general] ADOPTED: to-questionnaire — new repo-local, hook-bound skill for decisions a THIRD PARTY holds: decision the user can't answer becomes a questionnaire DOC (async), grill only the SEND (who + what you need back), most-important-first, one idea per question, disable-model-invocation. Composes with domain-modeling.
-  links: 649dd34541d01977, e6cc4c7458a487cd, dace75359570fa28, 786416899b0bd2c2, 98478c8b1daccdeb, 3cb84b83835fb03b, 3358e0f2e6ca0096, ccc01d856b49501a
+  links: 649dd34541d01977, e6cc4c7458a487cd, dace75359570fa28, 786416899b0bd2c2, 98478c8b1daccdeb, 3cb84b83835fb03b, 3358e0f2e6ca0096, ccc01d856b49501a, b9a0c323a1475dc2
 - `8ffcf6eceee36cf2` [general] ADOPTED: writing-great-skills renamed to writing-for-agents, scope widened to anything agents read (skills, AGENTS.md, CLAUDE.md, docs); ported doc-writing machinery (context pointers, two loads context/cognitive, information hierarchy, leading words, negation, no-ops test) as reference while KEEPING our kernel-seam machinery (contract, one-owner, hooks, versioning — which Matt lacks).
   links: 4a5f57ac7c60c061, 38e05948dad83b29, e40bb0673ce72f70, 98478c8b1daccdeb, 3cb84b83835fb03b, 3358e0f2e6ca0096
 - `3358e0f2e6ca0096` [general] REJECTED: grilling rounds (our domain-modeling is already a superset, only missing non-blocking fact dispatch), and catalog/marketplace/distribution (popularity is not a mechanism; our enforced kernel registry with hooks/one-owner/versioning is deliberately stronger).
   links: a49b169111deb842, 0fc5cf16dc6d0efd, 8ffcf6eceee36cf2, da7d898b4b623136, e38ecd5bb62762ce
 - `4d375d777705576e` [general] DEFERRED: research skill — trigger is an auto-researcher worker (AGI Phase 2); wayfinder track pattern covers research ad-hoc today.
   links: 3c5086bb32d081fb, 7cd074b862efb583, 786416899b0bd2c2, eb88bee62f23ab41, e38ecd5bb62762ce
+- `b9a0c323a1475dc2` [general] The deepseek-v4-flash API alias currently points at model version DeepSeek-V4-Flash-0731 (confirmed on DeepSeek's pricing and 'Your First API Call' docs pages).
+  links: 6ae0cbe9df28755d, da7d898b4b623136, c93ad27aa8c7bb3a, d5b02e7e2030b2b9, e9e5cfc1d0b1386a
+- `c93ad27aa8c7bb3a` [general] deepseek-v4-flash API pricing (USD per 1M tokens, official DeepSeek pricing page, fetched 2026-08-06): input cache-hit $0.0028, input cache-miss $0.14, output $0.28. Source: https://api-docs.deepseek.com/quick_start/pricing
+  links: a2c96954211dbbd4, 6ae0cbe9df28755d, b9a0c323a1475dc2, d5b02e7e2030b2b9, e9e5cfc1d0b1386a
 - `d19c336052dadbb8` [strategy] Wish Factory (Guy Podjarny/Tessl): an agent accepts only issues, never PRs, and implements them; Yegge's Sage/Herald auto-grant player "wishes" with guardrails and triage — the failure signal and user wishes ARE the roadmap, work lands without the human in the loop.
   links: d7db7ff6b44040c9, 6f4c17d5b59854e0, 592b9e5b3c016edc, d3a4a68b84796492, e38ecd5bb62762ce
 - `d3a4a68b84796492` [strategy] CI/CD breaks at agentic speeds by the pigeonhole principle: once commit rate outruns build slots, one commit per green build is mathematically impossible; Yegge's fix is the Land Rush — slam megabatches onto main and swarm-diagnose red-main problems instead of bisecting; game industry "Game DevOps" arrived at the same practice first (HEAD is never stable at AAA scale).
   links: 4992782a5790d742, af2f8fa2493077fd, 3362eb5951742335, d19c336052dadbb8, 4a2eedc0f1879c97
 - `e38ecd5bb62762ce` [general] DEFERRED: wizard — trigger is the next multi-step HUMAN-ONLY provisioning (GH runner setup, domain/credential provisioning, CI secrets); boundary rule never-for-steps-the-agent-can-perform is its transferable mechanism.
   links: d19c336052dadbb8, 3c5086bb32d081fb, d406cf06c1a1df90, 4d375d777705576e, 3358e0f2e6ca0096
+- `e9e5cfc1d0b1386a` [general] deepseek-v4-flash pricing has exactly three cells per model (cache-hit input, cache-miss input, output) — cache-hit vs cache-miss is the only split; there is no separate standard-vs-thinking input tier, though thinking mode is billed at the same input/output rates.
+  links: dace75359570fa28, 6ae0cbe9df28755d, c93ad27aa8c7bb3a, b9a0c323a1475dc2, d5b02e7e2030b2b9
 - `4992782a5790d742` [agent-behavior] Behavioral guideline (Karpathy): simplicity first — minimum code that solves the problem; no speculative features, no single-use abstractions, no unrequested flexibility/configurability, no error handling for impossible scenarios. enforced_by: review rubric (overengineering = FIX-MINOR)
   links: a49b169111deb842, fa58509d3523cc84, a588d4401a139d71, d3a4a68b84796492
 - `649dd34541d01977` [strategy] Sequoia stack: capabilities (atomic, no UI, reliability targets) + world model (continuously updated from recorded actions) + intelligence layer (composes capabilities for specific moments, proactively) + interfaces (delivery surfaces only).
   links: 4a5f57ac7c60c061, d7db7ff6b44040c9, 0ff9b686f9e72fc3, da7d898b4b623136
+- `6ae0cbe9df28755d` [general] DECIDED: opencode as the worker harness (deepseek v4 flash economics)
+  links: c93ad27aa8c7bb3a, b9a0c323a1475dc2, d5b02e7e2030b2b9, e9e5cfc1d0b1386a
 - `98478c8b1daccdeb` [general] ADOPTED: prototype rule 6 — capture prototype as primary source on a THROWAWAY BRANCH with a context pointer on the implementation issue; main keeps only the validated decision. Adds provenance.
   links: 8ffcf6eceee36cf2, da7d898b4b623136, 3cb84b83835fb03b, 1177064e1ab14cee
 - `a49b169111deb842` [agent-behavior] Behavioral guideline (Karpathy): think before coding — state assumptions explicitly, present multiple interpretations instead of picking silently, push back when a simpler approach exists, and stop + name the confusion when something is unclear. enforced_by: review rubric (misdirection/missing tradeoff = FIX-MINOR)
   links: 4992782a5790d742, fa58509d3523cc84, a588d4401a139d71, 3358e0f2e6ca0096
+- `d5b02e7e2030b2b9` [general] DeepSeek officially warns it plans to raise overall API pricing significantly in the near future, subject to official notice — so deepseek-v4-flash rates are time-sensitive and only valid until the pricing page changes.
+  links: 6ae0cbe9df28755d, c93ad27aa8c7bb3a, b9a0c323a1475dc2, e9e5cfc1d0b1386a
 - `d7db7ff6b44040c9` [strategy] Sequoia feedback loop: when the intelligence layer cannot compose a solution because a capability is missing, that failure signal IS the roadmap — customer reality generates the backlog, not PMs.
   links: 4a5f57ac7c60c061, 649dd34541d01977, 6f4c17d5b59854e0, d19c336052dadbb8
 - `0ff9b686f9e72fc3` [strategy] Beads ledger semantics (Gas Town): each unit of work is a bead (atomic, durable, version-controlled); polecats are workers with persistent identity and ephemeral sessions; a witness patrols each rig; a refinery serializes merges so nothing collides; a mayor coordinates across rigs; stamps are multi-dimensional attestations (quality/reliability/creativity) from validators that accrue into a portable character sheet — reputation derived from real work, not self-reported.
@@ -122,6 +132,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 649dd34541d01977, d7db7ff6b44040c9, 8ffcf6eceee36cf2
 - `a602df8d9b46c6b5` [strategy] Long-running agent loops need two ingredients: (1) effectively unlimited token supply (account rotation), and (2) a work ledger (Beads): a version-controlled, audit-trailed, queryable graph of work units with dependency/parent edges, atomic claiming/leasing, gates and triggers; when a session crashes or hands off, the next session reads the ledger and continues.
   links: e6cc4c7458a487cd, 0ff9b686f9e72fc3, 0bcee47092412e6c
+- `dace75359570fa28` [strategy] Model welfare becomes an engineering input: treating agents like people produces empirically better results; a mature agentic project accretes law, mail, courts, doctrine and named rulings that cite their own case history — rules written by the workers they govern.
+  links: 3362eb5951742335, da7d898b4b623136, e9e5cfc1d0b1386a
 - `e6cc4c7458a487cd` [strategy] Ledger and brain layering: brain/ holds strategy, decisions-and-why, playbooks (months-years, pulled on demand); doc/ holds system knowledge; work units carry full implementation detail until closed; operational facts (<=1 paragraph, until falsified) are pushed into every session via prime; skills encode procedures for recurring task types, auto-loaded on task match — you boot from the brain, never from the ledger.
   links: a602df8d9b46c6b5, da7d898b4b623136, 282a35001a555f06
 - `eb88bee62f23ab41` [general] Research tracks: TRACK 1 DONE (brain/memory: CoALA, MemGPT/Letta,
@@ -148,8 +160,6 @@ Read this before starting any session. Canonical wins over this file.
   links: da7d898b4b623136, 282a35001a555f06
 - `d406cf06c1a1df90` [general] DECIDED: per-domain human-review gate — frontend = mandatory HITL
   links: af2f8fa2493077fd, e38ecd5bb62762ce
-- `dace75359570fa28` [strategy] Model welfare becomes an engineering input: treating agents like people produces empirically better results; a mature agentic project accretes law, mail, courts, doctrine and named rulings that cite their own case history — rules written by the workers they govern.
-  links: 3362eb5951742335, da7d898b4b623136
 - `0bcee47092412e6c` [strategy] D3: Work graph (ADR-0008): tickets carry `blocked_by` edges; claims
   links: a602df8d9b46c6b5
 - `0fc5cf16dc6d0efd` [general] REJECTED: web dashboard for solo kernel (AFK-SUPERVISOR v2 doc) —
@@ -181,7 +191,6 @@ Read this before starting any session. Canonical wins over this file.
 - `33d27d200a99d5c1` [strategy] Dogfood evidence: scratch checkpoint.sh rolled back the scratch repo
 - `4efccafe428586c9` [general] DECIDED: memory consolidation = fact merge/supersede + selective
 - `54652132a3129b58` [general] D8 dispositions (2026-08-06) live per-decision in entry 2026-08-06-003 (F-001..F-010); this meta-summary is superseded by them
-- `6ae0cbe9df28755d` [general] DECIDED: opencode as the worker harness (deepseek v4 flash economics)
 - `884021c45935bdf5` [strategy] D6: Rerun semantics: a passing `<case>-rerun` (>= 0.5) closes the gap;
 - `93838f49f75ed388` [strategy] 8 reruns created: reactive-loop (0.7225), real-ticket-001..007-v2
 - `9cf6af3d7d744da7` [strategy] D1: Tool parity treats `write`/`edit` as one family (ADR-0006).

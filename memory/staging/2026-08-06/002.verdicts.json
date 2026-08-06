@@ -1,0 +1,29 @@
+{
+  "staged": "002.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "No existing canonical fact covers DeepSeek API pricing; these are verifiable rates from the official pricing page with a fetch date.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "No existing canonical fact references deepseek-v4-flash version aliasing; source is the official API docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "No existing canonical fact covers DeepSeek's forward pricing intent; caveat is explicit (subject to official notice, time-sensitive).",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "No existing canonical fact describes the pricing cell structure; the three-cell model (cache-hit, cache-miss, output) with unified thinking rates is new information.",
+      "verdict": "promote"
+    }
+  ]
+}

@@ -1065,7 +1065,13 @@ pub fn run_opencode_worker(
     let kind = worker_kind(model);
     let args = build_worker_args(&kind, false, None, prompt);
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    run_worker_sandboxed(model, workdir, false, true, wall_cap, idle_cap, &arg_refs)
+    let mut result =
+        run_worker_sandboxed(model, workdir, false, true, wall_cap, idle_cap, &arg_refs)?;
+    // D1 telemetry: parse the usage from the opencode stream here (the
+    // loop path does this in run_verified_iteration; the standalone
+    // worker seam must too).
+    result.usage = mini_agi_core::worker::parse_opencode_usage(&result.output);
+    Ok(result)
 }
 
 /// `exec-sandbox`: apply the Landlock write-containment policy to the

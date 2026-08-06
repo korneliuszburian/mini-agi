@@ -11,6 +11,7 @@ use clap::{Args, Parser, Subcommand};
 mod bg;
 mod clifmt;
 mod planner;
+mod research;
 #[cfg(target_os = "linux")]
 mod sandbox;
 mod status;
@@ -100,6 +101,9 @@ enum Command {
     /// Live supervision dashboard (D4): std-only HTTP server serving a
     /// self-refreshing page over /api/status.
     Ui(UiArgs),
+    /// Auto-researcher (Phase 2): opencode flash worker with a
+    /// primary-source research contract; findings land in research/.
+    Research(ResearchArgs),
     /// Proactive composition loop (Phase 6.4): status/dispatch/verify.
     Loop(LoopArgs),
     /// Codex integration (Phase 8 slice 4, EXP-003): run codex on a
@@ -443,6 +447,18 @@ struct LoopRunArgs {
     no_resume: bool,
     template: Option<String>,
     detach: bool,
+}
+
+#[derive(Args, Debug)]
+struct ResearchArgs {
+    /// The research question (positional).
+    question: String,
+    /// Worker name (cheap default).
+    #[arg(long, default_value = "opencode-opencode-go/deepseek-v4-flash")]
+    worker: String,
+    /// Wall cap per worker invocation, seconds.
+    #[arg(long, default_value = "600")]
+    max_wall: u64,
 }
 
 #[derive(Args, Debug)]
@@ -802,6 +818,11 @@ fn main() -> ExitCode {
         Command::Health => cmd_health(),
         Command::Audit => cmd_audit(),
         Command::Status(StatusArgs { json }) => cmd_status(json),
+        Command::Research(ResearchArgs {
+            question,
+            worker,
+            max_wall,
+        }) => cmd_research(&question, &worker, max_wall),
         Command::Ui(UiArgs { port }) => match ui::serve(&root(), port) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => fail(&format!("ui: {e}")),
@@ -2931,4 +2952,53 @@ fn read_staged_facts(path: &Path) -> Result<Vec<mini_agi_core::dream::StagedFact
         return Err(format!("no staged facts parsed from {}", path.display()));
     }
     Ok(facts)
+}
+
+/// Auto-researcher: run the flash worker with the research contract,
+/// capture the answer, write research/<slug>.md (findings feed the
+/// dream-loop).
+fn cmd_research(question: &str, worker: &str, max_wall: u64) -> ExitCode {
+    let root = root();
+    let workdir = std::env::temp_dir().join(format!("mag-research-wd-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&workdir);
+    let result = match worker::run_opencode_worker(
+        &workdir,
+        worker,
+        &research::research_prompt(question),
+        Some(max_wall),
+        None,
+    ) {
+        Ok(w) => w,
+        Err(e) => return fail(&format!("research worker not available: {e}")),
+    };
+    if result.status != Some(0) {
+        return fail(&format!("research worker exited {:?}", result.status));
+    }
+    let extracted = mini_agi_core::dream::extract_text_parts(&result.output);
+    let findings = if extracted.trim().is_empty() {
+        result.output
+    } else {
+        extracted
+    };
+    if findings.trim().is_empty() {
+        return fail("research: worker returned no findings");
+    }
+    let out_path = research::findings_path(&root, question);
+    if let Some(parent) = out_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match std::fs::write(&out_path, &findings) {
+        Ok(()) => {
+            println!(
+                "research: {} bytes -> {} ({}s, cost ${:.6})",
+                findings.len(),
+                out_path.display(),
+                result.wall_seconds,
+                result.usage.map_or(0.0, |u| u.cost_usd)
+            );
+            println!("next: mini-agi dream --source {}", out_path.display());
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("research: cannot write findings: {e}")),
+    }
 }

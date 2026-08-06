@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 20b087cedfa735d8
-# canonical_entries: 42
+# canonical_sha256: 14fc1eb2516c2324
+# canonical_entries: 43
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -33,3 +33,7 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `282a35001a555f06` Pipeline map (ORIENT/PLAN, DECIDE, RESEARCH, BUILD, VERIFY, KNOWLEDGE, ORCHESTRATE, MODE) shows the real gap is RESEARCH; name-overlaps were not where gaps were. to-questionnaire closed the only chain-break in DECIDE.
 - `ccc01d856b49501a` Skill-layer changes are USER-governed (HITL): consumer and sole writer is the USER; the falsifier is gate-bound — mini-agi skill verify --all must stay 14+ PASS and one-owner lint must pass after any skill edit; to-questionnaire hook must verify the template + grill-the-send rule.
 - `54652132a3129b58` D8 dispositions (2026-08-06) live per-decision in entry 2026-08-06-003 (F-001..F-010); this meta-summary is superseded by them
+- `c93ad27aa8c7bb3a` deepseek-v4-flash API pricing (USD per 1M tokens, official DeepSeek pricing page, fetched 2026-08-06): input cache-hit $0.0028, input cache-miss $0.14, output $0.28. Source: https://api-docs.deepseek.com/quick_start/pricing
+- `b9a0c323a1475dc2` The deepseek-v4-flash API alias currently points at model version DeepSeek-V4-Flash-0731 (confirmed on DeepSeek's pricing and 'Your First API Call' docs pages).
+- `d5b02e7e2030b2b9` DeepSeek officially warns it plans to raise overall API pricing significantly in the near future, subject to official notice — so deepseek-v4-flash rates are time-sensitive and only valid until the pricing page changes.
+- `e9e5cfc1d0b1386a` deepseek-v4-flash pricing has exactly three cells per model (cache-hit input, cache-miss input, output) — cache-hit vs cache-miss is the only split; there is no separate standard-vs-thinking input tier, though thinking mode is billed at the same input/output rates.
