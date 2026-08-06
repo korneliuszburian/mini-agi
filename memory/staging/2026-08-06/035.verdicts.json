@@ -1,0 +1,185 @@
+{
+  "staged": "035.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "ADR definition — specific, durable, well-sourced from the original Nygard doc; no overlapping canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "ADR rationale — crisp, verifiable claim about documentation value; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "KEP process — accurate summary of the KEP gate; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "OWASP log content guidance — specific, verifiable against OWASP Application Logging Cheat Sheet; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "OWASP log separation — distinct from security-event logging; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "OWASP non-repudiation — accurate claim about log trustworthiness; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "OWASP log integrity at rest — specific, verifiable; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "W3C PROV definition — canonical PROV-DM/PROV-O summary; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "in-toto definition — accurate CNCF project summary; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "in-toto Statement layer — specific verifiable detail from the spec; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "SLSA provenance — accurate model summary including builder-signer constraint; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "W3C VC Data Integrity — accurate summary of Proof Sets, Proof Chains, proofPurpose; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "EU AI Act Art 26(2) — specific, verifiable legal text on high-risk system oversight; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "EU AI Act Art 26(10) — specific, verifiable legal text on post-remote biometric ID; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "KEP approval-as-recorded-gate — refines candidate [2] with a distinct claim (approval step IS the record); not a duplicate; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "specific, verifiable claim about a real W3C standard; no omission, corruption, or fabrication detected relative to the material it summarizes",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "verbatim legal citation with concrete field-level requirements from Art 12; verifiable against the published Regulation",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "specific retention-period citations (Art 19(1), Art 26(6)) with institution-specific scoping; verifiable",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "specific access-provision citation (Art 21(2)); verifiable",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "verbatim quote from Art 13 with enumerated disclosure requirements; verifiable",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "factual description of RMF structure (four functions, release date, voluntary status, companion Playbook); verifiable against NIST landing page",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "specific sub-category citations with the substantive requirements they carry; verifiable against the AIRC Playbook HTML source",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "candidate itself declares content is not verifiable — document not retrieved, not read, no claim attributed; promoting would be fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "candidate itself declares normative text is paywalled and not read, not used as a source; promoting would attribute claims to an unread source",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "meta-note about source-retrieval quality, not a durable fact; belongs in a research log, not canonical memory",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "analytical synthesis distinguishing three mechanisms by audit-question type; reasoned, no omission/corruption/fabrication, no conflict with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "analytical synthesis of EU AI Act articles showing combined layering by law; reasoned, citations cross-referenced with candidates 1-4",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "analytical opinion identifying integrity/non-repudiation gap and proposing digest-bound attestation shape; reasoned, no fabrication",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "established factual claims with sourcing per mechanism; each sub-claim traces to a candidate above or to a cited standard",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "honest negative observation — explicitly declares the gap, names the evidence for it, does not fabricate a standard that does not exist",
+      "verdict": "promote"
+    }
+  ]
+}
