@@ -123,6 +123,13 @@ Any MCP client connects over stdio:
 opencode: see `opencode.json` in this repo (dogfoods the kernel as an MCP
 server). Codex: `.codex/agents/*.toml` subagents + `.codex/config.toml`.
 
+Write tools need HITL: every tool that changes the worker tree or canonical
+memory (`loop_dispatch`, `loop_objective`, `memory_signoff`,
+`memory_consolidate`, `memory_derive`, `run_ingest`, `ticket_claim`/`release`,
+`skill_add`, `harness`, `loop_run`) requires a non-empty `approve` reason
+argument in the kernel — the call is refused without it. `memory_consolidate`
+with `dry_run: true` is the one read-only exception.
+
 ## Dogfooding
 
 The repo is its own first customer: canonical memory in `memory/canonical`
