@@ -330,3 +330,4 @@
 2026-08-07T16:31:54Z BEGIN fix22-plan-header -> 0907cbc
 2026-08-07T16:32:54Z VERIFY-PASS fix22-plan-header @ 3787c56
 2026-08-07T16:36:30Z BEGIN fix23-changelog -> a316b02
+2026-08-07T16:37:48Z VERIFY-PASS fix23-changelog @ accce5c
