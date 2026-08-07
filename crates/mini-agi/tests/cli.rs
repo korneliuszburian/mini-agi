@@ -1683,6 +1683,29 @@ fn cli_eval_judge_drift_reports_on_empty_corpus() {
 }
 
 #[test]
+fn cli_eval_judge_recalibrate_resets_corpus() {
+    // `eval judge-recalibrate` (clear the calibration corpus so close
+    // gates resume) had no CLI test; the reset path and its message were
+    // uncovered.
+    let root = tmp_root("crc");
+    wipe(&root);
+    let cal = root.join("memory/derived/calibration.md");
+    std::fs::create_dir_all(cal.parent().unwrap()).unwrap();
+    std::fs::write(&cal, "# judge calibration\n\n{").unwrap();
+    let out = run(&root, &["eval", "judge-recalibrate"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(
+        stdout(&out).contains("judge calibration reset"),
+        "{}",
+        stdout(&out)
+    );
+    // The corpus is cleared (reset writes a header-only file).
+    let after = std::fs::read_to_string(&cal).unwrap_or_default();
+    assert!(!after.contains('{'), "corpus must be cleared: {after}");
+    wipe(&root);
+}
+
+#[test]
 fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     // P2-13: loop verify exits 1 for an honest OPEN gap and 2 for a
     // broken verification machinery error. Neither contract had an
