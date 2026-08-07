@@ -571,3 +571,4 @@
 2026-08-07T23:40:29Z BEGIN fix143-cli-budget-coverage -> af13904
 2026-08-07T23:41:47Z VERIFY-PASS fix143-cli-budget-coverage @ d3a7bbf
 2026-08-07T23:42:27Z BEGIN fix144-cli-provenance-determinism -> 9066318
+2026-08-07T23:43:55Z VERIFY-PASS fix144-cli-provenance-determinism @ 751377b
