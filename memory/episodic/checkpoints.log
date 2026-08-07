@@ -274,3 +274,4 @@
 2026-08-06T20:10:00Z VERIFY-PASS ar9-s1 @ 11bea88 (repair: cycle 9 was gate-green at that commit; the checkpoint was left open through the marathon re-scope)
 2026-08-06T20:08:17Z BEGIN ar11-s1 -> cf2498c (clean)
 2026-08-06T20:13:42Z VERIFY-PASS ar11-s1 @ d719912
+2026-08-07T05:06:17Z CHECKPOINT-ABORT dream-condense-json-report disallowed dirty paths: research/what-are-the-measured-failure-rates-and-repair-patterns-for-.md
