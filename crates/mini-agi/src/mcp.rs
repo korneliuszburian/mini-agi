@@ -172,12 +172,13 @@ fn tool_definitions() -> Vec<Value> {
     const TOOLS: &[ToolDef] = &[
         ToolDef {
             name: "memory_consolidate",
-            description: "Consolidate an episodic buffer into canonical facts.",
+            description: "Consolidate an episodic buffer into canonical facts. Requires an approval reason unless dry_run is set (a write that appends facts to canonical memory).",
             params: &[
                 ("episodic", "string"),
                 ("domain", "string"),
                 ("require_signoff", "boolean"),
                 ("dry_run", "boolean"),
+                ("approve", "string"),
             ],
             required: &["episodic"],
         },
@@ -194,9 +195,9 @@ fn tool_definitions() -> Vec<Value> {
         },
         ToolDef {
             name: "memory_derive",
-            description: "Regenerate derived views from canonical memory.",
-            params: &[("brief_only", "boolean")],
-            required: &[],
+            description: "Regenerate derived views from canonical memory. Requires an approval reason (a write that regenerates derived views).",
+            params: &[("brief_only", "boolean"), ("approve", "string")],
+            required: &["approve"],
         },
         ToolDef {
             name: "provenance",
@@ -493,6 +494,13 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     match name {
         "memory_consolidate" => {
             let episodic = args.get("episodic").and_then(Value::as_str).unwrap_or("");
+            let dry_run = arg_bool(args, "dry_run");
+            if !dry_run {
+                let approve = arg!("approve");
+                if approve.is_empty() {
+                    return "error: memory_consolidate requires an approval reason (approve) unless dry_run — a write that appends facts to canonical memory".to_string();
+                }
+            }
             let domain = arg!("domain").to_string();
             let domain = if domain.is_empty() {
                 "general".to_string()
@@ -500,7 +508,6 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 domain
             };
             let require_signoff = arg_bool(args, "require_signoff");
-            let dry_run = arg_bool(args, "dry_run");
             match super::consolidate_text(
                 Path::new(episodic),
                 &domain,
@@ -533,6 +540,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             }
         }
         "memory_derive" => {
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: memory_derive requires an approval reason (approve) — a write that regenerates derived views".to_string();
+            }
             let brief_only = arg_bool(args, "brief_only");
             match super::derive_text(brief_only, root) {
                 Ok(text) => text,
@@ -1201,21 +1212,24 @@ mod tests {
 
     #[test]
     fn dispatch_tools_declare_approve_required() {
-        // AGENTS.md: "Writes (loop_dispatch, memory_signoff, run_ingest,
-        // ticket_claim/release, skill_add, harness) require a prompt
-        // (HITL)". Every such MCP tool must declare + require approve.
+        // AGENTS.md: "Writes (loop_dispatch, memory_signoff/consolidate/
+        // derive, run_ingest, ticket_claim/release, skill_add, harness)
+        // require a prompt (HITL)". Every such MCP tool must declare
+        // approve; all but memory_consolidate (which may dry_run) must
+        // require it in the schema.
         let tools = tool_definitions();
-        let write_tools = [
+        let require_approve = [
             "loop_dispatch",
             "loop_objective",
             "memory_signoff",
+            "memory_derive",
             "run_ingest",
             "ticket_claim",
             "ticket_release",
             "skill_add",
             "harness",
         ];
-        for name in write_tools {
+        for name in require_approve {
             let tool = tools.iter().find(|t| t["name"] == name).unwrap();
             let required = tool["inputSchema"]["required"]
                 .as_array()
@@ -1230,7 +1244,44 @@ mod tests {
                 "{name} must declare the approve param"
             );
         }
+        // memory_consolidate may dry_run (read-only) so approve is
+        // optional in the schema, but it must still be declared.
+        let consolidate = tools
+            .iter()
+            .find(|t| t["name"] == "memory_consolidate")
+            .unwrap();
+        assert!(
+            consolidate["inputSchema"]["properties"]
+                .get("approve")
+                .is_some(),
+            "memory_consolidate must declare the approve param"
+        );
     }
+    #[test]
+    fn memory_consolidate_dry_run_skips_approval_but_write_requires_it() {
+        let root = std::env::temp_dir().join(format!("mag-mcp-con-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        // Without dry_run, a write: approve is required.
+        let out = call_tool("memory_consolidate", &serde_json::json!({}), &root);
+        assert!(
+            out.starts_with("error: memory_consolidate requires an approval reason"),
+            "{out}"
+        );
+        // With dry_run, it is read-only: no approve needed (the tool may
+        // still run — here it errors on missing episodic, not on HITL).
+        let out = call_tool(
+            "memory_consolidate",
+            &serde_json::json!({"dry_run": true}),
+            &root,
+        );
+        assert!(
+            !out.starts_with("error: memory_consolidate requires an approval reason"),
+            "{out}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn tool_schemas_declare_real_types() {
         let tools = tool_definitions();
