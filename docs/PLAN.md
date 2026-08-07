@@ -294,9 +294,20 @@ reruns), (3) Sandcastle-style codex integration (completion protocol,
 structured output, branch semantics — EXP-003), (4) process supervision
 (step-level verdicts, active budget), (5) best-state regression bound +
 published time series, (6) memory evolution (fact linking, importance
-retrieval, supersede consolidation), (7) harness evolution (mini-agi
+ retrieval, supersede consolidation), (7) harness evolution (mini-agi
 improving mini-agi, journal as evolution ledger), (8) multi-repo + MCP
 completion.
+
+Status of the Phase 8 candidates (2026-08-07): (1) verifiable-reward
+layer — DONE (Phase 9, `run verify` + judge-drift calibration); (2)
+Reflexion register upgrade — DONE (Phase 9, MAST + reflections injected
+into reruns); (3) Sandcastle codex integration — DONE (Phase 10,
+EXP-003, `codex --iterate`); (4) process supervision — DONE (Phase 8,
+`eval steps`); (5) best-state regression bound + time series — DONE
+(Phase 9, ADR bound); (6) memory evolution — DONE (cycle 33:
+relevance-ranked `mem query`, supersede lineage on dream duplicates);
+(7) harness evolution — DONE (Phase 10, `harness verify` counterfactual
+gate); (8) multi-repo + MCP completion — OPEN (only candidate left).
 
 ### Phase 9 — verified before trusted (2026-08-03, DONE)
 See docs/EXPERIMENTS.md EXP-006 + CHANGELOG.md. Run verification became
