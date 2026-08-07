@@ -1572,6 +1572,68 @@ fn cli_mem_verify_detects_exact_duplicate_facts() {
 }
 
 #[test]
+fn cli_mem_supersede_writes_lineage_and_rejects_unknown_id() {
+    // `mem supersede` (append-only lineage: a new fact supersedes an old
+    // id) had no CLI test; the known-id gate and the lineage write were
+    // both uncovered at the CLI boundary.
+    let root = tmp_root("csup");
+    wipe(&root);
+    let day = today();
+    seed_existing_entry(
+        &root,
+        &day,
+        1,
+        "# e1\n\n## F-000 `0123456789abcde0`\n\nold claim\n",
+    );
+    // Unknown id -> hard error, no write.
+    let bad = run(
+        &root,
+        &[
+            "mem",
+            "supersede",
+            "new claim",
+            "--supersedes",
+            "ffffffffffffffff",
+            "--domain",
+            "general",
+            "--source",
+            "test",
+        ],
+    );
+    assert_eq!(bad.status.code(), Some(1), "{}", combined(&bad));
+    assert!(
+        combined(&bad).contains("not a known canonical fact id"),
+        "{}",
+        combined(&bad)
+    );
+    // Valid supersede -> success + lineage entry written.
+    let ok = run(
+        &root,
+        &[
+            "mem",
+            "supersede",
+            "new corrected claim",
+            "--supersedes",
+            "0123456789abcde0",
+            "--domain",
+            "general",
+            "--source",
+            "test",
+        ],
+    );
+    assert!(ok.status.success(), "{}", combined(&ok));
+    assert!(
+        stdout(&ok).contains("superseded 1 fact(s)"),
+        "{}",
+        stdout(&ok)
+    );
+    // mem verify: no broken lineage.
+    let v = run(&root, &["mem", "verify"]);
+    assert!(v.status.success(), "{}", combined(&v));
+    wipe(&root);
+}
+
+#[test]
 fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     // P2-13: loop verify exits 1 for an honest OPEN gap and 2 for a
     // broken verification machinery error. Neither contract had an
