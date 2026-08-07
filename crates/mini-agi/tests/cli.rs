@@ -1722,6 +1722,42 @@ fn cli_dream_idle_no_runs_is_clean_success() {
 }
 
 #[test]
+fn cli_dream_idle_no_newer_runs_skips() {
+    // The freshness branch (staging newer than the newest run) must skip
+    // deterministically — pinned mtimes, no host-load dependence.
+    let root = tmp_root("cdif");
+    wipe(&root);
+    let case = root.join("evals/cases/c");
+    std::fs::create_dir_all(&case).unwrap();
+    let run_path = case.join("run.json");
+    std::fs::write(
+        &run_path,
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    // Staging is NEWER than the run -> 'no newer runs' skip.
+    let staging = root.join("memory/staging/2026-08-07/001.md");
+    std::fs::create_dir_all(staging.parent().unwrap()).unwrap();
+    std::fs::write(&staging, "# staged\n\n## S-000 (general)\n\nfact\n").unwrap();
+    let base = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+    std::fs::File::open(&run_path)
+        .unwrap()
+        .set_modified(base)
+        .unwrap();
+    std::fs::File::open(&staging)
+        .unwrap()
+        .set_modified(base + std::time::Duration::from_secs(10))
+        .unwrap();
+    let out = run(&root, &["dream", "--idle"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    let text = stdout(&out);
+    if !text.contains("busy, skipping") {
+        assert!(text.contains("no newer runs"), "{text}");
+    }
+    wipe(&root);
+}
+
+#[test]
 fn cli_mem_verify_detects_exact_duplicate_facts() {
     // `mem verify` (memory-integrity gate, AGENTS.md 'cyklicznie
     // weryfikuj spójność memory') had no CLI test — a regression where
