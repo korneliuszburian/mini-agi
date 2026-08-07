@@ -360,3 +360,4 @@
 2026-08-07T17:48:47Z BEGIN fix37-mcp-memory-writes-hitl -> 6572454
 2026-08-07T17:50:55Z VERIFY-PASS fix37-mcp-memory-writes-hitl @ 8da0246
 2026-08-07T17:51:47Z BEGIN fix38-docs-approve-detail -> b0afb6c
+2026-08-07T17:52:45Z VERIFY-PASS fix38-docs-approve-detail @ ee28e70
