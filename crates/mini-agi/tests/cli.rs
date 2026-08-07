@@ -2009,6 +2009,26 @@ fn cli_loop_parallel_fails_closed_without_verifier_and_on_bad_manifest() {
         ],
     );
     assert!(!unsafe_run.status.success(), "{}", combined(&unsafe_run));
+    // A manifest whose scope touches a PROTECTED path must fail closed.
+    let prot_m = root.join("protected.json");
+    std::fs::write(
+        &prot_m,
+        r#"{"version":1,"tickets":[{"id":"t","goal":"g","scope":["scripts/verify.sh"],"verify":"true"}]}"#,
+    )
+    .unwrap();
+    let prot_run = run(
+        &root,
+        &[
+            "loop",
+            "parallel",
+            "goal",
+            "--verify",
+            "true",
+            "--manifest",
+            prot_m.to_str().unwrap(),
+        ],
+    );
+    assert!(!prot_run.status.success(), "{}", combined(&prot_run));
     wipe(&root);
 }
 
