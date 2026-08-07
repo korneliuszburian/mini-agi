@@ -357,6 +357,14 @@ fn cli_provenance_prints_fingerprint() {
     assert!(stdout(&out).starts_with("canonical_sha256: "));
     let fp = stdout(&out).split_whitespace().nth(1).unwrap().to_string();
     assert_eq!(fp.len(), 16);
+    // Determinism: without canonical changes the fingerprint is stable.
+    let again = run(&root, &["provenance"]);
+    let fp2 = stdout(&again)
+        .split_whitespace()
+        .nth(1)
+        .unwrap()
+        .to_string();
+    assert_eq!(fp, fp2, "fingerprint must be deterministic across runs");
     // The fingerprint must CHANGE when canonical memory grows — the
     // provenance gate's whole job is to detect drift.
     let more = root.join("buf2.md");
