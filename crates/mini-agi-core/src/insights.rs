@@ -553,6 +553,24 @@ pub fn resume(root: &Path) -> Result<String, io::Error> {
             );
         }
     }
+    if let Ok(claims) = crate::ticket::read_claims(root)
+        && !claims.is_empty()
+    {
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            out,
+            "claims: {} active lease(s) — do not start work on a ticket someone else holds ({}):",
+            claims.len(),
+            crate::ticket::claims_path(root).display()
+        );
+        for c in claims.iter().take(5) {
+            let _ = writeln!(
+                out,
+                "  {} held by {} since {}",
+                c.ticket, c.claimant, c.since
+            );
+        }
+    }
     Ok(out)
 }
 
@@ -677,6 +695,26 @@ mod backlog_tests {
         );
         assert!(block.contains("golden expects read"), "{block}");
         assert!(block.contains("used edit"), "{block}");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resume_block_includes_active_claims() {
+        // resume's lease block: a session start must see active claims so
+        // it does not begin work on a ticket someone else holds.
+        let root = tmp_root("resume-claims");
+        fs::create_dir_all(root.join("memory/derived")).unwrap();
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::write(
+            root.join("tickets/TICKET-001.md"),
+            "- id: TICKET-001\n- title: gates\n- goal: g\n- scope: scripts\n",
+        )
+        .unwrap();
+        crate::ticket::claim_ticket(&root, "TICKET-001", "agent-a", false).unwrap();
+        let block = resume(&root).unwrap();
+        assert!(block.contains("claims:"), "{block}");
+        assert!(block.contains("TICKET-001"), "{block}");
+        assert!(block.contains("agent-a"), "{block}");
         let _ = fs::remove_dir_all(&root);
     }
 }

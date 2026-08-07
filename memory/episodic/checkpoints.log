@@ -554,3 +554,4 @@
 2026-08-07T23:14:59Z VERIFY-PASS fix134-env-malformed-warning @ 1a9b165
 2026-08-07T23:16:02Z BEGIN fix135-mcp-budget-parse -> c80b92f
 2026-08-07T23:17:43Z VERIFY-PASS fix135-mcp-budget-parse @ 1f6e70d
+2026-08-07T23:18:37Z BEGIN fix136-resume-claims -> 50e07ec
