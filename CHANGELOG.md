@@ -102,6 +102,20 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   markdown tickets deliberately keep scope optional per the PoC bullet
   form, so scope-less markdown tickets still validate).
 
+### Changed (autonomous polish — robustness + edge paths)
+- `preserve_ids` is idempotent: preserving an already-preserved id no
+  longer appends a duplicate line to `preserved.md`.
+- `bg` zombie/liveness sleeps stretched 200ms -> 500ms (flake guard on a
+  loaded host; seen twice under load ~24).
+- Suite grew to 415 with the last CLI edge paths: `loop verify` CLOSED
+  exit 0, `loop dispatch`/`parallel` no-case fail-closed, `ui` busy-port,
+  `run verify`/`run ingest`/`eval score` missing-file, `mem consolidate`
+  missing buffer, `mem query` no-filters and `--domain`-only,
+  `mem supersede` no-id, `validate` unknown contract, `ticket claim`
+  missing, `harness verify` missing target, `skill add` bad source,
+  `dream --promote` empty staging, `eval hidden` missing dir.
+  Suite: 403 -> 415 tests.
+
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
   OWN codex session via `codex exec resume <uuid>` (content-marker

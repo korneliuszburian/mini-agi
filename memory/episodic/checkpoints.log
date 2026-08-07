@@ -502,3 +502,4 @@
 2026-08-07T22:01:50Z VERIFY-PASS fix108-cli-hidden-nodir @ f8b8e66
 2026-08-07T22:02:27Z BEGIN fix109-cli-mem-guards -> 1aa39b5
 2026-08-07T22:03:26Z VERIFY-PASS fix109-cli-mem-guards @ 06ad5bf
+2026-08-07T22:04:18Z BEGIN fix110-changelog4 -> 143a250
