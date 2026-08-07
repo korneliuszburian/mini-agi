@@ -2674,3 +2674,22 @@ fn cli_dream_promote_empty_staging_fails_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_hidden_missing_dir_fails_cleanly() {
+    // eval hidden with no cases dir must error cleanly (exit 1) with a
+    // clear message, not panic.
+    let root = tmp_root("cehm");
+    wipe(&root);
+    let out = run(
+        &root,
+        &["eval", "hidden", root.join("nope").to_str().unwrap()],
+    );
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("no hidden cases"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
