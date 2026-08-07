@@ -257,12 +257,13 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
         // surface the per-case repair classification and whether further
         // retries are pointless (attempts past the configured bound with
         // the best result still below the target — CRC #69 abstention).
-        let repair_signal = std::fs::read_to_string(
-            root.join("evals/cases").join(&case.case).join("run.json"),
-        )
-        .ok()
-        .and_then(|text| serde_json::from_str::<eval::Run>(&text).ok())
-        .map(|run| eval::repair_signal(&run, crate::config::Config::load(root).max_repeated_steps));
+        let repair_signal =
+            std::fs::read_to_string(root.join("evals/cases").join(&case.case).join("run.json"))
+                .ok()
+                .and_then(|text| serde_json::from_str::<eval::Run>(&text).ok())
+                .map(|run| {
+                    eval::repair_signal(&run, crate::config::Config::load(root).max_repeated_steps)
+                });
         let exhausted = crate::config::Config::load(root)
             .max_rerun_attempts
             .is_some_and(|limit| attempts > limit)
@@ -295,7 +296,10 @@ fn is_rerun_case(case: &str) -> bool {
         return false;
     };
     let tail = &case[idx + "-rerun".len()..];
-    tail.is_empty() || tail.strip_prefix('-').is_some_and(|s| s.parse::<usize>().is_ok())
+    tail.is_empty()
+        || tail
+            .strip_prefix('-')
+            .is_some_and(|s| s.parse::<usize>().is_ok())
 }
 
 /// The dispatch target: the lowest-composite case below `below` that has
@@ -336,10 +340,7 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
         // human decision, not another dispatch.
         let cfg = crate::config::Config::load(root);
         let attempts = 1 + count_reruns(root, &candidate.case);
-        if cfg
-            .max_rerun_attempts
-            .is_some_and(|limit| attempts > limit)
-        {
+        if cfg.max_rerun_attempts.is_some_and(|limit| attempts > limit) {
             continue;
         }
         // Best-result tracking (SQLQE #19): a case whose best result
@@ -644,10 +645,7 @@ pub fn objective(
         // not another dispatch.
         let cfg = crate::config::Config::load(root);
         let attempts = 1 + count_reruns(root, case);
-        if cfg
-            .max_rerun_attempts
-            .is_some_and(|limit| attempts > limit)
-        {
+        if cfg.max_rerun_attempts.is_some_and(|limit| attempts > limit) {
             out.skipped_blocked.push(case.clone());
             continue;
         }
@@ -1508,7 +1506,10 @@ mod tests {
         );
         // pick_target also refuses.
         let picked = pick_target(&root, None, target);
-        assert!(picked.is_err(), "exhausted case must not be picked: {picked:?}");
+        assert!(
+            picked.is_err(),
+            "exhausted case must not be picked: {picked:?}"
+        );
         // status surfaces the exhaustion.
         let status = status(&root).unwrap();
         let row = status
@@ -1527,7 +1528,10 @@ mod tests {
         assert!(is_rerun_case("case-rerun-2"));
         assert!(is_rerun_case("case-rerun-10"));
         assert!(!is_rerun_case("case"));
-        assert!(!is_rerun_case("case-rerun-x"), "non-numeric suffix is a case name");
+        assert!(
+            !is_rerun_case("case-rerun-x"),
+            "non-numeric suffix is a case name"
+        );
         assert!(!is_rerun_case("rerun"), "no case prefix");
     }
 }

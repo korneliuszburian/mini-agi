@@ -1101,7 +1101,15 @@ fn cmd_loop_status(attempts: bool) -> ExitCode {
                 if attempts {
                     println!(
                         "  {:.4}  {:<24} attempts={}  {}  {}  lease: {}  {}{}{}",
-                        row.composite, row.case, row.attempts, best, rerun, ticket, claim, signal, exhaust
+                        row.composite,
+                        row.case,
+                        row.attempts,
+                        best,
+                        rerun,
+                        ticket,
+                        claim,
+                        signal,
+                        exhaust
                     );
                 } else {
                     println!(
