@@ -497,3 +497,4 @@
 2026-08-07T21:56:49Z BEGIN fix106-cli-query-domain -> 0e5ebc6
 2026-08-07T21:58:15Z VERIFY-PASS fix106-cli-query-domain @ b5d2206
 2026-08-07T21:59:00Z BEGIN fix107-cli-promote-empty -> c4b40ea
+2026-08-07T21:59:57Z VERIFY-PASS fix107-cli-promote-empty @ 0ba4d14
