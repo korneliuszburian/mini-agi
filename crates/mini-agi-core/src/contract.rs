@@ -240,6 +240,54 @@ pub fn parse_document(text: &str) -> Result<Value, serde_json::Error> {
     serde_json::from_str(text)
 }
 
+/// Bounded repair loop: validate a candidate against a contract, and when
+/// it fails, feed the first [`SchemaError`] back to `attempt` for a
+/// revised candidate, up to `max_attempts` total tries.
+///
+/// This is the cycle-33 measured pattern ("deterministic validator +
+/// bounded retry with validator feedback ≈ 96% structural validity")
+/// made reusable for any caller that regenerates LLM-shaped documents
+/// (e.g. verdicts, tickets) against a bundled contract. The validator is
+/// deterministic; only the candidate regeneration is stochastic, so the
+/// loop terminates in at most `max_attempts` tries and never accepts a
+/// document the contract rejects.
+///
+/// `attempt` returns `None` when it cannot produce another candidate
+/// (e.g. the source exhausted its budget); the loop then stops early and
+/// returns the last seen error. The first schema-valid document is
+/// returned as `Ok`. If every candidate fails, the last error is
+/// returned as `Err`.
+///
+/// # Errors
+///
+/// Returns the last [`SchemaError`] when the repair budget is exhausted
+/// or `attempt` declines to produce a further candidate.
+pub fn repair_until_valid<F>(
+    contract: Contract,
+    max_attempts: usize,
+    mut attempt: F,
+) -> Result<Value, SchemaError>
+where
+    F: FnMut(&SchemaError) -> Option<Value>,
+{
+    let schema = contract_schema(contract);
+    let mut last_err = SchemaError {
+        path: "<repair>".to_string(),
+        message: "no attempt was made".to_string(),
+    };
+    for _ in 0..max_attempts {
+        let Some(candidate) = attempt(&last_err) else {
+            return Err(last_err);
+        };
+        if let Some(err) = schema.validate(&candidate) {
+            last_err = err;
+            continue;
+        }
+        return Ok(candidate);
+    }
+    Err(last_err)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -328,5 +376,52 @@ mod tests {
         let err = schema.validate(&doc(r#"{"a":5}"#)).unwrap();
         assert_eq!(err.path, "a");
         assert!(err.message.contains("expected string"));
+    }
+
+    #[test]
+    fn repair_returns_first_valid_after_feedback() {
+        let attempts = std::cell::Cell::new(0usize);
+        let ok = repair_until_valid(Contract::Verdict, 3, |err| {
+            attempts.set(attempts.get() + 1);
+            if err.path == "<repair>" {
+                // First candidate: invalid verdict value.
+                return Some(doc(
+                    r#"{"verdict":"MAYBE","correctness":2,"security":2,"tests":2,"scope":1}"#,
+                ));
+            }
+            // Feedback received: repair the enum violation.
+            Some(doc(
+                r#"{"verdict":"APPROVE","correctness":2,"security":2,"tests":2,"scope":1}"#,
+            ))
+        });
+        assert!(ok.is_ok());
+        assert_eq!(attempts.get(), 2, "second candidate should validate");
+    }
+
+    #[test]
+    fn repair_exhausts_budget_and_returns_last_error() {
+        let err = repair_until_valid(Contract::Verdict, 2, |_| {
+            Some(doc(
+                r#"{"verdict":"MAYBE","correctness":2,"security":2,"tests":2,"scope":1}"#,
+            ))
+        });
+        let err = err.unwrap_err();
+        assert!(err.message.contains("enum"));
+    }
+
+    #[test]
+    fn repair_stops_early_when_attempt_declines() {
+        let mut calls = 0usize;
+        let err = repair_until_valid(Contract::Verdict, 5, |_| {
+            calls += 1;
+            if calls == 2 {
+                return None;
+            }
+            Some(doc(
+                r#"{"verdict":"MAYBE","correctness":2,"security":2,"tests":2,"scope":1}"#,
+            ))
+        });
+        assert!(err.is_err());
+        assert_eq!(calls, 2, "must not burn the full budget after a decline");
     }
 }

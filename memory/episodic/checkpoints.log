@@ -277,3 +277,4 @@
 2026-08-07T05:06:17Z CHECKPOINT-ABORT dream-condense-json-report disallowed dirty paths: research/what-are-the-measured-failure-rates-and-repair-patterns-for-.md
 2026-08-07T05:07:48Z BEGIN dream-condense-json-report -> 89ee422
 2026-08-07T05:38:59Z VERIFY-PASS dream-condense-json-report @ df17b88
+2026-08-07T05:44:45Z BEGIN fix1-distiller-retry -> 5cfc97b

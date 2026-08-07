@@ -492,9 +492,12 @@ struct DreamArgs {
     /// Report without writing anything.
     #[arg(long)]
     dry_run: bool,
-    /// Wall cap per worker invocation, seconds.
-    #[arg(long, default_value = "300")]
-    max_wall: u64,
+    /// Wall cap per worker invocation, seconds. When unset, the cap
+    /// scales with the material size (cycle 33 finding: the fixed 300 s
+    /// default was too small for large reports — a 105 KB material
+    /// stalled the audit and needed ~900 s).
+    #[arg(long)]
+    max_wall: Option<u64>,
 }
 
 #[derive(Args, Debug)]
@@ -2712,7 +2715,7 @@ fn cmd_dream(
     auditor: &str,
     promote: bool,
     dry_run: bool,
-    max_wall: u64,
+    max_wall: Option<u64>,
     idle_load: Option<f64>,
 ) -> ExitCode {
     let root = root();
@@ -2779,6 +2782,12 @@ fn cmd_dream(
         Ok(t) => t,
         Err(e) => return fail(&format!("dream: cannot read {}: {e}", source.display())),
     };
+    // Cycle 33 finding (measured): a fixed 300 s wall cap is too small
+    // for large reports — a 105 KB material stalled the audit and needed
+    // ~900 s. Scale the default with the material size (roughly 1 s per
+    // 300 bytes, floored at 300 s), and let an explicit `--max-wall`
+    // override the scale.
+    let max_wall = max_wall.unwrap_or_else(|| (300u64).max(material.len() as u64 / 300));
     let workdir = std::env::temp_dir().join(format!("mag-dream-wd-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&workdir);
     let source_rel = source
@@ -2787,7 +2796,7 @@ fn cmd_dream(
         .unwrap_or(&source.to_string_lossy())
         .to_string();
     // 1. Distill (cheap worker, D1 adapter).
-    let dist = match worker::run_opencode_worker(
+    let mut dist = match worker::run_opencode_worker(
         &workdir,
         distiller,
         &mini_agi_core::dream::distiller_prompt(&material),
@@ -2797,13 +2806,34 @@ fn cmd_dream(
         Ok(w) => w,
         Err(e) => return fail(&format!("dream distiller not available: {e}")),
     };
+    let mut staged = mini_agi_core::dream::parse_distilled_facts(&dist.output);
+    // Bounded retry with validator feedback (cycle 33 finding): the
+    // distiller is a cheap model that occasionally returns prose/fences
+    // instead of the JSON fact array (observed on a 105 KB report). One
+    // retry feeding the validator's failure mode back recovers most
+    // cases; two total attempts bounds the wall cost.
+    if staged.is_empty() && dist.status == Some(0) {
+        eprintln!(
+            "  [warn] distiller returned no parseable facts ({} bytes) — retrying once with feedback",
+            dist.output.len()
+        );
+        let prompt = format!(
+            "{}\n\n{}",
+            mini_agi_core::dream::distiller_prompt(&material),
+            mini_agi_core::dream::distiller_retry_feedback()
+        );
+        match worker::run_opencode_worker(&workdir, distiller, &prompt, Some(max_wall), None) {
+            Ok(w) => dist = w,
+            Err(e) => return fail(&format!("dream distiller retry not available: {e}")),
+        }
+        staged = mini_agi_core::dream::parse_distilled_facts(&dist.output);
+    }
     if dist.status != Some(0) {
         return fail(&format!(
             "dream distiller exited {:?} — no candidates",
             dist.status
         ));
     }
-    let staged = mini_agi_core::dream::parse_distilled_facts(&dist.output);
     if staged.is_empty() {
         println!("dream: distiller returned no candidate facts");
         return ExitCode::SUCCESS;

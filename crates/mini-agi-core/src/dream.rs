@@ -142,6 +142,17 @@ pub fn distiller_prompt(material: &str) -> String {
     )
 }
 
+/// Retry feedback appended when the distiller's output failed to parse
+/// into any facts (bounded retry with validator feedback — cycle 33
+/// finding: deterministic validator + bounded retry ≈96% validity).
+#[must_use]
+pub const fn distiller_retry_feedback() -> &'static str {
+    "VALIDATOR FEEDBACK: your previous response contained no parseable JSON array \
+     of fact objects. Re-emit the facts as a single JSON array of exactly \
+     [{\"body\": \"<fact>\", \"domain\": \"<domain>\"}] items, ONLY that array, \
+     no prose, no fences, no commentary."
+}
+
 /// The auditor prompt: strong model judges each staged fact.
 #[must_use]
 pub fn auditor_prompt(staged: &[StagedFact]) -> String {
@@ -515,6 +526,10 @@ mod tests {
         assert!(d.contains("EVIDENTIAL REGISTER"));
         assert!(d.contains("NEVER upgrade hedged"));
         assert!(d.contains("'unverified' tag stays 'unverified'"));
+        let r = distiller_retry_feedback();
+        assert!(r.contains("VALIDATOR FEEDBACK"));
+        assert!(r.contains("no parseable JSON array"));
+        assert!(r.contains("ONLY that array"));
         let a = auditor_prompt(&[StagedFact {
             body: "y".into(),
             domain: "general".into(),
