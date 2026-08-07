@@ -1119,6 +1119,43 @@ fn cli_run_verify_reports_verified_and_disagrees() {
     wipe(&root);
 }
 
+#[test]
+fn cli_run_verify_dry_run_prints_command_without_executing() {
+    // AGENTS.md: "run verify --dry-run prints the command without
+    // executing it." No test covered this — a regression that executes
+    // the verifier (or fails) in dry-run mode would pass silently.
+    let root = tmp_root("c-drv");
+    wipe(&root);
+    let target = root.join("target");
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::write(target.join("v.sh"), "#!/bin/sh\nexit 1\n").unwrap();
+    let case_dir = root.join("evals/cases/dry-case");
+    std::fs::create_dir_all(&case_dir).unwrap();
+    let run_path = case_dir.join("run.json");
+    std::fs::write(
+        &run_path,
+        format!(
+            r#"{{"goal":"g","scope":["x"],"outcome":{{"achieved":true}},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":"sh v.sh","verify_target":{},"trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}}]}}"#,
+            serde_json::to_string(&target.to_string_lossy()).unwrap()
+        ),
+    )
+    .unwrap();
+    // The verifier would fail (v.sh exits 1); dry-run must still print
+    // the command and succeed, without executing anything.
+    let ok = run(
+        &root,
+        &["run", "verify", "--dry-run", run_path.to_str().unwrap()],
+    );
+    assert!(ok.status.success(), "{}", combined(&ok));
+    assert!(
+        stdout(&ok).contains("dry-run: would execute 'sh v.sh'"),
+        "{}",
+        stdout(&ok)
+    );
+    assert!(stdout(&ok).contains("no execution"), "{}", stdout(&ok));
+    wipe(&root);
+}
+
 #[cfg(target_os = "linux")]
 #[test]
 fn exec_sandbox_confines_writes_outside_the_allow_set() {
