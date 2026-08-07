@@ -741,6 +741,12 @@ fn cli_full_ticket_run_end_to_end() {
     .unwrap();
     let v = run(&root, &["validate", "ticket", ticket.to_str().unwrap()]);
     assert!(v.status.success());
+    // Invalid document (missing required 'scope') must fail closed.
+    let bad = root.join("bad.json");
+    std::fs::write(&bad, r#"{"id":"TICKET-002","title":"t","goal":"g"}"#).unwrap();
+    let bv = run(&root, &["validate", "ticket", bad.to_str().unwrap()]);
+    assert_eq!(bv.status.code(), Some(1), "{}", combined(&bv));
+    assert!(combined(&bv).contains("scope"), "{}", combined(&bv));
     let stats = run(&root, &["stats"]);
     assert!(stats.status.success());
     assert!(stdout(&stats).contains("canonical entries: 1"));
