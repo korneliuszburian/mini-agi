@@ -2280,13 +2280,13 @@ fn cmd_mem_query(
         return fail("mem query: give a keyword and/or --domain to filter by");
     }
     let facts = memory::query_facts(&root(), domain, keyword);
-    let mut facts = budget.map_or(facts, |budget_chars| {
+    let facts = budget.map_or(facts, |budget_chars| {
         let all = memory::read_facts(&root());
         let links = memory::fact_links(&all);
         let enforced = memory::enforced_fact_ids(&root());
         memory::select_budgeted(&all, &links, &enforced, budget_chars)
     });
-    facts.sort_by(|a, b| a.0.cmp(&b.0));
+    // Relevance-ranked by query_facts/select_budgeted; no id re-sort.
     if facts.is_empty() {
         println!("no facts match (domain={domain:?}, keyword={keyword:?})");
         return ExitCode::from(1);

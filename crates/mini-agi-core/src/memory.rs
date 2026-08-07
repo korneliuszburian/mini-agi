@@ -413,8 +413,11 @@ pub fn query_facts(
     domain: Option<&str>,
     keyword: Option<&str>,
 ) -> Vec<(String, String, String)> {
+    let all = read_facts(root);
+    let links = fact_links(&all);
+    let enforced = enforced_fact_ids(root);
     let mut out = Vec::new();
-    for (id, fact_domain, body) in read_facts(root) {
+    for (id, fact_domain, body) in all {
         let domain_matches = domain.is_none_or(|d| fact_domain == d);
         let keyword_matches =
             keyword.is_none_or(|k| body.to_lowercase().contains(&k.to_lowercase()));
@@ -422,7 +425,40 @@ pub fn query_facts(
             out.push((id, fact_domain, body));
         }
     }
-    out
+    // Relevance-ranked (cycle-33 memory-evolution): the same enforced +
+    // link-degree + recency signal `select_budgeted` uses, WITHOUT a
+    // budget — so `mem query` and the MCP `memory_query` return the most
+    // load-bearing facts first instead of id-sorted.
+    ranked_facts(&out, &links, &enforced)
+}
+
+/// Relevance order over `facts` (enforced, link-degree, recency;
+/// descending). Budget-free twin of `select_budgeted` — same scoring,
+/// so a query and a budgeted context agree on what matters.
+///
+/// Deterministic (index tie-break).
+#[must_use]
+pub fn ranked_facts(
+    facts: &[(String, String, String)],
+    links: &std::collections::BTreeMap<String, Vec<String>>,
+    enforced: &[String],
+) -> Vec<(String, String, String)> {
+    let mut scored: Vec<(i64, usize, &(String, String, String))> = facts
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let mut score = 0i64;
+            if enforced.iter().any(|e| e == &f.0) {
+                score += 3;
+            }
+            let degree = i64::try_from(links.get(&f.0).map_or(0, |v| v.len().min(2))).unwrap_or(0);
+            score += degree;
+            let recency = i64::try_from(facts.len().saturating_sub(i)).unwrap_or(0);
+            (score * 100_000 + recency, i, f)
+        })
+        .collect();
+    scored.sort_by_key(|s| std::cmp::Reverse(s.0));
+    scored.into_iter().map(|(_, _, f)| f.clone()).collect()
 }
 
 /// UTC now formatted `YYYY-MM-DDTHH:MM:SSZ` (`PoC` strftime contract).
@@ -1100,6 +1136,38 @@ mod tests {
         assert_eq!(picked[0].0, "ccc");
         // Zero budget = nothing.
         assert!(select_budgeted(&facts, &links, &enforced, 0).is_empty());
+    }
+
+    #[test]
+    fn ranked_facts_orders_by_relevance_without_a_budget() {
+        let a = (
+            "aaa".to_string(),
+            "g".to_string(),
+            "alpha fact with widget".to_string(),
+        );
+        let b = (
+            "bbb".to_string(),
+            "g".to_string(),
+            "beta fact with widget".to_string(),
+        );
+        let c = (
+            "ccc".to_string(),
+            "g".to_string(),
+            "gamma enforced_by review rubric".to_string(),
+        );
+        let facts = vec![a, b, c];
+        let mut links = std::collections::BTreeMap::new();
+        links.insert(
+            "aaa".to_string(),
+            vec!["bbb".to_string(), "ccc".to_string()],
+        );
+        let enforced = vec!["ccc".to_string()];
+        // Enforced (3) ranks above link-degree (2): ccc first, then aaa.
+        let ranked = ranked_facts(&facts, &links, &enforced);
+        assert_eq!(ranked[0].0, "ccc", "enforced fact must rank first");
+        assert_eq!(ranked[1].0, "aaa", "linked fact must rank second");
+        // Budget-free: every fact survives, just ordered.
+        assert_eq!(ranked.len(), 3);
     }
 
     #[test]
