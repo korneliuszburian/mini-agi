@@ -2535,3 +2535,16 @@ fn cli_loop_dispatch_no_case_fails_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_run_verify_missing_file_fails_cleanly() {
+    // run verify on a nonexistent run.json must error cleanly (exit 1),
+    // not panic on the read.
+    let root = tmp_root("cvm");
+    wipe(&root);
+    let missing = root.join("nope.json");
+    let out = run(&root, &["run", "verify", missing.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(combined(&out).contains("cannot read"), "{}", combined(&out));
+    wipe(&root);
+}
