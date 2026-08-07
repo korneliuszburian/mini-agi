@@ -344,3 +344,4 @@
 2026-08-07T17:03:14Z BEGIN fix29-mcp-tool-coverage -> 34148bd
 2026-08-07T17:05:00Z VERIFY-PASS fix29-mcp-tool-coverage @ c2c054e
 2026-08-07T17:06:59Z BEGIN fix30-cli-help-smoke -> 78f6eaa
+2026-08-07T17:09:25Z VERIFY-PASS fix30-cli-help-smoke @ 146938d
