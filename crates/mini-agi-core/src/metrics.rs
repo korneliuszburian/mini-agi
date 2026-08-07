@@ -369,4 +369,22 @@ mod tests {
         let emdash = approx_tokens("—");
         assert!(emdash >= 1, "non-ASCII must still yield >= 1");
     }
+
+    #[test]
+    fn frontmatter_block_extracts_between_dashes_and_handles_missing() {
+        // frontmatter_block parses skill metadata for the skills budget
+        // count; a parse regression would silently mis-count the list.
+        let text = "---\nname: demo\ndescription: d\n---\n# body\n";
+        let block = frontmatter_block(text).unwrap();
+        assert!(block.contains("name: demo"), "{block}");
+        assert!(block.contains("description: d"), "{block}");
+        assert!(
+            !block.contains("body"),
+            "block must stop at the closing ---"
+        );
+        // No opening fence -> None (no skills-list contribution).
+        assert!(frontmatter_block("no frontmatter").is_none());
+        // Unterminated fence -> None.
+        assert!(frontmatter_block("---\nname: demo\n").is_none());
+    }
 }
