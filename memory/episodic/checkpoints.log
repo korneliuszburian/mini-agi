@@ -528,3 +528,4 @@
 2026-08-07T22:32:55Z VERIFY-PASS fix121-cli-verify-unverified @ caa9a18
 2026-08-07T22:34:10Z BEGIN fix122-cli-verify-audit-pass -> b9ec816
 2026-08-07T22:35:22Z VERIFY-PASS fix122-cli-verify-audit-pass @ b5d09f6
+2026-08-07T22:36:48Z BEGIN fix123-cli-parallel-unsafe -> 42a7900

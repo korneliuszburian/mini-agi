@@ -1989,6 +1989,26 @@ fn cli_loop_parallel_fails_closed_without_verifier_and_on_bad_manifest() {
         "must fail on manifest parse, not the verifier gate: {}",
         combined(&bad_manifest)
     );
+    // A manifest with an absolute scope path must fail closed too.
+    let unsafe_m = root.join("unsafe.json");
+    std::fs::write(
+        &unsafe_m,
+        r#"{"version":1,"tickets":[{"id":"t","goal":"g","scope":["/abs"],"verify":"true"}]}"#,
+    )
+    .unwrap();
+    let unsafe_run = run(
+        &root,
+        &[
+            "loop",
+            "parallel",
+            "goal",
+            "--verify",
+            "true",
+            "--manifest",
+            unsafe_m.to_str().unwrap(),
+        ],
+    );
+    assert!(!unsafe_run.status.success(), "{}", combined(&unsafe_run));
     wipe(&root);
 }
 
