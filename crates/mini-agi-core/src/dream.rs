@@ -481,6 +481,37 @@ pub fn apply_verdicts(
                 crate::memory::append_contested(root, &fact.body, &h, source, &existing)?;
                 queued += 1;
             }
+            "duplicate" => {
+                // Memory evolution: the auditor called the candidate a
+                // duplicate of an existing fact. If the bodies are
+                // IDENTICAL, skip (the fact already exists). If they
+                // differ, the candidate is an IMPROVED version of the
+                // existing fact — write it as a supersede so the lineage
+                // records the evolution instead of silently dropping the
+                // newer wording.
+                let existing = v.existing_id.clone();
+                let existing_body = existing.as_deref().and_then(|id| {
+                    crate::memory::read_all_facts(root)
+                        .into_iter()
+                        .find(|(fid, _, _)| fid == id)
+                        .map(|(_, _, body)| body)
+                });
+                match existing_body {
+                    Some(body) if body != fact.body => {
+                        crate::memory::write_supersede_entry(
+                            root,
+                            &[(fact.body.clone(), h)],
+                            source,
+                            &fact.domain,
+                            &[existing.unwrap()],
+                        )?;
+                        queued += 1;
+                    }
+                    _ => {
+                        skipped += 1;
+                    }
+                }
+            }
             _ => {
                 skipped += 1;
             }
@@ -657,6 +688,59 @@ mod tests {
         let canonical = crate::memory::read_facts(&root);
         assert_eq!(canonical.len(), 1);
         assert!(canonical[0].2.contains("new durable fact"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn duplicate_with_different_body_supersedes_instead_of_skip() {
+        // Memory evolution: an auditor "duplicate" of an existing fact
+        // whose body DIFFERS is an improved version — write a supersede
+        // (lineage) instead of silently dropping the newer wording.
+        let root = std::env::temp_dir().join(format!("mag-dream3-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let old_body = "the kernel uses landlock for sandboxing".to_string();
+        crate::memory::write_canonical_entry(
+            &root,
+            &[(old_body.clone(), crate::hash::fact_id(&old_body))],
+            "seed",
+            "general",
+            "dream",
+        )
+        .unwrap();
+        let existing_id = crate::memory::existing_fact_ids(&root)[0].clone();
+        // Candidate: the same fact with refined wording.
+        let new_body =
+            "the kernel uses landlock for sandboxing and blocks writes outside scope".to_string();
+        let staged = vec![StagedFact {
+            body: new_body,
+            domain: "general".to_string(),
+        }];
+        let verdicts = vec![AuditorVerdict {
+            index: 0,
+            verdict: "duplicate".into(),
+            reason: Some("same fact, refined wording".into()),
+            existing_id: Some(existing_id.clone()),
+        }];
+        let (promoted, queued, skipped) =
+            apply_verdicts(&root, &staged, &verdicts, "dream-test").unwrap();
+        assert_eq!(promoted, 0);
+        assert_eq!(queued, 1, "supersede is written as a new canonical entry");
+        assert_eq!(skipped, 0);
+        // The view now shows the NEWER wording (old one soft-deleted).
+        let facts = crate::memory::read_facts(&root);
+        assert_eq!(facts.len(), 1);
+        assert!(
+            facts[0].2.contains("blocks writes outside scope"),
+            "improved body must supersede the old one: {}",
+            facts[0].2
+        );
+        // The old fact is preserved in the supersede lineage.
+        assert!(
+            crate::memory::superseded_ids(&root)
+                .iter()
+                .any(|id| id == &existing_id),
+            "old fact must be recorded as superseded"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }

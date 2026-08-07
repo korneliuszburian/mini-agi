@@ -301,3 +301,4 @@
 2026-08-07T08:17:46Z VERIFY-PASS review2-fixes @ 0a2dc30
 2026-08-07T09:37:26Z BEGIN fix9-memory-ranking -> 45b270d
 2026-08-07T09:45:56Z VERIFY-PASS fix9-memory-ranking @ 32985c9
+2026-08-07T09:46:24Z BEGIN fix10-dream-supersede -> a6a76c7
