@@ -1,0 +1,449 @@
+{
+  "staged": "003.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Specific measured claim with source (arXiv:2605.07507), providers, and metrics — no overlap with any canonical fact; no omission/corruption/fabrication detected.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Measured accuracy plateau and retry improvement metrics from the same system report — new durable truth with no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Rare measured per-task API cost anchor with specific provider ranges — no existing canonical fact covers structured-extraction pricing.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Specific pipeline architecture with five-strategy parser cascade — new technical fact; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Benchmark results across Configs and datasets with latency cost — measured, specific, no conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Three explicit retry-loop design mechanisms (early-accept, best-result, ignore self-assessment) — concrete technical fact; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Measured baseline metrics showing field-level vs aggregate-level collapse — specific, sourced, no conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Judge-in-the-loop results raising output accuracy from ~34-44% to ~63% — measured improvement; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Illustrative compounding model explicitly stated as 'not measured' — candidate correctly carries that caveat; no fabrication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Cross-pattern synthesis referencing specific sections; measured plateaus ~63% (leaf) to ~80% (transaction) — analytical claim from source; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "MOUD extraction with specific coverage/accuracy on 10,369 annotated records — measured, sourced; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Clinic heterogeneity evidence with specific model/size breakdowns — measured; no conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Human-analyst-driven repair loop with three fix classes — accurately reports source's explicit note on human-in-the-loop; no corruption.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Palabrita's five failure categories with measured rates (commit-level evidence trail) — specific, sourced; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Palabrita resolution architecture (defensive parsing, contextual retry, progressive simplification, deterministic fallback) — concrete design fact; no canonical overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "new empirical claim about structured-output reliability arithmetic at SLM scale; no canonical fact covers compounding field degradation or Palabrita",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "new production-system report on deterministic agent state-graph design (Melo); no canonical fact covers music-recommendation agents, named-node defenses, or reflective retry",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "new measured retry-recovery metrics (5.8% trigger rate, 59.1% recovery, 77% constraint preservation, intent-preserving ≈46%); no canonical fact covers this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "new retry-cost latency measurements with paired ablation; no canonical fact covers latency cost of agent retry mechanisms",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "new grounding-ablation measurements showing cumulative defense layers and catalog-vs-prompt tradeoff; no canonical fact covers entity-grounding efficacy",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "new online A/B results on playlist-retention and engagement lift from production agent; no canonical fact covers music-agent user-metrics or node-level latency decomposition",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "new IBM enterprise-automation evaluation showing monolithic-pipeline structural success of 31.5-82.8% across 6 LLMs; no canonical fact covers enterprise workflow generation or structural-schema success rates",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "new piecewise-pipeline redesign results raising structural success to 74.1-97.8%, decomposition beating model choice; no canonical fact covers this",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "new measured structural-vs-semantic gap showing best model satisfies only 55.2% of prompts; no canonical fact covers this orthogonality finding",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "new model-specific regression case (gpt-oss-120b stub-workflow failure on v2); no canonical fact covers deceptive structural-success patterns",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "new cost and latency anchors for enterprise workflow generation; no canonical fact covers per-workflow cost or piecewise-latency tradeoffs",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "new empirical fault taxonomy (13,602 issues, 385 sampled faults, validated practitioner study); no canonical fact covers agentic-AI fault classification",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "new fault-prevalence statistics and root-cause interpretation as systematic contract violations; no canonical fact covers this analysis",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "new concrete fault examples with association-rule mining showing nontransparent failure modes; no canonical fact covers agentic fault exemplars",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "new evaluation-framing study showing wrapper-level compliance inflation without value-correctness improvement; no canonical fact covers specification gaming in structured-output benchmarks",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "new durable truth: quantified evaluator–human misalignment rates across four benchmark families with per-benchmark error rates — no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "new durable truth: classifies deterministic evaluator failure modes (brittle state matching, substring assertions, etc.) with concrete examples — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "new durable truth: documents LLM-judge failure modes (rubric drift, run-to-run variance 18.9 pp) — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "new durable truth: Tool-Veritas deterministic-first scoring raised expert agreement to 95.5%; implication that BFCL V4 carries ~20% evaluator-error band — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "new durable truth: 4-bit quantization produced flat scores across ten cells yet 2.5× tool-name hallucination growth in damaged cell — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "new durable truth: error-budget masking mechanism explained and falsifiably proven (shrinking K re-exposes damage 13×) — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "new durable truth: reflexive repair loop collapses tool-name hallucination 38.26%→2.90%, eliminates budget exhaustions, raises INT4 score above unmitigated BF16 — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "ephemeral: a note that vendor/tooling claims lack quantitative measurement in their own papers — not a positive durable fact, just a gap caveat.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 38,
+      "reason": "new durable truth: SLM survey claim with proposed reliability metric set (CPS, schema validity rate, etc.) — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 39,
+      "reason": "new durable truth: measured SchemaBench native-generation validity rates across frontier models with parser-error floors — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 40,
+      "reason": "new durable truth: measured enforcement coverage limits showing provider-declared coverage as low as 6–9% on github-hard splits — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 41,
+      "reason": "new durable truth: format request is a capacity-dependent reasoning tax with three measured remedies — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 42,
+      "reason": "new durable truth: constraint tax on sub-3B models — hard schema raises validity to 100% but wrong-valid-schema rate rises to 88.9% — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 43,
+      "reason": "new durable truth: grammar masks silently suppress tool calls under joint constraints (Tool Invocation Rate 100%→0% for 6 open-weight models) — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 44,
+      "reason": "new durable truth: semantic ceiling at 100% schema validity across multiple benchmarks (SOB, OrderBench, xmemory, ExtractBench, ScrapeGraphAI) — no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 45,
+      "reason": "Empirical measurement of format enforcement ceilings — no canonical fact covers IFEval-FC, nested-constraint collapse, or instruction-stacking degradation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 46,
+      "reason": "Measured degradation from intrinsic self-correction without external signal — no canonical fact addresses self-correction accuracy or repair economics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 47,
+      "reason": "Self-Refine caveat that gains are preference-driven with ~0 math improvement — no canonical fact covers Self-Refine or its failure analysis.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 48,
+      "reason": "Deterministic-verifier repair economics (Self-Debugging, adaptive retry budgets) — no canonical fact covers verifier-driven loop efficiency.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 49,
+      "reason": "RL with schema validator raises valid-JSON generation — no canonical fact covers offline improvement of native generation rates.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 50,
+      "reason": "τ-bench/BFCL agent reliability plateaus — no canonical fact reports these external benchmark ceilings; our run scores align but measure different things.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 51,
+      "reason": "Diagnosis-guided repair (AgentTether, VeriHarness) — no canonical fact covers runtime repair feedback content or its measured gains.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 52,
+      "reason": "Retry infrastructure design (jittered backoff, energy cost, production incidents) — no canonical fact covers retry-storm prevention or agentic energy multipliers.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 53,
+      "reason": "Retry cost structurally determined by decomposition granularity and routing — no canonical fact covers cost-aware retry optimization.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 54,
+      "reason": "Empirical counterpoint that free-text tool calling beats structured — no canonical fact claims enforcement guarantees task success; our tool-mismatch data is consistent but not duplicative.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 55,
+      "reason": "Programmatic tool calling as reliability lever — no canonical fact covers serialization-interface effects on accuracy or fan-out limits.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 56,
+      "reason": "Schema representation as independent lever (TSCG plain-text restores small-model accuracy) — no canonical fact covers schema-format effects.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 57,
+      "reason": "Inter-agent hand-off representation — no canonical fact covers hand-off format fidelity or error persistence; Yegge's serialized-merge-queue observation is architectural, not empirical measurement.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 58,
+      "reason": "Token-set and wording levers on model accuracy — no canonical fact covers token-set effects, whitespace tokens, or schema-key wording variation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 59,
+      "reason": "Cross-model format collapse on small models — no canonical fact covers JSON-as-inter-role-contract degradation or plain-text restoration.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 60,
+      "reason": "specific measured claim about sampling-induced JSON corruption; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 61,
+      "reason": "specific measured claim about enforcement-cost variation; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 62,
+      "reason": "specific measured claim about approximate enforcement guarantees; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 63,
+      "reason": "specific measured claim about training-side format cliff; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 64,
+      "reason": "specific measured claim about deployment-structure economics; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 65,
+      "reason": "specific measured claim about repair mechanisms; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 66,
+      "reason": "specific measured claim about selective-triggering economics; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 67,
+      "reason": "specific measured claim about retry/refinement economics; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 68,
+      "reason": "theoretical bound with citations and specific numbers; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 69,
+      "reason": "durable meta-fact about uncertainty and limits of claims; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 70,
+      "reason": "specific timestamped snapshot data with explicit caveats; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 71,
+      "reason": "prescriptive research agenda, not a durable fact; states what 'would settle' and what is 'still missing'",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 72,
+      "reason": "specific measured system-report claim about retry-economics; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 73,
+      "reason": "specific measured claim about retry consistency model-dependence; no overlap with canonical facts",
+      "verdict": "promote"
+    }
+  ]
+}

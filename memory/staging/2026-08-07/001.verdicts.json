@@ -1,0 +1,371 @@
+{
+  "staged": "001.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable research finding on cross-model format collapse; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New empirical benchmark on JSON schema compliance; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New empirical benchmark on schema-valid JSON generation; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "First-party documentation distinction between JSON mode and Structured Outputs; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "First-party documentation on Claude JSON/tool-call failure modes; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Empirical constrained-decoding compliance comparison across engines; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Feature-coverage and error-mode analysis of grammar engines; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Performance finding that constrained decoding can be faster than unconstrained; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "XGrammar MLSys '25 performance benchmarks and tradeoffs; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "PSC ISSTA 2026 vocabulary-independent GCD mask computation; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "LCD distribution-bias and finite-budget findings with GCD/P-GCD alternatives; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Constraint Tax finding on tool-calling + JSON-schema interaction; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Empirical finding on constrained decoding effect on reasoning accuracy; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "First-party vendor benchmark on Structured Outputs launch; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Empirical RAG-workload guided-decoding measurements; no canonical fact covers this topic.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "new durable fact about structured-output guarantees and JSON Schema subset limitations; no canonical fact addresses this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "new durable fact citing CRANE (arXiv:2502.09061, ICML 2025) with specific experimental results and theoretical bounds; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "new durable fact citing In-Writing (arXiv:2601.07525) with measured gains and documented caveats; no canonical fact addresses this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "new durable fact citing DCCD (arXiv:2603.03305) with formal framework and per-model×dataset numbers; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "new durable fact citing 'When Correct Isn't Usable' (arXiv:2605.02363) with output-accuracy decomposition and optimizer findings; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "new durable fact citing Ray (arXiv:2605.26128) with constraint-tax measurements on sub-3B models and deployment metrics; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "new durable fact citing ATLAS-RTC (arXiv:2603.27905) with graduated-ladder controller and latency/accuracy data; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "new durable fact citing SE-wide taxonomy (arXiv:2606.09395) with 9-model × 4-task breakdown and MoE failure mode; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "new durable fact citing Autogrammar (arXiv:2608.05493) with low-resource DSL grammar induction and AWS measurement; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "new durable fact citing Le (arXiv:2604.14862) with schema-key-wording-as-instruction-channel per-model effects; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "new durable fact citing 'Lost in Space' (arXiv:2502.14969) with token-format reliability findings across 1.28M classifications; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "new durable fact citing TOON paper (arXiv:2601.12014) with format-cost and capacity-dependent correctness findings; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "new durable fact citing Dang & Ermon (arXiv:2607.07026) with diffusion-LLM structured-output collapse and exact-constrained recovery; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "new durable fact citing Hollows (arXiv:2607.09791) with repetition-penalty schema-corruption mechanism and measurement; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "new durable fact citing NeuroVLM-Bench (arXiv:2603.24846) with multimodal schema-valid≠correct pattern; no overlap.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "New durable empirical evidence on the schema-valid-but-wrong gap with specific model-level breakdowns; no canonical fact covers structured-output semantic accuracy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "Specific benchmark results (4.6% aggregate pass rate on extraction) with domain and failure-mode detail; no canonical fact covers extraction benchmarking.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "Long-document extraction F1 collapse evidence with cost-efficiency comparisons; no canonical fact covers VLM extraction reliability at scale.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "Largest real-world schema-constrained corpus statistics with structural-breakpoint analysis; no canonical fact covers production schema diversity or validity decay.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "Original format-tax finding (arXiv:2408.02442) with task-dependent effects; no canonical fact addresses format-restriction reasoning cost.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "Two studies dissecting prompt-level vs enforcement-level format tax with capacity-dependent and production-mode evidence; no canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "SOB benchmark showing JSON-pass vs value-accuracy gap with structured-decoding ablation; no canonical fact covers multi-modal structured-output value accuracy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "CONSTRUCT benchmark with uncertainty routing for structured outputs; no canonical fact covers structured-output error detection methodology.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 38,
+      "reason": "IFEval-FC finding that description-field constraints bypass constrained decoding; no canonical fact covers description-level format rule enforcement.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 39,
+      "reason": "Nested-output-constraint benchmark with universal depth-1 cliff and failure signatures; no canonical fact covers constraint nesting degradation.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 40,
+      "reason": "Instruction-stacking collapse with sigmoid follow-rate decay and JSON interference evidence; no canonical fact covers multi-constraint interference.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 41,
+      "reason": "Conformal risk control limits on structured-output certification with bound hierarchy and distribution-shift analysis; no canonical fact covers formal certification bounds.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 42,
+      "reason": "BFCL function-calling tool-scaling robustness with parameter-value mismatch analysis; no canonical fact covers tool-scaling reliability.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 43,
+      "reason": "TSCG finding that JSON-schema volume causes capability cliffs for small models with text-compilation recovery; no canonical fact covers schema-representation format effects.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 44,
+      "reason": "Inter-agent state compression study showing JSON preserves constraint-critical evidence that narrative summaries destroy; no canonical fact covers relay-format reliability.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 45,
+      "reason": "New durable finding on multi-hop relay format effects with specific arXiv reference and quantitative thresholds; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 46,
+      "reason": "Specific benchmark design (BFCL V3, UC Berkeley) with verifiable scale (800 cases, 4,441 entries); no canonical fact overlaps.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 47,
+      "reason": "Specific τ-bench pass^k curves with exact model-level numbers and arXiv reference; no canonical fact covers function-calling agent reliability metrics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 48,
+      "reason": "Dated benchmark snapshot (2025-12-16) with model-level scores referencing a public archive; no canonical fact covers BFCL results.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 49,
+      "reason": "Replicated NLT finding (14 models, 8,560 trials, arXiv ref) with survivorship-bias correction; no canonical fact covers natural-language vs structured tool calling.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 50,
+      "reason": "Specific PTC experiment on BFCL v4 subset (309 entries, arXiv ref) with enumerated failure mode and token crossover point; no canonical fact covers programmatic tool calling.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 51,
+      "reason": "ToolBench-X with five hazard types and recovery-path design (arXiv ref); no canonical fact covers tool-environment hazard recovery benchmarks.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 52,
+      "reason": "Specific refinement experiment (N=8, D=4, Qwen2.5-1.5B, arXiv ref) with compute-normalized gain metric; no canonical fact covers refinement-vs-resampling mechanisms.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 53,
+      "reason": "Derived retry-draws estimate from JSONSchemaBench compliance data with named provider coverage; no canonical fact covers JSON schema compliance retry pressure.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 54,
+      "reason": "Concrete lm-eval worked example (Llama-3.2-1B, json_validity 1.0 vs schema_compliance 0.2) distinguishing syntax from schema retry loops; no canonical fact covers this distinction.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 55,
+      "reason": "Two specific arXiv refs (Self-Consistency 2203.11171, Scaling Test-Time Compute 2408.03314) with the 4x compute-efficiency claim; no canonical fact covers test-time-compute economics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 56,
+      "reason": "ContinuityBench (arXiv ref) with high-confidence Wilson CI on history-forwarding failover and two named failure modes; no canonical fact covers infrastructure-layer retry backoff.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 57,
+      "reason": "Four independent measurements with distinct arXiv refs and cross-cutting cost-range claim ($thousands incident to ~50% reduction); no canonical fact covers retry cost economics.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 58,
+      "reason": "Two arXiv refs (STED, StepCache) with quantitative consistency-degradation and reuse-latency data; no canonical fact covers temperature-fragility or step-level retry reuse.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 59,
+      "reason": "Specific JSON-Whisperer technique (RFC 6902 patches, EASE encoding, arXiv ref) with measured cost/latency reductions and two enumerated patch failure modes; no canonical fact covers patch-based structured repair.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 60,
+      "reason": "No canonical fact mentions CAPC, arXiv:2607.15516, prompt caching economics, Anthropic Sonnet, or any related topic. The claim is specific, cites a real paper, and is neither duplicate nor conflicting with any existing fact.",
+      "verdict": "promote"
+    }
+  ]
+}

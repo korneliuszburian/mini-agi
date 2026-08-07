@@ -1,0 +1,125 @@
+{
+  "staged": "002.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New durable truth — specific paper (arXiv:2303.17651), quantified findings with task-level breakdown, failure-mode analysis. No overlap with existing canonical facts (run scores, engineering guidelines, architectural observations). No omission/corruption/fabrication detected.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New durable truth — specific paper (arXiv:2607.26922), precise quantitative findings, deployment rule included. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New durable truth — ICLR 2024 paper (arXiv:2310.01798), tabulated results across models and tasks, prompt-design artifact caveat. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New durable truth — ICLR 2024 paper (arXiv:2306.09896), cost-aware analysis, sample-budget allocation nuance. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New durable truth — specific paper (arXiv:2304.05128), abstract-level findings with explicit verifiability caveat noted in-source. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New durable truth — specific paper (arXiv:2502.18878), training-side approach distinct from decoding-time fixes, ablation detail, trade-off caveat. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New durable truth — specific paper (arXiv:2605.08737), closed-form threshold, multi-seed CI, complementary-nature caveat. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New durable truth — specific paper (arXiv:2607.06273), 261-task benchmark, graph-localized diagnosis, upstream-root-cause quantification. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New durable truth — specific paper (arXiv:2604.27233), helpfulness-harmfulness decomposition, ~12% harmfulness tax quantified, latency constraint. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New durable truth — specific paper (arXiv:2607.14167), 50-paired-game experiment, ablation identifying admissible-alternatives as dominant lever, JSON-vs-prose null result. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New durable truth — specific paper (arXiv:2608.05906), paired CI on Spider/BIRD, negative-memory null result, token-cost caveat. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New durable truth — two specific papers (arXiv:2606.10928, arXiv:2601.09771), near-100% parse-rate evidence, NDCG-cost caveat. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New durable truth — two specific papers (arXiv:2607.27674, arXiv:2606.21627), judge-reliability caps quantified, 'structural correctness must not be delegated' principle. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New durable truth — specific paper (arXiv:2607.18754), error-location-as-dominant-lever principle, GAIA-end-to-end results, model-dependence caveat, no-replication caveat. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New durable truth — specific paper (arXiv:2608.05353), 24K-judgment experiment, evidence-locking harms agreement by 4-6 pp quantified, auditability-as-additive principle. No overlap with canonical set.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific, verifiable research finding from arXiv:2607.28082 with concrete numbers, measurable effect sizes, and clear domain (Text-to-SPARQL). No overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Specific, verifiable research finding from arXiv:2607.04034 with defined metric (IDKS), measured across three SLMs, and documented failure modes. No overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Specific, verifiable research finding from arXiv:2608.03291 with controlled measurement (11.5% vs 84.6% corrected, McNemar-significant) and explicit caveats. No overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Specific research finding from arXiv:2607.11183 with concrete fix:harm ratio (≈1.85:1) and transfer results. Abstract-level access is disclosed in the candidate text itself. No overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Synthesis drawing a novel pattern claim (external-signal requirement for repair productivity) across multiple independently-verified sources with specific anchoring numbers (GGC, MERIT). The GGC overlap with candidate [0] is illustrative reuse, not duplication of the synthesis insight. No overlap with any canonical fact.",
+      "verdict": "promote"
+    }
+  ]
+}

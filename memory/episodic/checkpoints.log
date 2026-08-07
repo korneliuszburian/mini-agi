@@ -275,3 +275,4 @@
 2026-08-06T20:08:17Z BEGIN ar11-s1 -> cf2498c (clean)
 2026-08-06T20:13:42Z VERIFY-PASS ar11-s1 @ d719912
 2026-08-07T05:06:17Z CHECKPOINT-ABORT dream-condense-json-report disallowed dirty paths: research/what-are-the-measured-failure-rates-and-repair-patterns-for-.md
+2026-08-07T05:07:48Z BEGIN dream-condense-json-report -> 89ee422
