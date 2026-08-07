@@ -1487,4 +1487,65 @@ mod fact_link_tests {
         assert!(brief.contains("links: bbb"));
         let _ = fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn keywords_filters_domain_stop_words() {
+        // Domain stop words (measured on the live corpus) must not
+        // become linking keywords: "memory" (x130), "model" (x121),
+        // "accuracy" (x104), "failure" (x96), "source" (x83) etc.
+        // Without the filter these made ~99% of facts pairwise-linked.
+        let kw = keywords("memory model accuracy failure source agent");
+        assert!(
+            kw.is_empty(),
+            "all domain stop words must be filtered: {kw:?}"
+        );
+        // A genuinely specific term survives.
+        let kw2 = keywords("widget alpha mechanism budget usage");
+        assert_eq!(kw2.len(), 5, "specific terms stay: {kw2:?}");
+        // Short words (< 5 chars) are never keywords.
+        let kw3 = keywords("the and for not but");
+        assert!(kw3.is_empty());
+    }
+
+    #[test]
+    fn link_threshold_boundary_three_shared_is_not_a_link() {
+        // Próg >= 4: trzy wspólne słowa NIE tworzą linku, cztery tak.
+        // (boundary test — bez niego regresja progu w dół przeszłaby
+        // cicho).
+        let facts3 = vec![
+            (
+                "aaa".into(),
+                "s".into(),
+                "widget alpha mechanism one two three".into(),
+            ),
+            (
+                "bbb".into(),
+                "s".into(),
+                "widget alpha mechanism four five six".into(),
+            ),
+        ];
+        let links = fact_links(&facts3);
+        assert!(
+            !links.contains_key("aaa"),
+            "3 shared keywords must not link (threshold >= 4): {links:?}"
+        );
+        // A te same fakty z 4 wspólnymi -> link.
+        let facts4 = vec![
+            (
+                "aaa".into(),
+                "s".into(),
+                "widget alpha mechanism budget one two".into(),
+            ),
+            (
+                "bbb".into(),
+                "s".into(),
+                "widget alpha mechanism budget four five".into(),
+            ),
+        ];
+        let links4 = fact_links(&facts4);
+        assert!(
+            links4.contains_key("aaa") && links4["aaa"] == vec!["bbb"],
+            "4 shared keywords must link: {links4:?}"
+        );
+    }
 }
