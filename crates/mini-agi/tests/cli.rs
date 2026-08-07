@@ -2124,7 +2124,12 @@ fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     let claim = run(
         &root,
         &[
-            "ticket", "claim", "TICKET-008-v2", "--claimant", "t", "--force",
+            "ticket",
+            "claim",
+            "TICKET-008-v2",
+            "--claimant",
+            "t",
+            "--force",
         ],
     );
     assert!(claim.status.success(), "{}", combined(&claim));
