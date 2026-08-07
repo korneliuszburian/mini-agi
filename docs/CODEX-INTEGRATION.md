@@ -18,6 +18,12 @@ enabled_tools = ["loop_status", "memory_query", "run_verify", ...]
 - `cargo run` resolves the kernel from source — no machine-specific paths in
   the committed config. For a lower-latency setup, install the binary once
   (`cargo install --path crates/mini-agi`) and switch `command = "mini-agi"`.
+
+> `mini-agi init` now emits this full config automatically (`.codex/
+> config.toml`): the MCP server registration (pointing at the current
+> binary), the `enabled_tools` allow-list, and `approval_mode = "prompt"`
+> on every write tool. `init` skips the file if one already exists, so the
+> committed config above stays authoritative when present.
 - The contract text (`instructions`) is NOT a config key — codex reads it
   from the MCP server's `initialize` response (MCP spec, `InitializeResult.
   instructions`), emitted by `crates/mini-agi/src/mcp.rs` (512 chars,

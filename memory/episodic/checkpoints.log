@@ -375,3 +375,4 @@
 2026-08-07T18:15:15Z VERIFY-PASS fix44-readme-counts @ a60af4f
 2026-08-07T18:16:39Z BEGIN fix45-init-codex-config -> 536231b
 2026-08-07T18:20:11Z VERIFY-PASS fix45-init-codex-config @ 077fd28
+2026-08-07T18:21:02Z BEGIN fix46-docs-init-config -> c157ec7
