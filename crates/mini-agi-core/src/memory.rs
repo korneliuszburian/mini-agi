@@ -243,6 +243,46 @@ pub fn preserve_ids(root: &Path, ids: &[String]) -> Result<PathBuf, MemoryError>
     Ok(list)
 }
 
+/// Remove fact ids from the preservation list — the counterpart to
+/// `preserve_ids` (supersede of a preserved id is refused, so a wrongly
+/// preserved id must be un-preserved before it can be superseded).
+///
+/// # Errors
+///
+/// Returns [`MemoryError::Io`] when the list cannot be rewritten, or
+/// an explicit miss when none of the ids are on the list.
+pub fn unpreserve_ids(root: &Path, ids: &[String]) -> Result<usize, MemoryError> {
+    let path = root.join("memory/canonical/preserved.md");
+    let text = fs::read_to_string(&path).unwrap_or_default();
+    let kept: Vec<&str> = text
+        .lines()
+        .filter(|l| {
+            let t = l.trim();
+            !ids.iter().any(|id| t == id)
+        })
+        .collect();
+    let removed = text.lines().filter(|l| {
+        let t = l.trim();
+        ids.iter().any(|id| t == id)
+    });
+    let removed_count = removed.count();
+    if removed_count == 0 {
+        return Err(MemoryError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("none of the ids are preserved: {ids:?}"),
+        )));
+    }
+    let parent = path.parent().ok_or_else(|| {
+        MemoryError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "no parent dir",
+        ))
+    })?;
+    fs::create_dir_all(parent)?;
+    fs::write(&path, format!("{}\n", kept.join("\n")))?;
+    Ok(removed_count)
+}
+
 /// Write a superseding canonical entry (D3): a NEW fact whose frontmatter
 /// records the soft-deleted lineage — `- supersedes: <id, ...>`.
 ///

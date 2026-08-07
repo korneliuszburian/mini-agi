@@ -688,6 +688,14 @@ enum MemAction {
         /// 16-hex fact ids to preserve (repeatable).
         ids: Vec<String>,
     },
+    /// Remove fact ids from the preservation list — the counterpart to
+    /// `preserve`: supersede of a preserved id is refused, so a wrongly
+    /// preserved id must be un-preserved before it can be superseded.
+    Unpreserve {
+        /// 16-hex fact ids to remove from the preservation list
+        /// (repeatable).
+        ids: Vec<String>,
+    },
     /// Dedup + lineage integrity gate (D3): exact-duplicate bodies with
     /// different ids, supersede refs to unknown ids, preserved ids that
     /// do not exist. Exits non-zero on findings.
@@ -741,6 +749,7 @@ fn main() -> ExitCode {
                 source,
             } => cmd_mem_supersede(&body, &supersedes, &domain, &source),
             MemAction::Preserve { ids } => cmd_mem_preserve(&ids),
+            MemAction::Unpreserve { ids } => cmd_mem_unpreserve(&ids),
             MemAction::Verify => cmd_mem_verify(),
         },
         Command::Derive(DeriveArgs {
@@ -2363,6 +2372,18 @@ fn cmd_mem_preserve(ids: &[String]) -> ExitCode {
         }
         Err(MemoryError::Io(e)) => fail(&format!("mem preserve: {e}")),
         Err(_) => fail("mem preserve: unexpected memory error"),
+    }
+}
+
+fn cmd_mem_unpreserve(ids: &[String]) -> ExitCode {
+    let root = root();
+    match memory::unpreserve_ids(&root, ids) {
+        Ok(n) => {
+            println!("un-preserved {n} fact(s)");
+            ExitCode::SUCCESS
+        }
+        Err(MemoryError::Io(e)) => fail(&format!("mem unpreserve: {e}")),
+        Err(_) => fail("mem unpreserve: unexpected memory error"),
     }
 }
 

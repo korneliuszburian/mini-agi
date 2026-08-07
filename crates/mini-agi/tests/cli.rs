@@ -1681,6 +1681,63 @@ fn cli_mem_verify_flags_supersede_against_preserved_id() {
 }
 
 #[test]
+fn cli_mem_unpreserve_unblocks_supersede() {
+    // unpreserve is the counterpart to preserve: since supersede of a
+    // preserved id is refused, a wrongly preserved id must be removable
+    // or it is blocked from lineage evolution forever.
+    let root = tmp_root("cunp");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e1\n\n## F-000 `0123456789abcdf3`\n\nload-bearing claim\n",
+    );
+    let pres = run(&root, &["mem", "preserve", "0123456789abcdf3"]);
+    assert!(pres.status.success(), "{}", combined(&pres));
+    // Supersede is refused while preserved.
+    let blocked = run(
+        &root,
+        &[
+            "mem",
+            "supersede",
+            "newer",
+            "--supersedes",
+            "0123456789abcdf3",
+            "--domain",
+            "general",
+            "--source",
+            "t",
+        ],
+    );
+    assert_eq!(blocked.status.code(), Some(1), "{}", combined(&blocked));
+    // Unpreserve, then supersede succeeds.
+    let un = run(&root, &["mem", "unpreserve", "0123456789abcdf3"]);
+    assert!(un.status.success(), "{}", combined(&un));
+    assert!(
+        stdout(&un).contains("un-preserved 1 fact(s)"),
+        "{}",
+        stdout(&un)
+    );
+    let ok = run(
+        &root,
+        &[
+            "mem",
+            "supersede",
+            "newer",
+            "--supersedes",
+            "0123456789abcdf3",
+            "--domain",
+            "general",
+            "--source",
+            "t",
+        ],
+    );
+    assert!(ok.status.success(), "{}", combined(&ok));
+    wipe(&root);
+}
+
+#[test]
 fn cli_mem_preserve_writes_list_and_rejects_unknown_id() {
     // `mem preserve` (protect ids from supersede collisions) had no CLI
     // test; the known-id gate and the list write were uncovered.
