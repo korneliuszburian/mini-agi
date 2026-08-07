@@ -88,6 +88,20 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   `frontmatter_block`, provenance fingerprint change on canonical growth.
   Suite: 388 -> 400 tests.
 
+### Changed (autonomous polish — coverage + ticket scope)
+- CLI coverage closed the last uncovered paths: `loop run` fail-fast
+  (blind-worker/hidden-dir, unknown template), `loop status` below-target
+  line, `loop parallel` manifest-parse fail-closed (with --verify), `run
+  ingest --retro` (review bullets become canonical facts), `audit` fail
+  exit code (OK=0/WARN=1/FAIL=2), `derive --brief-only` (per-domain
+  fragments skipped), `derive --snapshot/--replay` MATCH, `validate` and
+  `ticket validate` invalid-document paths, `mem query --raw` triple.
+  Suite: 400 -> 403 tests.
+- Backlog/dispatch-generated tickets now carry `- scope: evals/cases`
+  (consistent with the JSON ticket contract, which requires scope —
+  markdown tickets deliberately keep scope optional per the PoC bullet
+  form, so scope-less markdown tickets still validate).
+
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
   OWN codex session via `codex exec resume <uuid>` (content-marker
