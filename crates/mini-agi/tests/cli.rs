@@ -2115,3 +2115,30 @@ fn cli_eval_steps_reports_suspicious_steps() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_derive_snapshot_and_replay_match() {
+    // derive --snapshot/--replay (deterministic materialization proof,
+    // production-readiness F.1) had no CLI test; the snapshot write and
+    // MATCH verdict were uncovered at the CLI boundary.
+    let root = tmp_root("cder");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e1\n\n## F-000 `0123456789abcde2`\n\nwidget alpha mechanism tracks budget usage\n",
+    );
+    let seed = run(&root, &["derive"]);
+    assert!(seed.status.success(), "{}", combined(&seed));
+    let snap = run(&root, &["derive", "--snapshot", "s1"]);
+    assert!(snap.status.success(), "{}", combined(&snap));
+    assert!(stdout(&snap).contains("snapshot s1"), "{}", stdout(&snap));
+    let replay = run(&root, &["derive", "--replay", "s1"]);
+    assert!(replay.status.success(), "{}", combined(&replay));
+    assert!(stdout(&replay).contains("MATCH"), "{}", stdout(&replay));
+    // A missing snapshot is a clean error, not a panic.
+    let missing = run(&root, &["derive", "--replay", "nope"]);
+    assert_eq!(missing.status.code(), Some(1), "{}", combined(&missing));
+    wipe(&root);
+}
