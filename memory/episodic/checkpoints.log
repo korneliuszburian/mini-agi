@@ -401,3 +401,4 @@
 2026-08-07T18:58:50Z VERIFY-PASS fix57-cli-dream-promote-enforced @ 44a9c2a
 2026-08-07T18:59:34Z BEGIN fix58-cli-supersede-test -> 66acba2
 2026-08-07T19:01:08Z VERIFY-PASS fix58-cli-supersede-test @ 3deeb68
+2026-08-07T19:01:43Z BEGIN fix59-cli-preserve-test -> 7287f8b

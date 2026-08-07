@@ -1634,6 +1634,36 @@ fn cli_mem_supersede_writes_lineage_and_rejects_unknown_id() {
 }
 
 #[test]
+fn cli_mem_preserve_writes_list_and_rejects_unknown_id() {
+    // `mem preserve` (protect ids from supersede collisions) had no CLI
+    // test; the known-id gate and the list write were uncovered.
+    let root = tmp_root("cpres");
+    wipe(&root);
+    let day = today();
+    seed_existing_entry(
+        &root,
+        &day,
+        1,
+        "# e1\n\n## F-000 `0123456789abcdf1`\n\nkeep me\n",
+    );
+    let bad = run(&root, &["mem", "preserve", "ffffffffffffffff"]);
+    assert_eq!(bad.status.code(), Some(1), "{}", combined(&bad));
+    assert!(
+        combined(&bad).contains("not a known canonical fact id"),
+        "{}",
+        combined(&bad)
+    );
+    let ok = run(&root, &["mem", "preserve", "0123456789abcdf1"]);
+    assert!(ok.status.success(), "{}", combined(&ok));
+    assert!(
+        stdout(&ok).contains("preserved 1 fact(s)"),
+        "{}",
+        stdout(&ok)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     // P2-13: loop verify exits 1 for an honest OPEN gap and 2 for a
     // broken verification machinery error. Neither contract had an
