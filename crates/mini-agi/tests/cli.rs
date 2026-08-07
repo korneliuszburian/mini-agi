@@ -772,6 +772,11 @@ fn cli_full_ticket_run_end_to_end() {
     let stats = run(&root, &["stats"]);
     assert!(stats.status.success());
     assert!(stdout(&stats).contains("canonical entries: 1"));
+    assert!(
+        stdout(&stats).contains("canonical facts:") && stdout(&stats).contains("derived views:"),
+        "stats must report facts and derived views: {}",
+        stdout(&stats)
+    );
     let budget = run(&root, &["budget"]);
     assert!(budget.status.success());
     assert!(stdout(&budget).contains("AGENTS chain:"));
