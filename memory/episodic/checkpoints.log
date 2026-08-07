@@ -472,3 +472,5 @@
 2026-08-07T21:17:44Z VERIFY-PASS fix93-cli-ui-test @ 66e4d3a
 2026-08-07T21:20:56Z BEGIN fix94-readme-cli-list -> e488008 (restored by rollback)
 2026-08-07T21:20:56Z VERIFY-FAIL fix94-readme-cli-list @ d84881b -> ROLLBACK to e488008
+2026-08-07T21:25:17Z BEGIN fix95-readme-cli-list-rel -> fb5cf96 (clean)
+2026-08-07T21:25:44Z VERIFY-PASS fix95-readme-cli-list-rel @ fb5cf96
