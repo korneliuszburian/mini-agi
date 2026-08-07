@@ -502,10 +502,15 @@ pub fn repair_signal(run: &Run, max_repeated_steps: Option<usize>) -> RepairSign
     {
         return RepairSignal::Clean;
     }
-    let mechanical = run
-        .trajectory
-        .iter()
-        .any(|s| s.ok == Some(false) || s.goal_aligned == Some(false) || s.reverted);
+    // Mechanical = a step a rerun can actually target: a genuine gate
+    // failure (ADR-0013 — a probe's ok:false is a harmless diagnostic,
+    // not a fixable step), a goal drift, or a revert. Everything else
+    // below Clean is Semantic (clean-but-wrong).
+    let mechanical = run.trajectory.iter().any(|s| {
+        (s.ok == Some(false) && is_gate_failure(run, s))
+            || s.goal_aligned == Some(false)
+            || s.reverted
+    });
     if mechanical {
         RepairSignal::Mechanical
     } else {
@@ -1489,12 +1494,22 @@ mod tests {
             repair_signal(&run_with(vec![step("tool-a")]), None),
             RepairSignal::Clean
         );
-        // Mechanical: a step failed its gate.
-        let mut bad = step("tool-b");
+        // Mechanical: a step failed a genuine GATE (ADR-0013 — a
+        // scope-touching or gate-command action).
+        let mut bad = step("exec");
+        bad.action = "make verify".into();
         bad.ok = Some(false);
         assert_eq!(
             repair_signal(&run_with(vec![step("tool-a"), bad]), None),
             RepairSignal::Mechanical
+        );
+        // A PROBE failure (ok:false but not a gate action, no scope path)
+        // is not a fixable step — the run is Semantic, not Mechanical.
+        let mut probe = step("tool-b");
+        probe.ok = Some(false);
+        assert_eq!(
+            repair_signal(&run_with(vec![step("tool-a"), probe]), None),
+            RepairSignal::Semantic
         );
         // Semantic: clean steps but unachieved outcome.
         let mut sem = run_with(vec![step("tool-a")]);

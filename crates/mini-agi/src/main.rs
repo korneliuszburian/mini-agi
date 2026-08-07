@@ -583,6 +583,13 @@ enum EvalAction {
     /// Verifier-vs-judged drift: precision of the judged outcome
     /// against the deterministic layer (Phase 9 slice 2).
     JudgeDrift,
+    /// Reset the judge-calibration corpus (derived `calibration.md`).
+    /// `loop verify` abstains (blocks close) while judge precision is
+    /// below `min_judge_precision`; after fixing the verifier/judge the
+    /// stale disagreement rows are cleared so close can resume
+    /// (cycle-33 finding: abstention needs a supported recalibration
+    /// path, not a repo-wide permanent freeze).
+    JudgeRecalibrate,
     /// Score held-out cases in `evals/hidden/` (not in the baseline,
     /// not gated) — contamination-safe capability measurement.
     Hidden {
@@ -750,6 +757,7 @@ fn main() -> ExitCode {
             EvalAction::Score { run } => cmd_eval_score(&run),
             EvalAction::Steps { run } => cmd_eval_steps(&run),
             EvalAction::JudgeDrift => cmd_eval_judge_drift(),
+            EvalAction::JudgeRecalibrate => cmd_eval_judge_recalibrate(),
             EvalAction::Hidden { dir } => cmd_eval_hidden(dir.as_deref()),
             EvalAction::Gate {
                 tolerance,
@@ -1192,6 +1200,9 @@ fn cmd_loop_objective(max_cases: usize, budget_cost: Option<f64>, claimant: &str
             }
             for c in &plan.skipped_unavailable {
                 println!("  skipped (run.json unreadable): {c}");
+            }
+            for c in &plan.skipped_exhausted {
+                println!("  skipped (EXHAUSTED — rerun bound hit, needs human): {c}");
             }
             match plan.budget_cost {
                 Some(b) => println!(
@@ -2091,6 +2102,20 @@ fn cmd_eval_judge_drift() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn cmd_eval_judge_recalibrate() -> ExitCode {
+    // Reset the derived calibration corpus so the judge-abstention gate
+    // can resume after the verifier/judge is fixed (cycle-33 review F3:
+    // abstention needs a supported recalibration path, not a permanent
+    // repo-wide freeze on any single disagreement).
+    match mini_agi_core::verifier::reset_calibration(&root()) {
+        Ok(()) => {
+            println!("judge calibration reset — corpus cleared; close gates resume");
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(&format!("judge recalibrate: {e}")),
+    }
+}
+
 fn cmd_eval_gate(tolerance: f64, mismatch_tolerance: usize, write_baseline: bool) -> ExitCode {
     match eval_gate_text(&root(), tolerance, mismatch_tolerance, write_baseline) {
         Ok(text) => {
@@ -2972,6 +2997,23 @@ fn cmd_dream(
     }
     if verdicts.is_empty() {
         eprintln!("  [warn] auditor returned no verdicts at all — nothing will promote");
+    }
+    // Coverage check (cycle-33 review F6): a partial verdict array must
+    // not silently strand candidates. Every staged candidate needs a
+    // verdict (promote/duplicate/conflict/reject); a shortfall means the
+    // auditor skipped candidates and a silent promote would lose them.
+    let missing = staged.len().saturating_sub(verdicts.len());
+    if missing > 0 {
+        eprintln!(
+            "  [warn] auditor covered {}/{} candidates — {missing} would be silently stranded; \
+             re-run dream --source to retry the audit",
+            verdicts.len(),
+            staged.len()
+        );
+        return fail(&format!(
+            "dream audit incomplete: {missing} of {} candidates have no verdict — refusing to promote a partial verdict set",
+            staged.len()
+        ));
     }
     match mini_agi_core::dream::write_verdicts(&root, &staging, &verdicts) {
         Ok(m) => println!("  verdicts manifest: {}", m.display()),

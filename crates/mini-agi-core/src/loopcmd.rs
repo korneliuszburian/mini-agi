@@ -171,7 +171,7 @@ pub fn count_reruns(root: &Path, case: &str) -> usize {
         .filter(|e| {
             let name = e.file_name();
             let name = name.to_string_lossy();
-            name.starts_with(&format!("{case}-rerun")) && e.path().join("run.json").is_file()
+            is_rerun_attempt_dir(&name, case) && e.path().join("run.json").is_file()
         })
         .count()
 }
@@ -189,7 +189,7 @@ pub fn rerun_composite(root: &Path, case: &str) -> Option<f64> {
     for e in entries.flatten() {
         let file_name = e.file_name();
         let name = file_name.to_string_lossy();
-        if !name.starts_with(&format!("{case}-rerun")) {
+        if !is_rerun_attempt_dir(&name, case) {
             continue;
         }
         let run = e.path().join("run.json");
@@ -250,8 +250,14 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
                 claimant_for(root, &t.id),
             )
         });
+        // Compute the rerun best ONCE per case and derive the original
+        // score from the already-scored insight row (cycle-33 review F4:
+        // avoids re-scanning + re-scoring the cases dir per call).
         let rerun = rerun_composite(root, &case.case);
-        let best = best_composite(root, &case.case);
+        let best = match (case.composite, rerun) {
+            (o, Some(r)) => Some(o.max(r)),
+            (o, None) => Some(o),
+        };
         let attempts = 1 + count_reruns(root, &case.case);
         // Repair gate + bounded-retry abstention (cycle-33 findings):
         // surface the per-case repair classification and whether further
@@ -302,6 +308,15 @@ fn is_rerun_case(case: &str) -> bool {
             .is_some_and(|s| s.parse::<usize>().is_ok())
 }
 
+/// True when `name` is a rerun-attempt dir for `case` (`{case}-rerun`,
+/// `{case}-rerun-2`, ...) — the strict counterpart of the loose
+/// `starts_with` check, shared by `count_reruns`/`rerun_composite` so a
+/// `-rerun-junk` dir is neither counted as an attempt nor treated as a
+/// dispatchable source (cycle-33 review F7).
+fn is_rerun_attempt_dir(name: &str, case: &str) -> bool {
+    name.starts_with(&format!("{case}-rerun")) && is_rerun_case(name)
+}
+
 /// The dispatch target: the lowest-composite case below `below` that has
 /// no CLOSED ticket and no active claim (lease semantics, ADR-0008).
 fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, String> {
@@ -321,7 +336,7 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
         return Ok(case.to_string());
     }
     let report = crate::insights::insights(root).map_err(|e| e.to_string())?;
-    let mut candidates: Vec<&crate::insights::CaseInsight> = report
+    let candidates: Vec<&crate::insights::CaseInsight> = report
         .cases
         .iter()
         .filter(|c| {
@@ -334,24 +349,29 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
     // reproduce semantic failures (~78% of errors), so a dispatch should
     // prefer cases a rerun can actually fix (Mechanical / Spinning) over
     // cases whose clean-but-wrong result a retry would only repeat
-    // (Semantic). Lower priority value = dispatch first.
-    let repair_priority = |case: &str| -> u8 {
-        let max_repeated = crate::config::Config::load(root).max_repeated_steps;
-        let signal = std::fs::read_to_string(root.join("evals/cases").join(case).join("run.json"))
-            .ok()
-            .and_then(|text| serde_json::from_str::<eval::Run>(&text).ok())
-            .map(|run| eval::repair_signal(&run, max_repeated));
-        match signal {
-            Some(eval::RepairSignal::Mechanical | eval::RepairSignal::Spinning) => 0,
-            Some(eval::RepairSignal::Semantic) => 1,
-            _ => 2,
-        }
-    };
-    candidates.sort_by(|a, b| {
-        let (pa, pb) = (repair_priority(&a.case), repair_priority(&b.case));
-        pa.cmp(&pb)
-            .then_with(|| a.composite.total_cmp(&b.composite))
-    });
+    // (Semantic). Lower priority value = dispatch first. Priorities are
+    // precomputed ONCE (not inside the comparator) so run.json is read
+    // once per case and the sort is stable under concurrent edits.
+    let max_repeated = crate::config::Config::load(root).max_repeated_steps;
+    let mut ranked: Vec<(u8, f64, &crate::insights::CaseInsight)> = candidates
+        .iter()
+        .map(|c| {
+            let signal =
+                std::fs::read_to_string(root.join("evals/cases").join(&c.case).join("run.json"))
+                    .ok()
+                    .and_then(|text| serde_json::from_str::<eval::Run>(&text).ok())
+                    .map(|run| eval::repair_signal(&run, max_repeated));
+            let priority = match signal {
+                Some(eval::RepairSignal::Mechanical | eval::RepairSignal::Spinning) => 0,
+                Some(eval::RepairSignal::Semantic) => 1,
+                _ => 2,
+            };
+            (priority, c.composite, *c)
+        })
+        .collect();
+    ranked.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)));
+    let candidates: Vec<&crate::insights::CaseInsight> =
+        ranked.into_iter().map(|(_, _, c)| c).collect();
     for candidate in candidates {
         if case_closed_by_rerun(root, &candidate.case) {
             continue;
@@ -503,10 +523,11 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
         // Mechanical vs semantic is independent of spinning: a run can
         // spin AND fail a gate. Check the step-level signal directly so
         // a spinning+mechanical run gets both directives.
-        let has_mechanical = prior
-            .trajectory
-            .iter()
-            .any(|s| s.ok == Some(false) || s.goal_aligned == Some(false) || s.reverted);
+        let has_mechanical = prior.trajectory.iter().any(|s| {
+            (s.ok == Some(false) && eval::is_gate_failure(&prior, s))
+                || s.goal_aligned == Some(false)
+                || s.reverted
+        });
         if has_mechanical {
             w(
                 &mut body,
@@ -608,6 +629,9 @@ pub struct ObjectiveOutcome {
     pub skipped_blocked: Vec<String>,
     /// Cases skipped: run.json unreadable.
     pub skipped_unavailable: Vec<String>,
+    /// Cases skipped: rerun bound exhausted with best below the target
+    /// (cycle-33 abstention — needs a human decision, not a retry).
+    pub skipped_exhausted: Vec<String>,
     /// Cost budget in USD (None = unlimited).
     pub budget_cost: Option<f64>,
     /// Accumulated declared cost of the dispatched cases.
@@ -644,6 +668,7 @@ pub fn objective(
         skipped_no_verifier: Vec::new(),
         skipped_blocked: Vec::new(),
         skipped_unavailable: Vec::new(),
+        skipped_exhausted: Vec::new(),
         budget_cost,
         budget_spent: 0.0,
     };
@@ -667,7 +692,7 @@ pub fn objective(
         let cfg = crate::config::Config::load(root);
         let attempts = 1 + count_reruns(root, case);
         if cfg.max_rerun_attempts.is_some_and(|limit| attempts > limit) {
-            out.skipped_blocked.push(case.clone());
+            out.skipped_exhausted.push(case.clone());
             continue;
         }
         // Best-result tracking (SQLQE #19): if the best result seen so
@@ -1061,6 +1086,8 @@ pub fn verify(
             "  gap open: gate regressions — best-state bound holds".into()
         } else if !in_budget {
             "  gap open: over budget — hard budget gate (see lines above)".into()
+        } else if !judge_trusted {
+            "  gap open: judge abstention — close blocked until the judge is recalibrated".into()
         } else {
             format!(
                 "  gap open: composite below {} — keep working",
@@ -1661,9 +1688,9 @@ mod tests {
             s.goal_aligned = Some(true);
             s.reverted = false;
         }
-        fs::create_dir_all(cases.join("sem-case")).unwrap();
+        fs::create_dir_all(cases.join("a-sem-case")).unwrap();
         fs::write(
-            cases.join("sem-case/run.json"),
+            cases.join("a-sem-case/run.json"),
             serde_json::to_string(&sem).unwrap(),
         )
         .unwrap();
@@ -1674,6 +1701,8 @@ mod tests {
         mech.goal = "mechanical case".into();
         for (i, s) in mech.trajectory.iter_mut().enumerate() {
             if i == 0 {
+                // A genuine gate failure (ADR-0013): gate command + ok:false.
+                s.action = "make verify".into();
                 s.ok = Some(false);
             } else {
                 s.ok = Some(true);
@@ -1681,16 +1710,16 @@ mod tests {
             s.goal_aligned = Some(true);
             s.reverted = false;
         }
-        fs::create_dir_all(cases.join("mech-case")).unwrap();
+        fs::create_dir_all(cases.join("b-mech-case")).unwrap();
         fs::write(
-            cases.join("mech-case/run.json"),
+            cases.join("b-mech-case/run.json"),
             serde_json::to_string(&mech).unwrap(),
         )
         .unwrap();
         let target = crate::config::Config::target_composite_for(&root);
         let picked = pick_target(&root, None, target).unwrap();
         assert_eq!(
-            picked, "mech-case",
+            picked, "b-mech-case",
             "repair-aware dispatch must prefer the mechanical case over semantic"
         );
         let _ = fs::remove_dir_all(&root);

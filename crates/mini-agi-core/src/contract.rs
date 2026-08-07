@@ -252,6 +252,12 @@ pub fn parse_document(text: &str) -> Result<Value, serde_json::Error> {
 /// loop terminates in at most `max_attempts` tries and never accepts a
 /// document the contract rejects.
 ///
+/// Public API, exercised by its own unit tests (cycle-33 review F9): the
+/// kernel currently parses review verdicts via the tolerant
+/// `parse_review_verdict` text path (in the binary crate) rather than a
+/// JSON contract, so this stays an available seam for future
+/// LLM-contract consumers rather than dead code.
+///
 /// `attempt` returns `None` when it cannot produce another candidate
 /// (e.g. the source exhausted its budget); the loop then stops early and
 /// returns the last seen error. The first schema-valid document is

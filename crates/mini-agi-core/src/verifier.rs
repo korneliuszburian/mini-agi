@@ -344,6 +344,26 @@ pub fn append_calibration(root: &Path, row: &CalibrationRow) -> std::io::Result<
     fs::write(&path, out)
 }
 
+/// Reset the judge-calibration corpus to an empty header, used by
+/// `eval judge-recalibrate` so the judge-abstention gate can resume.
+///
+/// A stale disagreement row must not permanently freeze every loop close
+/// after the verifier/judge is fixed.
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error.
+pub fn reset_calibration(root: &Path) -> std::io::Result<()> {
+    let path = root.join("memory/derived/calibration.md");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(
+        &path,
+        "# JUDGE CALIBRATION (derived — appended by run verify / loop verify, never hand-edit)\n",
+    )
+}
+
 /// Attribution log (Phase 9 slice 6, NIST audit-attribution): one line
 /// per executed verifier command appended to
 /// `memory/episodic/verify.log`. `run verify --dry-run` skips this.
@@ -634,6 +654,19 @@ mod calibration_tests {
         append_calibration(&root, &row("a", "verified", true)).unwrap();
         append_calibration(&root, &row("a", "verified", true)).unwrap();
         assert_eq!(read_calibration(&root).unwrap().len(), 1);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn reset_calibration_clears_corpus_and_drift() {
+        let root = tmp_root("reset");
+        append_calibration(&root, &row("a", "disagrees", true)).unwrap();
+        assert_eq!(judge_drift(&root).disagreements, 1);
+        reset_calibration(&root).unwrap();
+        assert!(read_calibration(&root).unwrap().is_empty());
+        let drift = judge_drift(&root);
+        assert_eq!(drift.total, 0);
+        assert_eq!(drift.disagreements, 0);
         let _ = fs::remove_dir_all(&root);
     }
 
