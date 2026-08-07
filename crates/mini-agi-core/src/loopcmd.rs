@@ -785,6 +785,30 @@ pub fn verify(
             report.tool_mismatches_vs_golden
         ),
     ];
+    // Error-budget audit (cycle-33 Flat Score #98 pattern): surface the
+    // per-channel failure counts and the success-at-budget projection so
+    // the end-of-run composite cannot hide a run whose per-step
+    // reliability is degraded inside its error budget.
+    let audit = &report.error_budget;
+    let budget_line: Vec<String> = audit
+        .success_at_budget
+        .iter()
+        .enumerate()
+        .map(|(k, ok)| format!("{k}:{}", if *ok { "ok" } else { "fail" }))
+        .collect();
+    lines.push(format!(
+        "  error budget: {} steps, {} failed (dedup), {} gate-fail, {} goal-drift, {} reverted (by tool: {:?})",
+        audit.total_steps,
+        audit.failed_steps,
+        audit.failed_gate_steps,
+        audit.goal_drift_steps,
+        audit.reverted_steps,
+        audit.failed_by_tool
+    ));
+    lines.push(format!(
+        "  success at budget k (k: status): {}",
+        budget_line.join(" ")
+    ));
     // Repetition watchdog (hardening audit P1-5): a run whose trajectory
     // repeats the same (tool, action) verbatim beyond the configured
     // max_repeated_steps is flagged — a spinning worker. A signal, not a
