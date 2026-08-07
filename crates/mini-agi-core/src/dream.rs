@@ -428,6 +428,10 @@ pub fn apply_verdicts(
 ) -> Result<(usize, usize, usize), crate::memory::MemoryError> {
     let known = crate::memory::existing_fact_ids(root);
     let preserved = crate::memory::preserved_ids(root);
+    // Hoisted once (cycle-33 review F3): the duplicate arm matches a
+    // candidate against an existing fact's body; reading the whole
+    // canonical store per duplicate verdict was O(verdicts × entries).
+    let all_facts = crate::memory::read_all_facts(root);
     let mut promoted: Vec<(String, String)> = Vec::new();
     let mut promoted_domain = "general".to_string();
     let mut queued = 0usize;
@@ -491,16 +495,21 @@ pub fn apply_verdicts(
                 // newer wording.
                 let existing = v.existing_id.clone();
                 let existing_body = existing.as_deref().and_then(|id| {
-                    crate::memory::read_all_facts(root)
-                        .into_iter()
+                    all_facts
+                        .iter()
                         .find(|(fid, _, _)| fid == id)
-                        .map(|(_, _, body)| body)
+                        .map(|(_, _, body)| body.clone())
                 });
+                // Flatten the candidate the same way canonical bodies are
+                // flattened (split_whitespace), so a body that differs
+                // only in line-wrapping is NOT spuriously superseded.
+                let flat_candidate: String =
+                    fact.body.split_whitespace().collect::<Vec<_>>().join(" ");
                 match (existing, existing_body) {
-                    (Some(existing_id), Some(body)) if body != fact.body => {
+                    (Some(existing_id), Some(body)) if body != flat_candidate => {
                         crate::memory::write_supersede_entry(
                             root,
-                            &[(fact.body.clone(), h)],
+                            &[(flat_candidate, h)],
                             source,
                             &fact.domain,
                             &[existing_id],

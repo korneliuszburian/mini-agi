@@ -479,16 +479,26 @@ pub fn judge_drift(root: &Path) -> JudgeDrift {
     let mut drift = JudgeDrift::default();
     for row in read_calibration(root).unwrap_or_default() {
         drift.total += 1;
+        if row.status == "disagrees" {
+            // The case always surfaces as a red-team signal (the spec
+            // warns when a prior verifier-vs-judge disagreement exists),
+            // but the PRECISION denominator counts only CLAIMED
+            // disagreements: a `claimed=false` row where the verifier
+            // also disagrees is safe-direction (the run honestly
+            // reported failure) — including it would drive precision to
+            // 0 and block every loop close for a judge that never
+            // overstated (cycle-33 review F2).
+            if !drift.disagreement_cases.contains(&row.case) {
+                drift.disagreement_cases.push(row.case.clone());
+            }
+            if row.claimed {
+                drift.disagreements += 1;
+            }
+        }
         if row.claimed {
             drift.claimed_successes += 1;
             if row.status == "verified" {
                 drift.verified_successes += 1;
-            }
-        }
-        if row.status == "disagrees" {
-            drift.disagreements += 1;
-            if !drift.disagreement_cases.contains(&row.case) {
-                drift.disagreement_cases.push(row.case.clone());
             }
         }
     }
@@ -645,6 +655,31 @@ mod calibration_tests {
         assert_eq!(drift.disagreements, 1);
         // Precision excludes the unverified claim from the denominator.
         assert!((drift.precision() - 1.0 / 2.0).abs() < 1e-9);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn safe_direction_disagreement_does_not_dilute_precision() {
+        // Cycle-33 review F2: a row where the run honestly claimed
+        // failure (claimed=false) and the verifier also disagrees is
+        // SAFE direction — the judge never overstated success. It must
+        // not count as a disagreement (which would drive precision to 0
+        // and block every loop close).
+        let root = tmp_root("safe-dir");
+        append_calibration(&root, &row("a", "verified", true)).unwrap();
+        append_calibration(&root, &row("b", "disagrees", false)).unwrap();
+        let drift = judge_drift(&root);
+        assert_eq!(drift.claimed_successes, 1);
+        assert_eq!(drift.verified_successes, 1);
+        assert_eq!(drift.disagreements, 0, "safe-direction row must not count");
+        assert!(
+            (drift.precision() - 1.0).abs() < 1e-9,
+            "precision stays 1.0"
+        );
+        // The case still surfaces as a disagreement case for the spec
+        // red-team signal (dispatch warns), even though it is not a
+        // precision dilution.
+        assert!(drift.disagreement_cases.iter().any(|c| c == "b"));
         let _ = fs::remove_dir_all(&root);
     }
 

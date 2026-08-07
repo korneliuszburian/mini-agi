@@ -372,22 +372,31 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
     ranked.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)));
     let candidates: Vec<&crate::insights::CaseInsight> =
         ranked.into_iter().map(|(_, _, c)| c).collect();
+    // Precompute the rerun-derived state ONCE per case (cycle-33 review
+    // F1): best_composite + attempts each scan/re-score the cases dir, so
+    // doing them per candidate inside the loop is O(C·(D+R·score)).
+    // A single pass fills the map; the loop only reads it.
+    let cfg = crate::config::Config::load(root);
+    let mut state: std::collections::HashMap<String, (Option<f64>, usize)> =
+        std::collections::HashMap::new();
+    for c in &candidates {
+        let rerun = rerun_composite(root, &c.case);
+        let best = match (c.composite, rerun) {
+            (o, Some(r)) => Some(o.max(r)),
+            (o, None) => Some(o),
+        };
+        let attempts = 1 + count_reruns(root, &c.case);
+        state.insert(c.case.clone(), (best, attempts));
+    }
     for candidate in candidates {
-        if case_closed_by_rerun(root, &candidate.case) {
+        let (best, attempts) = state.get(&candidate.case).copied().unwrap_or((None, 1));
+        if best.is_some_and(|b| b >= below) {
             continue;
         }
         // Bounded-retry abstention (CRC #69 + GGC #60): skip cases past
         // their rerun bound with best below the target — they need a
         // human decision, not another dispatch.
-        let cfg = crate::config::Config::load(root);
-        let attempts = 1 + count_reruns(root, &candidate.case);
         if cfg.max_rerun_attempts.is_some_and(|limit| attempts > limit) {
-            continue;
-        }
-        // Best-result tracking (SQLQE #19): a case whose best result
-        // already reaches the target is closed — do not pick it for
-        // another rerun.
-        if best_composite(root, &candidate.case).is_some_and(|b| b >= below) {
             continue;
         }
         let Some(ticket) = ticket_for_case(root, &candidate.case) else {
@@ -672,6 +681,21 @@ pub fn objective(
         budget_cost,
         budget_spent: 0.0,
     };
+    // Precompute rerun-derived state once per candidate (cycle-33 review
+    // F1): best_composite + count_reruns each scan/re-score the cases
+    // dir; doing them per candidate inside the loop is O(C·(D+R·score)).
+    let cfg = crate::config::Config::load(root);
+    let mut state: std::collections::HashMap<String, (Option<f64>, usize)> =
+        std::collections::HashMap::new();
+    for c in &candidates {
+        let rerun = rerun_composite(root, &c.case);
+        let best = match (c.composite, rerun) {
+            (o, Some(r)) => Some(o.max(r)),
+            (o, None) => Some(o),
+        };
+        let attempts = 1 + count_reruns(root, &c.case);
+        state.insert(c.case.clone(), (best, attempts));
+    }
     for candidate in candidates {
         if out.dispatched.len() >= max_cases {
             break;
@@ -682,24 +706,20 @@ pub fn objective(
             break;
         }
         let case = &candidate.case;
-        if case_closed_by_rerun(root, case) {
+        let (best, attempts) = state.get(case).copied().unwrap_or((None, 1));
+        // Best-result tracking (SQLQE #19): if the best result seen so
+        // far — original or any rerun — already reaches the target, the
+        // gap is effectively closed; do not re-dispatch a case whose best
+        // cannot be improved by another retry.
+        if best.is_some_and(|b| b >= target) {
             continue;
         }
         // Bounded-retry abstention (CRC #69 + GGC #60): a case past its
         // rerun bound with best still below the target is EXHAUSTED —
         // further retries only burn budget; it needs a human decision,
         // not another dispatch.
-        let cfg = crate::config::Config::load(root);
-        let attempts = 1 + count_reruns(root, case);
         if cfg.max_rerun_attempts.is_some_and(|limit| attempts > limit) {
             out.skipped_exhausted.push(case.clone());
-            continue;
-        }
-        // Best-result tracking (SQLQE #19): if the best result seen so
-        // far — original or any rerun — already reaches the target, the
-        // gap is effectively closed; do not re-dispatch a case whose best
-        // cannot be improved by another retry.
-        if best_composite(root, case).is_some_and(|b| b >= target) {
             continue;
         }
         let run_path = root.join("evals/cases").join(case).join("run.json");

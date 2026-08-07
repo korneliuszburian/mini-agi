@@ -183,6 +183,17 @@ impl HealthReport {
     }
 }
 
+/// Exit code for a verdict (OK=0, WARN=1, CRITICAL=2). Extracted as a
+/// testable pure function (cycle-33 review F4).
+#[must_use]
+pub fn exit_code_for(verdict: &str) -> u8 {
+    match verdict {
+        "OK" => 0,
+        "WARN" => 1,
+        _ => 2,
+    }
+}
+
 fn parse_frac(numerator: u64, denominator: u64) -> Option<f64> {
     if denominator == 0 {
         return None;
@@ -414,16 +425,26 @@ mod tests {
     fn verdict_composition() {
         let mut r = HealthReport::default();
         assert_eq!(r.verdict(), "OK");
+        assert_eq!(exit_code_for(r.verdict()), 0, "OK -> 0");
         r.findings.push(Finding {
             severity: "warn".into(),
             message: "x".into(),
         });
         assert_eq!(r.verdict(), "WARN");
+        assert_eq!(exit_code_for(r.verdict()), 1, "WARN -> 1");
         r.findings.push(Finding {
             severity: "critical".into(),
             message: "y".into(),
         });
         assert_eq!(r.verdict(), "CRITICAL");
+        assert_eq!(exit_code_for(r.verdict()), 2, "CRITICAL -> 2");
+        // Every state maps to a distinct code (a regression collapsing
+        // WARN and CRITICAL would fail here).
+        let codes: Vec<u8> = ["OK", "WARN", "CRITICAL"]
+            .iter()
+            .map(|v| exit_code_for(v))
+            .collect();
+        assert_eq!(codes, vec![0, 1, 2]);
     }
 
     #[test]

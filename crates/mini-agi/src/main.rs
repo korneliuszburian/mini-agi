@@ -1015,11 +1015,7 @@ fn cmd_health() -> ExitCode {
             for finding in &report.findings {
                 println!("  [{}] {}", finding.severity, finding.message);
             }
-            match report.verdict() {
-                "OK" => ExitCode::SUCCESS,
-                "WARN" => ExitCode::from(1),
-                _ => ExitCode::from(2),
-            }
+            ExitCode::from(mini_agi_core::health::exit_code_for(report.verdict()))
         }
         Err(e) => fail(&format!("health: {e}")),
     }
