@@ -49,6 +49,12 @@ silent target is a failing target.
   slice -> rerun loop without human routing (claims are leases: never
   start work on a ticket someone else holds). `mini-agi health` / `mini-agi
   audit` — machine and repo invariants before long sessions.
+- MCP writes need HITL: every tool that changes the worker tree or
+  canonical memory (`loop_dispatch`, `loop_objective`, `memory_signoff`,
+  `memory_consolidate`, `memory_derive`, `run_ingest`, `ticket_claim`/
+  `release`, `skill_add`, `harness`, `loop_run`) requires a non-empty
+  `approve` reason in the kernel — a session cannot write without human
+  signoff (`.codex/config.toml` mirrors this with `approval_mode = prompt`).
 - Communication: facts and next actions, no filler.
 ";
 

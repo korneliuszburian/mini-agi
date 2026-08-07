@@ -1355,6 +1355,13 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
     }
     assert!(root.join("AGENTS.md").is_file());
     assert!(root.join("scripts/verify.sh").is_file());
+    // AGENTS.md must carry the HITL write rule (kernel enforces approve;
+    // the template must teach sessions about it).
+    let agents = std::fs::read_to_string(root.join("AGENTS.md")).unwrap();
+    assert!(
+        agents.contains("MCP writes need HITL"),
+        "AGENTS.md template must document the HITL write gate"
+    );
     // The codex config must be wired with the MCP allowlist + HITL
     // approvals (not just trusted=true) so a fresh init enforces writes.
     let codex = std::fs::read_to_string(root.join(".codex/config.toml")).expect("codex config");
