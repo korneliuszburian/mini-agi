@@ -3011,3 +3011,23 @@ fn cli_ticket_validate_graph_flags_dangling_ref() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_codex_missing_spec_fails_cleanly() {
+    // codex (captured worker run) needs an external binary for the happy
+    // path, but the missing-spec fail-fast is testable without it.
+    let root = tmp_root("ccx");
+    wipe(&root);
+    let missing = root.join("nope/spec.md");
+    let out = run(
+        &root,
+        &["codex", missing.to_str().unwrap(), root.to_str().unwrap()],
+    );
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("cannot read spec"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}

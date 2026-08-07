@@ -574,3 +574,4 @@
 2026-08-07T23:43:55Z VERIFY-PASS fix144-cli-provenance-determinism @ 751377b
 2026-08-07T23:46:07Z BEGIN fix145-cli-mcp-tools-count -> 6650228
 2026-08-07T23:47:26Z VERIFY-PASS fix145-cli-mcp-tools-count @ 6f0e112
+2026-08-07T23:48:32Z BEGIN fix146-cli-codex-failfast -> fa26f80
