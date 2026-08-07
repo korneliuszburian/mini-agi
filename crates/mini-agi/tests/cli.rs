@@ -1264,3 +1264,31 @@ fn approval_gate_refuses_without_approve_when_required() {
     assert!(!workdir.join("codex.log").exists(), "{text}");
     wipe(&root);
 }
+
+#[test]
+fn cli_subcommand_help_never_panics() {
+    // Clap definition regressions (conflicting flags, bad required) only
+    // surface when a subcommand is exercised. Smoke-test --help for every
+    // top-level subcommand: it must exit 0 and print usage, never panic.
+    let root = tmp_root("help");
+    wipe(&root);
+    for sub in [
+        "loop", "eval", "mem", "ticket", "run", "skill", "checkpoint",
+        "validate", "budget", "mcp", "dream", "insights", "health",
+        "audit", "provenance", "stats", "resume", "init", "research",
+    ] {
+        let out = run(&root, &[sub, "--help"]);
+        let text = combined(&out);
+        assert!(
+            out.status.success(),
+            "`{sub} --help` failed: {text}"
+        );
+        assert!(
+            text.contains("Usage") || text.contains("USAGE"),
+            "`{sub} --help` printed no usage: {text}"
+        );
+    }
+    let root_help = run(&root, &["--help"]);
+    assert!(root_help.status.success(), "root --help failed");
+    wipe(&root);
+}
