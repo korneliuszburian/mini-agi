@@ -466,7 +466,7 @@ pub fn backlog(root: &Path) -> Result<Vec<BacklogTicket>, io::Error> {
         let id = format!("TICKET-{next_number}");
         next_number += 1;
         let body = format!(
-            "# Ticket\n\n- id: {id}\n- title: Fix capability gap: {case} scores below gate\n- goal (one sentence): Bring {case} composite above the gate tolerance by fixing the failing run.\n- domain: eval\n"
+            "# Ticket\n\n- id: {id}\n- title: Fix capability gap: {case} scores below gate\n- goal (one sentence): Bring {case} composite above the gate tolerance by fixing the failing run.\n- scope: evals/cases\n- domain: eval\n"
         );
         fs::write(root.join("tickets").join(format!("{id}.md")), body)?;
         created.push(BacklogTicket {
@@ -598,7 +598,7 @@ mod backlog_tests {
         let root = tmp_root("b");
         fs::write(
             root.join("tickets/TICKET-7.md"),
-            "- id: TICKET-7\n- title: old\n- goal: old ticket\n",
+            "- id: TICKET-7\n- title: old\n- goal: old ticket\n- scope: evals/cases\n",
         )
         .unwrap();
         let dir = root.join("evals/cases/reactive-loop");

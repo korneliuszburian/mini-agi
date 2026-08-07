@@ -170,6 +170,10 @@ pub fn parse_ticket(text: &str) -> Result<Ticket, TicketError> {
             .map_err(|e| TicketError::Invalid(e.to_string()))?;
         serde_json::from_value(value).map_err(|e| TicketError::Parse(e.to_string()))?
     } else {
+        // Markdown tickets keep the PoC bullet/frontmatter forms where
+        // scope is OPTIONAL (deliberate: `parse_bullet_ticket` documents
+        // "Scope is optional in markdown tickets") — do not apply the
+        // JSON contract's required-scope rule here.
         parse_markdown_ticket(trimmed)?
     };
     if !ticket.id.starts_with("TICKET-") {
@@ -730,6 +734,7 @@ Body.
 id: TICKET-003
 title: dep work
 goal: depends on 002
+scope: scripts
 blocked_by: TICKET-002, TICKET-001
 status: OPEN
 ---
@@ -740,6 +745,7 @@ status: OPEN
         let bullet = r"- id: TICKET-004
 - title: body status
 - goal: g
+- scope: scripts
 - blocked_by: TICKET-003
 Body line.
 
@@ -807,6 +813,7 @@ Status: CLOSED (evidence above).
             r"- id: TICKET-001
 - title: a
 - goal: g
+- scope: scripts
 - blocked_by: TICKET-999
 ",
         )
@@ -816,6 +823,7 @@ Status: CLOSED (evidence above).
             r"- id: TICKET-002
 - title: b
 - goal: g
+- scope: scripts
 - blocked_by: TICKET-003
 ",
         )
@@ -825,6 +833,7 @@ Status: CLOSED (evidence above).
             r"- id: TICKET-003
 - title: c
 - goal: g
+- scope: scripts
 - blocked_by: TICKET-002
 ",
         )
@@ -865,6 +874,7 @@ Status: CLOSED (evidence above).
             r"- id: TICKET-001
 - title: dep
 - goal: g
+- scope: scripts
 ",
         )
         .unwrap();
@@ -873,6 +883,7 @@ Status: CLOSED (evidence above).
             r"- id: TICKET-002
 - title: blocked
 - goal: g
+- scope: scripts
 - blocked_by: TICKET-001
 ",
         )

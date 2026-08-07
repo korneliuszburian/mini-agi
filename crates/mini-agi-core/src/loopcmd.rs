@@ -814,7 +814,7 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
         + 1;
     let id = format!("TICKET-{next_number}");
     let body = format!(
-        "# Ticket\n\n- id: {id}\n- title: Fix capability gap: {case} scores below the loop target\n- goal (one sentence): Bring {case} composite above {TARGET_COMPOSITE} by fixing the failing run.\n- domain: eval\n"
+        "# Ticket\n\n- id: {id}\n- title: Fix capability gap: {case} scores below the loop target\n- goal (one sentence): Bring {case} composite above {TARGET_COMPOSITE} by fixing the failing run.\n- scope: evals/cases\n- domain: eval\n"
     );
     fs::write(dir.join(format!("{id}.md")), body).map_err(|e| e.to_string())?;
     Ok(id)
@@ -1768,7 +1768,7 @@ mod reflexion_tests {
         fs::create_dir_all(root.join("tickets")).unwrap();
         fs::write(
             root.join("tickets/TICKET-9.md"),
-            "- id: TICKET-9\n- title: reactive-loop gap\n- goal: fix reactive-loop\n",
+            "- id: TICKET-9\n- title: reactive-loop gap\n- goal: fix reactive-loop\n- scope: evals/cases\n",
         )
         .unwrap();
         // Seed the register with the reflective entry (as the real
@@ -1836,7 +1836,7 @@ mod reflection_diff_tests {
         fs::create_dir_all(root.join("tickets")).unwrap();
         fs::write(
             root.join("tickets/TICKET-008.md"),
-            "- id: TICKET-008-v2\n- title: t\n- goal: g\n",
+            "- id: TICKET-008-v2\n- title: t\n- goal: g\n- scope: evals/cases\n",
         )
         .unwrap();
         // Seed the failure register with a reflective entry for the base.
