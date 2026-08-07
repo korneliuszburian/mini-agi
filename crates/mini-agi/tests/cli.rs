@@ -2114,6 +2114,11 @@ fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     .unwrap();
     let open = run(&root, &["loop", "verify", "fail-case", "--claimant", "t"]);
     assert_eq!(open.status.code(), Some(1), "{}", combined(&open));
+    assert!(
+        combined(&open).contains("DISAGREES"),
+        "verifier-pass vs unachieved outcome must surface the disagreement signal: {}",
+        combined(&open)
+    );
     // A rerun at/above target with a claim -> CLOSED, exit 0, claim
     // released (loop verify's positive close path).
     let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
