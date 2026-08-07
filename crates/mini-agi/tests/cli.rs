@@ -369,6 +369,38 @@ fn cli_skill_list_discovery() {
 }
 
 #[test]
+fn cli_skill_show_prints_skill_body_and_unknown_fails() {
+    // `skill show` (print a skill's SKILL.md) had no CLI test; both the
+    // happy path (body surfaced) and the unknown-skill error were
+    // uncovered.
+    let root = tmp_root("cshow");
+    wipe(&root);
+    let skills = root.join(".agents/skills");
+    std::fs::create_dir_all(skills.join("demo")).unwrap();
+    std::fs::write(
+        skills.join("demo/SKILL.md"),
+        "---\nname: demo\ndescription: demo skill\n---\n\n# Body\n\nrun these steps\n",
+    )
+    .unwrap();
+    let ok = run(&root, &["skill", "show", "demo"]);
+    assert!(ok.status.success(), "{}", combined(&ok));
+    assert!(stdout(&ok).contains("name: demo"), "{}", stdout(&ok));
+    assert!(
+        stdout(&ok).contains("description: demo skill"),
+        "{}",
+        stdout(&ok)
+    );
+    let missing = run(&root, &["skill", "show", "nope"]);
+    assert_eq!(missing.status.code(), Some(1), "{}", combined(&missing));
+    assert!(
+        combined(&missing).contains("nope"),
+        "{}",
+        combined(&missing)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_skill_verify_pass_and_fail() {
     let root = tmp_root("c12");
     wipe(&root);
