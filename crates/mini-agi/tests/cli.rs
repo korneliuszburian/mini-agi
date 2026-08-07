@@ -2693,3 +2693,22 @@ fn cli_eval_hidden_missing_dir_fails_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_mem_missing_required_args_fail_cleanly() {
+    // mem query without filters and mem supersede without a target id
+    // must error cleanly (exit 1) with a hint, not panic.
+    let root = tmp_root("cmrg");
+    wipe(&root);
+    let q = run(&root, &["mem", "query"]);
+    assert_eq!(q.status.code(), Some(1), "{}", combined(&q));
+    assert!(combined(&q).contains("give a keyword"), "{}", combined(&q));
+    let s = run(&root, &["mem", "supersede", "body"]);
+    assert_eq!(s.status.code(), Some(1), "{}", combined(&s));
+    assert!(
+        combined(&s).contains("give at least one"),
+        "{}",
+        combined(&s)
+    );
+    wipe(&root);
+}
