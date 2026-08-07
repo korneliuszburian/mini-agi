@@ -117,7 +117,7 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   Suite: 403 -> 415 tests.
 - `derive` idempotence under test (two derives produce a byte-identical
   brief — replay MATCH and the audit provenance check depend on it) and
-  the `eval gate` write-baseline -> PASS roundtrip. Suite: 415 -> 416.
+  the `eval gate` write-baseline -> PASS roundtrip. Suite: 415 -> 417 (audit provenance-drift test landed in iter 102).
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
