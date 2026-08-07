@@ -341,3 +341,4 @@
 2026-08-07T16:57:22Z VERIFY-PASS fix27-research-status-note @ a34cee0
 2026-08-07T16:58:03Z BEGIN fix28-research-notes -> 6ac515b
 2026-08-07T16:59:22Z VERIFY-PASS fix28-research-notes @ f019874
+2026-08-07T17:03:14Z BEGIN fix29-mcp-tool-coverage -> 34148bd

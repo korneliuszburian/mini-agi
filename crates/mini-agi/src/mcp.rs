@@ -1144,6 +1144,27 @@ mod tests {
     }
 
     #[test]
+    fn every_declared_tool_has_a_call_handler() {
+        // A tool declared in tool_definitions but missing a `call_tool`
+        // arm would silently answer "unknown tool". This guards the
+        // 1:1 coverage: every declared name must route to a handler (an
+        // empty tmp root exercises the dispatch path without needing
+        // real repo state; some tools legitimately error on empty input,
+        // which is fine — only the "unknown tool" fallthrough is a bug).
+        let root = std::env::temp_dir().join(format!("mag-mcp-coverage-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&root);
+        for t in tool_definitions() {
+            let name = t["name"].as_str().unwrap_or("").to_string();
+            let out = call_tool(&name, &json!({}), &root);
+            assert!(
+                !out.contains("unknown tool"),
+                "tool '{name}' has no call handler: {out}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn dispatch_rejects_tools_before_initialize() {
         let mut initialized = false;
         let msg = json!({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}});
