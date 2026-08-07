@@ -130,8 +130,13 @@ impl Config {
     /// mutating process env — `unsafe_code = "forbid"`).
     fn apply_env_overlay(&mut self, get: impl Fn(&str) -> Option<String>) {
         let set_f64 = |name: &str, slot: &mut f64| {
-            if let Some(v) = get(name).and_then(|s| s.parse::<f64>().ok()) {
-                *slot = v;
+            if let Some(raw) = get(name) {
+                match raw.parse::<f64>() {
+                    Ok(v) => *slot = v,
+                    Err(e) => {
+                        eprintln!("warning: {name} is not a number ('{raw}') — ignoring ({e})");
+                    }
+                }
             }
         };
         set_f64("MINIAGI_TARGET_COMPOSITE", &mut self.target_composite);
@@ -140,24 +145,38 @@ impl Config {
             &mut self.regression_tolerance,
         );
         let set_usize = |name: &str, slot: &mut Option<usize>| {
-            if let Some(v) = get(name).and_then(|s| s.parse::<usize>().ok()) {
-                *slot = Some(v);
+            if let Some(raw) = get(name) {
+                match raw.parse::<usize>() {
+                    Ok(v) => *slot = Some(v),
+                    Err(e) => {
+                        eprintln!("warning: {name} is not a number ('{raw}') — ignoring ({e})");
+                    }
+                }
             }
         };
         set_usize("MINIAGI_MAX_STEPS", &mut self.max_steps);
         set_usize("MINIAGI_MAX_REPEATED_STEPS", &mut self.max_repeated_steps);
         set_usize("MINIAGI_MAX_RERUN_ATTEMPTS", &mut self.max_rerun_attempts);
-        if let Some(v) = get("MINIAGI_MAX_TOKENS").and_then(|s| s.parse::<u64>().ok()) {
-            self.max_tokens = Some(v);
-        }
-        if let Some(v) = get("MINIAGI_MAX_COST_USD").and_then(|s| s.parse::<f64>().ok()) {
-            self.max_cost_usd = Some(v);
-        }
-        if let Some(v) = get("MINIAGI_MAX_WALL_SECONDS").and_then(|s| s.parse::<u64>().ok()) {
-            self.max_wall_seconds = Some(v);
-        }
-        if let Some(v) = get("MINIAGI_MAX_IDLE_SECONDS").and_then(|s| s.parse::<u64>().ok()) {
-            self.max_idle_seconds = Some(v);
+        let set_u64 = |name: &str, slot: &mut Option<u64>| {
+            if let Some(raw) = get(name) {
+                match raw.parse::<u64>() {
+                    Ok(v) => *slot = Some(v),
+                    Err(e) => {
+                        eprintln!("warning: {name} is not a number ('{raw}') — ignoring ({e})");
+                    }
+                }
+            }
+        };
+        set_u64("MINIAGI_MAX_TOKENS", &mut self.max_tokens);
+        set_u64("MINIAGI_MAX_WALL_SECONDS", &mut self.max_wall_seconds);
+        set_u64("MINIAGI_MAX_IDLE_SECONDS", &mut self.max_idle_seconds);
+        if let Some(raw) = get("MINIAGI_MAX_COST_USD") {
+            match raw.parse::<f64>() {
+                Ok(v) => self.max_cost_usd = Some(v),
+                Err(e) => eprintln!(
+                    "warning: MINIAGI_MAX_COST_USD is not a number ('{raw}') — ignoring ({e})"
+                ),
+            }
         }
     }
 
@@ -210,6 +229,28 @@ mod tests {
             cfg.max_idle_seconds,
             Some(7),
             "the env var must win over the file (S3 config contract)"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn malformed_env_value_is_ignored_without_override() {
+        // A non-numeric env value must NOT override the file value (and
+        // emits a warning); the file setting stays in effect.
+        let root = tmp_root("env-mal");
+        std::fs::write(root.join(".miniagi.json"), r#"{"max_idle_seconds": 42}"#).unwrap();
+        let mut cfg = Config::load(&root);
+        cfg.apply_env_overlay(|name| {
+            if name == "MINIAGI_MAX_IDLE_SECONDS" {
+                Some("not-a-number".into())
+            } else {
+                None
+            }
+        });
+        assert_eq!(
+            cfg.max_idle_seconds,
+            Some(42),
+            "malformed env must not override the file value"
         );
         let _ = std::fs::remove_dir_all(&root);
     }
