@@ -1488,3 +1488,43 @@ fn cli_dream_idle_no_runs_is_clean_success() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_dream_promote_applies_verdicts_into_canonical() {
+    // `dream --promote` (D2 promotion -> canonical) had no CLI test;
+    // the staging-discovery + verdict-manifest + apply path could break
+    // (e.g. wrong staging dir, missing manifest check) silently.
+    let root = tmp_root("dream-pro");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("memory/staging/2026-08-07")).unwrap();
+    let staged_path = root.join("memory/staging/2026-08-07/001.md");
+    std::fs::write(
+        &staged_path,
+        "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nwidget alpha mechanism records budget usage across nodes\n",
+    )
+    .unwrap();
+    let manifest = root.join("memory/staging/2026-08-07/001.verdicts.json");
+    std::fs::write(
+        &manifest,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "staged": "001.md",
+            "verdicts": [
+                {"index": 0, "verdict": "promote", "reason": "audited"}
+            ]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let out = run(&root, &["dream", "--promote"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(stdout(&out).contains("promoted"), "{}", stdout(&out));
+    // The promoted fact must land in canonical.
+    let canonical =
+        std::fs::read_to_string(root.join("memory/canonical/entries/2026-08-07/2026-08-07-001.md"))
+            .unwrap_or_default();
+    assert!(
+        canonical.contains("widget alpha mechanism records budget usage"),
+        "{canonical}"
+    );
+    wipe(&root);
+}
