@@ -357,4 +357,16 @@ mod tests {
         let b = budget(&root);
         assert!(b.chain_over_cap);
     }
+
+    #[test]
+    fn approx_tokens_scales_with_length_and_never_zeroes() {
+        // Token estimate feeds the budget report's chain_tokens field;
+        // it had no direct test. Rough heuristic: bytes / 4, floor 1.
+        assert_eq!(approx_tokens(""), 1, "empty must not read as 0 tokens");
+        assert_eq!(approx_tokens("abcdefgh"), 2, "8 ASCII bytes -> 2 tokens");
+        assert_eq!(approx_tokens("a"), 1, "short input floors at 1");
+        // Non-ASCII counts bytes (over-estimates tokens); still >= 1.
+        let emdash = approx_tokens("—");
+        assert!(emdash >= 1, "non-ASCII must still yield >= 1");
+    }
 }
