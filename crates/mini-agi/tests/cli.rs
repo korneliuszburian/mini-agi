@@ -780,6 +780,11 @@ fn cli_full_ticket_run_end_to_end() {
     let budget = run(&root, &["budget"]);
     assert!(budget.status.success());
     assert!(stdout(&budget).contains("AGENTS chain:"));
+    assert!(
+        stdout(&budget).contains("Skills list:") && stdout(&budget).contains("Memory leverage:"),
+        "budget must report skills and leverage: {}",
+        stdout(&budget)
+    );
     wipe(&root);
 }
 
