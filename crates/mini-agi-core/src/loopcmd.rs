@@ -330,7 +330,28 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
             !is_rerun_case(&c.case) && c.composite < below
         })
         .collect();
-    candidates.sort_by(|a, b| a.composite.total_cmp(&b.composite));
+    // Repair-aware ordering (cycle-33 finding, GGC #60): blind retries
+    // reproduce semantic failures (~78% of errors), so a dispatch should
+    // prefer cases a rerun can actually fix (Mechanical / Spinning) over
+    // cases whose clean-but-wrong result a retry would only repeat
+    // (Semantic). Lower priority value = dispatch first.
+    let repair_priority = |case: &str| -> u8 {
+        let max_repeated = crate::config::Config::load(root).max_repeated_steps;
+        let signal = std::fs::read_to_string(root.join("evals/cases").join(case).join("run.json"))
+            .ok()
+            .and_then(|text| serde_json::from_str::<eval::Run>(&text).ok())
+            .map(|run| eval::repair_signal(&run, max_repeated));
+        match signal {
+            Some(eval::RepairSignal::Mechanical | eval::RepairSignal::Spinning) => 0,
+            Some(eval::RepairSignal::Semantic) => 1,
+            _ => 2,
+        }
+    };
+    candidates.sort_by(|a, b| {
+        let (pa, pb) = (repair_priority(&a.case), repair_priority(&b.case));
+        pa.cmp(&pb)
+            .then_with(|| a.composite.total_cmp(&b.composite))
+    });
     for candidate in candidates {
         if case_closed_by_rerun(root, &candidate.case) {
             continue;
@@ -1557,6 +1578,61 @@ mod tests {
             "non-numeric suffix is a case name"
         );
         assert!(!is_rerun_case("rerun"), "no case prefix");
+    }
+
+    #[test]
+    fn pick_target_prefers_mechanical_over_semantic_failure() {
+        let root = tmp_case_root("repair-order");
+        let cases = root.join("evals/cases");
+        let mut base: eval::Run = serde_json::from_str(
+            &fs::read_to_string(repo().join("evals/cases/real-ticket-008-v2/run.json")).unwrap(),
+        )
+        .unwrap();
+        base.verify_command = Some("true".into());
+        base.golden = None;
+        base.scope = vec!["scripts/".into()];
+        base.outcome.achieved = false;
+        // Semantic case: clean steps, unachieved outcome (composite ~0).
+        let mut sem = base.clone();
+        sem.goal = "semantic case".into();
+        for s in &mut sem.trajectory {
+            s.ok = Some(true);
+            s.goal_aligned = Some(true);
+            s.reverted = false;
+        }
+        fs::create_dir_all(cases.join("sem-case")).unwrap();
+        fs::write(
+            cases.join("sem-case/run.json"),
+            serde_json::to_string(&sem).unwrap(),
+        )
+        .unwrap();
+        // Mechanical case: one failed gate step (composite ~0 but a
+        // repair can target it). Give it a higher composite so the
+        // priority ordering, not the composite, decides.
+        let mut mech = base;
+        mech.goal = "mechanical case".into();
+        for (i, s) in mech.trajectory.iter_mut().enumerate() {
+            if i == 0 {
+                s.ok = Some(false);
+            } else {
+                s.ok = Some(true);
+            }
+            s.goal_aligned = Some(true);
+            s.reverted = false;
+        }
+        fs::create_dir_all(cases.join("mech-case")).unwrap();
+        fs::write(
+            cases.join("mech-case/run.json"),
+            serde_json::to_string(&mech).unwrap(),
+        )
+        .unwrap();
+        let target = crate::config::Config::target_composite_for(&root);
+        let picked = pick_target(&root, None, target).unwrap();
+        assert_eq!(
+            picked, "mech-case",
+            "repair-aware dispatch must prefer the mechanical case over semantic"
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 }
 
