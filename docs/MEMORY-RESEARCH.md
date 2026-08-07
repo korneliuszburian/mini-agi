@@ -1,4 +1,7 @@
 # Memory & skills research (deep pass, 2026-08-05)
+> STATUS: historical research record (2026-08-05); findings are snapshots from that date. Current state: docs/README.md.
+
+
 
 Synthesis of the best current patterns for AGENT MEMORY and SKILLS
 from official sources: Anthropic (context engineering, building

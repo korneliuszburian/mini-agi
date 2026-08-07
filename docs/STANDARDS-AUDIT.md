@@ -1,4 +1,7 @@
 # Agentic-engineering standards audit (2026-08-05)
+> STATUS: historical research record (2026-08-05); findings are snapshots from that date. Current state: docs/README.md.
+
+
 
 Audit of the skills/standards ecosystem, commissioned to answer: is our
 agentic engineering top-tier at every stage and plane, and what would a

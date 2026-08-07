@@ -1,4 +1,7 @@
 # Skills research (standards-polish S5)
+> STATUS: historical research record (S5); findings are snapshots from that date. Current state: docs/README.md.
+
+
 
 Deep research on the skill layer: design defects, routing, dogfood
 seams, top-tier patterns, and a prioritized roadmap. Base:

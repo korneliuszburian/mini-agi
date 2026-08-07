@@ -1,4 +1,7 @@
 # mini-agi — Verifiable-Reward Research (2026-08-04)
+> STATUS: historical research record (2026-08-04); findings are snapshots from that date. Current state: docs/README.md.
+
+
 
 Research-grounded assessment of the kernel's "verified before trusted"
 pattern against the current verifiable-reward / agent-eval literature,
