@@ -2738,3 +2738,35 @@ fn cli_derive_is_idempotent() {
     assert_eq!(h1, h2, "derive must be deterministic (same brief bytes)");
     wipe(&root);
 }
+
+#[test]
+fn cli_audit_detects_provenance_drift() {
+    // The provenance-missing fail path is covered; the DRIFT path (brief
+    // records a stale canonical hash) had no CLI test. Adding a fact
+    // without re-deriving must flag 'provenance drift' and exit 2.
+    let root = tmp_root("cad");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e\n\n- domain: general\n\n## F-000 `0123456789abcdf9`\n\nwidget alpha one\n",
+    );
+    let d = run(&root, &["derive"]);
+    assert!(d.status.success(), "{}", combined(&d));
+    // New canonical fact, NO derive -> brief records a stale hash.
+    seed_existing_entry(
+        &root,
+        &today(),
+        2,
+        "# e2\n\n- domain: general\n\n## F-000 `0123456789abcdfa`\n\nwidget alpha two\n",
+    );
+    let audit = run(&root, &["audit"]);
+    assert_eq!(audit.status.code(), Some(2), "{}", combined(&audit));
+    assert!(
+        combined(&audit).contains("provenance drift"),
+        "{}",
+        combined(&audit)
+    );
+    wipe(&root);
+}
