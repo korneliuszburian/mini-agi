@@ -474,3 +474,4 @@
 2026-08-07T21:20:56Z VERIFY-FAIL fix94-readme-cli-list @ d84881b -> ROLLBACK to e488008
 2026-08-07T21:25:17Z BEGIN fix95-readme-cli-list-rel -> fb5cf96 (clean)
 2026-08-07T21:25:44Z VERIFY-PASS fix95-readme-cli-list-rel @ fb5cf96
+2026-08-07T21:26:19Z BEGIN fix96-bg-sleep-robustness -> bbe65cd

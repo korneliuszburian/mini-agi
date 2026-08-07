@@ -600,7 +600,7 @@ mod tests {
         std::fs::write(handle.join("run.pid"), pid.to_string()).unwrap();
         std::fs::write(handle.join("run.start"), process_starttime(pid).to_string()).unwrap();
         // Give the child a moment to exit and become a zombie.
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        std::thread::sleep(std::time::Duration::from_millis(500));
         let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
         let state = stat.split_whitespace().nth(2).unwrap();
         assert_eq!(state, "Z", "the test must actually observe a zombie");
@@ -781,7 +781,7 @@ mod tests {
             .spawn()
             .unwrap();
         let zpid = zombie.id();
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        std::thread::sleep(std::time::Duration::from_millis(500));
         std::fs::write(
             handle.join("launch.lock"),
             format!("{} {}", zpid, process_starttime(zpid)),
