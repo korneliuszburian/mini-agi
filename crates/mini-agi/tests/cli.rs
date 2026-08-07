@@ -800,6 +800,10 @@ fn cli_eval_gate_never_silently_rebaselines() {
     let again = run(&root, &["eval", "gate"]);
     assert!(again.status.success(), "{}", combined(&again));
     assert!(stdout(&again).contains("PASS"), "{}", stdout(&again));
+    // A loose tolerance override must still wire through and pass.
+    let loose = run(&root, &["eval", "gate", "--tolerance", "1.0"]);
+    assert!(loose.status.success(), "{}", combined(&loose));
+    assert!(stdout(&loose).contains("PASS"), "{}", stdout(&loose));
     wipe(&root);
 }
 

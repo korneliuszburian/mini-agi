@@ -562,3 +562,4 @@
 2026-08-07T23:28:29Z VERIFY-PASS fix138-cli-score-mismatches @ 5e00916
 2026-08-07T23:29:34Z BEGIN fix139-attribution-test -> 7c4b0ef
 2026-08-07T23:31:31Z VERIFY-PASS fix139-attribution-test @ 735a383
+2026-08-07T23:33:36Z BEGIN fix140-cli-gate-tolerance -> b055ad7
