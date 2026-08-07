@@ -349,3 +349,4 @@
 2026-08-07T17:24:18Z VERIFY-PASS fix31-fact-link-stopwords @ 33182a2
 2026-08-07T17:26:20Z BEGIN fix32-keywords-threshold-tests -> a5c1034
 2026-08-07T17:29:06Z VERIFY-PASS fix32-keywords-threshold-tests @ 5269880
+2026-08-07T17:30:45Z BEGIN fix33-leverage-test -> 96b6bb3

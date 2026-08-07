@@ -325,7 +325,18 @@ mod tests {
         assert!(!b.skills_over_budget);
         assert!(b.canonical_bytes > 0);
         assert!(b.brief_bytes > 0);
-        assert!(b.leverage_ratio > 0.0);
+        // Leverage = canonical / brief. Sanity bound: the working-set
+        // brief must not be an order of magnitude larger than the source
+        // canonical (the pre-iter-22 fact-linking bug made it 5x larger
+        // = leverage 0.19). A tiny fixture legitimately sits near 2-3;
+        // the bound catches pathological expansion (>= 5x).
+        assert!(
+            b.leverage_ratio > 0.0 && b.leverage_ratio <= 5.0,
+            "leverage {} out of sane (0,5] — brief {} vs canonical {}",
+            b.leverage_ratio,
+            b.brief_bytes,
+            b.canonical_bytes
+        );
     }
 
     #[test]
