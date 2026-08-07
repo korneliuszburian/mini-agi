@@ -2844,3 +2844,28 @@ fn cli_eval_mismatches_clean_run_reports_none() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_run_verify_audit_non_vacuous_passes() {
+    // The vacuous fail path is covered; the PASS path (verifier only
+    // passes when the deliverable exists) had no CLI test.
+    let root = tmp_root("crva");
+    wipe(&root);
+    let target = root.join("target");
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::write(target.join("x.txt"), "deliverable").unwrap();
+    let run_path = target.join("run.json");
+    std::fs::write(
+        &run_path,
+        format!(
+            r#"{{"goal":"g","scope":["x"],"outcome":{{"achieved":true}},"tokens_total":1,"cost_usd":0.0,"golden":null,"verify_command":"sh -c 'test -f x.txt'","verify_target":"{}","trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}}]}}"#,
+            target.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    let out = run(&root, &["run", "verify-audit", run_path.to_str().unwrap()]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(combined(&out).contains("PASS"), "{}", combined(&out));
+    assert!(!combined(&out).contains("VACUOUS"), "{}", combined(&out));
+    wipe(&root);
+}
