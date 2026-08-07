@@ -69,6 +69,24 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   routing, `mem verify`/`supersede`/`preserve`, `status --json`,
   `loop verify` exit codes 0/1/2). Suite: 359 -> 388 tests.
 
+### Changed (autonomous polish — memory lineage + CLI coverage)
+- Skills budget measured in CHARS, not bytes (`SKILLS_BUDGET_CHARS` is
+  an 8000-char cap; em-dash/non-ASCII descriptions inflated the
+  percentage under byte counting). `budget` labels the value "chars".
+- `mem verify` flags supersede refs targeting preserved ids, and the
+  supersede WRITE now refuses them (`MemoryError::PreservedId`) —
+  preservation is a stronger contract than supersede (ADR-0010 / A-MEM
+  supersede-never). The `mem verify` finding stays for legacy states.
+- `mini-agi mem unpreserve <id>` — the counterpart to `preserve`: a
+  wrongly preserved id was otherwise blocked from lineage evolution
+  forever.
+- 10 more CLI/unit tests: `mem query`, `loop parallel` fail-closed,
+  `mem supersede`/`preserve`/`unpreserve`, `harness verify` (Phantom
+  Guardrails REJECT), `derive --snapshot/--replay` MATCH, `resume` trio
+  (brief + journal + in-flight), `eval judge-drift`/`judge-recalibrate`/
+  `hidden`, `approx_tokens`/`frontmatter_block`, provenance fingerprint
+  change on canonical growth. Suite: 388 -> 397 tests.
+
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
   OWN codex session via `codex exec resume <uuid>` (content-marker
