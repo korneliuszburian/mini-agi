@@ -2633,3 +2633,20 @@ fn cli_harness_verify_missing_target_fails_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_skill_add_bad_source_fails_cleanly() {
+    // skill add from a nonexistent local source (deterministic, no
+    // network) must error cleanly (exit 1), not panic.
+    let root = tmp_root("csab");
+    wipe(&root);
+    let bad = root.join("no-such-repo");
+    let out = run(&root, &["skill", "add", bad.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("error") || combined(&out).contains("fatal"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
