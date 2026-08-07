@@ -525,3 +525,4 @@
 2026-08-07T22:29:20Z BEGIN fix120-cli-verify-disagrees -> 491ed6f
 2026-08-07T22:30:43Z VERIFY-PASS fix120-cli-verify-disagrees @ 9952b6a
 2026-08-07T22:31:29Z BEGIN fix121-cli-verify-unverified -> 0852d80
+2026-08-07T22:32:55Z VERIFY-PASS fix121-cli-verify-unverified @ caa9a18
