@@ -1619,3 +1619,26 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_harness_snapshot_writes_spec_and_ledger() {
+    // `harness` (versioned harness snapshot + gate ledger row) had no
+    // CLI test; core snapshot is covered, the CLI wiring (output +
+    // ledger path) was not.
+    let root = tmp_root("charn");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("evals/results")).unwrap();
+    std::fs::write(root.join("evals/results/baseline.json"), "[]").unwrap();
+    let out = run(&root, &["harness", "snapshot"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(
+        stdout(&out).contains("harness snapshot"),
+        "{}",
+        stdout(&out)
+    );
+    assert!(stdout(&out).contains("ledger: docs/harness/ledger.md"));
+    assert!(root.join("docs/harness/ledger.md").is_file());
+    // The harness spec snapshot must land too.
+    assert!(root.join("docs/harness").is_dir());
+    wipe(&root);
+}
