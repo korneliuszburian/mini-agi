@@ -198,6 +198,45 @@ Intelligence" direction)
   it journaled a second VERIFY-PASS without an open BEGIN (operational
   duplicate removed from the journal; guard added).
 
+### Added (cycle 33 — structured-output reliability, dogfood)
+- Dream-loop distiller + auditor bounded retries with validator feedback
+  (deterministic-validator + retry ≈ 96% structural validity pattern);
+  `dream --max-wall` now scales with the material size (a fixed 300 s was
+  too small for large reports).
+- `contract::repair_until_valid`: reusable deterministic-validator +
+  bounded-repair-with-feedback loop for LLM-shaped documents.
+- `eval steps` + `loop verify` error-budget audit: per-channel failure
+  counts (gate/goal/revert) and the success-at-budget projection, so an
+  end-of-run score cannot hide degraded per-step reliability.
+- `loop dispatch` repair gate (GGC #60): spec classifies a prior run as
+  mechanical/semantic/spinning so a fresh session does not blindly retry;
+  `loop status` surfaces best_composite, repair signal and EXHAUSTED.
+- `loop verify` judge-abstention gate: close is blocked while the
+  verifier-vs-judge precision is below `min_judge_precision`
+  (CRC #69); `eval judge-recalibrate` resets the calibration corpus.
+- Bounded-retry abstention: `max_rerun_attempts` stops re-dispatching a
+  case past its bound with best below target (SQLQE best-result tracking;
+  a bad retry cannot regress). `-rerun-N` dirs are no longer dispatchable
+  sources.
+- repair-aware dispatch ordering (GGC #60): mechanical/spinning cases are
+  picked before semantic ones.
+
+### Added (cycle 33 — memory evolution)
+- `mem query` / MCP `memory_query` return relevance-ranked facts
+  (enforced + link-degree + recency) instead of id-sorted; the scoring is
+  shared with `select_budgeted` via `relevance_score`.
+- Dream `duplicate` verdict writes a supersede entry when the candidate
+  body differs from the existing fact (lineage records the evolution
+  instead of silently dropping the newer wording).
+
+### Changed (cycle 34 — Rust quality gates)
+- verify.sh uses `CARGO_BUILD_WARNINGS=deny` (the documented warnings-deny
+  gate since Cargo 1.97) instead of `RUSTFLAGS=-D warnings`, which
+  invalidated the build cache; clippy and tests run `--all-features`.
+- Health tests are environment-independent (a loaded host may legitimately
+  report CRITICAL without failing the gate); `exit_code_for` makes the
+  OK/WARN/CRITICAL mapping a tested pure function.
+
 ## [0.3.0] — 2026-08-02
 
 ### Added
