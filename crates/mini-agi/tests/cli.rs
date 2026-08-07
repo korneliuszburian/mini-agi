@@ -270,6 +270,23 @@ fn cli_signoff_rejects_bad_queue_and_index() {
     let out = run(&root, &["mem", "signoff", "nonexistent.md", "1"]);
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("signoff requires"));
+    // A real queue with an out-of-range index must also fail closed.
+    let queue = root
+        .join("memory/review")
+        .join(format!("contested-{}.md", today()));
+    std::fs::create_dir_all(queue.parent().unwrap()).unwrap();
+    std::fs::write(
+        &queue,
+        "## C-001 `aaaaaaaaaaaaaaaa`\n- source: t\n- reason: r\n\ncontested fact body\n",
+    )
+    .unwrap();
+    let idx = run(&root, &["mem", "signoff", queue.to_str().unwrap(), "2"]);
+    assert_eq!(idx.status.code(), Some(1), "{}", combined(&idx));
+    assert!(
+        combined(&idx).contains("index not found"),
+        "{}",
+        combined(&idx)
+    );
     wipe(&root);
 }
 
