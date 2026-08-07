@@ -1664,6 +1664,25 @@ fn cli_mem_preserve_writes_list_and_rejects_unknown_id() {
 }
 
 #[test]
+fn cli_eval_judge_drift_reports_on_empty_corpus() {
+    // `eval judge-drift` (calibration signal, AGENTS.md) had no CLI
+    // test. On an empty calibration corpus it must exit 0 and report
+    // zero verifications without a NaN panic in the precision branch.
+    let root = tmp_root("cjd");
+    wipe(&root);
+    let out = run(&root, &["eval", "judge-drift"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    let text = stdout(&out);
+    assert!(
+        text.contains("0 verifications") || text.contains("0 disagreements"),
+        "{}",
+        text
+    );
+    assert!(text.contains("precision"), "{}", text);
+    wipe(&root);
+}
+
+#[test]
 fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     // P2-13: loop verify exits 1 for an honest OPEN gap and 2 for a
     // broken verification machinery error. Neither contract had an
