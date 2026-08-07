@@ -1490,6 +1490,56 @@ fn cli_dream_idle_no_runs_is_clean_success() {
 }
 
 #[test]
+fn cli_mem_verify_detects_exact_duplicate_facts() {
+    // `mem verify` (memory-integrity gate, AGENTS.md 'cyklicznie
+    // weryfikuj spójność memory') had no CLI test — a regression where
+    // duplicates/supersede/preserve checks stop reporting would pass.
+    let root = tmp_root("cmv");
+    wipe(&root);
+    let day = today();
+    // Two identical fact bodies -> same content hash -> exact duplicate.
+    let body = "identical fact body";
+    let id = "0123456789abcdef";
+    seed_existing_entry(
+        &root,
+        &day,
+        1,
+        format!("# e1\n\n## F-000 `{id}`\n\n{body}\n").as_str(),
+    );
+    seed_existing_entry(
+        &root,
+        &day,
+        2,
+        format!("# e2\n\n## F-000 `{id}`\n\n{body}\n").as_str(),
+    );
+    let out = run(&root, &["mem", "verify"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    let text = stdout(&out);
+    assert!(
+        text.contains("exact duplicate bodies"),
+        "expected duplicate finding: {text}"
+    );
+    // A clean store reports OK.
+    let root2 = tmp_root("cmv-clean");
+    wipe(&root2);
+    seed_existing_entry(
+        &root2,
+        &today(),
+        1,
+        "# e1\n\n## F-000 `0123456789aaaa`\n\nunique body\n",
+    );
+    let clean = run(&root2, &["mem", "verify"]);
+    assert!(clean.status.success(), "{}", combined(&clean));
+    let clean_text = stdout(&clean);
+    assert!(
+        clean_text.contains("no duplicates") || clean_text.contains("OK"),
+        "expected clean verdict: {clean_text}"
+    );
+    wipe(&root);
+    wipe(&root2);
+}
+
+#[test]
 fn cli_dream_promote_applies_verdicts_into_canonical() {
     // `dream --promote` (D2 promotion -> canonical) had no CLI test;
     // the staging-discovery + verdict-manifest + apply path could break
