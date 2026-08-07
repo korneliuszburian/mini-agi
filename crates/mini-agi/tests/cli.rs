@@ -1342,3 +1342,31 @@ fn cli_subcommand_help_never_panics() {
     assert!(root_help.status.success(), "root --help failed");
     wipe(&root);
 }
+
+#[test]
+fn cli_dream_idle_no_runs_is_clean_success() {
+    // D2 idle cadence (AGENTS.md): `dream --idle` must be load-guarded
+    // and idempotent. The "no runs to distill" branch had no test; a
+    // panic or error there (e.g. on a missing staging dir) would only
+    // fire on a quiet box at the D2 cadence. Deterministic branch: an
+    // empty cases dir must yield success + "no runs to distill".
+    let root = tmp_root("dream-idle");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("evals/cases")).unwrap();
+    // On a loaded host the load-guard skips first with success; the
+    // machine may be quiet in CI, so accept either clean outcome.
+    let out = run(&root, &["dream", "--idle"]);
+    assert!(
+        out.status.success(),
+        "dream --idle must exit cleanly: {}",
+        combined(&out)
+    );
+    let text = combined(&out);
+    assert!(
+        text.contains("no runs to distill")
+            || text.contains("busy, skipping")
+            || text.contains("no newer runs"),
+        "unexpected dream --idle output: {text}"
+    );
+    wipe(&root);
+}
