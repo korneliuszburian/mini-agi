@@ -31,6 +31,8 @@ pub mod thresholds {
     pub const MEM_CRIT_FRAC: f64 = 0.05;
     /// Warn when used swap exceeds this fraction of total swap.
     pub const SWAP_WARN_FRAC: f64 = 0.50;
+    /// Critical when used swap exceeds this fraction of total swap.
+    pub const SWAP_CRIT_FRAC: f64 = 0.80;
     /// Warn when a single command has more than this many processes.
     pub const ZOO_WARN_COUNT: usize = 100;
     /// Critical when a single command has more than this many processes.
@@ -53,6 +55,8 @@ pub struct HealthThresholds {
     pub mem_crit_frac: f64,
     /// Warn when used swap exceeds this fraction of total swap.
     pub swap_warn_frac: f64,
+    /// Critical when used swap exceeds this fraction of total swap.
+    pub swap_crit_frac: f64,
     /// Warn when a single command has more than this many processes.
     pub zoo_warn_count: usize,
     /// Critical when a single command has more than this many processes.
@@ -67,6 +71,7 @@ impl Default for HealthThresholds {
             mem_warn_frac: thresholds::MEM_WARN_FRAC,
             mem_crit_frac: thresholds::MEM_CRIT_FRAC,
             swap_warn_frac: thresholds::SWAP_WARN_FRAC,
+            swap_crit_frac: thresholds::SWAP_CRIT_FRAC,
             zoo_warn_count: thresholds::ZOO_WARN_COUNT,
             zoo_crit_count: thresholds::ZOO_CRIT_COUNT,
         }
@@ -277,12 +282,26 @@ pub fn health(root: &Path) -> Result<HealthReport, std::io::Error> {
         if let Some(frac) = report.swap_used_frac
             && frac > t.swap_warn_frac
         {
+            let severity = if frac > t.swap_crit_frac {
+                "critical"
+            } else {
+                "warn"
+            };
             report.findings.push(Finding {
-                severity: "warn".into(),
+                severity: severity.into(),
                 message: format!(
-                    "swap {:.0}% used (warn > {:.0}%)",
+                    "swap {:.0}% used ({} > {:.0}%)",
                     frac * 100.0,
-                    t.swap_warn_frac * 100.0
+                    if frac > t.swap_crit_frac {
+                        "critical"
+                    } else {
+                        "warn"
+                    },
+                    if frac > t.swap_crit_frac {
+                        t.swap_crit_frac * 100.0
+                    } else {
+                        t.swap_warn_frac * 100.0
+                    }
                 ),
             });
         }
@@ -419,6 +438,28 @@ mod tests {
             "critical",
             "2026-08-03: 500 agent-browser processes"
         );
+    }
+
+    #[test]
+    fn swap_thresholds_are_ordered_and_present() {
+        // Swap has both warn and critical levels (like mem/zoo/load):
+        // critical must be above warn so a healthy box cannot flip to
+        // CRITICAL on swap alone below the warn line.
+        let t = HealthThresholds::default();
+        assert!(
+            t.swap_crit_frac > t.swap_warn_frac,
+            "swap_crit_frac {} must exceed swap_warn_frac {}",
+            t.swap_crit_frac,
+            t.swap_warn_frac
+        );
+        assert!(t.swap_warn_frac > 0.0 && t.swap_crit_frac < 1.0);
+        // Config can override both independently.
+        let custom = HealthThresholds {
+            swap_warn_frac: 0.60,
+            swap_crit_frac: 0.90,
+            ..HealthThresholds::default()
+        };
+        assert!(custom.swap_crit_frac > custom.swap_warn_frac);
     }
 
     #[test]
