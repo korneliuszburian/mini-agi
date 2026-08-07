@@ -35,7 +35,9 @@ pub struct BudgetReport {
     pub chain_over_cap: bool,
     /// Number of skills in the registry.
     pub skills_count: usize,
-    /// Bytes of skill frontmatter blocks (what the skill list shows).
+    /// Char count of skill frontmatter blocks (what the skill list
+    /// shows), counted in chars to match the 8000-char budget — byte
+    /// counting would inflate non-ASCII descriptions.
     pub skills_list_bytes: usize,
     /// Skills list as percentage of the 2% context budget (8000 chars).
     pub skills_pct_of_budget: f64,
@@ -165,7 +167,10 @@ pub fn budget(root: &Path) -> BudgetReport {
         for skill_md in md_files {
             if let Ok(text) = fs::read_to_string(&skill_md) {
                 if let Some(block) = frontmatter_block(&text) {
-                    list_bytes += block.len();
+                    // Budget is defined in CHARS (SKILLS_BUDGET_CHARS);
+                    // count chars, not bytes — em-dashes / non-ASCII
+                    // descriptions otherwise inflate the percentage.
+                    list_bytes += block.chars().count();
                 }
                 skills_count += 1;
             }

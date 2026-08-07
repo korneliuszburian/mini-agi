@@ -632,7 +632,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         "budget" => {
             let report = mini_agi_core::metrics::budget(root);
             format!(
-                "AGENTS chain: {}B ({}% of 32KiB cap)\nSkills list: {}B for {} skills ({}% of 2% budget)\nMemory leverage: canonical {}B -> brief {}B (x{})",
+                "AGENTS chain: {}B ({}% of 32KiB cap)\nSkills list: {} chars for {} skills ({}% of 2% budget)\nMemory leverage: canonical {}B -> brief {}B (x{})",
                 report.agents_chain_bytes,
                 report.chain_pct_of_32k,
                 report.skills_list_bytes,
