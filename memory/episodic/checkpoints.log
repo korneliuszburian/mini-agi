@@ -572,3 +572,4 @@
 2026-08-07T23:41:47Z VERIFY-PASS fix143-cli-budget-coverage @ d3a7bbf
 2026-08-07T23:42:27Z BEGIN fix144-cli-provenance-determinism -> 9066318
 2026-08-07T23:43:55Z VERIFY-PASS fix144-cli-provenance-determinism @ 751377b
+2026-08-07T23:46:07Z BEGIN fix145-cli-mcp-tools-count -> 6650228

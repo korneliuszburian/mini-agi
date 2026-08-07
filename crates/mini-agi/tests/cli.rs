@@ -698,6 +698,11 @@ fn cli_mcp_handshake_and_tool_call() {
     assert_eq!(frames[0]["result"]["serverInfo"]["name"], "mini-agi");
     let tools = frames[1]["result"]["tools"].as_array().unwrap();
     assert!(tools.iter().any(|t| t["name"] == "stats"));
+    assert_eq!(
+        tools.len(),
+        39,
+        "tool surface must stay at 39 (docs/README counts on it)"
+    );
     assert!(
         frames[2]["result"]["content"][0]["text"]
             .as_str()
