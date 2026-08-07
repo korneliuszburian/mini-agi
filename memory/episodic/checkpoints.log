@@ -514,3 +514,5 @@
 2026-08-07T22:17:04Z VERIFY-PASS fix114-cli-audit-drift @ ea6a80b
 2026-08-07T22:18:02Z BEGIN fix115-changelog6 -> 934d663
 2026-08-07T22:18:55Z VERIFY-PASS fix115-changelog6 @ 35fe433
+2026-08-07T22:19:52Z BEGIN fix116-cli-insights-blocks -> 982da45
+2026-08-07T22:21:05Z VERIFY-PASS fix116-cli-insights-blocks @ 982da45
