@@ -1704,6 +1704,46 @@ fn cli_mem_query_finds_keyword_and_no_match_exits_1() {
 }
 
 #[test]
+fn cli_loop_parallel_fails_closed_without_verifier_and_on_bad_manifest() {
+    // `loop parallel` (AFK v4) had no CLI test. Two cheap fail-closed
+    // paths cover the wiring without a full git-worktree run: an
+    // ad-hoc goal without --verify (P0-3) and a manifest with duplicate
+    // ids must error, not panic.
+    let root = tmp_root("cpar");
+    wipe(&root);
+    let no_verifier = run(&root, &["loop", "parallel", "some goal"]);
+    assert!(!no_verifier.status.success(), "{}", combined(&no_verifier));
+    assert!(
+        combined(&no_verifier).contains("--verify") || combined(&no_verifier).contains("P0-3"),
+        "{}",
+        combined(&no_verifier)
+    );
+    // A manifest with duplicate ticket ids must fail closed.
+    let manifest = root.join("manifest.json");
+    std::fs::write(
+        &manifest,
+        r#"{"version":1,"tickets":[{"id":"t","id":"t2","goal":"g","scope":["a"],"verify":"true"}]}"#,
+    )
+    .unwrap();
+    let bad_manifest = run(
+        &root,
+        &[
+            "loop",
+            "parallel",
+            "goal",
+            "--manifest",
+            manifest.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        !bad_manifest.status.success(),
+        "{}",
+        combined(&bad_manifest)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_eval_judge_drift_reports_on_empty_corpus() {
     // `eval judge-drift` (calibration signal, AGENTS.md) had no CLI
     // test. On an empty calibration corpus it must exit 0 and report
