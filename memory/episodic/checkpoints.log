@@ -487,3 +487,4 @@
 2026-08-07T21:46:55Z BEGIN fix101-cli-consolidate-missing -> a9c0725
 2026-08-07T21:48:11Z VERIFY-PASS fix101-cli-consolidate-missing @ 846546b
 2026-08-07T21:48:59Z BEGIN fix102-cli-validate-unknown -> 71d4f76
+2026-08-07T21:50:10Z VERIFY-PASS fix102-cli-validate-unknown @ 5250b86
