@@ -2142,3 +2142,34 @@ fn cli_derive_snapshot_and_replay_match() {
     assert_eq!(missing.status.code(), Some(1), "{}", combined(&missing));
     wipe(&root);
 }
+
+#[test]
+fn cli_resume_shows_brief_journal_and_in_flight() {
+    // CLI resume is what a fresh session loads (AGENTS.md): brief head,
+    // journal tail, in-flight checkpoint detection. The failure/mismatch
+    // blocks are covered elsewhere; this trio had no integration test.
+    let root = tmp_root("cres");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e1\n\n## F-000 `0123456789abcde3`\n\nwidget alpha mechanism tracks budget usage\n",
+    );
+    std::fs::create_dir_all(root.join("memory/episodic")).unwrap();
+    std::fs::write(
+        root.join("memory/episodic/checkpoints.log"),
+        "2026-08-02T10:00:00Z BEGIN step -> abc\n2026-08-02T10:01:00Z VERIFY-PASS step @ abc\n2026-08-02T10:02:00Z BEGIN next -> def\n",
+    )
+    .unwrap();
+    let derive = run(&root, &["derive"]);
+    assert!(derive.status.success(), "{}", combined(&derive));
+    let out = run(&root, &["resume"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    let text = stdout(&out);
+    assert!(text.contains("journal tail:"), "{text}");
+    assert!(text.contains("BEGIN next"), "{text}");
+    assert!(text.contains("in-flight checkpoint: yes"), "{text}");
+    assert!(text.contains("brief head:"), "{text}");
+    wipe(&root);
+}
