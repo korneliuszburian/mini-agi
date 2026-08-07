@@ -1642,3 +1642,39 @@ fn cli_harness_snapshot_writes_spec_and_ledger() {
     assert!(root.join("docs/harness").is_dir());
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_score_reports_composite_json() {
+    // `eval score` (the reward layer's scoring entrypoint) had no CLI
+    // test; a regression in the JSON report shape would pass silently.
+    let root = tmp_root("ces");
+    wipe(&root);
+    let case_dir = root.join("evals/cases/sc-case");
+    std::fs::create_dir_all(&case_dir).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    let target = root.join("target");
+    std::fs::create_dir_all(&target).unwrap();
+    let run_path = case_dir.join("run.json");
+    std::fs::write(
+        &run_path,
+        format!(
+            r#"{{"goal":"g","scope":["x"],"outcome":{{"achieved":true}},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":"true","verify_target":"{}","trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}}]}}"#,
+            target.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    let out = run(&root, &["eval", "score", run_path.to_str().unwrap()]);
+    assert!(out.status.success(), "{}", combined(&out));
+    let parsed: serde_json::Value = serde_json::from_str(&stdout(&out)).expect("valid json");
+    assert!(
+        parsed.get("composite").is_some(),
+        "no composite: {}",
+        stdout(&out)
+    );
+    assert!(
+        parsed["dims"]["outcome"].as_f64().unwrap() > 0.5,
+        "{}",
+        stdout(&out)
+    );
+    wipe(&root);
+}
