@@ -2658,3 +2658,19 @@ fn cli_skill_add_bad_source_fails_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_dream_promote_empty_staging_fails_cleanly() {
+    // dream --promote with no staging dir must error cleanly (exit 1)
+    // with the remediation hint, not panic.
+    let root = tmp_root("cdpe");
+    wipe(&root);
+    let out = run(&root, &["dream", "--promote"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("no staging dir"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
