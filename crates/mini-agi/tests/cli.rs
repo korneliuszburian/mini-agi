@@ -2235,3 +2235,56 @@ fn cli_resume_shows_brief_journal_and_in_flight() {
     assert!(text.contains("brief head:"), "{text}");
     wipe(&root);
 }
+
+#[test]
+fn cli_loop_run_fails_fast_on_bad_args() {
+    // loop run (AFK v3 supervisor) spawns a detached codex worker, so
+    // the happy path needs an external binary; the fail-fast arg
+    // validations are testable without it and had no CLI coverage.
+    let root = tmp_root("clr");
+    wipe(&root);
+    let workdir = root.join("wd");
+    std::fs::create_dir_all(&workdir).unwrap();
+    // --blind-worker without --hidden-dir -> error, no child.
+    let blind = run(
+        &root,
+        &[
+            "loop",
+            "run",
+            "some goal",
+            "--workdir",
+            workdir.to_str().unwrap(),
+            "--verify",
+            "true",
+            "--blind-worker",
+        ],
+    );
+    assert!(!blind.status.success(), "{}", combined(&blind));
+    assert!(
+        combined(&blind).contains("requires --hidden-dir"),
+        "{}",
+        combined(&blind)
+    );
+    // Unknown template -> error.
+    let templ = run(
+        &root,
+        &[
+            "loop",
+            "run",
+            "some goal",
+            "--workdir",
+            workdir.to_str().unwrap(),
+            "--verify",
+            "true",
+            "--template",
+            "nope",
+        ],
+    );
+    assert!(!templ.status.success(), "{}", combined(&templ));
+    assert!(
+        combined(&templ).contains("unknown template"),
+        "{}",
+        combined(&templ)
+    );
+    wipe(&root);
+}
