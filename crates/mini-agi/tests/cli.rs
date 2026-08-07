@@ -1706,6 +1706,33 @@ fn cli_eval_judge_recalibrate_resets_corpus() {
 }
 
 #[test]
+fn cli_eval_hidden_reports_avg_on_held_out_cases() {
+    // `eval hidden` (contamination-safe held-out scoring) had no CLI
+    // test. A hidden run must be scored and the avg line emitted.
+    let root = tmp_root("chid");
+    wipe(&root);
+    let hidden_case = root.join("evals/hidden/h-case");
+    std::fs::create_dir_all(&hidden_case).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    let target = root.join("target");
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::write(
+        hidden_case.join("run.json"),
+        format!(
+            r#"{{"goal":"g","scope":["x"],"outcome":{{"achieved":true}},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":"true","verify_target":"{}","trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}}]}}"#,
+            target.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    let out = run(&root, &["eval", "hidden"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(stdout(&out).contains("hidden h-case:"), "{}", stdout(&out));
+    assert!(stdout(&out).contains("hidden avg:"), "{}", stdout(&out));
+    assert!(stdout(&out).contains("not gated"), "{}", stdout(&out));
+    wipe(&root);
+}
+
+#[test]
 fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     // P2-13: loop verify exits 1 for an honest OPEN gap and 2 for a
     // broken verification machinery error. Neither contract had an
