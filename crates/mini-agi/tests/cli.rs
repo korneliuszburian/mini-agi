@@ -1323,6 +1323,35 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
     }
     assert!(root.join("AGENTS.md").is_file());
     assert!(root.join("scripts/verify.sh").is_file());
+    // The codex config must be wired with the MCP allowlist + HITL
+    // approvals (not just trusted=true) so a fresh init enforces writes.
+    let codex = std::fs::read_to_string(root.join(".codex/config.toml")).expect("codex config");
+    assert!(
+        codex.contains("[mcp_servers.mini-agi]"),
+        "codex config must register the MCP server"
+    );
+    assert!(
+        codex.contains("default_tools_approval_mode = \"auto\""),
+        "codex config must set the default approval mode"
+    );
+    assert!(
+        codex.contains("enabled_tools"),
+        "codex config must carry the tool allowlist"
+    );
+    for tool in [
+        "loop_dispatch",
+        "memory_signoff",
+        "run_ingest",
+        "ticket_release",
+        "skill_add",
+    ] {
+        assert!(
+            codex.contains(&format!(
+                "[mcp_servers.mini-agi.tools.{tool}]\napproval_mode = \"prompt\""
+            )),
+            "codex config must gate {tool} to prompt"
+        );
+    }
     // Idempotent: a second init does not fail.
     let again = run(&root, &["init"]);
     assert!(again.status.success(), "{}", combined(&again));
