@@ -2596,3 +2596,16 @@ fn cli_validate_unknown_contract_fails_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_ticket_claim_missing_fails_cleanly() {
+    // ticket claim on a nonexistent ticket must error cleanly (exit 1),
+    // not panic.
+    let root = tmp_root("ctcm");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("tickets")).unwrap();
+    let out = run(&root, &["ticket", "claim", "TICKET-999", "--claimant", "t"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(combined(&out).contains("no ticket"), "{}", combined(&out));
+    wipe(&root);
+}
