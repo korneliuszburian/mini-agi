@@ -434,3 +434,4 @@
 2026-08-07T19:46:04Z BEGIN fix74-unpreserve -> eda4ef3
 2026-08-07T19:50:36Z VERIFY-PASS fix74-unpreserve @ bd3cfd7
 2026-08-07T19:52:05Z BEGIN fix75-cli-derive-replay-test -> e05d9d2
+2026-08-07T19:54:47Z VERIFY-PASS fix75-cli-derive-replay-test @ af0915c
