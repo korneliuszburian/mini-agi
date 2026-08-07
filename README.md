@@ -127,7 +127,7 @@ server). Codex: `.codex/agents/*.toml` subagents + `.codex/config.toml`.
 
 The repo is its own first customer: canonical memory in `memory/canonical`
 (provenance-gated), derived views in `memory/derived`, checkpoint journal in
-`memory/episodic/checkpoints.log`, 15 verifiable skills in `.agents/skills/`,
+`memory/episodic/checkpoints.log`, 16 verifiable skills in `.agents/skills/`,
 26 eval cases in `evals/`. The gate measures the repo itself (AGENTS chain
 vs 32KiB cap, skills list vs 2% budget, memory leverage ratio).
 
@@ -145,7 +145,7 @@ cargo install --path crates/mini-agi   # install as `mini-agi` (workspace root i
 crates/mini-agi-core/   kernel: hash, store, memory, eval, skills, journal,
                         contract, metrics
 crates/mini-agi/        binary: CLI (main.rs) + MCP server (mcp.rs)
-.agents/skills/         15 verifiable skills (ADR-0002)
+.agents/skills/         16 verifiable skills (ADR-0002) + caveman (reference)
 .agents/checks/         review rubric + anchor self-test
 scripts/                verify.sh, checkpoint.sh, hitl-loop.template.sh
 memory/                 the kernel's own memory (dogfooding)

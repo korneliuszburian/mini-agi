@@ -325,3 +325,4 @@
 2026-08-07T16:20:50Z VERIFY-PASS fix19-docs-readme-skills @ fa062b5
 2026-08-07T16:21:28Z BEGIN fix20-score-dedup -> 5230a91
 2026-08-07T16:23:34Z VERIFY-PASS fix20-score-dedup @ 62adfd3
+2026-08-07T16:29:33Z BEGIN fix21-readme-skills-2 -> 70a0ba7
