@@ -196,13 +196,13 @@ pub fn parse_manifest(text: &str) -> Result<PlannerManifest, String> {
             ));
         }
         tickets.push(PlannerTicket {
-            id,
+            id: id.clone(),
             goal: ticket.goal.clone(),
             scope: scope_paths.clone(),
             verify: ticket.verify.clone(),
             verify_target: ticket.verify_target.clone(),
         });
-        all_scopes.push((tickets.last().unwrap().id.clone(), scope_paths));
+        all_scopes.push((id, scope_paths));
     }
     // Scope disjointness across the batch (second opinion, finding 4):
     // overlapping scopes are refused BEFORE dispatch.
