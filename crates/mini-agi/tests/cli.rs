@@ -1774,6 +1774,28 @@ fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
 }
 
 #[test]
+fn cli_loop_objective_dispatches_verifiable_cases() {
+    // `loop objective` (bounded batch dispatch) had no CLI test; core
+    // objective is covered, the CLI wiring (claimant arg + output) was
+    // not.
+    let root = tmp_root("lobj");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    let scratch = root.join("evals/cases/obj-low");
+    std::fs::create_dir_all(&scratch).unwrap();
+    std::fs::write(
+        scratch.join("run.json"),
+        r#"{"goal":"x","scope":["a"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.05,"golden":null,"verify_command":"sh verify.sh","verify_target":"/tmp/x","trajectory":[{"step":1,"tool":"exec","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    let out = run(&root, &["loop", "objective", "--claimant", "cli-test"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(stdout(&out).contains("obj-low"), "{}", stdout(&out));
+    assert!(root.join("tickets").is_dir());
+    wipe(&root);
+}
+
+#[test]
 fn cli_dream_promote_applies_verdicts_into_canonical() {
     // `dream --promote` (D2 promotion -> canonical) had no CLI test;
     // the staging-discovery + verdict-manifest + apply path could break
