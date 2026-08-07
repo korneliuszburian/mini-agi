@@ -2578,3 +2578,21 @@ fn cli_consolidate_missing_buffer_fails_cleanly() {
     assert!(combined(&out).contains("not found"), "{}", combined(&out));
     wipe(&root);
 }
+
+#[test]
+fn cli_validate_unknown_contract_fails_cleanly() {
+    // validate with an unknown contract name must error cleanly (exit 1)
+    // listing the valid contracts, not panic.
+    let root = tmp_root("cvu");
+    wipe(&root);
+    let doc = root.join("doc.json");
+    std::fs::write(&doc, "{}").unwrap();
+    let out = run(&root, &["validate", "nope", doc.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("unknown contract"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
