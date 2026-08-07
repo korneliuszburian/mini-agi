@@ -1623,7 +1623,7 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     let staged_path = root.join("memory/staging/2026-08-07/001.md");
     std::fs::write(
         &staged_path,
-        "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nwidget alpha mechanism records budget usage across nodes\n",
+        "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nwidget alpha mechanism records budget usage across nodes\n\n## S-001 (general)\n\nenforced_by review rubric: surgical changes only\n",
     )
     .unwrap();
     let manifest = root.join("memory/staging/2026-08-07/001.verdicts.json");
@@ -1632,7 +1632,8 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
         serde_json::to_string_pretty(&serde_json::json!({
             "staged": "001.md",
             "verdicts": [
-                {"index": 0, "verdict": "promote", "reason": "audited"}
+                {"index": 0, "verdict": "promote", "reason": "audited"},
+                {"index": 1, "verdict": "promote", "reason": "audited"}
             ]
         }))
         .unwrap(),
@@ -1648,6 +1649,20 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     assert!(
         canonical.contains("widget alpha mechanism records budget usage"),
         "{canonical}"
+    );
+    // The enforced_by fact must NOT be auto-promoted into canonical; it
+    // routes to the human review queue (ADR-0010).
+    assert!(
+        !canonical.contains("enforced_by review rubric"),
+        "enforced fact must not auto-promote: {canonical}"
+    );
+    let queued: Vec<_> = std::fs::read_dir(root.join("memory/review"))
+        .unwrap()
+        .flatten()
+        .collect();
+    assert!(
+        !queued.is_empty(),
+        "enforced fact must land in the human queue"
     );
     wipe(&root);
 }
