@@ -1060,6 +1060,37 @@ fn cli_run_verify_audit_flags_vacuous_verifier_and_exits_1() {
 }
 
 #[test]
+fn cli_status_json_reports_run_index() {
+    // `status --json` serializes the run index for external consumers
+    // (the codex supervisor). No integration test covered the CLI json
+    // path; a malformed payload or wrong key set would pass silently.
+    let root = tmp_root("csj");
+    wipe(&root);
+    let cases = root.join("evals/cases/a-ok");
+    std::fs::create_dir_all(&cases).unwrap();
+    std::fs::write(
+        cases.join("run.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "goal": "goal a",
+            "cost_usd": 0.02,
+            "tokens_total": 100,
+            "outcome": {"achieved": true},
+            "n_steps": 3,
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let out = run(&root, &["status", "--json"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    let parsed: serde_json::Value = serde_json::from_str(&stdout(&out)).expect("valid json");
+    assert_eq!(parsed["runs"]["total_runs"], 1);
+    assert_eq!(parsed["runs"]["achieved_runs"], 1);
+    assert!(parsed["journal_tail"].is_array());
+    assert!(parsed["workers"].is_array());
+    wipe(&root);
+}
+
+#[test]
 fn cli_eval_mismatches_writes_register_and_resume_shows_block() {
     let root = tmp_root("c23");
     wipe(&root);
