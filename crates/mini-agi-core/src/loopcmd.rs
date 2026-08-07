@@ -381,20 +381,32 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
         serde_json::from_str::<eval::Run>(&fs::read_to_string(&run_path).unwrap_or_default())
     {
         let max_repeated = crate::config::Config::load(root).max_repeated_steps;
-        match eval::repair_signal(&prior, max_repeated) {
-            eval::RepairSignal::Mechanical => w(
-                &mut body,
-                "  [gate] mechanical failure (gate/goal/revert on a step) —\n  target the failing step; a corrected retry is expected to help.\n",
-            )?,
-            eval::RepairSignal::Semantic => w(
-                &mut body,
-                "  [gate] SEMANTIC failure — steps are clean but the outcome is not\n  achieved: the prior solution is executable-but-wrong. Do NOT resubmit\n  the same plan; change the approach and verify the corrected behavior.\n",
-            )?,
-            eval::RepairSignal::Spinning => w(
+        // Spinning is injected first and can combine with the
+        // mechanical/semantic directive below (a run can both spin and
+        // fail a gate — both are actionable for the fresh session).
+        if eval::repair_signal(&prior, max_repeated) == eval::RepairSignal::Spinning {
+            w(
                 &mut body,
                 "  [gate] SPINNING — the prior trajectory repeats the same\n  (tool, action) consecutively. Do NOT repeat that loop; break it.\n",
-            )?,
-            eval::RepairSignal::Clean => {}
+            )?;
+        }
+        // Mechanical vs semantic is independent of spinning: a run can
+        // spin AND fail a gate. Check the step-level signal directly so
+        // a spinning+mechanical run gets both directives.
+        let has_mechanical = prior
+            .trajectory
+            .iter()
+            .any(|s| s.ok == Some(false) || s.goal_aligned == Some(false) || s.reverted);
+        if has_mechanical {
+            w(
+                &mut body,
+                "  [gate] mechanical failure (gate/goal/revert on a step) —\n  target the failing step; a corrected retry is expected to help.\n",
+            )?;
+        } else if eval::repair_signal(&prior, max_repeated) == eval::RepairSignal::Semantic {
+            w(
+                &mut body,
+                "  [gate] SEMANTIC failure — steps are clean but the outcome is not\n  achieved: the prior solution is executable-but-wrong. Do NOT resubmit\n  the same plan; change the approach and verify the corrected behavior.\n",
+            )?;
         }
     }
     w(
@@ -1034,6 +1046,36 @@ mod tests {
         assert!(
             spec.contains("Do NOT resubmit"),
             "spec must direct a procedure change: {spec}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_spec_injects_both_spinning_and_mechanical_directives() {
+        let root = tmp_case_root("repair-gate-both");
+        // Enable the repetition watchdog so the Spinning branch can fire.
+        fs::write(root.join(".miniagi.json"), r#"{"max_repeated_steps": 2}"#).unwrap();
+        let run_path = root.join("evals/cases/real-ticket-008-v2/run.json");
+        let mut run: eval::Run =
+            serde_json::from_str(&fs::read_to_string(&run_path).unwrap()).unwrap();
+        // A run that both spins (repeats the same tool+action 3x) and
+        // fails a gate: both directives must reach the fresh session.
+        run.outcome.achieved = false;
+        for s in &mut run.trajectory {
+            s.tool = "exec".into();
+            s.action = "make verify".into();
+            s.ok = Some(true);
+            s.goal_aligned = Some(true);
+            s.reverted = false;
+        }
+        run.trajectory[0].ok = Some(false);
+        fs::write(&run_path, serde_json::to_string(&run).unwrap()).unwrap();
+        let outcome = dispatch(&root, Some("real-ticket-008-v2"), 0.5, "loop-test").unwrap();
+        let spec = fs::read_to_string(&outcome.spec).unwrap();
+        assert!(spec.contains("SPINNING"), "spec must flag the loop: {spec}");
+        assert!(
+            spec.contains("mechanical failure"),
+            "spec must also flag the gate failure: {spec}"
         );
         let _ = fs::remove_dir_all(&root);
     }

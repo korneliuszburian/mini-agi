@@ -1984,8 +1984,9 @@ fn cmd_eval_steps(run: &Path) -> ExitCode {
                 .map(|(k, ok)| format!("{k}:{}", if *ok { "ok" } else { "fail" }))
                 .collect();
             println!(
-                "  error budget: {} steps, {} gate-fail, {} goal-drift, {} reverted (by tool: {:?})",
+                "  error budget: {} steps, {} failed (dedup), {} gate-fail, {} goal-drift, {} reverted (by tool: {:?})",
                 audit.total_steps,
+                audit.failed_steps,
                 audit.failed_gate_steps,
                 audit.goal_drift_steps,
                 audit.reverted_steps,
@@ -2915,13 +2916,16 @@ fn cmd_dream(
             Err(e) => return fail(&format!("dream auditor not available: {e}")),
         };
         let mut batch_verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, chunk);
-        if batch_verdicts.is_empty() {
+        if batch_verdicts.is_empty() && aud.status == Some(0) {
             // Procedure-directed retry (cycle-33 finding, Tell-Tale Trace
             // #95): the strong model occasionally answers in prose
             // instead of the JSON verdict array (observed: rc 0 with a
             // 15.7k-char prose answer). A GENERIC "try again" reproduces
             // the same mode (11.5% correction in the study); feeding back
-            // the missing procedure recovers most cases (84.6%).
+            // the missing procedure recovers most cases (84.6%). Only a
+            // successful worker call is retried — a nonzero/timed-out
+            // worker is an infrastructure failure, not a format one, and
+            // retrying would mislabel the diagnosis.
             eprintln!(
                 "  [warn] auditor batch {batch_idx} returned no parseable verdicts \
                  ({} bytes, rc {:?}) — retrying once with procedure feedback",

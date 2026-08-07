@@ -161,9 +161,12 @@ pub const fn distiller_retry_feedback() -> &'static str {
 #[must_use]
 pub const fn auditor_retry_feedback() -> &'static str {
     "VALIDATOR FEEDBACK: your previous response contained no parseable JSON array \
-     of verdict objects. Re-emit the verdicts as a single JSON array, one object per \
-     candidate, of exactly [{\"index\": 0, \"verdict\": \"promote|duplicate|conflict|reject\", \
-     \"reason\": \"...\"}] — ONLY that array, no prose, no fences, no commentary."
+     of verdict objects. Re-emit ONE array object PER candidate (one object per \
+     numbered candidate, same count as the CANDIDATES list), each of exactly \
+     [{\"index\": <candidate number>, \"verdict\": \"promote|duplicate|conflict|reject\", \
+     \"reason\": \"...\", \"existing_id\": \"<16-hex id when duplicate/conflict, else omit>\"}] — \
+     ONLY that array, no prose, no fences, no commentary. Do not collapse multiple \
+     candidates into one object."
 }
 
 /// The auditor prompt: strong model judges each staged fact.
@@ -548,6 +551,14 @@ mod tests {
         assert!(ar.contains("verdict objects"));
         assert!(ar.contains("promote|duplicate|conflict|reject"));
         assert!(ar.contains("ONLY that array"));
+        assert!(
+            ar.contains("existing_id"),
+            "retry feedback must echo the existing_id rule for duplicate/conflict"
+        );
+        assert!(
+            ar.contains("ONE array object PER candidate"),
+            "retry feedback must not imply a single-object array"
+        );
         let a = auditor_prompt(&[StagedFact {
             body: "y".into(),
             domain: "general".into(),

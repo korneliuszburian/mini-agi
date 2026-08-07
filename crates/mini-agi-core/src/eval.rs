@@ -367,11 +367,17 @@ pub fn score_steps(run: &Run) -> Vec<StepVerdict> {
 /// The composite/D1 score is an end-of-trajectory outcome; per-step
 /// failures can be hidden behind the run's "budget" (the number of
 /// failed steps a run tolerates before it still counts as success).
-/// This audit surfaces the per-channel error counts and the
-/// `success_at_budget` projection — whether the run would still be a
-/// clean success under a tighter error budget, the exact counterfactual
-/// the Flat Score study used to unmask damage that an end-of-run score
-/// absorbs. Deterministic: derived only from the run's own steps.
+/// This audit surfaces the per-channel error counts and an optimistic
+/// `success_at_budget` bound — the run would *claim* success at budget k
+/// only if its outcome is achieved and it had at most k failed steps.
+/// Deterministic: derived only from the run's own steps.
+///
+/// The bound is optimistic, not a true counterfactual: the run was not
+/// re-executed under budget k, so it cannot capture damage where the
+/// run's own recovery absorbed failures it would have spent budget on
+/// (the Flat Score study *re-ran* under tighter budgets to expose that).
+/// Read it as "how tight a budget this run's recorded failures fit
+/// under", not "how the run would behave under a tighter budget".
 #[derive(Debug, Clone, Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct ErrorBudgetAudit {
     /// Total steps in the trajectory.
@@ -382,6 +388,10 @@ pub struct ErrorBudgetAudit {
     pub goal_drift_steps: usize,
     /// Steps reverted by the checkpoint cascade.
     pub reverted_steps: usize,
+    /// Steps failing any of gate/goal/revert, deduplicated — a step that
+    /// fails its gate AND drifts from the goal counts once. This is the
+    /// budget denominator (channels overlap; the total does not).
+    pub failed_steps: usize,
     /// Per-step failed count, by tool name (channel view).
     pub failed_by_tool: Vec<(String, usize)>,
     /// `success_at_budget[k]` is true when the run's *declared* outcome
@@ -432,6 +442,7 @@ pub fn error_budget_audit(run: &Run) -> ErrorBudgetAudit {
         failed_gate_steps,
         goal_drift_steps,
         reverted_steps,
+        failed_steps,
         failed_by_tool,
         success_at_budget,
     }
@@ -1418,6 +1429,9 @@ mod tests {
         assert_eq!(audit.failed_gate_steps, 1, "only b failed its gate");
         assert_eq!(audit.goal_drift_steps, 1, "only b drifted from goal");
         assert_eq!(audit.reverted_steps, 1, "only c was reverted");
+        // b fails gate AND drifts from goal but counts once (dedup):
+        // failed_steps = b + c = 2, not 3 (channels overlap, total does not).
+        assert_eq!(audit.failed_steps, 2);
         assert_eq!(audit.failed_by_tool.len(), 2, "b and c, not a");
         assert!(
             audit
