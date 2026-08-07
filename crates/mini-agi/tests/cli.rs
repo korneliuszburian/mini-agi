@@ -2301,6 +2301,39 @@ fn cli_derive_snapshot_and_replay_match() {
 }
 
 #[test]
+fn cli_derive_brief_only_skips_per_domain_fragments() {
+    // derive --brief-only (regenerate only the context brief, skip the
+    // per-domain fragments) had no test; a regression where it also
+    // regenerates (or never regenerates) fragments would pass silently.
+    let root = tmp_root("cdbo");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e1\n\n- domain: eval\n\n## F-000 `0123456789abcde4`\n\nwidget alpha mechanism tracks budget usage\n",
+    );
+    // Full derive first: fragments exist.
+    let full = run(&root, &["derive"]);
+    assert!(full.status.success(), "{}", combined(&full));
+    assert!(stdout(&full).contains("per-domain"), "{}", stdout(&full));
+    let frag_dir = root.join("memory/derived/per-domain");
+    assert!(frag_dir.is_dir(), "fragments must exist after full derive");
+    // Remove a fragment, then brief-only derive must NOT recreate it.
+    let evaled = frag_dir.join("AGENTS.eval.md");
+    if evaled.exists() {
+        std::fs::remove_file(&evaled).unwrap();
+    }
+    let brief_only = run(&root, &["derive", "--brief-only"]);
+    assert!(brief_only.status.success(), "{}", combined(&brief_only));
+    assert!(
+        !evaled.exists(),
+        "brief-only must not regenerate per-domain fragments"
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_resume_shows_brief_journal_and_in_flight() {
     // CLI resume is what a fresh session loads (AGENTS.md): brief head,
     // journal tail, in-flight checkpoint detection. The failure/mismatch
