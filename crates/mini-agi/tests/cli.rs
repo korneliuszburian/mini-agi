@@ -1014,6 +1014,62 @@ fn cli_run_ingest_and_insights() {
 }
 
 #[test]
+fn cli_run_ingest_retro_bullets_become_facts() {
+    // run ingest --retro (review markdown whose bullets become canonical
+    // facts) had no CLI test; core ingest_run covers it, the CLI --retro
+    // wiring was not.
+    let root = tmp_root("cire");
+    wipe(&root);
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("evals/cases/real-ticket-008-v2/run.json");
+    std::fs::create_dir_all(root.join("evals/cases/real-ticket-008-v2")).unwrap();
+    std::fs::copy(&src, root.join("evals/cases/real-ticket-008-v2/run.json")).unwrap();
+    let golden_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("evals/golden/real-ticket-compact.json");
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::copy(
+        &golden_src,
+        root.join("evals/golden/real-ticket-compact.json"),
+    )
+    .unwrap();
+    let retro = root.join("retro.md");
+    std::fs::write(
+        &retro,
+        "# Retro\n\n- batching amortized the fixed overhead\n- checkpoint discipline held\n",
+    )
+    .unwrap();
+    let run_path = root.join("evals/cases/real-ticket-008-v2/run.json");
+    let out = run(
+        &root,
+        &[
+            "run",
+            "ingest",
+            run_path.to_str().unwrap(),
+            "--retro",
+            retro.to_str().unwrap(),
+        ],
+    );
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(stdout(&out).contains("4 new facts"), "{}", stdout(&out));
+    // The retro bullets must land as canonical facts (visible after
+    // derive materializes the brief/query).
+    let derive = run(&root, &["derive"]);
+    assert!(derive.status.success(), "{}", combined(&derive));
+    let q = run(&root, &["mem", "query", "batching"]);
+    assert!(q.status.success(), "{}", combined(&q));
+    assert!(stdout(&q).contains("batching amortized"), "{}", stdout(&q));
+    wipe(&root);
+}
+
+#[test]
 fn cli_run_failures_writes_register_and_resume_shows_block() {
     let root = tmp_root("c22");
     wipe(&root);
