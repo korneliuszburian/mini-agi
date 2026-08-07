@@ -851,6 +851,26 @@ pub fn verify(
     // reported outcome is not trusted. A verifier ERROR (e.g. missing
     // target repo) also blocks close (codex review finding).
     let mut verified = true;
+    // Judge-abstention gate (cycle-33 findings, CRC #69 + Flat Score
+    // #98): close must not trust a judged outcome when the
+    // verifier-vs-judge calibration says the judge overstates success.
+    // `judge_drift` accumulates disagreements; when precision drops below
+    // the configured minimum (default 1.0 = any disagreement is a
+    // signal), the judged composite is not a trustworthy close input —
+    // abstain (block close) until the judge is recalibrated.
+    let cfg0 = crate::config::Config::load(root);
+    let mut judge_trusted = true;
+    {
+        let drift = crate::verifier::judge_drift(root);
+        let min_precision = cfg0.min_judge_precision;
+        if drift.total > 0 && drift.precision() < min_precision {
+            judge_trusted = false;
+            lines.push(format!(
+                "  abstain: judge precision {:.3} below min {min_precision:.3} — close blocked (judge overstates success; recalibrate)",
+                drift.precision()
+            ));
+        }
+    }
     let verification = match crate::verifier::verify_run(root, &run_path) {
         Ok(v) => Some(v),
         Err(e) => {
@@ -970,6 +990,7 @@ pub fn verify(
     }
     let closed = if report.composite >= crate::config::Config::target_composite_for(root)
         && verified
+        && judge_trusted
         && gate_clean
         && in_budget
     {
@@ -1322,6 +1343,46 @@ mod tests {
                 .any(|c| c.ticket == "TICKET-008-v2" && c.claimant == claimant),
             "claim must stay held when the verifier disagrees"
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_abstains_on_low_judge_precision() {
+        // CRC #69 + Flat Score #98: close must not trust a judged outcome
+        // when the verifier-vs-judge calibration says the judge
+        // overstates success. A passing rerun fixture, but a disagreement
+        // row in calibration (precision 0 < min 1.0) -> close abstained.
+        let root = tmp_case_root("verify-abstain");
+        let rerun = root.join("evals/cases/real-ticket-008-v2-rerun");
+        fs::create_dir_all(&rerun).unwrap();
+        fs::copy(
+            repo().join("evals/cases/real-ticket-008-v2/run.json"),
+            rerun.join("run.json"),
+        )
+        .unwrap();
+        crate::verifier::append_calibration(
+            &root,
+            &crate::verifier::CalibrationRow {
+                at: "2026-08-07T00:00:00Z".into(),
+                case: "case-x".into(),
+                status: "disagrees".into(),
+                claimed: true,
+                composite: 0.9,
+                exit: Some(1),
+                command: Some("sh v.sh".into()),
+                target: Some("/tmp/x".into()),
+            },
+        )
+        .unwrap();
+        let claimant = "loop-abstain";
+        ticket::claim_ticket(&root, "TICKET-008-v2", claimant, true).unwrap();
+        let (text, closed) = verify(&root, "real-ticket-008-v2-rerun", claimant, true).unwrap();
+        assert!(
+            !closed,
+            "close must abstain when judge precision is low: {text}"
+        );
+        assert!(text.contains("abstain"), "{text}");
+        assert!(text.contains("judge precision"), "{text}");
         let _ = fs::remove_dir_all(&root);
     }
 
