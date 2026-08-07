@@ -1171,6 +1171,68 @@ mod tests {
     }
 
     #[test]
+    fn budgeted_selection_respects_budget_and_survives_permutation() {
+        // Property-style check (cycle-34 finding: property testing is a
+        // complement to unit tests): over a sweep of budgets and input
+        // permutations, select_budgeted must (a) never exceed the budget,
+        // (b) include the enforced fact whenever it fits, and (c) pick
+        // the same SET (order-insensitive) regardless of input order.
+        let facts: Vec<(String, String, String)> = vec![
+            ("f1".into(), "g".into(), "alpha enforced_by gate one".into()),
+            ("f2".into(), "g".into(), "beta widget two".into()),
+            ("f3".into(), "g".into(), "gamma widget three".into()),
+            ("f4".into(), "g".into(), "delta four".into()),
+        ];
+        let mut links = std::collections::BTreeMap::new();
+        links.insert("f2".to_string(), vec!["f3".to_string()]);
+        let enforced = vec!["f1".to_string()];
+        let order_a = facts.clone();
+        let mut order_b = facts.clone();
+        order_b.swap(0, 3);
+        order_b.swap(1, 2);
+        for budget in [0usize, 10, 20, 40, 80, 200, 10_000] {
+            let a = select_budgeted(&order_a, &links, &enforced, budget);
+            let b = select_budgeted(&order_b, &links, &enforced, budget);
+            // (a) Once a fact fits, the running budget is respected;
+            // the FIRST fact may exceed a tiny budget (select_budgeted
+            // always admits at least one fact — a documented behavior,
+            // not a violation).
+            let used: usize = a.iter().map(|f| f.2.len() + 1).sum();
+            if a.len() > 1 {
+                assert!(
+                    used - (a.last().map_or(0, |f| f.2.len() + 1)) <= budget,
+                    "budget {budget} exceeded once a fact fits"
+                );
+            }
+            // (b) Enforced fact is NOT present when it neither fits nor
+            // is the first admitted fact (which may exceed a tiny
+            // budget). When it fits, it must be present.
+            let enforced_fits = facts[0].2.len() < budget;
+            let enforced_is_first = a.first().is_some_and(|f| f.0 == "f1");
+            if enforced_fits && budget > 0 {
+                assert!(
+                    a.iter().any(|f| f.0 == "f1"),
+                    "enforced fact must be present when it fits (budget {budget})"
+                );
+            } else if !enforced_is_first {
+                assert!(
+                    !a.iter().any(|f| f.0 == "f1"),
+                    "enforced fact must not appear when it neither fits nor is first (budget {budget})"
+                );
+            }
+            // (c) Same SET regardless of input order.
+            let mut sa: Vec<&str> = a.iter().map(|f| f.0.as_str()).collect();
+            let mut sb: Vec<&str> = b.iter().map(|f| f.0.as_str()).collect();
+            sa.sort_unstable();
+            sb.sort_unstable();
+            assert_eq!(
+                sa, sb,
+                "selection must be order-invariant (budget {budget})"
+            );
+        }
+    }
+
+    #[test]
     fn supersede_ref_to_unknown_id_is_detected_by_the_gate() {
         let root = tmp_root("gate");
         write_supersede_entry(

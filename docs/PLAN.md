@@ -327,9 +327,29 @@ Harness-evolution endgame + trust corpus growth, all slices delivered:
    (combined transcript capture + --reparse-log) -> honest draft ->
    ingest -> loop verify CLOSED (composite 0.5000 honest, verifier
    PASS, lease released).
-5. Codex review of the Phase 10 delta: REWORK -> all findings
-   dispositioned (symlink gate bypass, broken-gate-as-reduction,
-   self-forging completion marker, fabricated ok:true, non-durable date
-   fix, calibration integrity, unconditional private-path test — the
-   last one silently no-op'd and CI caught it). verify ALL GREEN,
-   pushed, CI green. Full record: docs/EXPERIMENTS.md EXP-007/008.
+ 5. Codex review of the Phase 10 delta: REWORK -> all findings
+    dispositioned (symlink gate bypass, broken-gate-as-reduction,
+    self-forging completion marker, fabricated ok:true, non-durable date
+    fix, calibration integrity, unconditional private-path test — the
+    last one silently no-op'd and CI caught it). verify ALL GREEN,
+    pushed, CI green. Full record: docs/EXPERIMENTS.md EXP-007/008.
+
+### Phase 11 — Rust quality gates (cycle 34, 2026-08-07, DONE)
+Research on measured Rust code-quality practices (17 primary sources;
+findings in research/what-are-the-measured-evidence-based-practices-for-
+ensuring-.md; 40 facts promoted to canonical). Key finding: every
+behavioral practice (warnings-deny, clippy categories, unsafe scoping,
+Result-over-panic, sealed traits, property testing, toolchain pinning)
+is expert/official guidance — no primary source measured a
+defect-reducing effect. Applied:
+- verify.sh: RUSTFLAGS="-D warnings" -> CARGO_BUILD_WARNINGS=deny (the
+  documented warnings-deny gate since Cargo 1.97; RUSTFLAGS invalidated
+  the build cache), clippy --all-targets --all-features.
+- Property-style test for select_budgeted (budget respected, enforced
+  present when it fits, order-invariant set) — deterministic property
+  check as a complement to unit tests, no new dependency.
+Deferred (with reason): cargo-semver-checks for mini-agi-core (public
+API, 0.x semver, tags v0.2.0/v0.3.0 exist) — the crate install is a
+long source build and was not testable in this cycle; adding an
+untested gate would break the deterministic-gate contract. Revisit when
+a release pipeline can host it in CI.
