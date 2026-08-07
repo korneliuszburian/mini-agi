@@ -1903,6 +1903,14 @@ fn cli_mem_query_finds_keyword_and_no_match_exits_1() {
     );
     let none = run(&root, &["mem", "query", "zzzz-not-a-word"]);
     assert_eq!(none.status.code(), Some(1), "{}", combined(&none));
+    // Domain-only filter (no keyword) is a supported query shape.
+    let dom = run(&root, &["mem", "query", "--domain", "general"]);
+    assert!(dom.status.success(), "{}", combined(&dom));
+    assert!(
+        stdout(&dom).contains("widget alpha mechanism"),
+        "{}",
+        stdout(&dom)
+    );
     assert!(
         combined(&none).contains("no facts match"),
         "{}",
