@@ -1,6 +1,6 @@
 # mini-agi — master plan (v4, Rust product)
 
-> STATUS: historical — Phases 0-10 shipped; superseded counts/trees live in docs/README.md.
+> STATUS: historical — Phases 0-11 shipped; superseded counts/trees live in docs/README.md.
 
 Status: COMPLETE. Phases 0-5 done (memory, eval, skills, journal,
 contracts, metrics, MCP+adapters, ticket lifecycle, init, CI, demo,
