@@ -43,6 +43,32 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 - E2E through the MCP stdio protocol: launch -> poll (attempt 1 ->
   RESUMING worker session -> VERIFIER PASSED) -> report.
 
+### Changed (autonomous polish — HITL enforcement, reliability)
+- MCP HITL gate: every worker-tree/canonical write tool now requires a
+  non-empty `approve` reason IN THE KERNEL (defense in depth), not just
+  at the codex config layer — `loop_dispatch`, `loop_objective`,
+  `memory_signoff`, `memory_consolidate` (unless `dry_run`),
+  `memory_derive`, `run_ingest`, `ticket_claim`/`release`, `skill_add`,
+  `harness` (AGENTS.md: writes require a prompt).
+- `mini-agi init` now emits the full `.codex/config.toml` (MCP server
+  registration + `enabled_tools` allowlist + per-write-tool
+  `approval_mode = "prompt"`) instead of a bare `trusted = true`.
+- Fixed fact-linking noise in derived views: domain stop-word filter +
+  `shared >= 4` threshold cut the brief from 2.0 MB to ~456 KB
+  (leverage 0.19 -> 0.83); link-degree 'importance' signal is real
+  again.
+- Fixed `backlog` dedup printing an empty ticket id for existing gaps
+  (now surfaces the existing TICKET-N).
+- Clarified `budget` leverage line when the brief is larger than
+  canonical (no longer claims "compression").
+- Flaky-test fix: `status` index test pins explicit mtimes via
+  `File::set_modified` (nanosecond-equal mtimes made the order
+  assertion flake).
+- 30 new CLI tests (all eval/loop/mem/skill/harness subcommands,
+  `run verify --dry-run`, `dream --idle`/`--promote` incl. enforced
+  routing, `mem verify`/`supersede`/`preserve`, `status --json`,
+  `loop verify` exit codes 0/1/2). Suite: 359 -> 388 tests.
+
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
   OWN codex session via `codex exec resume <uuid>` (content-marker
