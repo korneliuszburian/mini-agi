@@ -353,3 +353,4 @@
 2026-08-07T17:32:59Z VERIFY-PASS fix33-leverage-test @ 494eaf0
 2026-08-07T17:34:45Z BEGIN fix34-resume-mismatch-test -> 781d6c0
 2026-08-07T17:36:50Z VERIFY-PASS fix34-resume-mismatch-test @ 07384d3
+2026-08-07T17:40:36Z BEGIN fix35-mcp-dispatch-hitl -> b9dbb8f

@@ -349,19 +349,24 @@ fn tool_definitions() -> Vec<Value> {
         },
         ToolDef {
             name: "loop_dispatch",
-            description: "Dispatch the worst open case (claim + spec).",
-            params: &[("claimant", "string"), ("case", "string")],
-            required: &["claimant"],
+            description: "Dispatch the worst open case (claim + spec). Requires an approval reason (a write that creates a ticket and spec in the worker tree).",
+            params: &[
+                ("claimant", "string"),
+                ("case", "string"),
+                ("approve", "string"),
+            ],
+            required: &["claimant", "approve"],
         },
         ToolDef {
             name: "loop_objective",
-            description: "Bounded batch dispatch of open gaps under a budget.",
+            description: "Bounded batch dispatch of open gaps under a budget. Requires an approval reason (a write that creates tickets and specs in the worker tree).",
             params: &[
                 ("max_cases", "integer"),
                 ("budget_cost", "string"),
                 ("claimant", "string"),
+                ("approve", "string"),
             ],
-            required: &["claimant"],
+            required: &["claimant", "approve"],
         },
         ToolDef {
             name: "memory_query",
@@ -777,6 +782,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         },
         "loop_dispatch" => {
             let claimant = arg!("claimant");
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: loop_dispatch requires an approval reason (approve) — a write that claims a ticket and writes a spec".to_string();
+            }
             let case = arg!("case");
             let case = if case.is_empty() { None } else { Some(case) };
             match mini_agi_core::loopcmd::dispatch(root, case, 0.5, claimant) {
@@ -791,6 +800,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         }
         "loop_objective" => {
             let claimant = arg!("claimant");
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: loop_objective requires an approval reason (approve) — a write that claims tickets and writes specs".to_string();
+            }
             let max_cases = arg!("max_cases").parse::<usize>().unwrap_or(3);
             let budget_cost = arg!("budget_cost");
             let budget_cost = if budget_cost.is_empty() {
@@ -1116,6 +1129,54 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    #[test]
+    fn loop_dispatch_without_approval_is_refused() {
+        // HITL gate parity: loop_dispatch claims a ticket and writes a
+        // spec (worker-tree write) — it must require an approval reason
+        // like loop_run does (AGENTS.md: writes require HITL).
+        let root = std::env::temp_dir().join(format!("mag-mcp-disp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = call_tool("loop_dispatch", &serde_json::json!({}), &root);
+        assert!(
+            out.starts_with("error: loop_dispatch requires an approval reason"),
+            "{out}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn loop_objective_without_approval_is_refused() {
+        let root = std::env::temp_dir().join(format!("mag-mcp-obj-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = call_tool("loop_objective", &serde_json::json!({}), &root);
+        assert!(
+            out.starts_with("error: loop_objective requires an approval reason"),
+            "{out}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_tools_declare_approve_required() {
+        let tools = tool_definitions();
+        for name in ["loop_dispatch", "loop_objective"] {
+            let tool = tools.iter().find(|t| t["name"] == name).unwrap();
+            let required = tool["inputSchema"]["required"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                .unwrap_or_default();
+            assert!(
+                required.contains(&"approve"),
+                "{name} must require approve: {required:?}"
+            );
+            assert!(
+                tool["inputSchema"]["properties"].get("approve").is_some(),
+                "{name} must declare the approve param"
+            );
+        }
+    }
     #[test]
     fn tool_schemas_declare_real_types() {
         let tools = tool_definitions();
