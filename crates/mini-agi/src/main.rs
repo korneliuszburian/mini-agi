@@ -2370,11 +2370,19 @@ fn cmd_mem_verify() -> ExitCode {
         ));
     }
     let known = memory::existing_fact_ids(&root);
+    let preserved = memory::preserved_ids(&root);
     for (superseding, superseded) in memory::supersede_edges(&root) {
         for id in superseded {
             if !known.contains(&id) {
                 findings.push(format!(
                     "supersede ref to unknown id {id} (from {superseding})"
+                ));
+            } else if preserved.contains(&id) {
+                // Preservation is a stronger contract than supersede:
+                // a load-bearing id must not be soft-deleted by a
+                // lineage write (ADR-0010 / A-MEM supersede-never).
+                findings.push(format!(
+                    "supersede ref targets preserved id {id} (from {superseding}) — preserved facts must not be superseded"
                 ));
             }
         }

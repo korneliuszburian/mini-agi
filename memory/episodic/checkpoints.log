@@ -427,3 +427,4 @@
 2026-08-07T19:34:26Z VERIFY-PASS fix70-cli-mem-query-test @ 5cc1822
 2026-08-07T19:35:45Z BEGIN fix71-cli-parallel-test -> 447cbcc
 2026-08-07T19:37:17Z VERIFY-PASS fix71-cli-parallel-test @ e750c6f
+2026-08-07T19:38:30Z BEGIN fix72-verify-preserved-supersede -> dd8d00e

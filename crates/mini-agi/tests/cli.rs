@@ -1641,6 +1641,48 @@ fn cli_mem_supersede_writes_lineage_and_rejects_unknown_id() {
 }
 
 #[test]
+fn cli_mem_verify_flags_supersede_against_preserved_id() {
+    // Preservation is a stronger contract than supersede (ADR-0010 /
+    // A-MEM supersede-never): a lineage write must not soft-delete a
+    // load-bearing id. mem verify had no finding for this intersection.
+    let root = tmp_root("csup-pres");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e1\n\n## F-000 `0123456789abcdf2`\n\nload-bearing claim\n",
+    );
+    // Preserve the id first.
+    let pres = run(&root, &["mem", "preserve", "0123456789abcdf2"]);
+    assert!(pres.status.success(), "{}", combined(&pres));
+    // Then supersede it — allowed as a write, but integrity must flag it.
+    let sup = run(
+        &root,
+        &[
+            "mem",
+            "supersede",
+            "newer claim",
+            "--supersedes",
+            "0123456789abcdf2",
+            "--domain",
+            "general",
+            "--source",
+            "test",
+        ],
+    );
+    assert!(sup.status.success(), "{}", combined(&sup));
+    let v = run(&root, &["mem", "verify"]);
+    assert_eq!(v.status.code(), Some(1), "{}", combined(&v));
+    assert!(
+        combined(&v).contains("targets preserved id"),
+        "{}",
+        combined(&v)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_mem_preserve_writes_list_and_rejects_unknown_id() {
     // `mem preserve` (protect ids from supersede collisions) had no CLI
     // test; the known-id gate and the list write were uncovered.
