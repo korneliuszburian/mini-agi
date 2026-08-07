@@ -2496,3 +2496,21 @@ fn cli_loop_run_fails_fast_on_bad_args() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_ui_fails_cleanly_on_busy_port() {
+    // ui (dev HTTP server) had no CLI test; the happy path blocks
+    // forever, but a busy port fails deterministically — assert the
+    // fail path (bind error -> exit 1) without serving.
+    let root = tmp_root("cui");
+    wipe(&root);
+    // Occupy an ephemeral port with our own listener, then ask ui to
+    // bind it -> address-in-use error, exit 1.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let out = run(&root, &["ui", "--port", &port.to_string()]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(combined(&out).contains("ui:"), "{}", combined(&out));
+    drop(listener);
+    wipe(&root);
+}
