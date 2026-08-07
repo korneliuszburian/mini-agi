@@ -1678,3 +1678,33 @@ fn cli_eval_score_reports_composite_json() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_steps_reports_suspicious_steps() {
+    // `eval steps` (step-level supervision) had no CLI test. A run whose
+    // trajectory has a goal-misaligned step must surface a SUSPICIOUS
+    // marker and a suspicious count.
+    let root = tmp_root("csteps");
+    wipe(&root);
+    let case_dir = root.join("evals/cases/st-case");
+    std::fs::create_dir_all(&case_dir).unwrap();
+    let run_path = case_dir.join("run.json");
+    std::fs::write(
+        &run_path,
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":2,"cost_usd":0.02,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1},{"step":2,"tool":"exec","ok":true,"goal_aligned":false,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    let out = run(&root, &["eval", "steps", run_path.to_str().unwrap()]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(
+        stdout(&out).contains("SUSPICIOUS"),
+        "expected a suspicious step: {}",
+        stdout(&out)
+    );
+    assert!(
+        stdout(&out).contains("1 suspicious step"),
+        "expected suspicious count: {}",
+        stdout(&out)
+    );
+    wipe(&root);
+}
