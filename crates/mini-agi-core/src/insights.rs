@@ -650,4 +650,29 @@ mod backlog_tests {
         assert!(block.contains("edit same line"));
         let _ = fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn resume_block_includes_mismatch_register() {
+        // resume's tool-mismatch block had no test (journal/brief/
+        // failure were covered); a regression where the block stops
+        // being rendered would pass silently.
+        let root = tmp_root("resume-mismatch");
+        fs::create_dir_all(root.join("memory/derived")).unwrap();
+        let entry = crate::mismatch::MismatchEntry {
+            hash: crate::hash::fact_id("case|1|edit|read"),
+            case: "reactive-loop".into(),
+            step: 1,
+            run_tool: "edit".into(),
+            golden_tool: "read".into(),
+        };
+        crate::mismatch::update_register(&root, std::slice::from_ref(&entry)).unwrap();
+        let block = resume(&root).unwrap();
+        assert!(
+            block.contains("tool mismatch register: 1 divergences"),
+            "{block}"
+        );
+        assert!(block.contains("golden expects read"), "{block}");
+        assert!(block.contains("used edit"), "{block}");
+        let _ = fs::remove_dir_all(&root);
+    }
 }
