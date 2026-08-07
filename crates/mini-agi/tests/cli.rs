@@ -712,6 +712,11 @@ fn cli_full_ticket_run_end_to_end() {
     assert!(root.join("scripts/verify.sh").is_file());
     assert!(root.join("AGENTS.md").is_file());
     assert!(root.join("opencode.json").is_file());
+    let ocfg = std::fs::read_to_string(root.join("opencode.json")).unwrap();
+    assert!(
+        ocfg.contains("\"mini-agi\"") && ocfg.contains("\"mcp\"") && ocfg.contains("\"local\""),
+        "opencode.json must register the mini-agi MCP server: {ocfg}"
+    );
     let buffer = root.join("buf.md");
     std::fs::write(
         &buffer,
