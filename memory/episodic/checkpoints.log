@@ -305,3 +305,5 @@
 2026-08-07T09:50:47Z VERIFY-PASS fix10-dream-supersede @ c17d471
 2026-08-07T09:59:09Z BEGIN fix11-warnings-deny-gate -> 8bdaf56 (clean)
 2026-08-07T10:00:27Z VERIFY-PASS fix11-warnings-deny-gate @ f9bf344
+2026-08-07T11:40:48Z BEGIN fix12-property-test -> 975b0b6 (clean)
+2026-08-07T11:41:02Z VERIFY-PASS fix12-property-test @ 975b0b6

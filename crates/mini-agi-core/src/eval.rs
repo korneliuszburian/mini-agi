@@ -1180,6 +1180,34 @@ mod tests {
     }
 
     #[test]
+    fn geomean_properties_permutation_scale_constant() {
+        // Property-style check (cycle-34 finding: property testing
+        // complements unit tests). Over a sweep of inputs:
+        // (a) order-invariant — geomean ignores permutation;
+        // (b) scale-equivariant — multiplying every score by k>0
+        //     multiplies the geomean by k (logs linearize it);
+        // (c) constant inputs collapse to that constant.
+        let base = [0.25_f64, 0.5, 0.75, 1.0, 2.0, 4.0];
+        let mut perm = base;
+        perm.swap(0, 5);
+        perm.swap(1, 3);
+        assert!(
+            approx(geomean(&base), geomean(&perm)),
+            "geomean must be order-invariant"
+        );
+        for k in [0.5_f64, 2.0, 3.0] {
+            let scaled: Vec<f64> = base.iter().map(|s| s * k).collect();
+            assert!(
+                approx(geomean(&scaled), geomean(&base) * k),
+                "geomean must scale linearly by {k}"
+            );
+        }
+        for c in [0.5_f64, 1.0, 3.5] {
+            assert!(approx(geomean(&[c, c, c]), c), "constant input collapses");
+        }
+    }
+
+    #[test]
     fn watchdog_counts_only_consecutive_identical_steps() {
         let run = Run {
             goal: "g".into(),
