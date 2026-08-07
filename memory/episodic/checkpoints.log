@@ -456,3 +456,4 @@
 2026-08-07T20:40:56Z VERIFY-PASS fix85-review-f2-dream-preserved @ 2c6fe06
 2026-08-07T20:42:25Z BEGIN fix86-cli-derive-brief-only -> c1e960c
 2026-08-07T20:45:12Z VERIFY-PASS fix86-cli-derive-brief-only @ b45e61a
+2026-08-07T20:46:04Z BEGIN fix87-replay-brief-divergence -> 0519867

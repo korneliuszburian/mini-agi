@@ -1277,6 +1277,29 @@ fn cli_audit_reports_invariants() {
 }
 
 #[test]
+fn cli_audit_exits_2_on_fail_finding() {
+    // audit exit-code contract (OK=0 / WARN=1 / FAIL=2) had no CLI
+    // coverage beyond the OK path; a provenance fail finding must exit 2.
+    let root = tmp_root("c27f");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e\n\n- domain: general\n\n## F-000 `0123456789abcde7`\n\nfact one\n",
+    );
+    // No derive yet -> context-brief.md missing -> provenance FAIL.
+    let audit = run(&root, &["audit"]);
+    assert_eq!(audit.status.code(), Some(2), "{}", combined(&audit));
+    assert!(
+        combined(&audit).contains("provenance"),
+        "{}",
+        combined(&audit)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_run_verify_reports_verified_and_disagrees() {
     let root = tmp_root("c28");
     wipe(&root);
