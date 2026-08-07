@@ -1513,6 +1513,12 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
         rubric.contains("DEVIL'S ADVOCATE") && rubric.contains("Anchors:"),
         "init-generated rubric must match the canonical review rubric"
     );
+    // The generated .gitignore must ignore kernel runtime artifacts.
+    let gi = std::fs::read_to_string(root.join(".gitignore")).unwrap();
+    assert!(
+        gi.contains(".supervisor/") && gi.contains("memory/snapshots/"),
+        "init-generated gitignore must cover runtime dirs"
+    );
     // The codex config must be wired with the MCP allowlist + HITL
     // approvals (not just trusted=true) so a fresh init enforces writes.
     let codex = std::fs::read_to_string(root.join(".codex/config.toml")).expect("codex config");

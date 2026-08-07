@@ -63,7 +63,17 @@ budget, insights, audit, sandbox) — a silent target is a failing target.
 /// the gate enforces — never a hand-maintained stale duplicate.
 const RUBRIC_MD: &str = include_str!("../../../.agents/checks/review-rubric.md");
 
-const GITIGNORE: &str = "target/\n";
+const GITIGNORE: &str = "target/\n\
+.krn/\n\
+# kernel runtime artifacts (a fresh init produces these) — never commit\n\
+.supervisor/\n\
+.worker-*\n\
+*.blind-hidden\n\
+.batch/\n\
+codex.log\n\
+progress.md\n\
+run.json\n\
+memory/snapshots/\n";
 
 /// Codex onboarding: marking the repo trusted lets `codex exec` run
 /// without `--skip-git-repo-check` (verified in EXP-001).

@@ -542,3 +542,4 @@
 2026-08-07T22:54:05Z VERIFY-PASS fix128-agents-md-gate-list @ 0375b0f
 2026-08-07T22:55:25Z BEGIN fix129-rubric-include-str -> 01b75f8
 2026-08-07T22:57:34Z VERIFY-PASS fix129-rubric-include-str @ 3a6fde9
+2026-08-07T22:58:14Z BEGIN fix130-gitignore-template -> 5967bb7
