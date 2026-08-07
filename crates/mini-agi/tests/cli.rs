@@ -2356,7 +2356,7 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     let staged_path = root.join("memory/staging/2026-08-07/001.md");
     std::fs::write(
         &staged_path,
-        "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nwidget alpha mechanism records budget usage across nodes\n\n## S-001 (general)\n\nenforced_by review rubric: surgical changes only\n",
+        "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nwidget alpha mechanism records budget usage across nodes\n\n## S-001 (general)\n\nenforced_by review rubric: surgical changes only\n\n## S-002 (general)\n\ndubious ephemeral claim\n",
     )
     .unwrap();
     let manifest = root.join("memory/staging/2026-08-07/001.verdicts.json");
@@ -2366,7 +2366,8 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
             "staged": "001.md",
             "verdicts": [
                 {"index": 0, "verdict": "promote", "reason": "audited"},
-                {"index": 1, "verdict": "promote", "reason": "audited"}
+                {"index": 1, "verdict": "promote", "reason": "audited"},
+                {"index": 2, "verdict": "reject", "reason": "not durable"}
             ]
         }))
         .unwrap(),
@@ -2396,6 +2397,15 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     assert!(
         !queued.is_empty(),
         "enforced fact must land in the human queue"
+    );
+    // A REJECT verdict skips the fact entirely (no canonical, no queue).
+    let queued_text: String = queued
+        .iter()
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .collect();
+    assert!(
+        !canonical.contains("dubious ephemeral") && !queued_text.contains("dubious ephemeral"),
+        "reject verdict must skip the fact entirely"
     );
     wipe(&root);
 }
