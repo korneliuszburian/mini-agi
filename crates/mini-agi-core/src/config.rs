@@ -105,11 +105,18 @@ impl Config {
     pub fn load(root: &Path) -> Self {
         let mut cfg = Self::default();
         let path = root.join(".miniagi.json");
-        if let Some(parsed) = std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|text| serde_json::from_str::<Self>(&text).ok())
-        {
-            cfg = parsed;
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            match serde_json::from_str::<Self>(&text) {
+                Ok(parsed) => cfg = parsed,
+                Err(e) => {
+                    // Fail-open but LOUD: a malformed config silently
+                    // falling back to defaults hid misconfigurations.
+                    eprintln!(
+                        "warning: {} is invalid JSON — using defaults ({e})",
+                        path.display()
+                    );
+                }
+            }
         }
         cfg.apply_env();
         cfg
@@ -214,6 +221,18 @@ mod tests {
         assert_approx_eq(cfg.target_composite, 0.5);
         assert_approx_eq(cfg.regression_tolerance, 0.05);
         assert_eq!(cfg.max_steps, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn malformed_file_falls_back_but_warns() {
+        // Fail-open but loud: a malformed .miniagi.json must not crash —
+        // defaults win (asserted), and a warning is emitted on stderr.
+        let root = tmp_root("malformed");
+        std::fs::write(root.join(".miniagi.json"), "{bad json").unwrap();
+        let cfg = Config::load(&root);
+        assert_approx_eq(cfg.target_composite, 0.5);
+        assert_approx_eq(cfg.regression_tolerance, 0.05);
         let _ = std::fs::remove_dir_all(&root);
     }
 
