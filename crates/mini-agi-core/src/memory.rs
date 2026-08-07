@@ -761,20 +761,112 @@ pub fn provenance_block(root: &Path) -> String {
     )
 }
 
-/// Render the derived context brief (`PoC` `render_brief`).
-#[must_use]
-/// Keyword index of a fact body: words of 5+ chars, lowercased
-/// (fact-linking pass, Phase 8 slice 6 — derived views only).
+/// Domain stop words for the fact-linking pass. These are words too
+/// frequent across the memory store to carry linking signal (measured:
+/// "memory" appears in 130 facts, "model" 121, "accuracy" 104 — linking
+/// on them made ~99% of facts pairwise-linked, drowning the brief).
+/// Filtering them restores the meaning of `shared >= 4`: two facts link
+/// only through genuinely specific shared terms.
+const LINK_STOP_WORDS: &[&str] = &[
+    "memory",
+    "model",
+    "models",
+    "accuracy",
+    "measured",
+    "failure",
+    "agent",
+    "agents",
+    "source",
+    "context",
+    "tokens",
+    "token",
+    "arxiv",
+    "across",
+    "state",
+    "while",
+    "every",
+    "without",
+    "schema",
+    "output",
+    "verified",
+    "openai",
+    "human",
+    "repair",
+    "reasoning",
+    "system",
+    "error",
+    "retry",
+    "claude",
+    "feedback",
+    "result",
+    "results",
+    "paper",
+    "study",
+    "rate",
+    "rates",
+    "using",
+    "based",
+    "reported",
+    "report",
+    "according",
+    "though",
+    "likely",
+    "rather",
+    "there",
+    "these",
+    "their",
+    "other",
+    "often",
+    "also",
+    "both",
+    "each",
+    "into",
+    "from",
+    "with",
+    "than",
+    "then",
+    "that",
+    "this",
+    "have",
+    "was",
+    "has",
+    "its",
+    "are",
+    "may",
+    "can",
+    "the",
+    "and",
+    "for",
+    "not",
+    "but",
+    "which",
+    "when",
+    "between",
+    "within",
+    "under",
+    "over",
+    "about",
+    "against",
+    "after",
+];
+
+/// Keyword index of a fact body: words of 5+ chars, lowercased, minus
+/// the domain stop words (fact-linking pass, Phase 8 slice 6 — derived
+/// views only).
 fn keywords(text: &str) -> std::collections::HashSet<String> {
     text.split(|c: char| !c.is_alphanumeric())
         .map(str::to_lowercase)
-        .filter(|w| w.len() >= 5)
+        .filter(|w| w.len() >= 5 && !LINK_STOP_WORDS.contains(&w.as_str()))
         .collect()
 }
 
-/// Cross-fact links (Phase 8 slice 6): facts sharing >= 2 keywords.
-/// Deterministic, computed in DERIVED views only — canonical facts stay
-/// append-only (A-MEM 2502.12110, supersede-never semantics).
+/// Cross-fact links (Phase 8 slice 6): facts sharing >= 4 keywords
+/// after domain stop-word filtering. Deterministic, DERIVED views only.
+///
+/// Naive `>= 2` on a one-topic corpus linked ~99% of facts (avg 36
+/// links/fact); `>= 4` cuts that ~8x (17,605 -> 2,273 edges) while
+/// keeping genuinely related facts linked. Canonical stays append-only
+/// (A-MEM 2502.12110, supersede-never semantics).
 #[must_use]
 pub fn fact_links(
     facts: &[(String, String, String)],
@@ -788,7 +880,7 @@ pub fn fact_links(
     for i in 0..index.len() {
         for j in (i + 1)..index.len() {
             let shared = index[i].1.intersection(&index[j].1).count();
-            if shared >= 2 {
+            if shared >= 4 {
                 links
                     .entry(index[i].0.clone())
                     .or_default()
@@ -1336,17 +1428,17 @@ mod fact_link_tests {
     use std::env;
 
     #[test]
-    fn links_facts_sharing_two_keywords() {
+    fn links_facts_sharing_four_keywords() {
         let facts = vec![
             (
                 "aaa".into(),
                 "strategy".into(),
-                "failure register prevents repeated failing actions across runs".into(),
+                "widget alpha mechanism tracks budget usage across systems".into(),
             ),
             (
                 "bbb".into(),
                 "strategy".into(),
-                "the register records failing actions before every rerun".into(),
+                "widget alpha mechanism records budget usage across nodes".into(),
             ),
             (
                 "ccc".into(),
@@ -1358,7 +1450,7 @@ mod fact_link_tests {
         assert_eq!(
             links["aaa"],
             vec!["bbb"],
-            "shared: failure/register/actions/rerun"
+            "shared: widget/alpha/mechanism/budget/usage/across"
         );
         assert!(!links.contains_key("ccc"), "no shared keywords");
     }
@@ -1371,12 +1463,12 @@ mod fact_link_tests {
             (
                 "aaa".into(),
                 "s".into(),
-                "failure register prevents repeated failing actions across runs".into(),
+                "widget alpha mechanism tracks budget usage across systems".into(),
             ),
             (
                 "bbb".into(),
                 "s".into(),
-                "the register records failing actions before every rerun".into(),
+                "widget alpha mechanism records budget usage across nodes".into(),
             ),
             (
                 "ccc".into(),
