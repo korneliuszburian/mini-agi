@@ -310,3 +310,4 @@
 2026-08-07T11:42:31Z BEGIN fix13-geomean-property -> 1ad95c7 (clean)
 2026-08-07T11:42:43Z VERIFY-PASS fix13-geomean-property @ 1ad95c7
 2026-08-07T15:40:11Z BEGIN fix14-supersede-unwrap -> 774f299
+2026-08-07T15:47:09Z VERIFY-PASS fix14-supersede-unwrap @ 89fd9b6
