@@ -2536,6 +2536,13 @@ fn cli_derive_snapshot_and_replay_match() {
     let replay = run(&root, &["derive", "--replay", "s1"]);
     assert!(replay.status.success(), "{}", combined(&replay));
     assert!(stdout(&replay).contains("MATCH"), "{}", stdout(&replay));
+    // Determinism: re-snapshotting the same name overrides but keeps the
+    // deterministic materialization (replay still MATCHes).
+    let snap2 = run(&root, &["derive", "--snapshot", "s1"]);
+    assert!(snap2.status.success(), "{}", combined(&snap2));
+    let replay2 = run(&root, &["derive", "--replay", "s1"]);
+    assert!(replay2.status.success(), "{}", combined(&replay2));
+    assert!(stdout(&replay2).contains("MATCH"), "{}", stdout(&replay2));
     // A missing snapshot is a clean error, not a panic.
     let missing = run(&root, &["derive", "--replay", "nope"]);
     assert_eq!(missing.status.code(), Some(1), "{}", combined(&missing));
