@@ -1708,8 +1708,15 @@ fn cmd_budget() -> ExitCode {
         println!("  WARN: skills list exceeds 2% budget");
     }
     println!(
-        "  Memory leverage: canonical {}B -> brief {}B (x{} compression into working set)",
-        report.canonical_bytes, report.brief_bytes, report.leverage_ratio
+        "  Memory leverage: canonical {}B -> brief {}B (x{:.2} canonical size — {})",
+        report.canonical_bytes,
+        report.brief_bytes,
+        report.leverage_ratio,
+        if report.brief_bytes > report.canonical_bytes {
+            "brief is larger than canonical".to_string()
+        } else {
+            "compression into working set".to_string()
+        }
     );
     ExitCode::SUCCESS
 }
