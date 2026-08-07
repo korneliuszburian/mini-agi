@@ -1940,6 +1940,32 @@ fn cli_eval_judge_drift_reports_on_empty_corpus() {
 }
 
 #[test]
+fn cli_eval_judge_drift_surfaces_disagreement_signal() {
+    // The red-team signal path (DISAGREEMENT CASE + SIGNAL lines) had no
+    // CLI test; the empty-corpus path was covered, the disagreement
+    // branch was not.
+    let root = tmp_root("cjdd");
+    wipe(&root);
+    let cal = root.join("memory/derived/calibration.md");
+    std::fs::create_dir_all(cal.parent().unwrap()).unwrap();
+    std::fs::write(
+        &cal,
+        "# JUDGE CALIBRATION\n{\"at\":\"2026-08-04T00:00:00Z\",\"case\":\"case-x\",\"status\":\"disagrees\",\"claimed\":true,\"composite\":0.9,\"exit\":1,\"command\":\"sh v.sh\",\"target\":\"/tmp/x\"}\n",
+    )
+    .unwrap();
+    let out = run(&root, &["eval", "judge-drift"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    let text = stdout(&out);
+    assert!(text.contains("DISAGREEMENT CASE: case-x"), "{}", text);
+    assert!(
+        text.contains("SIGNAL") && text.contains("overstates success"),
+        "{}",
+        text
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_eval_judge_recalibrate_resets_corpus() {
     // `eval judge-recalibrate` (clear the calibration corpus so close
     // gates resume) had no CLI test; the reset path and its message were
