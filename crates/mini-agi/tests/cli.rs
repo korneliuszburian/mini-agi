@@ -2909,3 +2909,25 @@ fn cli_run_verify_audit_non_vacuous_passes() {
     assert!(!combined(&out).contains("VACUOUS"), "{}", combined(&out));
     wipe(&root);
 }
+
+#[test]
+fn cli_ticket_validate_graph_flags_dangling_ref() {
+    // ticket validate-graph covered the valid path; a dangling blocked_by
+    // ref (pointing at a missing ticket) must fail closed, not pass.
+    let root = tmp_root("ctvd");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("tickets")).unwrap();
+    std::fs::write(
+        root.join("tickets/TICKET-001.md"),
+        "- id: TICKET-001\n- title: a\n- goal: g\n- scope: scripts\n- blocked_by: TICKET-999\n",
+    )
+    .unwrap();
+    let out = run(&root, &["ticket", "validate-graph"]);
+    assert!(!out.status.success(), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("dangling") || combined(&out).contains("TICKET-999"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
