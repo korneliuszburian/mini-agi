@@ -883,3 +883,38 @@ mod vacuous_audit_tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 }
+
+#[cfg(test)]
+mod attribution_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-attr-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn attribution_roundtrip_and_persists() {
+        // verify.log (the audit's attribution block) had no direct test;
+        // append + read roundtrip must preserve the row and the file must
+        // live at memory/episodic/verify.log.
+        let root = tmp_root("round");
+        let row = VerifyAttribution {
+            at: "2026-08-04T00:00:00Z".into(),
+            case: "case-x".into(),
+            command: "sh v.sh".into(),
+            target: "/tmp/x".into(),
+            status: "verified".into(),
+        };
+        append_attribution(&root, &row).unwrap();
+        assert!(root.join("memory/episodic/verify.log").is_file());
+        let rows = read_attribution(&root).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].case, "case-x");
+        assert_eq!(rows[0].status, "verified");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
