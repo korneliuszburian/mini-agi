@@ -119,6 +119,29 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   brief — replay MATCH and the audit provenance check depend on it) and
   the `eval gate` write-baseline -> PASS roundtrip. Suite: 415 -> 417 (audit provenance-drift test landed in iter 102).
 
+### Changed (autonomous polish — init templates, config honesty, coverage)
+- `mini-agi init` ships the canonical review rubric (include_str instead
+  of a stale 868B subset that had drifted from the 1379B original), a
+  .gitignore covering kernel runtime dirs, and an AGENTS.md whose gate
+  list names every verify.sh step (skills, mem-dedup, audit).
+- MCP initialize `instructions` now teach the HITL write rule (write
+  tools require a non-empty approve reason).
+- Config is honest about malformed input: a bad `.miniagi.json` and any
+  non-numeric `MINIAGI_*` env value now warn on stderr instead of being
+  silently dropped; MCP `loop_objective` budget_cost parse errors surface
+  as an error, not a silent None.
+- `resume` reports active ticket claims (lease semantics: do not start
+  work on a ticket someone else holds).
+- Coverage closed: `run verify-audit` non-vacuous PASS, `mem signoff`
+  out-of-range index, `derive` idempotence, `eval steps` clean-run,
+  `run failures`/`eval mismatches` clean-run, `loop verify` DISAGREES and
+  CLOSED paths, planner unsafe/protected fail-closed, `ticket
+  validate-graph` dangling, `loop parallel` no-case, verifier attribution
+  roundtrip, `eval score` error-budget/mismatch fields, `eval gate`
+  tolerance/mismatch-tolerance overrides, `stats`/`budget`/`provenance`
+  report asserts, MCP tool-count (39) and instructions asserts, `codex`
+  missing-spec fail-fast. Suite: 417 -> 428 tests.
+
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
   OWN codex session via `codex exec resume <uuid>` (content-marker
