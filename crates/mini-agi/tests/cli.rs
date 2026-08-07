@@ -1273,16 +1273,29 @@ fn cli_subcommand_help_never_panics() {
     let root = tmp_root("help");
     wipe(&root);
     for sub in [
-        "loop", "eval", "mem", "ticket", "run", "skill", "checkpoint",
-        "validate", "budget", "mcp", "dream", "insights", "health",
-        "audit", "provenance", "stats", "resume", "init", "research",
+        "loop",
+        "eval",
+        "mem",
+        "ticket",
+        "run",
+        "skill",
+        "checkpoint",
+        "validate",
+        "budget",
+        "mcp",
+        "dream",
+        "insights",
+        "health",
+        "audit",
+        "provenance",
+        "stats",
+        "resume",
+        "init",
+        "research",
     ] {
         let out = run(&root, &[sub, "--help"]);
         let text = combined(&out);
-        assert!(
-            out.status.success(),
-            "`{sub} --help` failed: {text}"
-        );
+        assert!(out.status.success(), "`{sub} --help` failed: {text}");
         assert!(
             text.contains("Usage") || text.contains("USAGE"),
             "`{sub} --help` printed no usage: {text}"
