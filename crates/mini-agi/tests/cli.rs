@@ -774,6 +774,10 @@ fn cli_eval_gate_never_silently_rebaselines() {
     let write = run(&root, &["eval", "gate", "--write-baseline"]);
     assert!(write.status.success());
     assert!(stdout(&write).contains("baseline written"));
+    // Roundtrip: with the baseline committed, the gate now passes.
+    let again = run(&root, &["eval", "gate"]);
+    assert!(again.status.success(), "{}", combined(&again));
+    assert!(stdout(&again).contains("PASS"), "{}", stdout(&again));
     wipe(&root);
 }
 
