@@ -2916,17 +2916,25 @@ fn cmd_dream(
         };
         let mut batch_verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, chunk);
         if batch_verdicts.is_empty() {
-            // One retry per batch: the strong model occasionally answers
-            // in prose instead of the JSON array (observed: rc 0 with a
-            // 15.7k-char prose answer). A second call fixes most of them.
+            // Procedure-directed retry (cycle-33 finding, Tell-Tale Trace
+            // #95): the strong model occasionally answers in prose
+            // instead of the JSON verdict array (observed: rc 0 with a
+            // 15.7k-char prose answer). A GENERIC "try again" reproduces
+            // the same mode (11.5% correction in the study); feeding back
+            // the missing procedure recovers most cases (84.6%).
             eprintln!(
                 "  [warn] auditor batch {batch_idx} returned no parseable verdicts \
-                 ({} bytes, rc {:?}) — retrying once",
+                 ({} bytes, rc {:?}) — retrying once with procedure feedback",
                 aud.output.len(),
                 aud.status
             );
+            let retry_prompt = format!(
+                "{}\n\n{}",
+                batch_prompt,
+                mini_agi_core::dream::auditor_retry_feedback()
+            );
             let retry =
-                worker::run_opencode_worker(&workdir, auditor, &batch_prompt, Some(max_wall), None);
+                worker::run_opencode_worker(&workdir, auditor, &retry_prompt, Some(max_wall), None);
             if let Ok(aud) = retry {
                 batch_verdicts = mini_agi_core::dream::parse_audit_verdicts(&aud.output, chunk);
             }

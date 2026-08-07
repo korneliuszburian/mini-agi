@@ -153,6 +153,19 @@ pub const fn distiller_retry_feedback() -> &'static str {
      no prose, no fences, no commentary."
 }
 
+/// Retry feedback for the auditor (procedure-directed retry, #95): a
+/// generic "try again" reproduces the failure; naming the missing
+/// procedure recovers most cases.
+///
+/// Appended when the auditor's output failed to parse into any verdicts.
+#[must_use]
+pub const fn auditor_retry_feedback() -> &'static str {
+    "VALIDATOR FEEDBACK: your previous response contained no parseable JSON array \
+     of verdict objects. Re-emit the verdicts as a single JSON array, one object per \
+     candidate, of exactly [{\"index\": 0, \"verdict\": \"promote|duplicate|conflict|reject\", \
+     \"reason\": \"...\"}] — ONLY that array, no prose, no fences, no commentary."
+}
+
 /// The auditor prompt: strong model judges each staged fact.
 #[must_use]
 pub fn auditor_prompt(staged: &[StagedFact]) -> String {
@@ -530,6 +543,11 @@ mod tests {
         assert!(r.contains("VALIDATOR FEEDBACK"));
         assert!(r.contains("no parseable JSON array"));
         assert!(r.contains("ONLY that array"));
+        let ar = auditor_retry_feedback();
+        assert!(ar.contains("VALIDATOR FEEDBACK"));
+        assert!(ar.contains("verdict objects"));
+        assert!(ar.contains("promote|duplicate|conflict|reject"));
+        assert!(ar.contains("ONLY that array"));
         let a = auditor_prompt(&[StagedFact {
             body: "y".into(),
             domain: "general".into(),
