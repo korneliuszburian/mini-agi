@@ -1,0 +1,257 @@
+{
+  "staged": "004.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New factual claim about rustc lint behavior; no canonical fact covers Rust toolchain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New factual claim about lint level configuration; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New factual claim about warnings group and unsafe_code default; no canonical fact covers Rust lints.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New factual claim about #[expect] semantics; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "New factual claim about future-incompatible lints per RFC 1589; no canonical fact covers this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "New factual claim about cargo --cap-lints for dependencies; no canonical fact covers Cargo behavior.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "New factual claim about CI pattern for warnings-clean builds; no canonical fact covers CI config.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "New factual claim about toolchain pinning caveat; no canonical fact covers toolchain stability.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "New factual claim about CARGO_BUILD_WARNINGS since Cargo 1.97; no canonical fact covers Cargo internals.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "New factual claim about Clippy lint categories and defaults; no canonical fact covers Clippy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "New factual claim about clippy restriction group guidance; no canonical fact covers Clippy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "New factual claim about clippy pedantic group aggressiveness; no canonical fact covers Clippy.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "New factual claim about Clippy CI integration commands; no canonical fact covers Clippy or CI tooling.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "New factual claim about rustfmt and RFC 3338; no canonical fact covers formatting tooling.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "New factual claim about cargo fmt --check CI gate; no canonical fact covers formatting CI.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Durable, verifiable claim about rustfmt formatting stability guarantees and carve-outs; no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Factual claim about rustfmt configuration options and stable/nightly split; verifiable against rustfmt docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Precise, verifiable enumeration of unsafe superpowers from the Rust Reference; durable truth.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Official Rust Book guidance on unsafe hygiene; well-known and verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Specific claim about Rust 2024 edition lint and RFC 2585 rationale; verifiable against edition guide and RFC.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Accurate description of Miri's capabilities and limitations; verifiable against Miri docs and Rust Book UB section.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Verifiable claim: The Rustonomicon is the official Rust project's unsafe reference.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Accurate summary of Rust Book guidance on Result vs panic; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Factual claim about clippy restriction lints; unwrap_used exists and is verifiable against clippy lint docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Verifiable claim about Rust API Guidelines authorship, scope, and C-SEALED; matches the published document.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Meta-claim about what the API Guidelines document states; verifiable by reading the document.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Accurate catalog of Cargo Book SemVer chapter rules on major/minor changes; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "Verifiable claim about the Cargo Book SemVer chapter opening disclaimer.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "Accurate description of cargo test behavior; verifiable against Cargo Book.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "Accurate definition of proptest's property testing and its stated positioning; verifiable against proptest docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "New durable truth: factual description of cargo-fuzz features and trophy case; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "New durable truth: meta-claim about absence of controlled efficacy measurement in reached sources; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "New durable truth: well-known Rust no_std/core/std distinctions are verifiable and durable; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "New durable truth: semver classification of no_std→std transition as Major is a standard Rust ecosystem interpretation; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "New durable truth: the Cargo Book is indeed the canonical semver reference for Rust; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "New durable truth: factual description of cargo-semver-checks features and behavior; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "New durable truth: rust-toolchain.toml usage and lockfile guidance are verifiable from rustup/Cargo docs; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "New durable truth: factual summary of Cargo Book CI chapter contents; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 38,
+      "reason": "New durable truth: more detailed summary of Cargo Book CI chapter; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 39,
+      "reason": "New durable truth: claim about absence of defect-rate measurements in fmt/clippy docs is a verifiable negative; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 40,
+      "reason": "New durable truth: meta-claim that primary sources provide rationale without controlled measurement; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 41,
+      "reason": "New durable truth: identifies the strongest evidence forms in reached sources (Miri demo, trophy case) as existence proofs; no overlap with existing canonical facts.",
+      "verdict": "promote"
+    }
+  ]
+}
