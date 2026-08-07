@@ -2806,3 +2806,25 @@ fn cli_run_failures_clean_run_reports_no_repeats() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_mismatches_clean_run_reports_none() {
+    // eval mismatches on a run with no tool divergence must exit 0 with
+    // the negative line, not write an empty register.
+    let root = tmp_root("cemc");
+    wipe(&root);
+    let run_path = root.join("clean.json");
+    std::fs::write(
+        &run_path,
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":2,"cost_usd":0.01,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1},{"step":2,"tool":"write","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    let out = run(&root, &["eval", "mismatches", run_path.to_str().unwrap()]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(
+        stdout(&out).contains("no tool mismatches"),
+        "{}",
+        stdout(&out)
+    );
+    wipe(&root);
+}
