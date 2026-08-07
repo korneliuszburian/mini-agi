@@ -472,6 +472,17 @@ pub enum RepairSignal {
     Spinning,
 }
 
+impl std::fmt::Display for RepairSignal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Clean => write!(f, "clean"),
+            Self::Mechanical => write!(f, "mechanical"),
+            Self::Semantic => write!(f, "semantic"),
+            Self::Spinning => write!(f, "spinning"),
+        }
+    }
+}
+
 /// Classify a run's failure mode for the repair gate.
 #[must_use]
 pub fn repair_signal(run: &Run, max_repeated_steps: Option<usize>) -> RepairSignal {

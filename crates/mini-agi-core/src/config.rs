@@ -42,6 +42,14 @@ pub struct Config {
     /// actions in a captured trajectory (P1-5). `None` = disabled.
     #[serde(default)]
     pub max_repeated_steps: Option<usize>,
+    /// Loop retry bound (cycle-33 finding, CRC #69 + GGC #60 + SQLQE
+    /// bounded repair): stop re-dispatching a case after this many rerun
+    /// attempts when its best result is still below the target — further
+    /// retries would only burn budget on a case whose base risk exceeds
+    /// the target (abstention / escalate-to-human). `None` = no bound
+    /// (retry-forever, the pre-existing behavior).
+    #[serde(default)]
+    pub max_rerun_attempts: Option<usize>,
     /// Machine thresholds for `health` (hardening audit P0-2
     /// extension): per-field override of the hardcoded consts.
     #[serde(default)]
@@ -82,6 +90,7 @@ impl Default for Config {
             max_wall_seconds: None,
             max_idle_seconds: None,
             max_repeated_steps: None,
+            max_rerun_attempts: None,
             health: crate::health::HealthThresholds::default(),
             min_judge_precision: default_min_judge_precision(),
             require_approval: false,
@@ -130,6 +139,7 @@ impl Config {
         };
         set_usize("MINIAGI_MAX_STEPS", &mut self.max_steps);
         set_usize("MINIAGI_MAX_REPEATED_STEPS", &mut self.max_repeated_steps);
+        set_usize("MINIAGI_MAX_RERUN_ATTEMPTS", &mut self.max_rerun_attempts);
         if let Some(v) = get("MINIAGI_MAX_TOKENS").and_then(|s| s.parse::<u64>().ok()) {
             self.max_tokens = Some(v);
         }

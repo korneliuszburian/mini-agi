@@ -28,8 +28,16 @@ pub struct LoopRow {
     pub composite: f64,
     /// Composite of the `<case>-rerun` case, when it exists.
     pub rerun_composite: Option<f64>,
+    /// Best composite across original + reruns (SQLQE #19 best-result).
+    pub best_composite: Option<f64>,
     /// Rerun attempts recorded for the case (1 original + reruns).
     pub attempts: usize,
+    /// Repair-gate classification of the latest run (GGC #60).
+    pub repair_signal: Option<eval::RepairSignal>,
+    /// True when rerun attempts exceed the configured bound and the best
+    /// result is still below the target (CRC #69 abstention: further
+    /// retries would only burn budget) — the case needs a human decision.
+    pub exhausted: bool,
     /// Mapped ticket id, when one exists.
     pub ticket: Option<String>,
     /// Ticket lifecycle status (OPEN/CLOSED).
@@ -243,12 +251,30 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
             )
         });
         let rerun = rerun_composite(root, &case.case);
+        let best = best_composite(root, &case.case);
         let attempts = 1 + count_reruns(root, &case.case);
+        // Repair gate + bounded-retry abstention (cycle-33 findings):
+        // surface the per-case repair classification and whether further
+        // retries are pointless (attempts past the configured bound with
+        // the best result still below the target — CRC #69 abstention).
+        let repair_signal = std::fs::read_to_string(
+            root.join("evals/cases").join(&case.case).join("run.json"),
+        )
+        .ok()
+        .and_then(|text| serde_json::from_str::<eval::Run>(&text).ok())
+        .map(|run| eval::repair_signal(&run, crate::config::Config::load(root).max_repeated_steps));
+        let exhausted = crate::config::Config::load(root)
+            .max_rerun_attempts
+            .is_some_and(|limit| attempts > limit)
+            && !best.is_some_and(|b| b >= crate::config::Config::target_composite_for(root));
         rows.push(LoopRow {
             case: case.case.clone(),
             composite: case.composite,
             rerun_composite: rerun,
+            best_composite: best,
             attempts,
+            repair_signal,
+            exhausted,
             ticket: ticket_id,
             status: status_,
             claimant,
@@ -260,6 +286,16 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
         composite_avg: report.composite_avg,
         runs: report.runs,
     })
+}
+
+/// True when `case` is a rerun-output dir (`-rerun`, `-rerun-2`, ...) —
+/// the OUTPUT of a rerun, never a dispatchable source itself.
+fn is_rerun_case(case: &str) -> bool {
+    let Some(idx) = case.find("-rerun") else {
+        return false;
+    };
+    let tail = &case[idx + "-rerun".len()..];
+    tail.is_empty() || tail.strip_prefix('-').is_some_and(|s| s.parse::<usize>().is_ok())
 }
 
 /// The dispatch target: the lowest-composite case below `below` that has
@@ -284,11 +320,26 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
     let mut candidates: Vec<&crate::insights::CaseInsight> = report
         .cases
         .iter()
-        .filter(|c| c.composite < below)
+        .filter(|c| {
+            // A `-rerun` dir is the OUTPUT of a rerun, not a dispatchable
+            // source; it is tracked via the parent case's rerun state.
+            !is_rerun_case(&c.case) && c.composite < below
+        })
         .collect();
     candidates.sort_by(|a, b| a.composite.total_cmp(&b.composite));
     for candidate in candidates {
         if case_closed_by_rerun(root, &candidate.case) {
+            continue;
+        }
+        // Bounded-retry abstention (CRC #69 + GGC #60): skip cases past
+        // their rerun bound with best below the target — they need a
+        // human decision, not another dispatch.
+        let cfg = crate::config::Config::load(root);
+        let attempts = 1 + count_reruns(root, &candidate.case);
+        if cfg
+            .max_rerun_attempts
+            .is_some_and(|limit| attempts > limit)
+        {
             continue;
         }
         // Best-result tracking (SQLQE #19): a case whose best result
@@ -559,7 +610,11 @@ pub fn objective(
     let mut candidates: Vec<&crate::insights::CaseInsight> = report
         .cases
         .iter()
-        .filter(|c| c.composite < target)
+        .filter(|c| {
+            // A `-rerun` dir is the OUTPUT of a rerun, not a dispatchable
+            // source; it is tracked via the parent case's rerun state.
+            !is_rerun_case(&c.case) && c.composite < target
+        })
         .collect();
     candidates.sort_by(|a, b| a.composite.total_cmp(&b.composite));
     let mut out = ObjectiveOutcome {
@@ -581,6 +636,19 @@ pub fn objective(
         }
         let case = &candidate.case;
         if case_closed_by_rerun(root, case) {
+            continue;
+        }
+        // Bounded-retry abstention (CRC #69 + GGC #60): a case past its
+        // rerun bound with best still below the target is EXHAUSTED —
+        // further retries only burn budget; it needs a human decision,
+        // not another dispatch.
+        let cfg = crate::config::Config::load(root);
+        let attempts = 1 + count_reruns(root, case);
+        if cfg
+            .max_rerun_attempts
+            .is_some_and(|limit| attempts > limit)
+        {
+            out.skipped_blocked.push(case.clone());
             continue;
         }
         // Best-result tracking (SQLQE #19): if the best result seen so
@@ -1388,6 +1456,79 @@ mod tests {
         assert!(best >= 0.9, "no rerun -> best = original fixture: {best}");
         assert!(rerun_composite(&root, "real-ticket-008-v2").is_none());
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn objective_blocks_exhausted_case_beyond_rerun_bound() {
+        let root = tmp_case_root("exhausted");
+        // Enable the retry bound at 1 attempt.
+        fs::write(root.join(".miniagi.json"), r#"{"max_rerun_attempts": 1}"#).unwrap();
+        // Build a low case (composite ~0) with a declared verifier so the
+        // no-verifier skip does not mask the exhaustion check.
+        let mut run: eval::Run = serde_json::from_str(
+            &fs::read_to_string(repo().join("evals/cases/real-ticket-008-v2/run.json")).unwrap(),
+        )
+        .unwrap();
+        run.goal = "low case".into();
+        run.scope = vec!["scripts/".into()];
+        run.golden = None;
+        run.verify_command = Some("true".into());
+        run.outcome.achieved = false;
+        for s in &mut run.trajectory {
+            s.ok = Some(true);
+            s.goal_aligned = Some(true);
+            s.reverted = false;
+        }
+        let cases = root.join("evals/cases");
+        fs::create_dir_all(cases.join("lowcase")).unwrap();
+        fs::write(
+            cases.join("lowcase/run.json"),
+            serde_json::to_string(&run).unwrap(),
+        )
+        .unwrap();
+        // Two rerun attempts -> attempts = 3 > bound 1.
+        fs::create_dir_all(cases.join("lowcase-rerun")).unwrap();
+        fs::write(
+            cases.join("lowcase-rerun/run.json"),
+            serde_json::to_string(&run).unwrap(),
+        )
+        .unwrap();
+        fs::create_dir_all(cases.join("lowcase-rerun-2")).unwrap();
+        fs::write(
+            cases.join("lowcase-rerun-2/run.json"),
+            serde_json::to_string(&run).unwrap(),
+        )
+        .unwrap();
+        let target = crate::config::Config::target_composite_for(&root);
+        let out = objective(&root, 5, "loop-test", None).unwrap();
+        assert!(
+            out.dispatched.is_empty(),
+            "an exhausted case must not be re-dispatched: {:?}",
+            out.dispatched
+        );
+        // pick_target also refuses.
+        let picked = pick_target(&root, None, target);
+        assert!(picked.is_err(), "exhausted case must not be picked: {picked:?}");
+        // status surfaces the exhaustion.
+        let status = status(&root).unwrap();
+        let row = status
+            .cases
+            .iter()
+            .find(|r| r.case == "lowcase")
+            .expect("case present");
+        assert!(row.exhausted, "row must be flagged exhausted");
+        assert_eq!(row.attempts, 3);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn is_rerun_case_recognizes_all_attempt_dirs() {
+        assert!(is_rerun_case("case-rerun"));
+        assert!(is_rerun_case("case-rerun-2"));
+        assert!(is_rerun_case("case-rerun-10"));
+        assert!(!is_rerun_case("case"));
+        assert!(!is_rerun_case("case-rerun-x"), "non-numeric suffix is a case name");
+        assert!(!is_rerun_case("rerun"), "no case prefix");
     }
 }
 

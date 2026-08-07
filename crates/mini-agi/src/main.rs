@@ -1087,15 +1087,26 @@ fn cmd_loop_status(attempts: bool) -> ExitCode {
                     Some(c) => format!("rerun {c:.4}"),
                     None => "no rerun".to_string(),
                 };
+                let best = row
+                    .best_composite
+                    .map_or_else(|| "-".to_string(), |b| format!("best {b:.4}"));
+                let signal = row
+                    .repair_signal
+                    .map_or_else(String::new, |s| format!(" [{s}]"));
+                let exhaust = if row.exhausted {
+                    "  EXHAUSTED — needs human (retry bound hit, best below target)"
+                } else {
+                    ""
+                };
                 if attempts {
                     println!(
-                        "  {:.4}  {:<24} attempts={}  {}  lease: {}  {}",
-                        row.composite, row.case, row.attempts, ticket, claim, rerun
+                        "  {:.4}  {:<24} attempts={}  {}  {}  lease: {}  {}{}{}",
+                        row.composite, row.case, row.attempts, best, rerun, ticket, claim, signal, exhaust
                     );
                 } else {
                     println!(
-                        "  {:.4}  {:<24} {}  lease: {}  {}",
-                        row.composite, row.case, ticket, claim, rerun
+                        "  {:.4}  {:<24} {}  {}  lease: {}  {}{}",
+                        row.composite, row.case, best, rerun, claim, signal, exhaust
                     );
                 }
             }
