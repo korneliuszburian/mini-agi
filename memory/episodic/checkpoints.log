@@ -536,3 +536,4 @@
 2026-08-07T22:43:04Z VERIFY-PASS fix125-cli-graph-dangling @ cb2b124
 2026-08-07T22:44:35Z BEGIN fix126-cli-signoff-index -> 052a040
 2026-08-07T22:45:56Z VERIFY-PASS fix126-cli-signoff-index @ 8772b37
+2026-08-07T22:46:43Z BEGIN fix127-gitignore-snapshots -> 348e9dd
