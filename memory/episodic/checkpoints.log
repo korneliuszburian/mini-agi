@@ -383,3 +383,5 @@
 2026-08-07T18:28:20Z VERIFY-PASS fix48-cli-mem-verify-test @ 5475f66
 2026-08-07T18:29:11Z BEGIN fix49-leverage-wording -> 53dbebd
 2026-08-07T18:30:28Z VERIFY-PASS fix49-leverage-wording @ 6445df8
+2026-08-07T18:37:17Z BEGIN fix50-cli-loop-verify-test -> 41c72bd (restored by rollback)
+2026-08-07T18:37:17Z VERIFY-FAIL fix50-cli-loop-verify-test @ dfb1e68 -> ROLLBACK to 41c72bd

@@ -1540,6 +1540,47 @@ fn cli_mem_verify_detects_exact_duplicate_facts() {
 }
 
 #[test]
+fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
+    // P2-13: loop verify exits 1 for an honest OPEN gap and 2 for a
+    // broken verification machinery error. Neither contract had an
+    // integration test (core verify is covered; the CLI exit mapping
+    // was not).
+    let root = tmp_root("clv");
+    wipe(&root);
+    // Missing case -> score_run errors -> exit 2 (machinery broke).
+    let err = run(
+        &root,
+        &["loop", "verify", "no-such-case", "--claimant", "t"],
+    );
+    assert_eq!(err.status.code(), Some(2), "{}", combined(&err));
+    // A real run.json with composite 0 (unachieved) -> honest OPEN -> 1.
+    let case_dir = root.join("evals/cases/fail-case");
+    std::fs::create_dir_all(&case_dir).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::create_dir_all(root.join("evals/results")).unwrap();
+    let target = root.join("target");
+    std::fs::create_dir_all(&target).unwrap();
+    // loop verify's best-state gate requires a baseline; seed it for the
+    // same case at the same composite so the gate stays clean.
+    std::fs::write(
+        root.join("evals/results/baseline.json"),
+        r#"[{"case":"fail-case","composite":0.0,"outcome":1.0,"cost_usd":0.1,"tokens":1000,"tool_mismatches":0,"mode":"regression"}]"#,
+    )
+    .unwrap();
+    std::fs::write(
+        case_dir.join("run.json"),
+        format!(
+            r#"{{"goal":"g","scope":["x"],"outcome":{{"achieved":false}},"tokens_total":1,"cost_usd":0.0,"golden":null,"verify_command":"true","verify_target":"{}","trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":false,"tokens":1,"output_tokens":1}}]}}"#,
+            target.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    let open = run(&root, &["loop", "verify", "fail-case", "--claimant", "t"]);
+    assert_eq!(open.status.code(), Some(1), "{}", combined(&open));
+    wipe(&root);
+}
+
+#[test]
 fn cli_dream_promote_applies_verdicts_into_canonical() {
     // `dream --promote` (D2 promotion -> canonical) had no CLI test;
     // the staging-discovery + verdict-manifest + apply path could break
