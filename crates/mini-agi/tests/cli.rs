@@ -1502,6 +1502,10 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
         agents.contains("MCP writes need HITL"),
         "AGENTS.md template must document the HITL write gate"
     );
+    assert!(
+        agents.contains("mem-dedup/integrity") && agents.contains("skills"),
+        "AGENTS.md gate list must cover the full verify.sh steps"
+    );
     // The codex config must be wired with the MCP allowlist + HITL
     // approvals (not just trusted=true) so a fresh init enforces writes.
     let codex = std::fs::read_to_string(root.join(".codex/config.toml")).expect("codex config");

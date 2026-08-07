@@ -25,9 +25,9 @@ const AGENTS_MD: &str = r"# AGENTS.md — agent instructions (mini-agi powered)
 
 This repo runs on the mini-agi kernel: enforcement-bound memory,
 evaluation, verifiable skills, checkpoint journal. CLI: `mini-agi`.
-Deterministic gate: `scripts/verify.sh` (fmt, clippy, tests, eval gate,
-checkpoint audit, provenance, stats, budget, insights, sandbox) — a
-silent target is a failing target.
+Deterministic gate: `scripts/verify.sh` (fmt, clippy, tests, skills,
+eval gate, checkpoint audit, provenance, mem-dedup/integrity, stats,
+budget, insights, audit, sandbox) — a silent target is a failing target.
 
 - Memory: `memory/canonical/` is the only hand-written source of truth
   (append-only, provenance on every entry). Derived views regenerate via
