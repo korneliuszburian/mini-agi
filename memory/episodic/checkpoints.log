@@ -443,3 +443,4 @@
 2026-08-07T20:03:39Z VERIFY-PASS fix78-provenance-change-test @ 42d17d7
 2026-08-07T20:09:28Z BEGIN fix79-changelog2 -> b44861a (clean)
 2026-08-07T20:09:42Z VERIFY-PASS fix79-changelog2 @ b44861a
+2026-08-07T20:10:43Z BEGIN fix80-mem-query-raw-test -> a973d5a

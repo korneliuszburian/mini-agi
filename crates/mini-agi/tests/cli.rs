@@ -1813,6 +1813,14 @@ fn cli_mem_query_finds_keyword_and_no_match_exits_1() {
     // Budget form must also run clean.
     let budgeted = run(&root, &["mem", "query", "--budget", "200"]);
     assert!(budgeted.status.success(), "{}", combined(&budgeted));
+    // Raw form prints the machine-parseable id [domain] body triple.
+    let raw = run(&root, &["mem", "query", "--raw", "widget"]);
+    assert!(raw.status.success(), "{}", combined(&raw));
+    assert!(
+        stdout(&raw).contains("0123456789abcde1 [general] widget alpha"),
+        "{}",
+        stdout(&raw)
+    );
     wipe(&root);
 }
 
