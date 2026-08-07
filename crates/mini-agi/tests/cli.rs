@@ -2514,3 +2514,24 @@ fn cli_ui_fails_cleanly_on_busy_port() {
     drop(listener);
     wipe(&root);
 }
+
+#[test]
+fn cli_loop_dispatch_no_case_fails_cleanly() {
+    // loop dispatch with nothing dispatchable (no case below target)
+    // must error cleanly (exit 1) instead of panicking on an empty set.
+    let root = tmp_root("cdnc");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("evals/cases")).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::create_dir_all(root.join("evals/results")).unwrap();
+    std::fs::create_dir_all(root.join("tickets")).unwrap();
+    std::fs::write(root.join("evals/results/baseline.json"), "[]").unwrap();
+    let out = run(&root, &["loop", "dispatch", "--claimant", "t"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("no case below the target"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
