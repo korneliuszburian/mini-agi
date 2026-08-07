@@ -300,19 +300,11 @@ pub fn select_budgeted(
     if budget_chars == 0 {
         return Vec::new();
     }
+    let total = facts.len();
     let mut scored: Vec<(i64, usize, &(String, String, String))> = facts
         .iter()
         .enumerate()
-        .map(|(i, f)| {
-            let mut score = 0i64;
-            if enforced.iter().any(|e| e == &f.0) {
-                score += 3;
-            }
-            let degree = i64::try_from(links.get(&f.0).map_or(0, |v| v.len().min(2))).unwrap_or(0);
-            score += degree;
-            let recency = i64::try_from(facts.len().saturating_sub(i)).unwrap_or(0);
-            (score * 100_000 + recency, i, f)
-        })
+        .map(|(i, f)| (relevance_score(f, i, total, links, enforced), i, f))
         .collect();
     scored.sort_by_key(|s| std::cmp::Reverse(s.0));
     let mut out = Vec::new();
@@ -432,6 +424,28 @@ pub fn query_facts(
     ranked_facts(&out, &links, &enforced)
 }
 
+/// Shared relevance score for a fact at index `i` of `facts` (cycle-33
+/// review F1 / dedup): enforced (3) + link-degree (2, capped) + recency.
+/// `select_budgeted` and `ranked_facts` must agree on what matters, so
+/// the scoring lives in ONE place — a drift in one would silently
+/// diverge the query and budgeted contexts.
+fn relevance_score(
+    fact: &(String, String, String),
+    index: usize,
+    total: usize,
+    links: &std::collections::BTreeMap<String, Vec<String>>,
+    enforced: &[String],
+) -> i64 {
+    let mut score = 0i64;
+    if enforced.iter().any(|e| e == &fact.0) {
+        score += 3;
+    }
+    let degree = i64::try_from(links.get(&fact.0).map_or(0, |v| v.len().min(2))).unwrap_or(0);
+    score += degree;
+    let recency = i64::try_from(total.saturating_sub(index)).unwrap_or(0);
+    score * 100_000 + recency
+}
+
 /// Relevance order over `facts` (enforced, link-degree, recency;
 /// descending). Budget-free twin of `select_budgeted` — same scoring,
 /// so a query and a budgeted context agree on what matters.
@@ -443,19 +457,11 @@ pub fn ranked_facts(
     links: &std::collections::BTreeMap<String, Vec<String>>,
     enforced: &[String],
 ) -> Vec<(String, String, String)> {
+    let total = facts.len();
     let mut scored: Vec<(i64, usize, &(String, String, String))> = facts
         .iter()
         .enumerate()
-        .map(|(i, f)| {
-            let mut score = 0i64;
-            if enforced.iter().any(|e| e == &f.0) {
-                score += 3;
-            }
-            let degree = i64::try_from(links.get(&f.0).map_or(0, |v| v.len().min(2))).unwrap_or(0);
-            score += degree;
-            let recency = i64::try_from(facts.len().saturating_sub(i)).unwrap_or(0);
-            (score * 100_000 + recency, i, f)
-        })
+        .map(|(i, f)| (relevance_score(f, i, total, links, enforced), i, f))
         .collect();
     scored.sort_by_key(|s| std::cmp::Reverse(s.0));
     scored.into_iter().map(|(_, _, f)| f.clone()).collect()
