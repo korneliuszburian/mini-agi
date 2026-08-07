@@ -13,7 +13,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 export PATH="$HOME/.cargo/bin:$PATH"
-export RUSTFLAGS="-D warnings"
+# Cycle-34 finding (Clippy README): prefer CARGO_BUILD_WARNINGS=deny over
+# RUSTFLAGS="-D warnings" — the RUSTFLAGS form invalidates the build cache
+# on every change and, since Cargo 1.97, the env form is the documented
+# warnings-deny CI gate. `-D warnings` is still passed to clippy directly.
+export CARGO_BUILD_WARNINGS="deny"
 
 fail=0
 
@@ -25,7 +29,7 @@ if [ -f Cargo.toml ]; then
     has_cargo=1
     step "build"         cargo build || fail=1
     step "fmt-check"    sh -c 'cargo fmt --check && echo "fmt-check: clean"' || fail=1
-    step "clippy"       cargo clippy --all-targets -- -D warnings || fail=1
+    step "clippy"       cargo clippy --all-targets --all-features -- -D warnings || fail=1
     step "tests"        cargo test --all || fail=1
     if [ -n "$BIN" ] && [ -x "$BIN" ]; then
         step "skills"       "$BIN" skill verify-all || fail=1
