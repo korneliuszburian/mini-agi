@@ -14,8 +14,8 @@ skills registry, orchestration** — exposed as CLI + MCP server so ANY agent
 
 ## Status
 
-All phases 0-10 complete (memory, eval, skills, journal, MCP, loop, verifier,
-harness evolution), 299 tests green, gate ALL GREEN, v0.3.0:
+All phases 0-11 complete (memory, eval, skills, journal, MCP, loop, verifier,
+harness evolution, Rust quality gates), 359 tests green, gate ALL GREEN, v0.3.0:
 
 | Phase | Deliverable |
 | --- | --- |
@@ -30,6 +30,7 @@ harness evolution), 299 tests green, gate ALL GREEN, v0.3.0:
 | 8 | verifiable reward layer: `run verify`, best-state regression bound |
 | 9 | verified before trusted: judge-drift calibration, counterfactual harness gate |
 | 10 | the kernel improves itself: harness evolution, honest codex capture, codex review |
+| 11 | Rust quality gates (cycle 34): warnings-deny, clippy all-features, property tests |
 
 Runtime thresholds (loop target, regression tolerance, worker caps) are
 tunable via `.miniagi.json` or `MINIAGI_*` env vars — see
