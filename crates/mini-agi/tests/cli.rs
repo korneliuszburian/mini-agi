@@ -1671,6 +1671,39 @@ fn cli_mem_preserve_writes_list_and_rejects_unknown_id() {
 }
 
 #[test]
+fn cli_mem_query_finds_keyword_and_no_match_exits_1() {
+    // `mem query` (canonical retrieval behind the codex memory_query
+    // contract) had no CLI test. The keyword hit path, the domain
+    // filter, and the no-match exit-1 path were all uncovered.
+    let root = tmp_root("cmq");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e1\n\n## F-000 `0123456789abcde1`\n\nwidget alpha mechanism budget usage across nodes\n",
+    );
+    let hit = run(&root, &["mem", "query", "widget"]);
+    assert!(hit.status.success(), "{}", combined(&hit));
+    assert!(
+        stdout(&hit).contains("widget alpha mechanism"),
+        "{}",
+        stdout(&hit)
+    );
+    let none = run(&root, &["mem", "query", "zzzz-not-a-word"]);
+    assert_eq!(none.status.code(), Some(1), "{}", combined(&none));
+    assert!(
+        combined(&none).contains("no facts match"),
+        "{}",
+        combined(&none)
+    );
+    // Budget form must also run clean.
+    let budgeted = run(&root, &["mem", "query", "--budget", "200"]);
+    assert!(budgeted.status.success(), "{}", combined(&budgeted));
+    wipe(&root);
+}
+
+#[test]
 fn cli_eval_judge_drift_reports_on_empty_corpus() {
     // `eval judge-drift` (calibration signal, AGENTS.md) had no CLI
     // test. On an empty calibration corpus it must exit 0 and report
