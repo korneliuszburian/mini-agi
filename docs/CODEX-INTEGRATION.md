@@ -38,6 +38,16 @@ derive`) and `harness` run `prompt` (HITL). `memory_signoff` stays `prompt`
 by design — the signoff gate is human (ADR-0010); a session cannot silently
 merge its own memory.
 
+Every one of those write tools ALSO enforces the gate inside the kernel
+itself: the MCP handler requires a non-empty `approve` reason argument and
+refuses the call without it (`error: <tool> requires an approval reason`).
+This is defense in depth — even a codex config mistake (a write tool
+accidentally set to `auto`) still cannot fire a worker-tree or canonical-
+memory write without an explicit `approve` string. The exception is
+`memory_consolidate` with `dry_run: true`, which is read-only and skips the
+requirement. `memory_signoff` is additionally gated by the review-queue
+signoff contract (ADR-0010), so it needs both a queue entry and `approve`.
+
 ## The supervisor tools (AFK v3 — launch and poll)
 
 - `loop_run` (approval **prompt** — a write that changes the worker
