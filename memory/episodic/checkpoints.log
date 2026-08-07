@@ -482,3 +482,4 @@
 2026-08-07T21:39:44Z VERIFY-PASS fix98-cli-dispatch-nocase @ 41cded5
 2026-08-07T21:40:34Z BEGIN fix99-cli-verify-missing -> a408031
 2026-08-07T21:43:22Z VERIFY-PASS fix99-cli-verify-missing @ 60dffcd
+2026-08-07T21:44:41Z BEGIN fix100-cli-missing-file-paths -> 8af2662

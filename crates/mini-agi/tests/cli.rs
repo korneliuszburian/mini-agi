@@ -2548,3 +2548,20 @@ fn cli_run_verify_missing_file_fails_cleanly() {
     assert!(combined(&out).contains("cannot read"), "{}", combined(&out));
     wipe(&root);
 }
+
+#[test]
+fn cli_ingest_and_score_missing_file_fail_cleanly() {
+    // run ingest and eval score on a nonexistent run.json must error
+    // cleanly (exit 1), not panic.
+    let root = tmp_root("cms");
+    wipe(&root);
+    let missing = root.join("nope.json");
+    for sub in [
+        &["run", "ingest", missing.to_str().unwrap()][..],
+        &["eval", "score", missing.to_str().unwrap()][..],
+    ] {
+        let out = run(&root, sub);
+        assert_eq!(out.status.code(), Some(1), "{sub:?}: {}", combined(&out));
+    }
+    wipe(&root);
+}
