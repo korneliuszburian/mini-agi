@@ -2330,6 +2330,11 @@ fn cmd_mem_supersede(body: &str, supersedes: &[String], domain: &str, source: &s
     ) {
         Ok(e) => e,
         Err(MemoryError::Io(e)) => return fail(&format!("mem supersede: {e}")),
+        Err(MemoryError::PreservedId(id)) => {
+            return fail(&format!(
+                "mem supersede: {id} is preserved (load-bearing) — supersede it only after removing the preserve, or keep the old fact as-is"
+            ));
+        }
         Err(_) => return fail("mem supersede: unexpected memory error"),
     };
     let rel = entry.path.strip_prefix(&root).unwrap_or(&entry.path);

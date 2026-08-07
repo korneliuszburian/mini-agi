@@ -1656,7 +1656,8 @@ fn cli_mem_verify_flags_supersede_against_preserved_id() {
     // Preserve the id first.
     let pres = run(&root, &["mem", "preserve", "0123456789abcdf2"]);
     assert!(pres.status.success(), "{}", combined(&pres));
-    // Then supersede it — allowed as a write, but integrity must flag it.
+    // Then supersede it — the kernel must refuse (preservation is a
+    // stronger contract than supersede).
     let sup = run(
         &root,
         &[
@@ -1671,14 +1672,11 @@ fn cli_mem_verify_flags_supersede_against_preserved_id() {
             "test",
         ],
     );
-    assert!(sup.status.success(), "{}", combined(&sup));
+    assert_eq!(sup.status.code(), Some(1), "{}", combined(&sup));
+    assert!(combined(&sup).contains("preserved"), "{}", combined(&sup));
+    // mem verify stays clean (no lineage write happened).
     let v = run(&root, &["mem", "verify"]);
-    assert_eq!(v.status.code(), Some(1), "{}", combined(&v));
-    assert!(
-        combined(&v).contains("targets preserved id"),
-        "{}",
-        combined(&v)
-    );
+    assert!(v.status.success(), "{}", combined(&v));
     wipe(&root);
 }
 

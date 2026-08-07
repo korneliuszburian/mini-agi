@@ -55,6 +55,9 @@ pub enum MemoryError {
     /// Derivation ran before any canonical facts existed.
     #[error("no canonical facts yet — run ingest first")]
     NoCanonical,
+    /// A supersede write targeted a preserved (load-bearing) fact id.
+    #[error("cannot supersede preserved id {0} — preservation is a stronger contract (ADR-0010)")]
+    PreservedId(String),
 }
 
 /// Options for a consolidation run.
@@ -253,6 +256,15 @@ pub fn write_supersede_entry(
     domain: &str,
     supersedes: &[String],
 ) -> Result<EntryFile, MemoryError> {
+    // Preservation is a stronger contract than supersede (A-MEM
+    // supersede-never): a lineage write must not soft-delete a
+    // load-bearing id. Enforced here, not just flagged by mem verify.
+    let preserved = preserved_ids(root);
+    for id in supersedes {
+        if preserved.contains(id) {
+            return Err(MemoryError::PreservedId(id.clone()));
+        }
+    }
     let entry = crate::store::next_entry(root, &utc_now_date());
     if let Some(parent) = entry.path.parent() {
         fs::create_dir_all(parent)?;
