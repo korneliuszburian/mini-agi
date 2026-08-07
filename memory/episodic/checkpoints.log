@@ -458,3 +458,5 @@
 2026-08-07T20:45:12Z VERIFY-PASS fix86-cli-derive-brief-only @ b45e61a
 2026-08-07T20:46:04Z BEGIN fix87-replay-brief-divergence -> 0519867
 2026-08-07T20:50:29Z VERIFY-PASS fix87-replay-brief-divergence @ 8e57d65
+2026-08-07T20:52:27Z BEGIN fix88-loop-status-below -> edaec67
+2026-08-07T20:53:29Z VERIFY-PASS fix88-loop-status-below @ edaec67
