@@ -307,3 +307,5 @@
 2026-08-07T10:00:27Z VERIFY-PASS fix11-warnings-deny-gate @ f9bf344
 2026-08-07T11:40:48Z BEGIN fix12-property-test -> 975b0b6 (clean)
 2026-08-07T11:41:02Z VERIFY-PASS fix12-property-test @ 975b0b6
+2026-08-07T11:42:31Z BEGIN fix13-geomean-property -> 1ad95c7 (clean)
+2026-08-07T11:42:43Z VERIFY-PASS fix13-geomean-property @ 1ad95c7
