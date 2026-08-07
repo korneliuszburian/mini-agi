@@ -1,5 +1,10 @@
 # RESEARCH 2026-08-03 — breakthrough pipeline: sources mapped to mini-agi
 
+> STATUS: historical research record (2026-08-03); the weaknesses and
+> candidate roadmaps inside are snapshots from that date — most were
+> since shipped (see docs/PLAN.md Phase 8 status and docs/CHANGELOG.md).
+> Current state: docs/README.md.
+
 Deep research across 5 parallel tracks: (1) our architecture map,
 (2) Karpathy + frontier practice, (3) scientific papers (memory/eval/
 self-improvement), (4) industry SOTA + Sandcastle + Matt Pocock,
