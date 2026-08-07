@@ -362,6 +362,81 @@ pub fn score_steps(run: &Run) -> Vec<StepVerdict> {
         .collect()
 }
 
+/// Per-channel error audit of a run (cycle-33 finding, Flat Score #98).
+///
+/// The composite/D1 score is an end-of-trajectory outcome; per-step
+/// failures can be hidden behind the run's "budget" (the number of
+/// failed steps a run tolerates before it still counts as success).
+/// This audit surfaces the per-channel error counts and the
+/// `success_at_budget` projection — whether the run would still be a
+/// clean success under a tighter error budget, the exact counterfactual
+/// the Flat Score study used to unmask damage that an end-of-run score
+/// absorbs. Deterministic: derived only from the run's own steps.
+#[derive(Debug, Clone, Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct ErrorBudgetAudit {
+    /// Total steps in the trajectory.
+    pub total_steps: usize,
+    /// Steps whose deterministic gate failed (`ok == Some(false)`).
+    pub failed_gate_steps: usize,
+    /// Steps flagged as goal drift (`goal_aligned == Some(false)`).
+    pub goal_drift_steps: usize,
+    /// Steps reverted by the checkpoint cascade.
+    pub reverted_steps: usize,
+    /// Per-step failed count, by tool name (channel view).
+    pub failed_by_tool: Vec<(String, usize)>,
+    /// `success_at_budget[k]` is true when the run's *declared* outcome
+    /// is achieved AND the number of failed steps is at most `k`. Index 0
+    /// is the strictest budget (zero tolerance); the last entry is the
+    /// run's actual tolerance. A run whose outcome is not achieved has
+    /// all-false entries (there is no budget at which an unachieved run
+    /// counts as success).
+    pub success_at_budget: Vec<bool>,
+}
+
+/// Build the per-channel error audit for a run.
+#[must_use]
+pub fn error_budget_audit(run: &Run) -> ErrorBudgetAudit {
+    let total_steps = run.trajectory.len();
+    let failed_gate_steps = run
+        .trajectory
+        .iter()
+        .filter(|s| s.ok == Some(false))
+        .count();
+    let goal_drift_steps = run
+        .trajectory
+        .iter()
+        .filter(|s| s.goal_aligned == Some(false))
+        .count();
+    let reverted_steps = run.trajectory.iter().filter(|s| s.reverted).count();
+    let mut by_tool: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for s in &run.trajectory {
+        if s.ok == Some(false) || s.goal_aligned == Some(false) || s.reverted {
+            *by_tool.entry(s.tool.clone()).or_insert(0) += 1;
+        }
+    }
+    let failed_by_tool: Vec<(String, usize)> = by_tool.into_iter().collect();
+    let achieved = run.outcome.achieved;
+    // Budget k = number of failed steps tolerated. A step "counts" as a
+    // failure when it fails a gate, drifts from the goal, or was
+    // reverted (double counting is avoided: a step is a failure once).
+    let failed_steps = run
+        .trajectory
+        .iter()
+        .filter(|s| s.ok == Some(false) || s.goal_aligned == Some(false) || s.reverted)
+        .count();
+    let success_at_budget = (0..=failed_steps)
+        .map(|k| achieved && failed_steps <= k)
+        .collect();
+    ErrorBudgetAudit {
+        total_steps,
+        failed_gate_steps,
+        goal_drift_steps,
+        reverted_steps,
+        failed_by_tool,
+        success_at_budget,
+    }
+}
+
 /// Score a trajectory (`PoC` `score_trajectory`).
 #[must_use]
 #[allow(
@@ -700,6 +775,9 @@ pub struct ScoreReport {
     pub cost_normalized_success: f64,
     /// Composite D1*D2*D3.
     pub composite: f64,
+    /// Per-channel error audit (cycle-33 Flat Score pattern): failed
+    /// steps by channel and the success-at-budget projection.
+    pub error_budget: ErrorBudgetAudit,
 }
 
 /// Dimension scores block of a report.
@@ -782,6 +860,7 @@ pub fn score_run(
         tokens_total: tokens,
         cost_normalized_success: cost_norm,
         composite,
+        error_budget: error_budget_audit(&run),
     })
 }
 
@@ -1269,6 +1348,59 @@ mod tests {
         assert!(verdicts[0].probe_failure, "probe must be flagged");
         assert!(!verdicts[1].probe_failure, "gate pass is not a probe");
         assert!(approx(verdicts[0].score, 0.5));
+    }
+
+    #[test]
+    fn error_budget_audit_counts_channels_and_projects_success() {
+        let a = step("tool-a");
+        let mut b = step("tool-b");
+        let mut c = step("tool-c");
+        b.ok = Some(false);
+        b.goal_aligned = Some(false);
+        c.reverted = true;
+        let run = run_with(vec![a, b, c]);
+        let audit = error_budget_audit(&run);
+        assert_eq!(audit.total_steps, 3);
+        assert_eq!(audit.failed_gate_steps, 1, "only b failed its gate");
+        assert_eq!(audit.goal_drift_steps, 1, "only b drifted from goal");
+        assert_eq!(audit.reverted_steps, 1, "only c was reverted");
+        assert_eq!(audit.failed_by_tool.len(), 2, "b and c, not a");
+        assert!(
+            audit
+                .failed_by_tool
+                .iter()
+                .any(|(t, n)| t == "tool-b" && *n == 1)
+        );
+        assert!(
+            audit
+                .failed_by_tool
+                .iter()
+                .any(|(t, n)| t == "tool-c" && *n == 1)
+        );
+        // Two distinct failing steps: success only at budget >= 2.
+        assert_eq!(audit.success_at_budget, vec![false, false, true]);
+    }
+
+    #[test]
+    fn error_budget_audit_clean_run_is_strict_success() {
+        let run = run_with(vec![step("tool-a"), step("tool-b")]);
+        let audit = error_budget_audit(&run);
+        assert_eq!(audit.failed_gate_steps, 0);
+        assert_eq!(audit.goal_drift_steps, 0);
+        assert_eq!(audit.reverted_steps, 0);
+        assert_eq!(audit.success_at_budget, vec![true]);
+    }
+
+    #[test]
+    fn error_budget_audit_unachieved_run_has_no_success_budget() {
+        let mut run = run_with(vec![step("tool-a")]);
+        run.outcome.achieved = false;
+        let audit = error_budget_audit(&run);
+        assert_eq!(audit.failed_gate_steps, 0);
+        assert!(
+            audit.success_at_budget.iter().all(|s| !s),
+            "an unachieved run is not a success at any budget"
+        );
     }
 }
 

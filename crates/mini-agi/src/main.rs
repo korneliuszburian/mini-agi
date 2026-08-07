@@ -1972,6 +1972,29 @@ fn cmd_eval_steps(run: &Path) -> ExitCode {
                     )
                 }
             );
+            // Error-budget audit (cycle-33 Flat Score pattern): report the
+            // per-channel failure counts and the success-at-budget
+            // projection so an end-of-run score cannot hide a run whose
+            // per-step reliability is degraded.
+            let audit = eval::error_budget_audit(&run);
+            let budget_line: Vec<String> = audit
+                .success_at_budget
+                .iter()
+                .enumerate()
+                .map(|(k, ok)| format!("{k}:{}", if *ok { "ok" } else { "fail" }))
+                .collect();
+            println!(
+                "  error budget: {} steps, {} gate-fail, {} goal-drift, {} reverted (by tool: {:?})",
+                audit.total_steps,
+                audit.failed_gate_steps,
+                audit.goal_drift_steps,
+                audit.reverted_steps,
+                audit.failed_by_tool
+            );
+            println!(
+                "  success at budget k (k: status): {}",
+                budget_line.join(" ")
+            );
             ExitCode::SUCCESS
         }
         Err(EvalError::Read(e)) => fail(&format!("cannot read run file: {e}")),
