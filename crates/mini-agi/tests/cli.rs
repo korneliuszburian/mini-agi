@@ -1036,6 +1036,30 @@ fn cli_backlog_creates_gap_ticket_and_dedups() {
 }
 
 #[test]
+fn cli_run_verify_audit_flags_vacuous_verifier_and_exits_1() {
+    // The fail-closed contract: a vacuous verifier (always exits 0) must
+    // be flagged and return exit 1. Core audit_verifier is tested; the
+    // CLI exit-code contract had no integration test.
+    let root = tmp_root("cva");
+    wipe(&root);
+    let target = root.join("target");
+    std::fs::create_dir_all(&target).unwrap();
+    let run_path = target.join("run.json");
+    std::fs::write(
+        &run_path,
+        format!(
+            r#"{{"goal":"g","scope":["x"],"outcome":{{"achieved":true}},"tokens_total":1,"cost_usd":0.0,"golden":null,"verify_command":"true","verify_target":"{}","trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}}]}}"#,
+            target.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    let out = run(&root, &["run", "verify-audit", run_path.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(combined(&out).contains("VACUOUS"), "{}", combined(&out));
+    wipe(&root);
+}
+
+#[test]
 fn cli_eval_mismatches_writes_register_and_resume_shows_block() {
     let root = tmp_root("c23");
     wipe(&root);
