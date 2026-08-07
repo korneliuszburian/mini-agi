@@ -943,6 +943,11 @@ fn cli_loop_dispatch_writes_spec_and_claim() {
     let status = run(&root, &["loop", "status"]);
     assert!(status.status.success());
     assert!(stdout(&status).contains("real-ticket-001-v2"));
+    assert!(
+        stdout(&status).contains("below target"),
+        "{}",
+        stdout(&status)
+    );
     let dispatch = run(
         &root,
         &[
