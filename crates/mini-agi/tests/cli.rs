@@ -340,6 +340,22 @@ fn cli_provenance_prints_fingerprint() {
     assert!(stdout(&out).starts_with("canonical_sha256: "));
     let fp = stdout(&out).split_whitespace().nth(1).unwrap().to_string();
     assert_eq!(fp.len(), 16);
+    // The fingerprint must CHANGE when canonical memory grows — the
+    // provenance gate's whole job is to detect drift.
+    let more = root.join("buf2.md");
+    std::fs::write(
+        &more,
+        "FACT: a second fact must change the canonical fingerprint\n",
+    )
+    .unwrap();
+    assert!(
+        run(&root, &["mem", "consolidate", more.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let out2 = run(&root, &["provenance"]);
+    let fp2 = stdout(&out2).split_whitespace().nth(1).unwrap().to_string();
+    assert_ne!(fp, fp2, "canonical growth must change the fingerprint");
     wipe(&root);
 }
 
