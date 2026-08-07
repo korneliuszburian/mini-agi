@@ -558,3 +558,4 @@
 2026-08-07T23:21:30Z VERIFY-PASS fix136-resume-claims @ 6f208a7
 2026-08-07T23:24:51Z BEGIN fix137-cli-score-error-budget -> 592f2ad
 2026-08-07T23:26:33Z VERIFY-PASS fix137-cli-score-error-budget @ 81473ab
+2026-08-07T23:27:13Z BEGIN fix138-cli-score-mismatches -> 34ca5de

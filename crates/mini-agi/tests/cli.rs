@@ -2432,6 +2432,11 @@ fn cli_eval_score_reports_composite_json() {
         "error_budget audit must be in the report: {}",
         stdout(&out)
     );
+    assert!(
+        parsed.get("tool_mismatches_vs_golden").is_some(),
+        "tool-mismatch field must be in the report: {}",
+        stdout(&out)
+    );
     wipe(&root);
 }
 
