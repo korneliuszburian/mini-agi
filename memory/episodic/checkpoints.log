@@ -499,3 +499,4 @@
 2026-08-07T21:59:00Z BEGIN fix107-cli-promote-empty -> c4b40ea
 2026-08-07T21:59:57Z VERIFY-PASS fix107-cli-promote-empty @ 0ba4d14
 2026-08-07T22:00:51Z BEGIN fix108-cli-hidden-nodir -> 1b19b58
+2026-08-07T22:01:50Z VERIFY-PASS fix108-cli-hidden-nodir @ f8b8e66
