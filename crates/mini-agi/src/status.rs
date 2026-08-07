@@ -201,26 +201,35 @@ mod tests {
     fn index_aggregates_runs_and_totals() {
         let root = tmp_root("index");
         let cases = root.join("cases");
-        for (name, cost, tokens, achieved) in [
-            ("a-ok", 0.02, 100u64, true),
-            ("a-ok-rerun", 0.03, 200u64, true),
-            ("b-fail", 0.01, 50u64, false),
-        ] {
+        // Distinct worker per run and EXPLICIT distinct mtimes: files
+        // written back-to-back on a fast fs can share a nanosecond mtime,
+        // and stable sort keeps read_dir order then -> order-dependent
+        // asserts flake. set_modified pins the order deterministically.
+        let base = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        for (i, (name, cost, tokens, achieved, worker)) in [
+            ("a-ok", 0.02, 100u64, true, "w-old"),
+            ("a-ok-rerun", 0.03, 200u64, true, "w-mid"),
+            ("b-fail", 0.01, 50u64, false, "w-new"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let dir = cases.join(name);
             std::fs::create_dir_all(&dir).unwrap();
             let run = serde_json::json!({
                 "goal": format!("goal {name}"),
-                "worker": "opencode-opencode-go/deepseek-v4-flash",
+                "worker": worker,
                 "cost_usd": cost,
                 "tokens_total": tokens,
                 "outcome": {"achieved": achieved},
                 "n_steps": 3,
             });
-            std::fs::write(
-                dir.join("run.json"),
-                serde_json::to_string_pretty(&run).unwrap(),
-            )
-            .unwrap();
+            let path = dir.join("run.json");
+            std::fs::write(&path, serde_json::to_string_pretty(&run).unwrap()).unwrap();
+            std::fs::File::open(&path)
+                .unwrap()
+                .set_modified(base + std::time::Duration::from_secs(i as u64))
+                .unwrap();
         }
         let idx = index_runs(&cases);
         assert_eq!(idx.total_runs, 3);
@@ -234,7 +243,8 @@ mod tests {
         assert_eq!(times, sorted);
         assert_eq!(
             idx.rows[0].worker.as_deref(),
-            Some("opencode-opencode-go/deepseek-v4-flash")
+            Some("w-new"),
+            "newest mtime must sort first"
         );
     }
 
