@@ -255,6 +255,25 @@ no completion marker here
     }
 
     #[test]
+    fn parse_is_total_on_empty_malformed_and_partial_input() {
+        // Cycle-33 review: the transcript parser is production code that
+        // runs on arbitrary log files — it must never panic on hostile
+        // input, and empty/garbage/partial data must yield empty steps
+        // (no fabricated commands).
+        assert!(parse_transcript("").is_empty());
+        assert!(parse_transcript("\n\n\n").is_empty());
+        assert!(parse_transcript("total garbage, no markers at all").is_empty());
+        // A truncated JSON event (unclosed object) must not panic.
+        let truncated = r#"{"type":"text","part":{"text":"cmd: ls -la"#;
+        assert!(parse_transcript(truncated).is_empty());
+        // extract_result/completed are total too.
+        assert!(extract_result("").is_none());
+        assert!(extract_result("no result block here").is_none());
+        assert!(!completed(""));
+        assert!(!completed("partial: exited 0 in 1.0s")); // missing the success marker
+    }
+
+    #[test]
     fn look_ahead_binds_exit_code_to_the_command() {
         // P2-12 (hardening audit): the ` exited N in ...:` / ` succeeded`
         // header on the line AFTER a command becomes that command's ok.

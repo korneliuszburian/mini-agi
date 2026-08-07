@@ -333,3 +333,4 @@
 2026-08-07T16:37:48Z VERIFY-PASS fix23-changelog @ accce5c
 2026-08-07T16:41:59Z BEGIN fix24-swap-crit -> e24764c
 2026-08-07T16:45:39Z VERIFY-PASS fix24-swap-crit @ 19b97ff
+2026-08-07T16:48:27Z BEGIN fix25-capture-robustness-test -> 534424f
