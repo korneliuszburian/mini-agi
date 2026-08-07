@@ -320,3 +320,4 @@
 2026-08-07T16:11:47Z BEGIN fix17-readme-counts -> 763b2f0
 2026-08-07T16:13:46Z VERIFY-PASS fix17-readme-counts @ 5f9ec3f
 2026-08-07T16:16:24Z BEGIN fix18-capture-unwrap -> 703589c
+2026-08-07T16:18:18Z VERIFY-PASS fix18-capture-unwrap @ df5c7b6
