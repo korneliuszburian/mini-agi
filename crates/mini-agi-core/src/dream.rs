@@ -496,14 +496,14 @@ pub fn apply_verdicts(
                         .find(|(fid, _, _)| fid == id)
                         .map(|(_, _, body)| body)
                 });
-                match existing_body {
-                    Some(body) if body != fact.body => {
+                match (existing, existing_body) {
+                    (Some(existing_id), Some(body)) if body != fact.body => {
                         crate::memory::write_supersede_entry(
                             root,
                             &[(fact.body.clone(), h)],
                             source,
                             &fact.domain,
-                            &[existing.unwrap()],
+                            &[existing_id],
                         )?;
                         queued += 1;
                     }
