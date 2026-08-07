@@ -2051,6 +2051,44 @@ fn cli_harness_snapshot_writes_spec_and_ledger() {
 }
 
 #[test]
+fn cli_harness_verify_rejects_phantom_claim_with_evidence() {
+    // harness verify (the Phantom Guardrails counterfactual gate) had no
+    // CLI test; the ACCEPT/REJECT exit-code mapping was uncovered.
+    let root = tmp_root("chv");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("scripts")).unwrap();
+    std::fs::create_dir_all(root.join("candidate")).unwrap();
+    // Gate observes only 'marker-missing' failures.
+    std::fs::write(
+        root.join("scripts/verify.sh"),
+        "#!/bin/sh\nif [ \"$(cat ok.marker 2>/dev/null)\" = \"x\" ]; then echo \"[ok] build\"; exit 0; else echo \"[FAIL] marker-missing:\"; exit 1; fi\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("ok.marker"), "x").unwrap();
+    // A claim of fixing 'tests' (never observed) -> phantom -> REJECT, 1.
+    std::fs::write(root.join("candidate/ok.marker"), "x").unwrap();
+    let out = run(
+        &root,
+        &[
+            "harness",
+            "verify",
+            root.join("ok.marker").to_str().unwrap(),
+            root.join("candidate/ok.marker").to_str().unwrap(),
+            "--claims",
+            "tests",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(combined(&out).contains("REJECT"), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("never observed"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_eval_score_reports_composite_json() {
     // `eval score` (the reward layer's scoring entrypoint) had no CLI
     // test; a regression in the JSON report shape would pass silently.
