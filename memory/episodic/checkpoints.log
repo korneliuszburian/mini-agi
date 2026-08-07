@@ -477,3 +477,4 @@
 2026-08-07T21:26:19Z BEGIN fix96-bg-sleep-robustness -> bbe65cd
 2026-08-07T21:30:54Z VERIFY-PASS fix96-bg-sleep-robustness @ c010c75
 2026-08-07T21:32:57Z BEGIN fix97-preserve-dedup -> b403c14
+2026-08-07T21:37:17Z VERIFY-PASS fix97-preserve-dedup @ a8217c5
