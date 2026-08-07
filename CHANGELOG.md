@@ -80,12 +80,13 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 - `mini-agi mem unpreserve <id>` — the counterpart to `preserve`: a
   wrongly preserved id was otherwise blocked from lineage evolution
   forever.
-- 10 more CLI/unit tests: `mem query`, `loop parallel` fail-closed,
+- 12 more CLI/unit tests: `mem query`, `loop parallel` fail-closed,
   `mem supersede`/`preserve`/`unpreserve`, `harness verify` (Phantom
   Guardrails REJECT), `derive --snapshot/--replay` MATCH, `resume` trio
-  (brief + journal + in-flight), `eval judge-drift`/`judge-recalibrate`/
-  `hidden`, `approx_tokens`/`frontmatter_block`, provenance fingerprint
-  change on canonical growth. Suite: 388 -> 397 tests.
+  (brief + journal + in-flight), `eval judge-drift` (empty + disagreement
+  signal), `judge-recalibrate`, `hidden`, `approx_tokens`/
+  `frontmatter_block`, provenance fingerprint change on canonical growth.
+  Suite: 388 -> 400 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's

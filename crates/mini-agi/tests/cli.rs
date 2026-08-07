@@ -1791,6 +1791,12 @@ fn cli_mem_unpreserve_unblocks_supersede() {
         "{}",
         stdout(&un)
     );
+    // F3: removing the LAST preserved id drops preserved.md entirely
+    // (no newline-only stub left behind).
+    assert!(
+        !root.join("memory/canonical/preserved.md").exists(),
+        "preserved.md must be removed when the last id is un-preserved"
+    );
     let ok = run(
         &root,
         &[
@@ -1908,6 +1914,8 @@ fn cli_loop_parallel_fails_closed_without_verifier_and_on_bad_manifest() {
             "loop",
             "parallel",
             "goal",
+            "--verify",
+            "true",
             "--manifest",
             manifest.to_str().unwrap(),
         ],
@@ -1915,6 +1923,11 @@ fn cli_loop_parallel_fails_closed_without_verifier_and_on_bad_manifest() {
     assert!(
         !bad_manifest.status.success(),
         "{}",
+        combined(&bad_manifest)
+    );
+    assert!(
+        combined(&bad_manifest).contains("manifest"),
+        "must fail on manifest parse, not the verifier gate: {}",
         combined(&bad_manifest)
     );
     wipe(&root);

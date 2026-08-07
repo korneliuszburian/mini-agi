@@ -279,7 +279,13 @@ pub fn unpreserve_ids(root: &Path, ids: &[String]) -> Result<usize, MemoryError>
         ))
     })?;
     fs::create_dir_all(parent)?;
-    fs::write(&path, format!("{}\n", kept.join("\n")))?;
+    if kept.is_empty() {
+        // Removing the last preserved id: drop the file entirely rather
+        // than leave a newline-only stub (review F3).
+        fs::remove_file(&path)?;
+    } else {
+        fs::write(&path, format!("{}\n", kept.join("\n")))?;
+    }
     Ok(removed_count)
 }
 

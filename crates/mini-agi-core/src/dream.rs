@@ -507,6 +507,23 @@ pub fn apply_verdicts(
                     fact.body.split_whitespace().collect::<Vec<_>>().join(" ");
                 match (existing, existing_body) {
                     (Some(existing_id), Some(body)) if body != flat_candidate => {
+                        // ADR-0010: a load-bearing (preserved) fact is a
+                        // stronger contract than supersede — a duplicate
+                        // verdict against one routes to the human queue
+                        // instead of failing the whole batch (review
+                        // F2: the write-layer PreservedId error would
+                        // abort dream --promote partially).
+                        if preserved.contains(&existing_id) {
+                            crate::memory::append_contested(
+                                root,
+                                &flat_candidate,
+                                &h,
+                                source,
+                                &existing_id,
+                            )?;
+                            queued += 1;
+                            continue;
+                        }
                         crate::memory::write_supersede_entry(
                             root,
                             &[(flat_candidate, h)],
@@ -750,6 +767,49 @@ mod tests {
                 .any(|id| id == &existing_id),
             "old fact must be recorded as superseded"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn duplicate_verdict_against_preserved_fact_queues_for_human() {
+        // Review F2: the write-layer PreservedId enforcement must not
+        // abort a whole dream --promote batch when a duplicate verdict
+        // targets a load-bearing fact — it routes to the human queue
+        // (ADR-0010), matching the promote-arm behaviour.
+        let root = std::env::temp_dir().join(format!("mag-dream4-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let old_body = "load-bearing fact about pricing".to_string();
+        let old_id = crate::hash::fact_id(&old_body);
+        crate::memory::write_canonical_entry(
+            &root,
+            &[(old_body, old_id.clone())],
+            "seed",
+            "general",
+            "dream",
+        )
+        .unwrap();
+        crate::memory::preserve_ids(&root, std::slice::from_ref(&old_id)).unwrap();
+        let staged = vec![StagedFact {
+            body: "load-bearing fact about pricing in USD".to_string(),
+            domain: "general".to_string(),
+        }];
+        let verdicts = vec![AuditorVerdict {
+            index: 0,
+            verdict: "duplicate".into(),
+            reason: Some("refined wording".into()),
+            existing_id: Some(old_id.clone()),
+        }];
+        let (promoted, queued, skipped) =
+            apply_verdicts(&root, &staged, &verdicts, "dream-test").unwrap();
+        assert_eq!(promoted, 0);
+        assert_eq!(
+            queued, 1,
+            "preserved duplicate must route to the human queue"
+        );
+        assert_eq!(skipped, 0);
+        // The preserved fact must NOT be superseded.
+        let superseded = crate::memory::superseded_ids(&root);
+        assert!(!superseded.contains(&old_id), "{superseded:?}");
         let _ = std::fs::remove_dir_all(&root);
     }
 }
