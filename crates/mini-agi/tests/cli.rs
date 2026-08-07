@@ -2362,6 +2362,20 @@ fn cli_eval_steps_reports_suspicious_steps() {
         "expected suspicious count: {}",
         stdout(&out)
     );
+    // A clean run (all steps goal-aligned) must report the negative path.
+    let clean_path = case_dir.join("clean.json");
+    std::fs::write(
+        &clean_path,
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    let clean = run(&root, &["eval", "steps", clean_path.to_str().unwrap()]);
+    assert!(clean.status.success(), "{}", combined(&clean));
+    assert!(
+        stdout(&clean).contains("no suspicious steps"),
+        "{}",
+        stdout(&clean)
+    );
     wipe(&root);
 }
 
