@@ -533,3 +533,4 @@
 2026-08-07T22:39:06Z BEGIN fix124-cli-parallel-protected -> 07c082d
 2026-08-07T22:40:24Z VERIFY-PASS fix124-cli-parallel-protected @ cbf3d31
 2026-08-07T22:41:48Z BEGIN fix125-cli-graph-dangling -> 1524a44
+2026-08-07T22:43:04Z VERIFY-PASS fix125-cli-graph-dangling @ cb2b124
