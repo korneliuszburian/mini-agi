@@ -168,19 +168,50 @@ pub fn count_reruns(root: &Path, case: &str) -> usize {
         .count()
 }
 
-/// Composite of the rerun case `<case>-rerun`, when it exists.
+/// Composite of the best rerun attempt: max over every
+/// `<case>-rerun`, `-rerun-2`, ... dir, when any exists. Tracks the
+/// *best*, not the latest (SQLQE #19: a bad retry must not regress).
 #[must_use]
 pub fn rerun_composite(root: &Path, case: &str) -> Option<f64> {
-    let run = root
-        .join("evals/cases")
-        .join(format!("{case}-rerun"))
-        .join("run.json");
-    if !run.is_file() {
+    let cases_dir = root.join("evals/cases");
+    let Ok(entries) = fs::read_dir(&cases_dir) else {
         return None;
+    };
+    let mut best: Option<f64> = None;
+    for e in entries.flatten() {
+        let file_name = e.file_name();
+        let name = file_name.to_string_lossy();
+        if !name.starts_with(&format!("{case}-rerun")) {
+            continue;
+        }
+        let run = e.path().join("run.json");
+        if !run.is_file() {
+            continue;
+        }
+        if let Ok(r) = eval::score_run(&run, root, &root.join("evals/golden")) {
+            best = Some(best.map_or(r.composite, |b| b.max(r.composite)));
+        }
     }
-    eval::score_run(&run, root, &root.join("evals/golden"))
-        .ok()
-        .map(|r| r.composite)
+    best
+}
+
+/// Best composite across the original and all rerun attempts (SQLQE
+/// #19 best-result tracking: return the best seen when retries exhaust;
+/// a bad retry cannot regress). `None` when no runnable run exists.
+#[must_use]
+pub fn best_composite(root: &Path, case: &str) -> Option<f64> {
+    let original = {
+        let run = root.join("evals/cases").join(case).join("run.json");
+        eval::score_run(&run, root, &root.join("evals/golden"))
+            .ok()
+            .map(|r| r.composite)
+    };
+    match (original, rerun_composite(root, case)) {
+        (Some(o), Some(r)) => Some(o.max(r)),
+        (Some(o), None) => Some(o),
+        (None, Some(r)) => Some(r),
+        (None, None) => None,
+    }
 }
 
 /// A case is closed when its rerun reaches the loop target — the original
@@ -258,6 +289,12 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
     candidates.sort_by(|a, b| a.composite.total_cmp(&b.composite));
     for candidate in candidates {
         if case_closed_by_rerun(root, &candidate.case) {
+            continue;
+        }
+        // Best-result tracking (SQLQE #19): a case whose best result
+        // already reaches the target is closed — do not pick it for
+        // another rerun.
+        if best_composite(root, &candidate.case).is_some_and(|b| b >= below) {
             continue;
         }
         let Some(ticket) = ticket_for_case(root, &candidate.case) else {
@@ -544,6 +581,13 @@ pub fn objective(
         }
         let case = &candidate.case;
         if case_closed_by_rerun(root, case) {
+            continue;
+        }
+        // Best-result tracking (SQLQE #19): if the best result seen so
+        // far — original or any rerun — already reaches the target, the
+        // gap is effectively closed; do not re-dispatch a case whose best
+        // cannot be improved by another retry.
+        if best_composite(root, case).is_some_and(|b| b >= target) {
             continue;
         }
         let run_path = root.join("evals/cases").join(case).join("run.json");
@@ -1296,6 +1340,54 @@ mod tests {
         assert!(!spec2.contains("red-team"), "no warn expected: {spec2}");
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(&root2);
+    }
+
+    #[test]
+    fn rerun_composite_tracks_best_across_multiple_reruns() {
+        let root = tmp_case_root("best-rerun");
+        let cases = root.join("evals/cases");
+        // Original: real-ticket-008-v2 fixture (0.9774).
+        // Rerun 1: copy the same run (equal composite).
+        fs::create_dir_all(cases.join("real-ticket-008-v2-rerun")).unwrap();
+        fs::copy(
+            repo().join("evals/cases/real-ticket-008-v2/run.json"),
+            cases.join("real-ticket-008-v2-rerun/run.json"),
+        )
+        .unwrap();
+        // Rerun 2: overwrite with an unachieved run (much lower composite)
+        // — must NOT regress the tracked rerun best.
+        let mut low: eval::Run = serde_json::from_str(
+            &fs::read_to_string(repo().join("evals/cases/real-ticket-008-v2/run.json")).unwrap(),
+        )
+        .unwrap();
+        low.outcome.achieved = false;
+        fs::create_dir_all(cases.join("real-ticket-008-v2-rerun-2")).unwrap();
+        fs::write(
+            cases.join("real-ticket-008-v2-rerun-2/run.json"),
+            serde_json::to_string(&low).unwrap(),
+        )
+        .unwrap();
+        let best_rerun = rerun_composite(&root, "real-ticket-008-v2").unwrap();
+        assert!(
+            best_rerun >= 0.9,
+            "best rerun must not regress to the low rerun-2: {best_rerun}"
+        );
+        // best_composite = max(original, best rerun) = original's value.
+        let best = best_composite(&root, "real-ticket-008-v2").unwrap();
+        assert!(
+            (best - best_rerun).abs() < 1e-9,
+            "original and rerun-1 share the fixture score"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn best_composite_without_reruns_is_original() {
+        let root = tmp_case_root("best-original");
+        let best = best_composite(&root, "real-ticket-008-v2").unwrap();
+        assert!(best >= 0.9, "no rerun -> best = original fixture: {best}");
+        assert!(rerun_composite(&root, "real-ticket-008-v2").is_none());
+        let _ = fs::remove_dir_all(&root);
     }
 }
 
