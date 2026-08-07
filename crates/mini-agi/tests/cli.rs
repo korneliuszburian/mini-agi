@@ -2712,3 +2712,25 @@ fn cli_mem_missing_required_args_fail_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_derive_is_idempotent() {
+    // derive must be deterministic: a second run regenerates the SAME
+    // brief (replay MATCH and the audit provenance check depend on it).
+    let root = tmp_root("cdi");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e\n\n- domain: general\n\n## F-000 `0123456789abcdf7`\n\nwidget alpha mechanism\n",
+    );
+    let d1 = run(&root, &["derive"]);
+    assert!(d1.status.success(), "{}", combined(&d1));
+    let h1 = std::fs::read(root.join("memory/derived/context-brief.md")).unwrap();
+    let d2 = run(&root, &["derive"]);
+    assert!(d2.status.success(), "{}", combined(&d2));
+    let h2 = std::fs::read(root.join("memory/derived/context-brief.md")).unwrap();
+    assert_eq!(h1, h2, "derive must be deterministic (same brief bytes)");
+    wipe(&root);
+}
