@@ -21,7 +21,7 @@ harness evolution, Rust quality gates), 359 tests green, gate ALL GREEN, v0.3.0:
 | --- | --- |
 | 0 | memory engine (consolidate/signoff/derive/provenance) + CLI |
 | 1 | eval engine (4D scoring, golden, baseline, regression gate) |
-| 2 | skills registry (frontmatter, verify hooks, `skill add`) + 15 skills with completion criteria |
+| 2 | skills registry (frontmatter, verify hooks, `skill add`) + 17 skills with completion criteria |
 | 3 | checkpoint journal audit (T008 semantics), typed contracts, metrics |
 | 4 | stdio MCP server (39 tools, codex+claude framings) + adapters; PROVEN live: codex wrote facts through MCP |
 | 5 | `init` scaffold, CI on pinned toolchain, demo, dogfood |
