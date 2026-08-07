@@ -296,3 +296,4 @@
 2026-08-07T07:19:35Z BEGIN fix7-repair-aware-dispatch -> bf3c92c
 2026-08-07T07:23:13Z VERIFY-PASS fix7-repair-aware-dispatch @ b08228e
 2026-08-07T07:31:20Z BEGIN fix8-judge-abstention -> 11a8951
+2026-08-07T07:36:02Z VERIFY-PASS fix8-judge-abstention @ 6af533a
