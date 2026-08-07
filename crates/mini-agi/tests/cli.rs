@@ -1358,6 +1358,17 @@ fn cli_run_verify_dry_run_prints_command_without_executing() {
     // executing it." No test covered this — a regression that executes
     // the verifier (or fails) in dry-run mode would pass silently.
     let root = tmp_root("c-drv");
+    // A run with no declared verifier is reported 'unverified' (exit 0),
+    // never treated as a pass.
+    let unv = root.join("unv.json");
+    std::fs::write(
+        &unv,
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    let uv = run(&root, &["run", "verify", unv.to_str().unwrap()]);
+    assert!(uv.status.success(), "{}", combined(&uv));
+    assert!(stdout(&uv).contains("unverified"), "{}", stdout(&uv));
     wipe(&root);
     let target = root.join("target");
     std::fs::create_dir_all(&target).unwrap();
