@@ -856,7 +856,12 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             let budget_cost = if budget_cost.is_empty() {
                 None
             } else {
-                budget_cost.parse::<f64>().ok()
+                match budget_cost.parse::<f64>() {
+                    Ok(v) => Some(v),
+                    Err(e) => {
+                        return format!("error: budget_cost '{budget_cost}' is not a number ({e})");
+                    }
+                }
             };
             match mini_agi_core::loopcmd::objective(root, max_cases, claimant, budget_cost) {
                 Ok(plan) => format!(
@@ -1208,6 +1213,22 @@ mod tests {
             out.starts_with("error: loop_objective requires an approval reason"),
             "{out}"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn loop_objective_bad_budget_cost_is_an_error() {
+        // A malformed budget_cost must surface as an error, not be
+        // silently dropped (the caller would believe the budget applies).
+        let root = std::env::temp_dir().join(format!("mag-mcp-ob-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = call_tool(
+            "loop_objective",
+            &serde_json::json!({"claimant": "t", "approve": "r", "budget_cost": "abc"}),
+            &root,
+        );
+        assert!(out.starts_with("error: budget_cost"), "{out}");
         let _ = std::fs::remove_dir_all(&root);
     }
 
