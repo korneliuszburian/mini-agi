@@ -147,7 +147,8 @@ fn handle_initialize(params: &Value) -> Value {
             "loop_verify <case> (close a gap), checkpoint_audit, eval_gate, ",
             "provenance. Results are provenance-bound. NEVER claim success ",
             "on an unverified run; outcome.achieved is only the run's own ",
-            "claim until run_verify passes."
+            "claim until run_verify passes. Write tools require a non-empty ",
+            "approve reason (HITL) — a write is refused without it."
         ),
     })
 }
@@ -1348,5 +1349,18 @@ mod tests {
         let mut initialized = true;
         let note = json!({"jsonrpc":"2.0","method":"notifications/initialized"});
         assert!(dispatch(&note, &mut initialized).is_none());
+    }
+
+    #[test]
+    fn initialize_instructions_carry_the_hitl_write_contract() {
+        // The server instructions are shown to the model on initialize;
+        // they must teach the HITL write rule (a write is refused without
+        // an approve reason) alongside the verified-iteration contract.
+        let init = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26"}});
+        let mut initialized = false;
+        let resp = dispatch(&init, &mut initialized).unwrap();
+        let text = resp["result"]["instructions"].as_str().unwrap_or("");
+        assert!(text.contains("approve reason"), "{text}");
+        assert!(text.contains("NEVER claim success"), "{text}");
     }
 }

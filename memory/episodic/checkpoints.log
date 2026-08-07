@@ -546,3 +546,4 @@
 2026-08-07T22:59:43Z VERIFY-PASS fix130-gitignore-template @ f8d2b61
 2026-08-07T23:01:28Z BEGIN fix131-init-opencode-assert -> 5593dbd
 2026-08-07T23:02:44Z VERIFY-PASS fix131-init-opencode-assert @ e45d40a
+2026-08-07T23:04:04Z BEGIN fix132-mcp-instructions-hitl -> b43630b
