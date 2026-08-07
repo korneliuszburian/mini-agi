@@ -508,3 +508,4 @@
 2026-08-07T22:08:34Z VERIFY-PASS fix111-cli-derive-idempotent @ 09dc832
 2026-08-07T22:11:07Z BEGIN fix112-cli-gate-roundtrip -> c7c7515
 2026-08-07T22:12:18Z VERIFY-PASS fix112-cli-gate-roundtrip @ 75c4a2d
+2026-08-07T22:13:58Z BEGIN fix113-changelog5 -> e4ce2f1
