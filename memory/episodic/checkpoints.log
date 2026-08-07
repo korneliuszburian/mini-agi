@@ -490,3 +490,4 @@
 2026-08-07T21:50:10Z VERIFY-PASS fix102-cli-validate-unknown @ 5250b86
 2026-08-07T21:50:49Z BEGIN fix103-cli-claim-missing -> 12be7be
 2026-08-07T21:52:24Z VERIFY-PASS fix103-cli-claim-missing @ 76ab46d
+2026-08-07T21:53:15Z BEGIN fix104-cli-harness-verify-missing -> d946602

@@ -2609,3 +2609,27 @@ fn cli_ticket_claim_missing_fails_cleanly() {
     assert!(combined(&out).contains("no ticket"), "{}", combined(&out));
     wipe(&root);
 }
+
+#[test]
+fn cli_harness_verify_missing_target_fails_cleanly() {
+    // harness verify on a nonexistent target must error cleanly (exit
+    // 1), not panic.
+    let root = tmp_root("chvm");
+    wipe(&root);
+    let out = run(
+        &root,
+        &[
+            "harness",
+            "verify",
+            root.join("nope-target").to_str().unwrap(),
+            root.join("cand").to_str().unwrap(),
+        ],
+    );
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("harness verify:"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
