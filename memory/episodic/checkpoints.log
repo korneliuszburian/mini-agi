@@ -470,3 +470,5 @@
 2026-08-07T21:14:45Z VERIFY-PASS fix92-cli-loop-verify-closed @ 9878eac
 2026-08-07T21:16:12Z BEGIN fix93-cli-ui-test -> 635e377
 2026-08-07T21:17:44Z VERIFY-PASS fix93-cli-ui-test @ 66e4d3a
+2026-08-07T21:20:56Z BEGIN fix94-readme-cli-list -> e488008 (restored by rollback)
+2026-08-07T21:20:56Z VERIFY-FAIL fix94-readme-cli-list @ d84881b -> ROLLBACK to e488008

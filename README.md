@@ -87,29 +87,37 @@ close on breach.
 ```
 mini-agi mem consolidate <buffer> [--domain d] [--require-signoff] [--dry-run]
 mini-agi mem signoff <queue> <index>
-mini-agi derive [--brief-only]
+mini-agi mem query <keyword> [--domain d] [--raw] [--budget N]
+mini-agi mem supersede <body> --supersedes <id,...> [--domain d]
+mini-agi mem preserve|unpreserve <id,...>
+mini-agi mem verify                # integrity gate (duplicates/lineage/preserve)
+mini-agi derive [--brief-only] [--snapshot <name>] [--replay <name>]
 mini-agi provenance
-mini-agi eval score <run.json>
+mini-agi eval score|steps <run.json>
 mini-agi eval gate [--tolerance 0.05] [--write-baseline]
+mini-agi eval judge-drift | judge-recalibrate | hidden [<dir>] | mismatches [<run>]
 mini-agi skill list | show <name> | verify <name> | add <source>
 mini-agi checkpoint audit
 mini-agi validate <eval-run|ticket|spec|verdict> <document.json>
 mini-agi stats | budget
 mini-agi mcp                  # stdio MCP server (39 tools)
 mini-agi init                  # scaffold a repo with a verified brain
-mini-agi ticket list|show|validate <id>
+mini-agi ticket list|show|validate|validate-graph <id>
 mini-agi run ingest <run.json> [--retro <md>]
 mini-agi run verify <run.json> [--dry-run]   # deterministic verifier
+mini-agi run verify-audit <run.json>         # vacuous-verifier audit
+mini-agi run failures <run.json>             # repetition register
 mini-agi loop status|dispatch|verify|run|objective|parallel
+mini-agi resume | insights | backlog | health | audit | status [--json]
+mini-agi dream --source <md> | --idle | --promote
+mini-agi harness snapshot | verify <target> <candidate> [--claims]
+mini-agi ui [--port N]       # local dev server
 mini-agi codex <spec> <workdir> --verify <cmd> --target <dir> [--iterate N]
                       # captured worker run; --iterate N = verified-
                       # iteration loop: on verifier failure, re-invoke a
                       # fresh worker with the distilled failure register
-                      # (EXP-012: turns blind single-shots from 50% to
-                      # 100% verified pass where solo is below the bar)
-mini-agi harness snapshot|verify <target> <candidate> [--claims]
-mini-agi insights | backlog | resume | health | audit
-mini-agi eval judge-drift | hidden [--dir <d>]
+                       # (EXP-012: turns blind single-shots from 50% to
+                       # 100% verified pass where solo is below the bar)
 ```
 
 ## MCP
