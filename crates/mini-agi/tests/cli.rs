@@ -804,6 +804,10 @@ fn cli_eval_gate_never_silently_rebaselines() {
     let loose = run(&root, &["eval", "gate", "--tolerance", "1.0"]);
     assert!(loose.status.success(), "{}", combined(&loose));
     assert!(stdout(&loose).contains("PASS"), "{}", stdout(&loose));
+    // A loose mismatch-tolerance override must also pass.
+    let loose_m = run(&root, &["eval", "gate", "--mismatch-tolerance", "100"]);
+    assert!(loose_m.status.success(), "{}", combined(&loose_m));
+    assert!(stdout(&loose_m).contains("PASS"), "{}", stdout(&loose_m));
     wipe(&root);
 }
 

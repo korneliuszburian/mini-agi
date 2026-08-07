@@ -564,3 +564,4 @@
 2026-08-07T23:31:31Z VERIFY-PASS fix139-attribution-test @ 735a383
 2026-08-07T23:33:36Z BEGIN fix140-cli-gate-tolerance -> b055ad7
 2026-08-07T23:34:53Z VERIFY-PASS fix140-cli-gate-tolerance @ 189878c
+2026-08-07T23:35:50Z BEGIN fix141-cli-gate-mismatch-tol -> dc86f0d
