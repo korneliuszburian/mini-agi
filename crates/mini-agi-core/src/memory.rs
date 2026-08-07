@@ -233,11 +233,17 @@ pub fn preserve_ids(root: &Path, ids: &[String]) -> Result<PathBuf, MemoryError>
     if let Some(parent) = list.parent() {
         fs::create_dir_all(parent)?;
     }
+    // Idempotent: skip ids already on the list so repeated `preserve`
+    // calls do not accumulate duplicate lines.
+    let existing = preserved_ids(root);
     let mut f = fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&list)?;
     for id in ids {
+        if existing.contains(id) {
+            continue;
+        }
         writeln!(f, "{id}")?;
     }
     Ok(list)
@@ -1232,7 +1238,15 @@ mod tests {
         )
         .unwrap();
         preserve_ids(&root, std::slice::from_ref(&id)).unwrap();
-        assert_eq!(preserved_ids(&root), vec![id]);
+        assert_eq!(preserved_ids(&root), vec![id.clone()]);
+        // Idempotent: a repeated preserve of the same id must not add a
+        // duplicate line.
+        preserve_ids(&root, std::slice::from_ref(&id)).unwrap();
+        assert_eq!(
+            preserved_ids(&root),
+            vec![id],
+            "preserve must be idempotent"
+        );
         // A candidate sharing the prefix routes to the queue even without
         // require_signoff (preservation is unconditional).
         let candidate = "load-bearing fact about pricing in USD";
