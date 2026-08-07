@@ -30,7 +30,7 @@ if [ -f Cargo.toml ]; then
     step "build"         cargo build || fail=1
     step "fmt-check"    sh -c 'cargo fmt --check && echo "fmt-check: clean"' || fail=1
     step "clippy"       cargo clippy --all-targets --all-features -- -D warnings || fail=1
-    step "tests"        cargo test --all || fail=1
+    step "tests"        cargo test --all --all-features || fail=1
     if [ -n "$BIN" ] && [ -x "$BIN" ]; then
         step "skills"       "$BIN" skill verify-all || fail=1
     else
