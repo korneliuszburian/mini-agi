@@ -58,28 +58,10 @@ budget, insights, audit, sandbox) — a silent target is a failing target.
 - Communication: facts and next actions, no filler.
 ";
 
-const RUBRIC_MD: &str = r"# Review rubric
-
-Evidence-first: cite the changed file and line, a reproducer, or verifier
-output for every finding and score. Do not infer a pass from an unrun check.
-
-Score each dimension from 0-2:
-
-| Dimension | 0 | 1 | 2 |
-| --- | --- | --- | --- |
-| Correctness | Broken contract | Material concern | Contract satisfied |
-| Security | Vulnerability | Unresolved risk | No material risk found |
-| Tests | Missing or unconvincing | Partial coverage | Regression coverage and relevant gates |
-| Scope | Unauthorised change | Minor drift | Ticket scope only |
-
-Total the four scores (0-8): APPROVE >=7; FIX-MINOR 5-6; REWORK <5.
-
-## Memory-anchor rule (ADR-0003)
-
-A verdict must end with an `Anchors:` line listing the canonical fact ids
-(16-hex, from `memory/canonical/index.md`) the review relies on. A verdict
-with zero anchors fails the gate, whatever the score.
-";
+/// The review rubric is embedded from the repo's canonical copy so a
+/// fresh init ships the SAME rubric (posture + evidence requirements)
+/// the gate enforces — never a hand-maintained stale duplicate.
+const RUBRIC_MD: &str = include_str!("../../../.agents/checks/review-rubric.md");
 
 const GITIGNORE: &str = "target/\n";
 

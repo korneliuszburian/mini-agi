@@ -1506,6 +1506,13 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
         agents.contains("mem-dedup/integrity") && agents.contains("skills"),
         "AGENTS.md gate list must cover the full verify.sh steps"
     );
+    // The generated rubric must carry the canonical posture/evidence
+    // requirements (embedded from the repo copy, not a stale duplicate).
+    let rubric = std::fs::read_to_string(root.join(".agents/checks/review-rubric.md")).unwrap();
+    assert!(
+        rubric.contains("DEVIL'S ADVOCATE") && rubric.contains("Anchors:"),
+        "init-generated rubric must match the canonical review rubric"
+    );
     // The codex config must be wired with the MCP allowlist + HITL
     // approvals (not just trusted=true) so a fresh init enforces writes.
     let codex = std::fs::read_to_string(root.join(".codex/config.toml")).expect("codex config");

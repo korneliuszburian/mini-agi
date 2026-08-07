@@ -540,3 +540,4 @@
 2026-08-07T22:47:54Z VERIFY-PASS fix127-gitignore-snapshots @ 9c13bab
 2026-08-07T22:52:21Z BEGIN fix128-agents-md-gate-list -> 5d4cdd7
 2026-08-07T22:54:05Z VERIFY-PASS fix128-agents-md-gate-list @ 0375b0f
+2026-08-07T22:55:25Z BEGIN fix129-rubric-include-str -> 01b75f8
