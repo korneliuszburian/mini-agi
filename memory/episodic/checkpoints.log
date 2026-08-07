@@ -569,3 +569,4 @@
 2026-08-07T23:38:16Z BEGIN fix142-cli-stats-coverage -> 335e206
 2026-08-07T23:39:32Z VERIFY-PASS fix142-cli-stats-coverage @ c52440b
 2026-08-07T23:40:29Z BEGIN fix143-cli-budget-coverage -> af13904
+2026-08-07T23:41:47Z VERIFY-PASS fix143-cli-budget-coverage @ d3a7bbf
