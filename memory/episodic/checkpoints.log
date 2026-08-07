@@ -555,3 +555,4 @@
 2026-08-07T23:16:02Z BEGIN fix135-mcp-budget-parse -> c80b92f
 2026-08-07T23:17:43Z VERIFY-PASS fix135-mcp-budget-parse @ 1f6e70d
 2026-08-07T23:18:37Z BEGIN fix136-resume-claims -> 50e07ec
+2026-08-07T23:21:30Z VERIFY-PASS fix136-resume-claims @ 6f208a7
