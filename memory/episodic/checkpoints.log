@@ -355,3 +355,4 @@
 2026-08-07T17:36:50Z VERIFY-PASS fix34-resume-mismatch-test @ 07384d3
 2026-08-07T17:40:36Z BEGIN fix35-mcp-dispatch-hitl -> b9dbb8f
 2026-08-07T17:43:26Z VERIFY-PASS fix35-mcp-dispatch-hitl @ cff85f1
+2026-08-07T17:44:21Z BEGIN fix36-mcp-write-tools-hitl -> 62ca43f

@@ -183,13 +183,14 @@ fn tool_definitions() -> Vec<Value> {
         },
         ToolDef {
             name: "memory_signoff",
-            description: "Promote one contested fact from the review queue.",
+            description: "Promote one contested fact from the review queue. Requires an approval reason (a write that promotes a fact into canonical memory).",
             params: &[
                 ("queue", "string"),
                 ("index", "integer"),
                 ("domain", "string"),
+                ("approve", "string"),
             ],
-            required: &["queue", "index"],
+            required: &["queue", "index", "approve"],
         },
         ToolDef {
             name: "memory_derive",
@@ -235,9 +236,9 @@ fn tool_definitions() -> Vec<Value> {
         },
         ToolDef {
             name: "skill_add",
-            description: "Install skills from a git source.",
-            params: &[("source", "string")],
-            required: &["source"],
+            description: "Install skills from a git source. Requires an approval reason (a write that installs code into the repo).",
+            params: &[("source", "string"), ("approve", "string")],
+            required: &["source", "approve"],
         },
         ToolDef {
             name: "checkpoint_audit",
@@ -283,9 +284,13 @@ fn tool_definitions() -> Vec<Value> {
         },
         ToolDef {
             name: "run_ingest",
-            description: "Ingest a scored run.json into canonical memory (ADR-0005).",
-            params: &[("run", "string"), ("retro", "string")],
-            required: &["run"],
+            description: "Ingest a scored run.json into canonical memory (ADR-0005). Requires an approval reason (a write that appends facts to canonical memory).",
+            params: &[
+                ("run", "string"),
+                ("retro", "string"),
+                ("approve", "string"),
+            ],
+            required: &["run", "approve"],
         },
         ToolDef {
             name: "insights",
@@ -325,15 +330,23 @@ fn tool_definitions() -> Vec<Value> {
         },
         ToolDef {
             name: "ticket_claim",
-            description: "Claim a ticket (lease).",
-            params: &[("id", "string"), ("claimant", "string")],
-            required: &["id", "claimant"],
+            description: "Claim a ticket (lease). Requires an approval reason (a write that acquires a lease).",
+            params: &[
+                ("id", "string"),
+                ("claimant", "string"),
+                ("approve", "string"),
+            ],
+            required: &["id", "claimant", "approve"],
         },
         ToolDef {
             name: "ticket_release",
-            description: "Release a claim (holder only).",
-            params: &[("id", "string"), ("claimant", "string")],
-            required: &["id", "claimant"],
+            description: "Release a claim (holder only). Requires an approval reason (a write that releases a lease).",
+            params: &[
+                ("id", "string"),
+                ("claimant", "string"),
+                ("approve", "string"),
+            ],
+            required: &["id", "claimant", "approve"],
         },
         ToolDef {
             name: "ticket_claims",
@@ -434,9 +447,9 @@ fn tool_definitions() -> Vec<Value> {
         },
         ToolDef {
             name: "harness",
-            description: "Versioned harness snapshot + gate ledger row.",
-            params: &[],
-            required: &[],
+            description: "Versioned harness snapshot + gate ledger row. Requires an approval reason (a write that records a gate ledger row).",
+            params: &[("approve", "string")],
+            required: &["approve"],
         },
     ];
     TOOLS
@@ -500,6 +513,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             }
         }
         "memory_signoff" => {
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: memory_signoff requires an approval reason (approve) — a write that promotes a fact into canonical memory".to_string();
+            }
             let queue = arg!("queue");
             let index = arg_u64(args, "index")
                 .and_then(|v| usize::try_from(v).ok())
@@ -568,14 +585,20 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             Ok(result) => format!("FAIL (exit {:?})\n{}", result.exit_code, result.output),
             Err(e) => format!("error: {e}"),
         },
-        "skill_add" => match skills::install_skills(root, arg!("source")) {
-            Ok(installed) => installed
-                .iter()
-                .map(|name| format!("installed: {name}"))
-                .collect::<Vec<_>>()
-                .join("\n"),
-            Err(e) => format!("error: {e}"),
-        },
+        "skill_add" => {
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: skill_add requires an approval reason (approve) — a write that installs code into the repo".to_string();
+            }
+            match skills::install_skills(root, arg!("source")) {
+                Ok(installed) => installed
+                    .iter()
+                    .map(|name| format!("installed: {name}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                Err(e) => format!("error: {e}"),
+            }
+        }
         "checkpoint_audit" => match super::checkpoint_audit_text(root) {
             Ok(text) => text,
             Err(e) => format!("error: {e}"),
@@ -618,6 +641,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             Err(e) => format!("error: {e}"),
         },
         "run_ingest" => {
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: run_ingest requires an approval reason (approve) — a write that appends facts to canonical memory".to_string();
+            }
             let run = arg!("run");
             let retro = {
                 let r = arg!("retro");
@@ -734,6 +761,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             Err(e) => format!("error: {e}"),
         },
         "ticket_claim" => {
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: ticket_claim requires an approval reason (approve) — a write that acquires a lease".to_string();
+            }
             let id = arg!("id");
             let claimant = arg!("claimant");
             match ticket::claim_ticket(root, id, claimant, false) {
@@ -745,6 +776,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             }
         }
         "ticket_release" => {
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: ticket_release requires an approval reason (approve) — a write that releases a lease".to_string();
+            }
             let id = arg!("id");
             let claimant = arg!("claimant");
             match ticket::release_ticket(root, id, claimant) {
@@ -995,10 +1030,16 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 Err(e) => format!("error: {e}"),
             }
         }
-        "harness" => match mini_agi_core::harness::snapshot(root) {
-            Ok((name, verdict)) => format!("harness snapshot: {name}\n  {verdict}"),
-            Err(e) => format!("error: {e}"),
-        },
+        "harness" => {
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return "error: harness requires an approval reason (approve) — a write that records a gate ledger row".to_string();
+            }
+            match mini_agi_core::harness::snapshot(root) {
+                Ok((name, verdict)) => format!("harness snapshot: {name}\n  {verdict}"),
+                Err(e) => format!("error: {e}"),
+            }
+        }
         "ticket_show" | "ticket_validate" => {
             let id = arg!("id");
             match ticket::find_ticket(root, id) {
@@ -1160,8 +1201,21 @@ mod tests {
 
     #[test]
     fn dispatch_tools_declare_approve_required() {
+        // AGENTS.md: "Writes (loop_dispatch, memory_signoff, run_ingest,
+        // ticket_claim/release, skill_add, harness) require a prompt
+        // (HITL)". Every such MCP tool must declare + require approve.
         let tools = tool_definitions();
-        for name in ["loop_dispatch", "loop_objective"] {
+        let write_tools = [
+            "loop_dispatch",
+            "loop_objective",
+            "memory_signoff",
+            "run_ingest",
+            "ticket_claim",
+            "ticket_release",
+            "skill_add",
+            "harness",
+        ];
+        for name in write_tools {
             let tool = tools.iter().find(|t| t["name"] == name).unwrap();
             let required = tool["inputSchema"]["required"]
                 .as_array()
