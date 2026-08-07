@@ -2427,6 +2427,11 @@ fn cli_eval_score_reports_composite_json() {
         "{}",
         stdout(&out)
     );
+    assert!(
+        parsed["error_budget"].get("total_steps").is_some(),
+        "error_budget audit must be in the report: {}",
+        stdout(&out)
+    );
     wipe(&root);
 }
 
