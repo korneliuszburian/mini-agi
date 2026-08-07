@@ -437,6 +437,60 @@ pub fn error_budget_audit(run: &Run) -> ErrorBudgetAudit {
     }
 }
 
+/// Deterministic run-failure classifier for the repair gate (GGC #60):
+/// mechanical failures a rerun can target vs semantic ones a blind retry
+/// would reproduce.
+///
+/// GGC measured ~78% of generated-query errors as *semantic*
+/// (executable-but-wrong) and that a gate deciding *when* to repair
+/// beats correcting everything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepairSignal {
+    /// Clean success — no repair needed.
+    Clean,
+    /// At least one step failed a deterministic gate, drifted from the
+    /// goal, or was reverted: a mechanical failure a rerun can target.
+    Mechanical,
+    /// No failed/reverted steps but the run is not a clean success: a
+    /// semantic failure — the output is executable-but-wrong, so a blind
+    /// retry is likely to reproduce it (GGC: ~78% of failures).
+    Semantic,
+    /// Repetition watchdog tripped: the trajectory repeats the same
+    /// (tool, action) consecutively — a spinning worker that a rerun
+    /// must not blindly repeat.
+    Spinning,
+}
+
+/// Classify a run's failure mode for the repair gate.
+#[must_use]
+pub fn repair_signal(run: &Run, max_repeated_steps: Option<usize>) -> RepairSignal {
+    // Spinning takes precedence over Clean: a trajectory that repeats
+    // the same (tool, action) consecutively is a warning even when the
+    // run claims success (the repeat can be a legit probe, but a rerun
+    // must not blindly resubmit the loop).
+    let repeated = max_repeated_steps.is_some_and(|m| max_consecutive_repeat(run) > m);
+    if repeated {
+        return RepairSignal::Spinning;
+    }
+    if run.outcome.achieved
+        && run
+            .trajectory
+            .iter()
+            .all(|s| s.ok != Some(false) && s.goal_aligned != Some(false) && !s.reverted)
+    {
+        return RepairSignal::Clean;
+    }
+    let mechanical = run
+        .trajectory
+        .iter()
+        .any(|s| s.ok == Some(false) || s.goal_aligned == Some(false) || s.reverted);
+    if mechanical {
+        RepairSignal::Mechanical
+    } else {
+        RepairSignal::Semantic
+    }
+}
+
 /// Score a trajectory (`PoC` `score_trajectory`).
 #[must_use]
 #[allow(
@@ -1401,6 +1455,33 @@ mod tests {
             audit.success_at_budget.iter().all(|s| !s),
             "an unachieved run is not a success at any budget"
         );
+    }
+
+    #[test]
+    fn repair_signal_classifies_clean_mechanical_semantic_spinning() {
+        // Clean.
+        assert_eq!(
+            repair_signal(&run_with(vec![step("tool-a")]), None),
+            RepairSignal::Clean
+        );
+        // Mechanical: a step failed its gate.
+        let mut bad = step("tool-b");
+        bad.ok = Some(false);
+        assert_eq!(
+            repair_signal(&run_with(vec![step("tool-a"), bad]), None),
+            RepairSignal::Mechanical
+        );
+        // Semantic: clean steps but unachieved outcome.
+        let mut sem = run_with(vec![step("tool-a")]);
+        sem.outcome.achieved = false;
+        assert_eq!(repair_signal(&sem, None), RepairSignal::Semantic);
+        // Spinning: repeated (tool, action) beyond the threshold.
+        let mut spinning = step("exec");
+        spinning.action = "make verify".into();
+        let spin_run = run_with(vec![spinning.clone(), spinning.clone(), spinning]);
+        assert_eq!(repair_signal(&spin_run, Some(2)), RepairSignal::Spinning);
+        // A clean run ignores the repeat threshold.
+        assert_eq!(repair_signal(&spin_run, Some(10)), RepairSignal::Clean);
     }
 }
 

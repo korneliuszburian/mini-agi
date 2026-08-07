@@ -371,6 +371,32 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
             "  [warn] red-team: a prior run on this case DISAGREED with the\n  verifier — investigate before trusting the judged outcome\n",
         )?;
     }
+    // Repair gate (cycle-33 finding, GGC #60): classify the prior run's
+    // failure mode so a fresh session does not blindly repeat it. A
+    // SEMANTIC failure (clean steps, unachieved outcome) is
+    // executable-but-wrong — a blind retry reproduces ~78% of these;
+    // the worker must change approach, not resubmit the same plan. A
+    // SPINNING run must not be repeated verbatim.
+    if let Ok(prior) =
+        serde_json::from_str::<eval::Run>(&fs::read_to_string(&run_path).unwrap_or_default())
+    {
+        let max_repeated = crate::config::Config::load(root).max_repeated_steps;
+        match eval::repair_signal(&prior, max_repeated) {
+            eval::RepairSignal::Mechanical => w(
+                &mut body,
+                "  [gate] mechanical failure (gate/goal/revert on a step) —\n  target the failing step; a corrected retry is expected to help.\n",
+            )?,
+            eval::RepairSignal::Semantic => w(
+                &mut body,
+                "  [gate] SEMANTIC failure — steps are clean but the outcome is not\n  achieved: the prior solution is executable-but-wrong. Do NOT resubmit\n  the same plan; change the approach and verify the corrected behavior.\n",
+            )?,
+            eval::RepairSignal::Spinning => w(
+                &mut body,
+                "  [gate] SPINNING — the prior trajectory repeats the same\n  (tool, action) consecutively. Do NOT repeat that loop; break it.\n",
+            )?,
+            eval::RepairSignal::Clean => {}
+        }
+    }
     w(
         &mut body,
         "4. target repo `verify.sh` ALL GREEN (where applicable)\n",
@@ -981,6 +1007,35 @@ mod tests {
         );
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(&root2);
+    }
+
+    #[test]
+    fn dispatch_spec_injects_repair_gate_for_semantic_failure() {
+        let root = tmp_case_root("repair-gate");
+        // Overwrite the run with a SEMANTIC failure: clean steps but an
+        // unachieved outcome — the GGC #60 case where blind retry
+        // reproduces the executable-but-wrong result.
+        let run_path = root.join("evals/cases/real-ticket-008-v2/run.json");
+        let mut run: eval::Run =
+            serde_json::from_str(&fs::read_to_string(&run_path).unwrap()).unwrap();
+        run.outcome.achieved = false;
+        for s in &mut run.trajectory {
+            s.ok = Some(true);
+            s.goal_aligned = Some(true);
+            s.reverted = false;
+        }
+        fs::write(&run_path, serde_json::to_string(&run).unwrap()).unwrap();
+        let outcome = dispatch(&root, Some("real-ticket-008-v2"), 0.5, "loop-test").unwrap();
+        let spec = fs::read_to_string(&outcome.spec).unwrap();
+        assert!(
+            spec.contains("[gate] SEMANTIC failure"),
+            "spec must warn the worker not to blindly retry: {spec}"
+        );
+        assert!(
+            spec.contains("Do NOT resubmit"),
+            "spec must direct a procedure change: {spec}"
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
