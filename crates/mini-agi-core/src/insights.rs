@@ -452,12 +452,12 @@ pub fn backlog(root: &Path) -> Result<Vec<BacklogTicket>, io::Error> {
     let mut created = Vec::new();
     for gap in &report.gaps {
         let case = gap.split(" (composite").next().unwrap_or(gap).to_string();
-        let already = existing
+        let existing_match = existing
             .iter()
-            .any(|t| t.goal.contains(&case) || t.title.contains(&case));
-        if already {
+            .find(|t| t.goal.contains(&case) || t.title.contains(&case));
+        if let Some(matched) = existing_match {
             created.push(BacklogTicket {
-                id: String::new(),
+                id: matched.id.clone(),
                 case: case.clone(),
                 created: false,
             });
@@ -584,6 +584,10 @@ mod backlog_tests {
         let second = backlog(&root).unwrap();
         assert_eq!(second.len(), 1);
         assert!(!second[0].created);
+        assert_eq!(
+            second[0].id, "TICKET-1",
+            "dedup must surface the existing id"
+        );
         let text = fs::read_to_string(root.join("tickets/TICKET-1.md")).unwrap();
         assert!(text.contains("reactive-loop"));
         let _ = fs::remove_dir_all(&root);

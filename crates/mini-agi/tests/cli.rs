@@ -1002,6 +1002,40 @@ fn cli_run_failures_writes_register_and_resume_shows_block() {
 }
 
 #[test]
+fn cli_backlog_creates_gap_ticket_and_dedups() {
+    // Backlog CLI (failure signal -> roadmap): the core is tested, but
+    // the CLI command itself had no integration test — a broken delegate
+    // (bad arg, bad output, wrong exit) would pass silently.
+    let root = tmp_root("cbl");
+    wipe(&root);
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("evals/cases/reactive-loop/run.json");
+    std::fs::create_dir_all(root.join("evals/cases/reactive-loop")).unwrap();
+    std::fs::copy(&src, root.join("evals/cases/reactive-loop/run.json")).unwrap();
+    let first = run(&root, &["backlog"]);
+    assert!(first.status.success(), "{}", combined(&first));
+    assert!(
+        stdout(&first).contains("created: TICKET-1"),
+        "{}",
+        stdout(&first)
+    );
+    assert!(root.join("tickets/TICKET-1.md").is_file());
+    // Second run: the gap ticket already exists -> no duplicate.
+    let second = run(&root, &["backlog"]);
+    assert!(second.status.success());
+    assert!(
+        stdout(&second).contains("exists: TICKET-1"),
+        "{}",
+        stdout(&second)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_eval_mismatches_writes_register_and_resume_shows_block() {
     let root = tmp_root("c23");
     wipe(&root);

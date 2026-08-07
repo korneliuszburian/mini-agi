@@ -365,3 +365,4 @@
 2026-08-07T17:56:02Z VERIFY-PASS fix39-run-verify-dryrun-test @ 44cc79c
 2026-08-07T17:57:05Z BEGIN fix40-dream-idle-test -> 9c1a538
 2026-08-07T17:58:15Z VERIFY-PASS fix40-dream-idle-test @ 87d8391
+2026-08-07T17:59:47Z BEGIN fix41-cli-backlog-test -> 236f0dc
