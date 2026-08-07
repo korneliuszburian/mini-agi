@@ -2102,6 +2102,45 @@ fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     .unwrap();
     let open = run(&root, &["loop", "verify", "fail-case", "--claimant", "t"]);
     assert_eq!(open.status.code(), Some(1), "{}", combined(&open));
+    // A rerun at/above target with a claim -> CLOSED, exit 0, claim
+    // released (loop verify's positive close path).
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let rerun = root.join("evals/cases/real-ticket-008-v2-rerun");
+    std::fs::create_dir_all(&rerun).unwrap();
+    std::fs::copy(
+        repo.join("evals/cases/real-ticket-008-v2/run.json"),
+        rerun.join("run.json"),
+    )
+    .unwrap();
+    std::fs::copy(
+        repo.join("tickets/TICKET-008.md"),
+        root.join("tickets/TICKET-008.md"),
+    )
+    .unwrap();
+    let claim = run(
+        &root,
+        &[
+            "ticket", "claim", "TICKET-008-v2", "--claimant", "t", "--force",
+        ],
+    );
+    assert!(claim.status.success(), "{}", combined(&claim));
+    let closed = run(
+        &root,
+        &[
+            "loop",
+            "verify",
+            "real-ticket-008-v2-rerun",
+            "--claimant",
+            "t",
+            "--allow-unverified",
+        ],
+    );
+    assert_eq!(closed.status.code(), Some(0), "{}", combined(&closed));
+    assert!(stdout(&closed).contains("CLOSED"), "{}", stdout(&closed));
     wipe(&root);
 }
 
