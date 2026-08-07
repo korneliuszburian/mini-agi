@@ -484,3 +484,4 @@
 2026-08-07T21:43:22Z VERIFY-PASS fix99-cli-verify-missing @ 60dffcd
 2026-08-07T21:44:41Z BEGIN fix100-cli-missing-file-paths -> 8af2662
 2026-08-07T21:46:06Z VERIFY-PASS fix100-cli-missing-file-paths @ 18fcafa
+2026-08-07T21:46:55Z BEGIN fix101-cli-consolidate-missing -> a9c0725

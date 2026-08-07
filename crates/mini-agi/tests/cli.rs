@@ -2565,3 +2565,16 @@ fn cli_ingest_and_score_missing_file_fail_cleanly() {
     }
     wipe(&root);
 }
+
+#[test]
+fn cli_consolidate_missing_buffer_fails_cleanly() {
+    // mem consolidate on a nonexistent buffer must error cleanly (exit
+    // 1) with 'not found', not panic.
+    let root = tmp_root("ccmb");
+    wipe(&root);
+    let missing = root.join("nope.md");
+    let out = run(&root, &["mem", "consolidate", missing.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(combined(&out).contains("not found"), "{}", combined(&out));
+    wipe(&root);
+}
