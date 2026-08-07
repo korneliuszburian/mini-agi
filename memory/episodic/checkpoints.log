@@ -481,3 +481,4 @@
 2026-08-07T21:38:31Z BEGIN fix98-cli-dispatch-nocase -> befba09
 2026-08-07T21:39:44Z VERIFY-PASS fix98-cli-dispatch-nocase @ 41cded5
 2026-08-07T21:40:34Z BEGIN fix99-cli-verify-missing -> a408031
+2026-08-07T21:43:22Z VERIFY-PASS fix99-cli-verify-missing @ 60dffcd
