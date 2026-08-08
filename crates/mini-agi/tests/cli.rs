@@ -3718,3 +3718,33 @@ fn cli_eval_gate_new_case_is_ok_not_regression() {
     assert!(combined(&out).contains("PASS"), "{}", combined(&out));
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_gate_detects_cost_regression() {
+    // A run whose cost exceeds 1.25x the baseline without improving the
+    // outcome is a COST REGRESSION (hard failure).
+    let root = tmp_root("cgcr");
+    wipe(&root);
+    let case = root.join("evals/cases/c");
+    std::fs::create_dir_all(&case).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::create_dir_all(root.join("evals/results")).unwrap();
+    std::fs::write(
+        case.join("run.json"),
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1000,"cost_usd":0.2,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1000,"output_tokens":100}]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("evals/results/baseline.json"),
+        r#"[{"case":"c","composite":0.9,"outcome":1.0,"cost_usd":0.1,"tokens":100,"tool_mismatches":0,"mode":"regression"}]"#,
+    )
+    .unwrap();
+    let out = run(&root, &["eval", "gate"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("COST REGRESSION"),
+        "cost growth beyond 1.25x must fail: {}",
+        combined(&out)
+    );
+    wipe(&root);
+}
