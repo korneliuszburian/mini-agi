@@ -313,11 +313,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         };
         // Best-effort append: a progress write failure must not kill the
         // supervision.
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&progress_path)
-            .and_then(|mut f| f.write_all(line.as_bytes()));
+        append_progress(&progress_path, &line);
     })?;
 
     // Sequential-reviewer template: an INDEPENDENT read-only review of
