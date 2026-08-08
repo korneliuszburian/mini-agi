@@ -358,9 +358,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
                 &fix_prompt,
             ];
             let wall_cap = args.wall_cap.unwrap_or(600);
-            let idle_cap = args
-                .max_idle
-                .or_else(|| mini_agi_core::config::Config::load(args.workdir).max_idle_seconds);
+            let idle_cap = resolve_idle_cap(args.max_idle, args.workdir);
             let fix = worker::run_worker_sandboxed(
                 args.worker_name,
                 args.workdir,
@@ -607,6 +605,12 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
 }
 
 /// Append a line to the progress artifact (best-effort).
+/// Resolve the idle cap: an explicit CLI value wins, else the config
+/// default (`max_idle_seconds`).
+fn resolve_idle_cap(explicit: Option<u64>, workdir: &Path) -> Option<u64> {
+    explicit.or_else(|| mini_agi_core::config::Config::load(workdir).max_idle_seconds)
+}
+
 fn append_progress(path: &Path, line: &str) {
     let _ = std::fs::OpenOptions::new()
         .create(true)
@@ -624,9 +628,7 @@ fn run_review_pass(args: &SupervisorArgs<'_>) -> Result<String, String> {
         args.goal
     );
     let review_args = vec!["exec", "-s", "read-only", "--skip-git-repo-check", &prompt];
-    let idle_cap = args
-        .max_idle
-        .or_else(|| mini_agi_core::config::Config::load(args.workdir).max_idle_seconds);
+    let idle_cap = resolve_idle_cap(args.max_idle, args.workdir);
     let review = worker::run_worker_sandboxed(
         args.worker_name,
         args.workdir,

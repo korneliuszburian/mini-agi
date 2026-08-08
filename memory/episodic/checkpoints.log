@@ -794,3 +794,4 @@
 2026-08-08T22:46:37Z VERIFY-PASS fix254-dedup-append-progress @ 92f64cd
 2026-08-08T22:47:04Z BEGIN fix255-dedup-claim-lock -> f7f93ba
 2026-08-08T22:50:02Z VERIFY-PASS fix255-dedup-claim-lock @ b13122b
+2026-08-08T22:50:27Z BEGIN fix256-dedup-idle-cap -> 514285b
