@@ -151,6 +151,11 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   verify/supersede/preserve commands; CLI `validate` now covers all four
   contracts (eval-run, ticket, spec, verdict) on both the pass and the
   fail-closed path. Suite: 429 -> 431 tests.
+- SECURITY: derive snapshot/replay names are now path-safety validated —
+  a name like '../evil' previously escaped the snapshots dir into
+  derived/. Also corrected the .gitignore snapshots rule
+  (memory/derived/snapshots, not memory/snapshots) in both the repo and
+  the init template. Suite: 431 -> 432 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
