@@ -323,6 +323,14 @@ fn cli_derive_reports_and_writes_views() {
         root.join("memory/derived/per-domain/AGENTS.agent-harness.md")
             .exists()
     );
+    // The agent-harness fact must be present in the per-domain fragment.
+    let frag =
+        std::fs::read_to_string(root.join("memory/derived/per-domain/AGENTS.agent-harness.md"))
+            .unwrap();
+    assert!(
+        frag.contains("derive produces views"),
+        "domain fragment must carry its facts: {frag}"
+    );
     assert!(root.join("CLAUDE.md").exists());
     wipe(&root);
 }
