@@ -2630,6 +2630,37 @@ fn finish_loop_run(args: &supervisor::SupervisorArgs<'_>) -> ExitCode {
     }
 }
 
+/// Resolve the parallel-batch goal + its final verifier and load (or
+/// plan) the manifest. Returns `Err` when the goal declares no verifier,
+/// the manifest file is invalid/unreadable, or the planner pass fails.
+fn resolve_parallel_setup(
+    goal_or_case: &str,
+    manifest_path: Option<&Path>,
+    verify: Option<&str>,
+    no_sandbox: bool,
+) -> Result<(supervisor::ResolvedSpec, planner::PlannerManifest), String> {
+    let resolved = supervisor::resolve(&supervisor::ResolveInput {
+        goal_or_case,
+        root: &root(),
+        workdir: &root(),
+        verify,
+        target: None,
+    })?;
+    if resolved.verify_cmd.is_empty() {
+        return Err("the goal declares no verifier (P0-3) — the final gate cannot run".to_string());
+    }
+    let manifest = match manifest_path {
+        Some(p) => {
+            let text =
+                std::fs::read_to_string(p).map_err(|e| format!("cannot read manifest: {e}"))?;
+            planner::parse_manifest(&text).map_err(|e| format!("manifest invalid: {e}"))?
+        }
+        None => planner::run_planner_pass(&resolved.goal, &root(), no_sandbox)
+            .map_err(|e| format!("planner pass failed: {e}"))?,
+    };
+    Ok((resolved, manifest))
+}
+
 fn cmd_loop_parallel(
     goal_or_case: &str,
     manifest_path: Option<&Path>,
@@ -2640,34 +2671,12 @@ fn cmd_loop_parallel(
     verify: Option<&str>,
 ) -> ExitCode {
     // 1. Resolve the goal + its final verifier (the case's own
-    //    verify_command is the protected final gate).
-    let resolved = match supervisor::resolve(&supervisor::ResolveInput {
-        goal_or_case,
-        root: &root(),
-        workdir: &root(),
-        verify,
-        target: None,
-    }) {
-        Ok(r) => r,
-        Err(e) => return fail(&e),
-    };
-    if resolved.verify_cmd.is_empty() {
-        return fail("the goal declares no verifier (P0-3) — the final gate cannot run");
-    }
-    // 2. The manifest: a validated file, or the planner pass.
-    let manifest = match manifest_path {
-        Some(p) => match std::fs::read_to_string(p) {
-            Ok(text) => match planner::parse_manifest(&text) {
-                Ok(m) => m,
-                Err(e) => return fail(&format!("manifest invalid: {e}")),
-            },
-            Err(e) => return fail(&format!("cannot read manifest: {e}")),
-        },
-        None => match planner::run_planner_pass(&resolved.goal, &root(), no_sandbox) {
-            Ok(m) => m,
-            Err(e) => return fail(&format!("planner pass failed: {e}")),
-        },
-    };
+    //    verify_command is the protected final gate) and the manifest.
+    let (resolved, manifest) =
+        match resolve_parallel_setup(goal_or_case, manifest_path, verify, no_sandbox) {
+            Ok(p) => p,
+            Err(e) => return fail(&e),
+        };
     // F5: refuse unsandboxed workers BEFORE provisioning — an
     // invocation that must be refused must not leave batch artifacts.
     if !no_sandbox {
