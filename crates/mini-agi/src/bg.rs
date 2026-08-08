@@ -257,6 +257,16 @@ pub fn spawn_detached(
 /// Claim the one-run-per-workdir lock, atomically and with read-back.
 ///
 /// The identity content (`pid start`) makes the lock's holder
+/// Atomically create a lock file containing `me` (fails when it exists).
+fn create_lock_file(lock: &Path, me: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(lock)?;
+    f.write_all(me.as_bytes())
+}
+
 /// verifiable; `lock_holder_alive` refuses while that identity lives.
 /// A stale lock (dead/crashed holder, or a briefly-empty file) is
 /// renamed aside and re-created; after EVERY acquisition the content
@@ -265,26 +275,12 @@ pub fn spawn_detached(
 /// identity.
 fn claim_lock(handle: &Path, me: &str) -> std::io::Result<()> {
     let lock = handle.join("launch.lock");
-    let create = || -> std::io::Result<()> {
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&lock)
-            .map(|mut f| {
-                use std::io::Write;
-                let _ = f.write_all(me.as_bytes());
-            })
+    let create = || {
+        create_lock_file(&lock, me)
             .map_err(|_| std::io::Error::other("a detached run is already active in this workdir"))
     };
-    match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&lock)
-    {
-        Ok(mut f) => {
-            use std::io::Write;
-            let _ = f.write_all(me.as_bytes());
-        }
+    match create_lock_file(&lock, me) {
+        Ok(()) => {}
         Err(_) if lock_holder_alive(handle) => {
             return Err(std::io::Error::other(
                 "a detached run is already active in this workdir",
