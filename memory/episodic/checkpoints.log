@@ -782,3 +782,4 @@
 2026-08-08T14:01:08Z VERIFY-PASS fix248-dream-domain-per-fact @ 6d3ded2
 2026-08-08T14:03:15Z BEGIN fix249-codex-f1-f7 -> c0e3f30 (clean)
 2026-08-08T15:28:12Z VERIFY-PASS fix249-codex-f1-f7 @ 0b4ea80
+2026-08-08T22:22:54Z BEGIN fix250-supervisor-traversal -> 5ab09e8

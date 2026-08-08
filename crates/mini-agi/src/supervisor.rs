@@ -540,6 +540,14 @@ pub struct ResolvedSpec {
 /// an ad-hoc goal requires an explicit `--verify` (and defaults the
 /// target to the workdir).
 pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
+    // Path safety (mirrors loopcmd/snapshot validation): a raw join
+    // would let `loop run ../x` read a run.json outside evals/cases.
+    if !crate::status::plain_path_segment(input.goal_or_case) {
+        return Err(format!(
+            "invalid case name '{}' — use a plain name (no separators)",
+            input.goal_or_case
+        ));
+    }
     let case_dir = input.root.join("evals/cases").join(input.goal_or_case);
     if case_dir.join("run.json").is_file() {
         let run: mini_agi_core::eval::Run = serde_json::from_str(

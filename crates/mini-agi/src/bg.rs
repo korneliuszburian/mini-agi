@@ -401,11 +401,14 @@ fn validated_launch(handle: &Path) -> Option<LaunchInfo> {
 
 /// The report path of a launch, constrained to the workdir (F3): the
 /// auto-approved read tools must never follow a path outside the
-/// authorized workdir.
+/// authorized workdir. Both sides are canonicalized so a symlink placed
+/// inside the workdir (REPORT.md -> /etc/passwd) cannot escape it.
 fn launch_report_from(launch: &LaunchInfo) -> Option<std::path::PathBuf> {
     let workdir = Path::new(&launch.workdir);
     let report = Path::new(&launch.report);
-    if report.starts_with(workdir) {
+    let canon_report = std::fs::canonicalize(report).unwrap_or_else(|_| report.to_path_buf());
+    let canon_workdir = std::fs::canonicalize(workdir).unwrap_or_else(|_| workdir.to_path_buf());
+    if canon_report.starts_with(&canon_workdir) {
         Some(report.to_path_buf())
     } else {
         None
@@ -904,6 +907,46 @@ mod tests {
         .unwrap();
         assert!(run_status(&handle).report_ready);
         assert!(run_report_text(&handle).unwrap().contains("PASSED"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn symlinked_report_outside_workdir_is_rejected() {
+        // F3 security: a REPORT.md symlink pointing outside the workdir
+        // must not be readable through the auto-approved read path.
+        let root = std::env::temp_dir().join(format!(
+            "mag-bg-symlink-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let workdir = root.join("wd");
+        std::fs::create_dir_all(&workdir).unwrap();
+        std::fs::write(root.join("secret.txt"), "secret").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(root.join("secret.txt"), workdir.join("REPORT.md")).unwrap();
+        let launch = LaunchInfo {
+            goal_or_case: "g".into(),
+            workdir: workdir.to_string_lossy().into_owned(),
+            verify: "true".into(),
+            target: String::new(),
+            iterate: 1,
+            max_wall: None,
+            max_idle: None,
+            blind_worker: false,
+            hidden_dir: None,
+            on_done: None,
+            report: workdir.join("REPORT.md").to_string_lossy().into_owned(),
+            template: None,
+            no_resume: false,
+            no_sandbox: false,
+        };
+        assert!(
+            launch_report_from(&launch).is_none(),
+            "symlink escaping the workdir must be rejected"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }
