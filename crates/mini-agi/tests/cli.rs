@@ -2882,6 +2882,32 @@ fn cli_loop_dispatch_no_case_fails_cleanly() {
         "{}",
         combined(&out)
     );
+    // A case whose ticket is claimed by someone else is not dispatchable
+    // either (lease held) — the same clean refusal.
+    let case = root.join("evals/cases/c");
+    std::fs::create_dir_all(&case).unwrap();
+    std::fs::write(
+        case.join("run.json"),
+        r#"{"goal":"c","scope":["x"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.05,"golden":null,"verify_command":"true","verify_target":"/tmp","trajectory":[{"step":1,"tool":"exec","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("tickets/TICKET-1.md"),
+        "- id: TICKET-1\n- title: c gap\n- goal: fix c\n- scope: evals/cases\n",
+    )
+    .unwrap();
+    let cl = run(
+        &root,
+        &["ticket", "claim", "TICKET-1", "--claimant", "other"],
+    );
+    assert!(cl.status.success(), "{}", combined(&cl));
+    let out2 = run(&root, &["loop", "dispatch", "--claimant", "t"]);
+    assert_eq!(out2.status.code(), Some(1), "{}", combined(&out2));
+    assert!(
+        combined(&out2).contains("no case below the target") || combined(&out2).contains("claimed"),
+        "{}",
+        combined(&out2)
+    );
     wipe(&root);
 }
 
