@@ -1074,6 +1074,10 @@ fn cli_loop_dispatch_writes_spec_and_claim() {
         "{}",
         stdout(&status)
     );
+    // The --attempts form must surface the attempts column.
+    let att = run(&root, &["loop", "status", "--attempts"]);
+    assert!(att.status.success(), "{}", combined(&att));
+    assert!(stdout(&att).contains("attempts="), "{}", stdout(&att));
     let dispatch = run(
         &root,
         &[
