@@ -587,3 +587,4 @@
 2026-08-08T00:02:14Z BEGIN fix151-promote-date-flaky -> 676031f
 2026-08-08T00:05:43Z VERIFY-PASS fix151-promote-date-flaky @ e21e0df
 2026-08-08T00:11:58Z BEGIN fix152-changelog8 -> 36c2752
+2026-08-08T00:14:11Z VERIFY-PASS fix152-changelog8 @ c81747d
