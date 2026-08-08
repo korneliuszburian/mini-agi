@@ -3691,3 +3691,30 @@ fn cli_eval_gate_malformed_baseline_fails_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_gate_new_case_is_ok_not_regression() {
+    // A run case absent from the baseline is a NEW CASE (ok), not a
+    // regression.
+    let root = tmp_root("cgnc");
+    wipe(&root);
+    let case = root.join("evals/cases/c");
+    std::fs::create_dir_all(&case).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::create_dir_all(root.join("evals/results")).unwrap();
+    std::fs::write(
+        case.join("run.json"),
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    std::fs::write(root.join("evals/results/baseline.json"), "[]").unwrap();
+    let out = run(&root, &["eval", "gate"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("NEW CASE: c (no baseline)"),
+        "{}",
+        combined(&out)
+    );
+    assert!(combined(&out).contains("PASS"), "{}", combined(&out));
+    wipe(&root);
+}
