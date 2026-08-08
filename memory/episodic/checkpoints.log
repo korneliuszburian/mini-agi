@@ -691,3 +691,4 @@
 2026-08-08T03:12:33Z BEGIN fix203-cli-gate-capability-drop -> 451e93a
 2026-08-08T03:14:44Z VERIFY-PASS fix203-cli-gate-capability-drop @ 984fb96
 2026-08-08T03:15:20Z BEGIN fix204-changelog18 -> e1c32e7
+2026-08-08T03:17:02Z VERIFY-PASS fix204-changelog18 @ 37b28c6
