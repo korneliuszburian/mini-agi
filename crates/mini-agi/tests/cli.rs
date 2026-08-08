@@ -2591,6 +2591,11 @@ fn cli_eval_steps_reports_suspicious_steps() {
         "per-step score lines missing: {}",
         stdout(&out)
     );
+    assert!(
+        stdout(&out).contains("error budget:"),
+        "error-budget audit line missing: {}",
+        stdout(&out)
+    );
     // A clean run (all steps goal-aligned) must report the negative path.
     let clean_path = case_dir.join("clean.json");
     std::fs::write(
