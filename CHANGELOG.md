@@ -220,6 +220,13 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   brief (determinism gate), tolerating a fresh empty repo; respawn
   summary names the evidence file. Freshness logic for `dream --idle`
   covered by a deterministic unit test. Suite: 451 -> 454 tests.
+- Independent review (rubric + ADR-0003 anchors, APPROVE 8/8) on the
+  iter 425-451 batch; all findings fixed: derive gate now hashes every
+  derived artifact and refuses a stale brief after the canonical was
+  wiped; a canonical near-duplicate (Gas Town lexicon) resolved
+  append-only via supersede; respawn stderr message whitespace glitch
+  collapsed. Stale `#[allow(dead_code)]` on production-used bg helpers
+  dropped (test-only helpers moved to `#[cfg(test)]`). Suite: 454 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
