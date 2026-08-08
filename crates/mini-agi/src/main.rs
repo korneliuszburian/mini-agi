@@ -2400,13 +2400,14 @@ fn cmd_mem_verify() -> ExitCode {
     }
     let known = memory::existing_fact_ids(&root);
     let preserved = memory::preserved_ids(&root);
-    for (superseding, superseded) in memory::supersede_edges(&root) {
+    let edges = memory::supersede_edges(&root);
+    for (superseding, superseded) in &edges {
         for id in superseded {
-            if !known.contains(&id) {
+            if !known.contains(id) {
                 findings.push(format!(
                     "supersede ref to unknown id {id} (from {superseding})"
                 ));
-            } else if preserved.contains(&id) {
+            } else if preserved.contains(id) {
                 // Preservation is a stronger contract than supersede:
                 // a load-bearing id must not be soft-deleted by a
                 // lineage write (ADR-0010 / A-MEM supersede-never).
@@ -2415,6 +2416,14 @@ fn cmd_mem_verify() -> ExitCode {
                 ));
             }
         }
+    }
+    // A supersede CYCLE (a supersedes b and b supersedes a) is broken
+    // lineage — both ends are soft-deleted and unreachable.
+    for cycle in memory::supersede_cycles(&edges) {
+        findings.push(format!(
+            "supersede cycle: {} — lineage must be a DAG (break the cycle with a fresh entry)",
+            cycle.join(" -> ")
+        ));
     }
     for id in memory::preserved_ids(&root) {
         if !known.contains(&id) {

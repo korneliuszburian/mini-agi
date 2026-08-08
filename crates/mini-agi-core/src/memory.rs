@@ -190,6 +190,72 @@ pub fn superseded_ids(root: &Path) -> Vec<String> {
     out
 }
 
+/// Detect supersede cycles (a supersedes b and b supersedes a) — broken
+/// lineage. Deterministic DFS; one representative cycle per loop.
+#[must_use]
+pub fn supersede_cycles(edges: &[(String, Vec<String>)]) -> Vec<Vec<String>> {
+    use std::collections::HashMap;
+    let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (a, bs) in edges {
+        for b in bs {
+            adj.entry(a).or_default().push(b);
+        }
+    }
+    let mut nodes: Vec<&str> = adj.keys().copied().collect();
+    nodes.sort_unstable();
+    let mut cycles = Vec::new();
+    for &start in &nodes {
+        // DFS along supersede edges from `start`; if we return to a node
+        // on the current path, we found a cycle.
+        let mut path: Vec<&str> = Vec::new();
+        let mut on_path: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        let mut visited: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        if dfs_cycle(&adj, start, &mut path, &mut on_path, &mut visited) {
+            // The path contains the cycle tail; extract it.
+            if let Some(pos) = path.iter().position(|n| *n == start) {
+                let mut cyc: Vec<String> = path[pos..].iter().map(|s| (*s).to_string()).collect();
+                cyc.push(start.to_string());
+                cycles.push(cyc);
+            }
+        }
+    }
+    // Dedup by sorted node set so each cycle is reported once.
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    cycles.retain(|c| {
+        let mut key = c.clone();
+        key.sort();
+        key.dedup();
+        seen.insert(key.join(","))
+    });
+    cycles
+}
+
+fn dfs_cycle<'a>(
+    adj: &std::collections::HashMap<&'a str, Vec<&'a str>>,
+    node: &'a str,
+    path: &mut Vec<&'a str>,
+    on_path: &mut std::collections::HashSet<&'a str>,
+    visited: &mut std::collections::HashSet<&'a str>,
+) -> bool {
+    if on_path.contains(node) {
+        return true;
+    }
+    if visited.contains(node) {
+        return false;
+    }
+    path.push(node);
+    on_path.insert(node);
+    for &next in adj.get(node).into_iter().flatten() {
+        if dfs_cycle(adj, next, path, on_path, visited) {
+            return true;
+        }
+    }
+    on_path.remove(node);
+    visited.insert(node);
+    path.pop();
+    false
+}
+
 /// Exact-duplicate scan: identical flat fact bodies carrying DIFFERENT
 /// ids (the dedup gate's finding; the fix is a supersede, never an edit).
 #[must_use]

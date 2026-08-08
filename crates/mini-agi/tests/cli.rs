@@ -1899,6 +1899,35 @@ fn cli_mem_verify_detects_exact_duplicate_facts() {
 }
 
 #[test]
+fn cli_mem_verify_detects_supersede_cycle() {
+    // A supersede cycle (a supersedes b, b supersedes a) is broken
+    // lineage and must be flagged, not pass as OK.
+    let root = tmp_root("cmvc");
+    wipe(&root);
+    let day = today();
+    seed_existing_entry(
+        &root,
+        &day,
+        1,
+        "# e1\n\n- domain: general\n\n## F-000 `0123456789abcdfa`\n\nold a\n- supersedes: 0123456789abcdfb\n",
+    );
+    seed_existing_entry(
+        &root,
+        &day,
+        2,
+        "# e2\n\n- domain: general\n\n## F-001 `0123456789abcdfb`\n\nold b\n- supersedes: 0123456789abcdfa\n",
+    );
+    let out = run(&root, &["mem", "verify"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("supersede cycle"),
+        "cycle must be flagged: {}",
+        combined(&out)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_mem_supersede_writes_lineage_and_rejects_unknown_id() {
     // `mem supersede` (append-only lineage: a new fact supersedes an old
     // id) had no CLI test; the known-id gate and the lineage write were
