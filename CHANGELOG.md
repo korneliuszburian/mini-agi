@@ -156,6 +156,11 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   derived/. Also corrected the .gitignore snapshots rule
   (memory/derived/snapshots, not memory/snapshots) in both the repo and
   the init template. Suite: 431 -> 432 tests.
+- MCP protocol coverage: ping, unknown method, unknown tool, and the
+  tools/call surface now have direct tests; `eval steps` asserts
+  per-step lines; `loop parallel` asserts the sandbox opt-in; `dream`
+  gains deterministic idle busy-skip (--idle-load 0.0) and a
+  missing-source test. Suite: 432 -> 437 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
