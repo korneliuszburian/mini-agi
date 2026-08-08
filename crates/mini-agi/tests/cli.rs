@@ -2357,6 +2357,14 @@ fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
     );
     assert_eq!(closed.status.code(), Some(0), "{}", combined(&closed));
     assert!(stdout(&closed).contains("CLOSED"), "{}", stdout(&closed));
+    // The verifier-carrying verification (fail-case, open path) must be
+    // attributed in verify.log; the --allow-unverified close declares no
+    // verifier so it correctly contributes no command attribution.
+    let vl = std::fs::read_to_string(root.join("memory/episodic/verify.log")).unwrap_or_default();
+    assert!(
+        vl.contains("fail-case") && vl.contains("disagrees"),
+        "verifier attribution must be persisted: {vl}"
+    );
     wipe(&root);
 }
 

@@ -618,3 +618,4 @@
 2026-08-08T00:56:14Z VERIFY-PASS fix166-changelog11 @ 77ac07c
 2026-08-08T00:57:52Z BEGIN fix167-cli-steps-error-budget -> 5092fba
 2026-08-08T00:59:37Z VERIFY-PASS fix167-cli-steps-error-budget @ 1db8577
+2026-08-08T01:00:22Z BEGIN fix168-cli-verify-attribution -> 914f1f5
