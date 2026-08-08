@@ -236,6 +236,12 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   `should_resume` Option<&str>; `call_tool` refactored 592 -> ~290 lines
   (memory/eval/skill/loop/run families extracted). ui.rs coverage
   24.6% -> 48%. Suite: 454 -> 455 tests.
+- call_tool (MCP god function, 592 lines) refactored to ~290 by
+  extracting the memory/eval/skill/loop/run tool families; coverage-gap
+  tests added for worker case-details/distill parsing, planner path
+  logic (relative-path escapes, protected-path boundary, worktree
+  scoping), read_staged_facts and validate_doc_text. Suite: 455 -> 462
+  tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
