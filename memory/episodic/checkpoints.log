@@ -764,3 +764,4 @@
 2026-08-08T10:41:39Z VERIFY-PASS fix239-refactor-mcp-memory @ 6127860
 2026-08-08T10:42:43Z BEGIN fix240-refactor-mcp-eval -> 4bb8ed1
 2026-08-08T10:45:20Z VERIFY-PASS fix240-refactor-mcp-eval @ c4bfb86
+2026-08-08T10:46:26Z BEGIN fix241-refactor-mcp-skill -> d61570a

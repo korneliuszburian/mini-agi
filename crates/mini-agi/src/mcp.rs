@@ -632,6 +632,63 @@ fn call_eval_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
     }
 }
 
+/// Dispatch the skill-family MCP tools (`skill_*`). Returns `None` when
+/// `name` is not a skill tool so the caller falls through.
+fn call_skill_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
+    macro_rules! arg {
+        ($key:literal) => {
+            args.get($key).and_then(Value::as_str).unwrap_or("")
+        };
+    }
+    match name {
+        "skill_list" => Some(match skills::discover_skills(root) {
+            Ok(reg) => reg
+                .iter()
+                .map(|s| {
+                    let hook = if s.verify.is_some() { "verify" } else { "ref" };
+                    format!("{}  [{hook}]  {}", s.name, s.description)
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            Err(e) => format!("error: {e}"),
+        }),
+        "skill_show" => Some(match skills::find_skill(root, arg!("name")) {
+            Ok(skill) => format!(
+                "name: {}\ndescription: {}\nverify: {}\npath: {}",
+                skill.name,
+                skill.description,
+                skill.verify.as_deref().unwrap_or("(none - reference only)"),
+                skill.path.display()
+            ),
+            Err(e) => format!("error: {e}"),
+        }),
+        "skill_verify" => Some(
+            match skills::find_skill(root, arg!("name"))
+                .and_then(|s| skills::verify_skill(&s, root))
+            {
+                Ok(result) if result.passed => "PASS".to_string(),
+                Ok(result) => format!("FAIL (exit {:?})\n{}", result.exit_code, result.output),
+                Err(e) => format!("error: {e}"),
+            },
+        ),
+        "skill_add" => {
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return Some("error: skill_add requires an approval reason (approve) - a write that installs code into the repo".to_string());
+            }
+            Some(match skills::install_skills(root, arg!("source")) {
+                Ok(installed) => installed
+                    .iter()
+                    .map(|name| format!("installed: {name}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                Err(e) => format!("error: {e}"),
+            })
+        }
+        _ => None,
+    }
+}
+
 fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     macro_rules! arg {
         ($key:literal) => {
@@ -649,50 +706,11 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     if let Some(r) = call_eval_tools(name, args, root) {
         return r;
     }
+    if let Some(r) = call_skill_tools(name, args, root) {
+        return r;
+    }
     match name {
         "provenance" => memory::canonical_fingerprint(root),
-        "skill_list" => match skills::discover_skills(root) {
-            Ok(reg) => reg
-                .iter()
-                .map(|s| {
-                    let hook = if s.verify.is_some() { "verify" } else { "ref" };
-                    format!("{}  [{hook}]  {}", s.name, s.description)
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
-            Err(e) => format!("error: {e}"),
-        },
-        "skill_show" => match skills::find_skill(root, arg!("name")) {
-            Ok(skill) => format!(
-                "name: {}\ndescription: {}\nverify: {}\npath: {}",
-                skill.name,
-                skill.description,
-                skill.verify.as_deref().unwrap_or("(none — reference only)"),
-                skill.path.display()
-            ),
-            Err(e) => format!("error: {e}"),
-        },
-        "skill_verify" => match skills::find_skill(root, arg!("name"))
-            .and_then(|s| skills::verify_skill(&s, root))
-        {
-            Ok(result) if result.passed => "PASS".to_string(),
-            Ok(result) => format!("FAIL (exit {:?})\n{}", result.exit_code, result.output),
-            Err(e) => format!("error: {e}"),
-        },
-        "skill_add" => {
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return "error: skill_add requires an approval reason (approve) — a write that installs code into the repo".to_string();
-            }
-            match skills::install_skills(root, arg!("source")) {
-                Ok(installed) => installed
-                    .iter()
-                    .map(|name| format!("installed: {name}"))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                Err(e) => format!("error: {e}"),
-            }
-        }
         "checkpoint_audit" => match super::checkpoint_audit_text(root) {
             Ok(text) => text,
             Err(e) => format!("error: {e}"),
