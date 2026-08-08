@@ -3474,6 +3474,16 @@ fn cli_derive_snapshot_rejects_traversal_name() {
         "{}",
         combined(&rv)
     );
+    // An over-long name must fail with the clean validation error, not
+    // an opaque FS 'File name too long'.
+    let long: String = "a".repeat(200);
+    let lo = run(&root, &["derive", "--snapshot", &long]);
+    assert_eq!(lo.status.code(), Some(1), "{}", combined(&lo));
+    assert!(
+        combined(&lo).contains("invalid snapshot name"),
+        "{}",
+        combined(&lo)
+    );
     wipe(&root);
 }
 
