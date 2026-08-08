@@ -194,6 +194,8 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 - `mem verify` now detects supersede CYCLES (a supersedes b, b supersedes
   a — broken lineage that passed as OK) via a deterministic DFS; `eval
   steps` malformed-json error covered. Suite: 448 -> 449 tests.
+- Core test for `supersede_cycles` (two- and three-node loops plus a
+  plain chain). Suite: 449 -> 450 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
