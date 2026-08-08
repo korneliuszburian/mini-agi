@@ -22,6 +22,10 @@ pub struct RunRow {
     pub latency_seconds: Option<u64>,
     /// `outcome.achieved` truth.
     pub achieved: bool,
+    /// Multi-dimensional quality composite (Beads/Stamps-ledger
+    /// adoption): re-scored from the run when the run is scorable,
+    /// `None` when it is not (e.g. malformed or never scored).
+    pub composite: Option<f64>,
     /// Transcript step count.
     pub n_steps: usize,
     /// run.json mtime (newest first ordering).
@@ -50,7 +54,7 @@ pub struct WorkerStatus {
 /// Index every `evals/cases/<case>/run.json` (including `-rerun` dirs),
 /// newest first.
 #[must_use]
-pub fn index_runs(cases_dir: &Path) -> RunIndex {
+pub fn index_runs(cases_dir: &Path, root: &Path) -> RunIndex {
     let mut rows: Vec<RunRow> = Vec::new();
     let Ok(entries) = std::fs::read_dir(cases_dir) else {
         return RunIndex {
@@ -105,6 +109,11 @@ pub fn index_runs(cases_dir: &Path) -> RunIndex {
                 .unwrap_or(0),
         )
         .unwrap_or(usize::MAX);
+        // Re-score for the composite quality axis; a run that cannot be
+        // scored (malformed, missing golden) is `None`, never a crash.
+        let composite = crate::eval::score_run(&run_path, root, &root.join("evals/golden"))
+            .ok()
+            .map(|s| s.composite);
         let modified = std::fs::metadata(&run_path)
             .and_then(|m| m.modified())
             .unwrap_or(SystemTime::UNIX_EPOCH);
@@ -116,6 +125,7 @@ pub fn index_runs(cases_dir: &Path) -> RunIndex {
             tokens_total,
             latency_seconds,
             achieved,
+            composite,
             n_steps,
             modified,
         });
@@ -219,10 +229,12 @@ mod tests {
             let run = serde_json::json!({
                 "goal": format!("goal {name}"),
                 "worker": worker,
+                "scope": ["x"],
                 "cost_usd": cost,
                 "tokens_total": tokens,
                 "outcome": {"achieved": achieved},
                 "n_steps": 3,
+                "trajectory": [{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}],
             });
             let path = dir.join("run.json");
             std::fs::write(&path, serde_json::to_string_pretty(&run).unwrap()).unwrap();
@@ -231,7 +243,7 @@ mod tests {
                 .set_modified(base + std::time::Duration::from_secs(i as u64))
                 .unwrap();
         }
-        let idx = index_runs(&cases);
+        let idx = index_runs(&cases, &root);
         assert_eq!(idx.total_runs, 3);
         assert_eq!(idx.achieved_runs, 2);
         assert!((idx.total_cost_usd - 0.06).abs() < 1e-9);
@@ -246,17 +258,31 @@ mod tests {
             Some("w-new"),
             "newest mtime must sort first"
         );
+        // Composite quality axis is populated when the run is scorable.
+        assert!(
+            idx.rows[0].composite.is_some(),
+            "a scorable run must carry a composite"
+        );
+        let achieved_ok = idx
+            .rows
+            .iter()
+            .find(|r| r.achieved)
+            .expect("fixture has an achieved run");
+        assert!(
+            achieved_ok.composite.is_some_and(|c| c > 0.0),
+            "an achieved run must have a positive composite"
+        );
     }
 
     #[test]
     fn index_ignores_missing_and_malformed() {
         let root = tmp_root("empty");
         std::fs::create_dir_all(root.join("cases")).unwrap();
-        assert_eq!(index_runs(&root.join("cases")).total_runs, 0);
+        assert_eq!(index_runs(&root.join("cases"), &root).total_runs, 0);
         let dir = root.join("cases/x");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("run.json"), "not json").unwrap();
-        assert_eq!(index_runs(&root.join("cases")).total_runs, 0);
+        assert_eq!(index_runs(&root.join("cases"), &root).total_runs, 0);
     }
 
     #[test]

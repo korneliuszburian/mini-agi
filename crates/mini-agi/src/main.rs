@@ -2806,7 +2806,7 @@ fn git_head(repo: &Path) -> Result<String, String> {
 /// Run-state index (D6): runs + totals, journal tail, live workers.
 fn cmd_status(json: bool) -> ExitCode {
     let root = root();
-    let idx = status::index_runs(&root.join("evals/cases"));
+    let idx = status::index_runs(&root.join("evals/cases"), &root);
     let journal = status::journal_tail(&root, 4);
     let workers = status::live_workers(&root);
     if json {
@@ -2828,9 +2828,12 @@ fn cmd_status(json: bool) -> ExitCode {
     for r in &idx.rows {
         let w = r.worker.as_deref().unwrap_or("(unreported)");
         let case: String = r.case.chars().take(28).collect();
+        let comp = r
+            .composite
+            .map_or_else(|| "-".into(), |c| format!("{c:.2}"));
         println!(
-            "  {:<28}  ${:.6}  {:>8} tok  achieved={}  {}",
-            case, r.cost_usd, r.tokens_total, r.achieved, w
+            "  {:<28}  ${:.6}  {:>8} tok  composite={:>5}  achieved={}  {}",
+            case, r.cost_usd, r.tokens_total, comp, r.achieved, w
         );
     }
     println!("journal tail:");
@@ -2877,7 +2880,7 @@ fn cmd_dream(
             return ExitCode::SUCCESS;
         }
         // Newest run report newer than the newest staging file.
-        let idx = status::index_runs(&root.join("evals/cases"));
+        let idx = status::index_runs(&root.join("evals/cases"), &root);
         let Some(newest_run) = idx.rows.first() else {
             println!("dream --idle: no runs to distill");
             return ExitCode::SUCCESS;

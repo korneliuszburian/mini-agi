@@ -133,7 +133,7 @@ struct ApiPayload {
 }
 
 fn api_payload(root: &Path) -> ApiPayload {
-    let status = crate::status::index_runs(&root.join("evals/cases"));
+    let status = crate::status::index_runs(&root.join("evals/cases"), root);
     let workers = crate::status::live_workers(root);
     let journal = crate::status::journal_tail(root, 6);
     // Gaps: loop status rows below target.
