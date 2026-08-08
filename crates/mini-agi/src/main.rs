@@ -1267,7 +1267,7 @@ fn cmd_run_ingest(run: &Path, retro: Option<&Path>) -> ExitCode {
 }
 
 fn cmd_run_verify_audit(run: &Path) -> ExitCode {
-    match mini_agi_core::verifier::audit_verifier(&root(), run) {
+    match mini_agi_core::verifier::audit_verifier(run) {
         Ok(text) => {
             println!("{text}");
             let vacuous = text.contains("VACUOUS");

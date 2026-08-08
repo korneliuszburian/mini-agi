@@ -330,7 +330,7 @@ pub fn run_verified_iteration(
     // S2: verify-audit wired into the loop — before trusting the
     // iteration, confirm the verifier is non-vacuous.
     if iterations > 1 {
-        let audit = mini_agi_core::verifier::audit_verifier_vacuous(input.target, input.verify)
+        let audit = mini_agi_core::verifier::audit_verifier_vacuous(input.verify)
             .map_err(|e| format!("verify-audit: {e}"))?;
         if audit.is_vacuous {
             return Err(

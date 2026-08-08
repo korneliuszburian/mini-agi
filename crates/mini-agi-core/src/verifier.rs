@@ -173,7 +173,7 @@ pub fn verify_run(root: &Path, run_path: &Path) -> Result<Verification, String> 
 ///
 /// Returns a message when the run cannot be read/parsed or the verifier
 /// cannot be started.
-pub fn audit_verifier(root: &Path, run_path: &Path) -> Result<String, String> {
+pub fn audit_verifier(run_path: &Path) -> Result<String, String> {
     let run: crate::eval::Run = serde_json::from_str(
         &std::fs::read_to_string(run_path)
             .map_err(|e| format!("cannot read {}: {e}", run_path.display()))?,
@@ -188,7 +188,6 @@ pub fn audit_verifier(root: &Path, run_path: &Path) -> Result<String, String> {
         .as_deref()
         .ok_or("verify-audit: the run declares no verify_target")?;
     let target_path = std::path::Path::new(target);
-    let _ = root;
 
     // (a) Gold check: the verifier must pass on the real target.
     let gold = crate::worker::run_capped("sh", &["-c", command], target_path, Some(120))
@@ -250,10 +249,7 @@ static AUDIT_DIR_NONCE: std::sync::atomic::AtomicU64 = std::sync::atomic::Atomic
 ///
 /// Returns an error when the counterfactual directory cannot be set up
 /// (the audit refuses to trust a verifier it could not test).
-pub fn audit_verifier_vacuous(
-    target: &Path,
-    verify_command: &str,
-) -> Result<VerifierVacuousAudit, String> {
+pub fn audit_verifier_vacuous(verify_command: &str) -> Result<VerifierVacuousAudit, String> {
     let base = std::env::temp_dir().join(format!("mag-va2-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&base);
     let nonce = AUDIT_DIR_NONCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -271,7 +267,6 @@ pub fn audit_verifier_vacuous(
             )
         })?;
     let _ = std::fs::remove_dir_all(&tmp);
-    let _ = target;
     Ok(VerifierVacuousAudit {
         is_vacuous: !res.aborted && res.status == Some(0),
     })
@@ -747,7 +742,7 @@ mod verify_audit_tests {
         let root = tmp_root("vacuous");
         let target = root.join("target");
         let run = run_with("true", &target);
-        let text = audit_verifier(&root, &run).unwrap();
+        let text = audit_verifier(&run).unwrap();
         assert!(text.contains("VACUOUS"), "{text}");
         assert!(text.contains("gate is fake"), "{text}");
         let _ = std::fs::remove_dir_all(&root);
@@ -763,7 +758,7 @@ mod verify_audit_tests {
         std::fs::create_dir_all(&target).unwrap();
         std::fs::write(target.join("x.txt"), "deliverable").unwrap();
         let run = run_with("sh -c 'test -f x.txt'", &target);
-        let text = audit_verifier(&root, &run).unwrap();
+        let text = audit_verifier(&run).unwrap();
         assert!(text.contains("PASS"), "{text}");
         assert!(!text.contains("VACUOUS"), "{text}");
         let _ = std::fs::remove_dir_all(&root);
@@ -778,7 +773,7 @@ mod verify_audit_tests {
             r#"{"goal":"g","scope":[],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.0,"golden":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
         )
         .unwrap();
-        let err = audit_verifier(&root, &path).unwrap_err();
+        let err = audit_verifier(&path).unwrap_err();
         assert!(err.contains("verify_command"), "{err}");
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -844,7 +839,7 @@ mod vacuous_audit_tests {
         // production audit's OWN base dir; a remove_dir_all here races
         // concurrent audits (their tmp dirs vanish -> spawn fails).
         let root = tmp_root("va-always-true");
-        let audit = audit_verifier_vacuous(&root, "true").unwrap();
+        let audit = audit_verifier_vacuous("true").unwrap();
         assert!(
             audit.is_vacuous,
             "a verifier that passes empty work is vacuous"
@@ -858,12 +853,10 @@ mod vacuous_audit_tests {
         // verifier's cwd vanish mid-run. Atomic unique dirs must keep
         // every concurrent audit independent.
         let root = tmp_root("va-conc");
-        let root_for_threads = root.clone();
         let mut handles = Vec::new();
         for _ in 0..8 {
-            let root = root_for_threads.clone();
             handles.push(std::thread::spawn(move || {
-                let audit = audit_verifier_vacuous(&root, "true").unwrap();
+                let audit = audit_verifier_vacuous("true").unwrap();
                 assert!(audit.is_vacuous, "a 'true' verifier is always vacuous");
             }));
         }
@@ -878,7 +871,7 @@ mod vacuous_audit_tests {
         let root = std::env::temp_dir().join(format!("mag-va2c-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
-        let audit = audit_verifier_vacuous(&root, "sh -c 'test -f x.txt'").unwrap();
+        let audit = audit_verifier_vacuous("sh -c 'test -f x.txt'").unwrap();
         assert!(!audit.is_vacuous, "an empty dir must fail this verifier");
         let _ = std::fs::remove_dir_all(&root);
     }

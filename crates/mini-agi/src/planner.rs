@@ -332,7 +332,7 @@ pub fn provision_batch(
             ));
         }
         // Vacuity: the verifier must NOT pass an empty counterfactual.
-        let audit = mini_agi_core::verifier::audit_verifier_vacuous(&wt, &ticket.verify)
+        let audit = mini_agi_core::verifier::audit_verifier_vacuous(&ticket.verify)
             .map_err(|e| format!("ticket {}: verify-audit: {e}", ticket.id))?;
         if audit.is_vacuous {
             cleanup(&created);
