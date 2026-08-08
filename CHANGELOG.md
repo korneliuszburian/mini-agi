@@ -185,6 +185,12 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 - Snapshot-name hardening: names are capped at 100 chars (clean
   validation error instead of an opaque FS 'File name too long') and now
   allow dots ('snap.v1'), while still rejecting separators/traversal.
+- BUGFIX: `eval gate` early-returned PASS when evals/cases was empty,
+  skipping run_gate — a baseline case that vanished (silently shrinking
+  the frozen suite) went green. The trivially-PASS shortcut now applies
+  only when the baseline is also empty. Gate-path coverage closed: case
+  drop, malformed baseline, NEW CASE, COST REGRESSION, CAPABILITY DROP.
+  Suite: 443 -> 448 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
