@@ -34,6 +34,83 @@ impl AuditReport {
     }
 }
 
+/// Memory-load validation (Phase 9 slice 6, Anthropic containment):
+/// persistent memory is a post-exploitation vector — scan canonical/
+/// derived fact bodies for suspicious patterns (machine-specific
+/// absolute paths in actions, injection markers).
+fn audit_memory_load(root: &Path, report: &mut AuditReport) {
+    let memory_dirs = [
+        root.join("memory/canonical/entries"),
+        root.join("memory/derived"),
+    ];
+    let suspicious: &[&str] = &["/home/", "/Users/", "; rm ", "eval("];
+    for dir in memory_dirs {
+        if !dir.is_dir() {
+            continue;
+        }
+        for path in walk_md(&dir) {
+            let Ok(text) = fs::read_to_string(&path) else {
+                continue;
+            };
+            for (i, line) in text.lines().enumerate() {
+                if line.trim_start().starts_with('#') {
+                    continue;
+                }
+                if suspicious.iter().any(|s| line.contains(s)) {
+                    report.findings.push(Finding {
+                        severity: "warn".into(),
+                        message: format!(
+                            "memory-load: {}:{} contains suspicious pattern ({})",
+                            path.display(),
+                            i + 1,
+                            suspicious
+                                .iter()
+                                .find(|s| line.contains(**s))
+                                .unwrap_or(&"")
+                        ),
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Action-log validation (production-readiness D.1): an append-only,
+/// timestamped, principal + content-hash record of every kernel action.
+/// Rows are validated for shape; a malformed line is a finding (tampering
+/// or a bug must not go silent).
+fn audit_action_log(root: &Path, report: &mut AuditReport) {
+    let actions_path = root.join(ACTIONS_LOG_REL);
+    match fs::read_to_string(&actions_path) {
+        Ok(text) => {
+            let rows: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+            let malformed = rows.iter().filter(|l| !is_valid_action_row(l)).count();
+            report.passed.push(format!(
+                "action log: {} action(s) recorded ({} malformed)",
+                rows.len(),
+                malformed
+            ));
+            if malformed > 0 {
+                report.findings.push(Finding {
+                    severity: "warn".into(),
+                    message: format!(
+                        "{malformed} malformed action-log row(s) in {ACTIONS_LOG_REL}"
+                    ),
+                });
+            }
+        }
+        Err(_) if !actions_path.exists() => report
+            .passed
+            .push("action log: no kernel actions recorded yet".into()),
+        Err(e) => {
+            report.findings.push(Finding {
+                severity: "fail".into(),
+                message: format!("action log: {ACTIONS_LOG_REL} exists but is unreadable — {e}"),
+            });
+        }
+    }
+}
+
 /// Run the audit.
 ///
 /// # Errors
@@ -195,40 +272,7 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
     // containment): persistent memory is a post-exploitation vector —
     // scan canonical/derived fact bodies for suspicious patterns
     // (machine-specific absolute paths in actions, injection markers).
-    let memory_dirs = [
-        root.join("memory/canonical/entries"),
-        root.join("memory/derived"),
-    ];
-    let suspicious: &[&str] = &["/home/", "/Users/", "; rm ", "eval("];
-    for dir in memory_dirs {
-        if !dir.is_dir() {
-            continue;
-        }
-        for path in walk_md(&dir) {
-            let Ok(text) = fs::read_to_string(&path) else {
-                continue;
-            };
-            for (i, line) in text.lines().enumerate() {
-                if line.trim_start().starts_with('#') {
-                    continue;
-                }
-                if suspicious.iter().any(|s| line.contains(s)) {
-                    report.findings.push(Finding {
-                        severity: "warn".into(),
-                        message: format!(
-                            "memory-load: {}:{} contains suspicious pattern ({})",
-                            path.display(),
-                            i + 1,
-                            suspicious
-                                .iter()
-                                .find(|s| line.contains(**s))
-                                .unwrap_or(&"")
-                        ),
-                    });
-                }
-            }
-        }
-    }
+    audit_memory_load(root, &mut report);
 
     // 5b. Calibration integrity (codex review): verified rows must
     // carry command/target evidence; impossible rows are a signal.
@@ -285,35 +329,7 @@ pub fn audit(root: &Path) -> Result<AuditReport, std::io::Error> {
     // append-only, timestamped, principal + content-hash record of every
     // kernel action. Rows are validated for shape; a malformed line is a
     // finding (tampering or a bug must not go silent).
-    let actions_path = root.join(ACTIONS_LOG_REL);
-    match fs::read_to_string(&actions_path) {
-        Ok(text) => {
-            let rows: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-            let malformed = rows.iter().filter(|l| !is_valid_action_row(l)).count();
-            report.passed.push(format!(
-                "action log: {} action(s) recorded ({} malformed)",
-                rows.len(),
-                malformed
-            ));
-            if malformed > 0 {
-                report.findings.push(Finding {
-                    severity: "warn".into(),
-                    message: format!(
-                        "{malformed} malformed action-log row(s) in {ACTIONS_LOG_REL}"
-                    ),
-                });
-            }
-        }
-        Err(_) if !actions_path.exists() => report
-            .passed
-            .push("action log: no kernel actions recorded yet".into()),
-        Err(e) => {
-            report.findings.push(Finding {
-                severity: "fail".into(),
-                message: format!("action log: {ACTIONS_LOG_REL} exists but is unreadable — {e}"),
-            });
-        }
-    }
+    audit_action_log(root, &mut report);
 
     // 8. Reference solutions + trial isolation (production-readiness
     // C.1): every case with a rerun must have a proven-good reference
