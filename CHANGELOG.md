@@ -227,6 +227,15 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   append-only via supersede; respawn stderr message whitespace glitch
   collapsed. Stale `#[allow(dead_code)]` on production-used bg helpers
   dropped (test-only helpers moved to `#[cfg(test)]`). Suite: 454 tests.
+- Real quality tooling landed: `cargo-deny` (advisories/bans/licenses ok)
+  and `cargo-llvm-cov` (first real coverage measurement: 83.7% lines).
+  Independent deep quality review (~8 findings) — all fixed: read-side
+  path traversal in find_skill / loopcmd::verify / eval hidden / ui act
+  signoff (MCP-amplified reads, now plain-segment validated); zombie
+  code removed (all_fact_ids, validate_json, _entries_rel);
+  `should_resume` Option<&str>; `call_tool` refactored 592 -> ~290 lines
+  (memory/eval/skill/loop/run families extracted). ui.rs coverage
+  24.6% -> 48%. Suite: 454 -> 455 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
