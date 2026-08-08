@@ -178,6 +178,10 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   (exit 2), and `eval gate` (fail-closed) all surface a clean 'invalid
   run json' error; insights/status report healthily by skipping malformed
   runs. Suite: 441 tests.
+- Domain case is now normalized on every canonical write path
+  (consolidate, signoff, dream promote) so a case-variant domain no
+  longer splits the taxonomy or produces colliding per-domain fragment
+  files. Suite: 441 -> 443 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
