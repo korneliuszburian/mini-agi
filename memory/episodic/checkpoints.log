@@ -745,3 +745,4 @@
 2026-08-08T08:54:33Z BEGIN fix230-respawn-eprintln-glitch -> 72920b8
 2026-08-08T08:56:18Z VERIFY-PASS fix230-respawn-eprintln-glitch @ 1ce70fb
 2026-08-08T09:03:03Z BEGIN fix231-remove-stale-allow -> 9048afe
+2026-08-08T09:06:42Z VERIFY-PASS fix231-remove-stale-allow @ f5845a4
