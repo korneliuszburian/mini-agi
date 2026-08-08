@@ -2048,26 +2048,13 @@ fn cmd_eval_steps(run: &Path) -> ExitCode {
     }
 }
 
-/// A path argument must be a single plain segment (no separators, no
-/// `..`/`.` traversal) so `join` cannot escape the intended directory.
-#[must_use]
-fn plain_path_segment(s: &str) -> bool {
-    !s.is_empty()
-        && s != "."
-        && s != ".."
-        && !s.starts_with('.')
-        && !s.contains('/')
-        && !s.contains('\\')
-        && !s.contains(':')
-}
-
 fn cmd_eval_hidden(dir: Option<&str>) -> ExitCode {
     let root = root();
     let hidden = root.join("evals/hidden");
     // Path safety: a raw `join` would let `eval hidden --dir ../x`
     // read outside evals/hidden/.
     let scan_dir = match dir {
-        Some(d) if plain_path_segment(d) => hidden.join(d),
+        Some(d) if crate::status::plain_path_segment(d) => hidden.join(d),
         Some(_) => return fail("eval hidden: --dir must be a plain name (no separators)"),
         None => hidden,
     };

@@ -336,6 +336,14 @@ fn act(root: &Path, path: &str) -> ActResult {
                     output: "signoff: bad query (expect ?q=<queue>&i=<index>)".into(),
                 };
             }
+            // Path safety: q must be a plain segment — a raw `join`
+            // would let the page sign off queues outside `memory/review/`.
+            if !crate::status::plain_path_segment(q) {
+                return ActResult {
+                    ok: false,
+                    output: "signoff: queue must be a plain file name".into(),
+                };
+            }
             let queue = root.join(q);
             if !queue.is_file() {
                 return ActResult {
@@ -404,5 +412,40 @@ mod tests {
         let r = act(&root, "/api/act/signoff?q=none.md&i=1");
         assert!(!r.ok, "missing queue file must fail closed");
         assert!(r.output.contains("queue not found"));
+        // Traversal: q must stay a plain segment.
+        let r = act(&root, "/api/act/signoff?q=../etc/passwd&i=1");
+        assert!(!r.ok, "traversal queue must be rejected");
+        assert!(r.output.contains("plain file name"));
+    }
+
+    #[test]
+    fn api_payload_carries_runs_workers_journal() {
+        let root = std::env::temp_dir().join(format!(
+            "mag-ui-payload-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let run = root.join("evals/cases/a/run.json");
+        std::fs::create_dir_all(run.parent().unwrap()).unwrap();
+        std::fs::write(
+            &run,
+            r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        let payload = api_payload(&root);
+        let status = payload.status.as_object().expect("status object");
+        assert_eq!(
+            status["total_runs"].as_u64(),
+            Some(1),
+            "payload must carry the run index"
+        );
+        assert!(
+            payload.queues.is_empty(),
+            "queues field must be present (empty by default)"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

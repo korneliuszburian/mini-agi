@@ -757,3 +757,5 @@
 2026-08-08T10:04:38Z BEGIN fix236-remove-zombie-code -> 02f999e
 2026-08-08T10:07:52Z VERIFY-PASS fix236-remove-zombie-code @ 28703aa
 2026-08-08T10:08:40Z BEGIN fix237-option-str-fix -> 09ef114
+2026-08-08T10:22:55Z BEGIN fix238-ui-coverage-security -> e9e943e (restored by rollback)
+2026-08-08T10:22:55Z VERIFY-FAIL fix238-ui-coverage-security @ 2905bdf -> ROLLBACK to e9e943e

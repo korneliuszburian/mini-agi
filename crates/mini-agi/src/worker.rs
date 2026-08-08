@@ -1414,11 +1414,8 @@ mod session_resume_tests {
     #[test]
     fn resume_decision_falls_back_to_cold_invoke() {
         assert!(!should_resume(false, 2, Some("s")), "disabled");
-        assert!(
-            !should_resume(true, 1, Some("s")),
-            "first attempt"
-        );
+        assert!(!should_resume(true, 1, Some("s")), "first attempt");
         assert!(!should_resume(true, 2, None), "no session captured");
-        assert!(should_resume(true, 2, Some(&"s".to_string())), "resume");
+        assert!(should_resume(true, 2, Some("s")), "resume");
     }
 }

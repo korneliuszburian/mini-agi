@@ -51,6 +51,19 @@ pub struct WorkerStatus {
     pub alive: bool,
 }
 
+/// A path argument must be a single plain segment (no separators, no
+/// `..`/`.` traversal) so `join` cannot escape the intended directory.
+#[must_use]
+pub fn plain_path_segment(s: &str) -> bool {
+    !s.is_empty()
+        && s != "."
+        && s != ".."
+        && !s.starts_with('.')
+        && !s.contains('/')
+        && !s.contains('\\')
+        && !s.contains(':')
+}
+
 /// Index every `evals/cases/<case>/run.json` (including `-rerun` dirs),
 /// newest first.
 #[must_use]
