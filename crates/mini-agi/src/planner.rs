@@ -525,7 +525,7 @@ pub fn dispatch_batch(
                     if respawn_allowed(*n) {
                         *n += 1;
                         eprintln!(
-                            "  [respawn] ticket {id} crashed without a report (FM-3.1                              premature termination), relaunching ({n}/{MAX_TICKET_RESPAWNS})"
+                            "  [respawn] ticket {id} crashed without a report (FM-3.1 premature termination), relaunching ({n}/{MAX_TICKET_RESPAWNS})"
                         );
                         respawn_log.push(format!(
                             "{id}: respawned {n}x (FM-3.1 premature termination)"
