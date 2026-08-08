@@ -1071,16 +1071,16 @@ pub fn derive(root: &Path, brief_only: bool) -> Result<(usize, usize), MemoryErr
 }
 
 /// Derive snapshot names are file names under `SNAPSHOTS_REL`; only plain
-/// alphanumeric plus `-`/`_` are allowed (no separators or traversal), and
-/// the length is capped well under the FS filename limit so an over-long
-/// name fails with a clean validation error instead of an opaque
-/// `File name too long` IO error.
+/// alphanumeric plus `-`/`_`/`.` are allowed (no separators or
+/// traversal), and the length is capped well under the FS filename limit
+/// so an over-long name fails with a clean validation error instead of an
+/// opaque `File name too long` IO error.
 fn valid_snapshot_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 100
         && name
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
 }
 
 /// Snapshot the derived views (production-readiness F.1).

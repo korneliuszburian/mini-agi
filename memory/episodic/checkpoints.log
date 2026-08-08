@@ -676,3 +676,4 @@
 2026-08-08T02:35:12Z VERIFY-PASS fix195-changelog16 @ 09f91ce
 2026-08-08T02:36:41Z BEGIN fix196-snapshot-name-limit -> 2885d5e
 2026-08-08T02:42:20Z VERIFY-PASS fix196-snapshot-name-limit @ c838c60
+2026-08-08T02:46:40Z BEGIN fix197-snapshot-dot -> b36e235

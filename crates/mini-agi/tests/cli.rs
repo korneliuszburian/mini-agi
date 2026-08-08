@@ -3484,6 +3484,9 @@ fn cli_derive_snapshot_rejects_traversal_name() {
         "{}",
         combined(&lo)
     );
+    // A dotted name (snap.v1) is valid — a dot is not a path separator.
+    let dotted = run(&root, &["derive", "--snapshot", "snap.v1"]);
+    assert!(dotted.status.success(), "{}", combined(&dotted));
     wipe(&root);
 }
 
