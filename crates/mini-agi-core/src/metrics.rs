@@ -387,4 +387,25 @@ mod tests {
         // Unterminated fence -> None.
         assert!(frontmatter_block("---\nname: demo\n").is_none());
     }
+
+    #[test]
+    fn skills_over_budget_is_flagged() {
+        // The 2% skills budget cap: a single over-long frontmatter block
+        // must set skills_over_budget (only the negative path was tested).
+        let root = std::env::temp_dir().join(format!("mag-metrics-sk-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let skills = root.join(".agents/skills/big");
+        fs::create_dir_all(&skills).unwrap();
+        fs::write(
+            skills.join("SKILL.md"),
+            format!(
+                "---\nname: big\ndescription: {}\n---\n",
+                "x".repeat(SKILLS_BUDGET_CHARS + 100)
+            ),
+        )
+        .unwrap();
+        let b = budget(&root);
+        assert!(b.skills_over_budget, "over-long skill must flag the budget");
+        let _ = fs::remove_dir_all(&root);
+    }
 }

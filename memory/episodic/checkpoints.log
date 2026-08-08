@@ -628,3 +628,4 @@
 2026-08-08T01:09:11Z VERIFY-PASS fix171-changelog12 @ e742695
 2026-08-08T01:10:14Z BEGIN fix172-cli-audit-inflight -> 320ddf0
 2026-08-08T01:12:18Z VERIFY-PASS fix172-cli-audit-inflight @ eea7cf6
+2026-08-08T01:13:17Z BEGIN fix173-skills-over-budget -> 93c5386
