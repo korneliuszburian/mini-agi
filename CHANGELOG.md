@@ -200,6 +200,11 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   misleading 'entry write failed'; added `MemoryError::CorruptedSnapshot`
   with a clear parse error. Suite: 450 tests (coverage extended, count
   unchanged).
+- Test-temp cleanup: `tmp_root` temp roots embedded the pid, so every
+  cargo test run left `mag-*` dirs in TMPDIR that piled up until the
+  tmpfs inode quota was hit (QuotaExceeded flakiness in the bg/planner
+  suites). Test suites now prune stale (>24h) roots once per process.
+  Suite: 450 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
