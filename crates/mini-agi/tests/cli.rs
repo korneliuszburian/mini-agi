@@ -3323,3 +3323,19 @@ fn cli_dream_idle_busy_skip_is_deterministic() {
     assert!(stdout(&out).contains("busy, skipping"), "{}", stdout(&out));
     wipe(&root);
 }
+
+#[test]
+fn cli_budget_warns_on_chain_over_cap() {
+    // An AGENTS.md chain over the 32KiB cap must surface the WARN line.
+    let root = tmp_root("cboc");
+    wipe(&root);
+    std::fs::write(root.join("AGENTS.md"), "x".repeat(32 * 1024 + 10)).unwrap();
+    let out = run(&root, &["budget"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(
+        stdout(&out).contains("WARN: AGENTS chain exceeds 32KiB"),
+        "{}",
+        stdout(&out)
+    );
+    wipe(&root);
+}
