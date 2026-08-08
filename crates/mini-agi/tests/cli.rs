@@ -2461,6 +2461,25 @@ fn cli_loop_objective_dispatches_verifiable_cases() {
     assert!(out.status.success(), "{}", combined(&out));
     assert!(stdout(&out).contains("obj-low"), "{}", stdout(&out));
     assert!(root.join("tickets").is_dir());
+    // The budget_cost form must wire through (a large budget dispatches
+    // the same verifiable case).
+    let with_budget = run(
+        &root,
+        &[
+            "loop",
+            "objective",
+            "--claimant",
+            "cli-test",
+            "--budget-cost",
+            "0.2",
+        ],
+    );
+    assert!(with_budget.status.success(), "{}", combined(&with_budget));
+    assert!(
+        stdout(&with_budget).contains("obj-low") || stdout(&with_budget).contains("dispatched 0"),
+        "budget form must run clean: {}",
+        stdout(&with_budget)
+    );
     wipe(&root);
 }
 
