@@ -161,6 +161,10 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   per-step lines; `loop parallel` asserts the sandbox opt-in; `dream`
   gains deterministic idle busy-skip (--idle-load 0.0) and a
   missing-source test. Suite: 432 -> 437 tests.
+- `eval steps` asserts the error-budget audit line; `loop verify` asserts
+  verifier attribution (verify.log) and judge-calibration persistence
+  (calibration.md); `eval gate` asserts the best-state REGRESSION bound
+  (a weakened case must fail, not silently rebaseline). Suite: 437 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
