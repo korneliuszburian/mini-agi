@@ -610,3 +610,4 @@
 2026-08-08T00:46:16Z VERIFY-PASS fix162-mcp-ping @ b6b90af
 2026-08-08T00:47:02Z BEGIN fix163-cli-parallel-sandbox -> d8dfa6d
 2026-08-08T00:48:30Z VERIFY-PASS fix163-cli-parallel-sandbox @ 715c757
+2026-08-08T00:49:13Z BEGIN fix164-cli-dream-source-missing -> 3f7d72a

@@ -3229,3 +3229,16 @@ fn cli_derive_snapshot_rejects_traversal_name() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_dream_source_missing_file_fails_cleanly() {
+    // dream --source on a nonexistent material must error cleanly (exit
+    // 1) before spawning any distiller.
+    let root = tmp_root("cdsm");
+    wipe(&root);
+    let missing = root.join("nope.md");
+    let out = run(&root, &["dream", "--source", missing.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(combined(&out).contains("cannot read"), "{}", combined(&out));
+    wipe(&root);
+}
