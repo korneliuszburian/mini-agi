@@ -892,6 +892,18 @@ fn cli_eval_gate_never_silently_rebaselines() {
         "weakened case must be flagged: {}",
         combined(&rg)
     );
+    // A malformed case in evals/cases must fail the gate closed, not be
+    // silently skipped.
+    let mal_dir = root.join("evals/cases/mal");
+    std::fs::create_dir_all(&mal_dir).unwrap();
+    std::fs::write(mal_dir.join("run.json"), "{bad json").unwrap();
+    let mg = run(&root, &["eval", "gate"]);
+    assert_eq!(mg.status.code(), Some(1), "{}", combined(&mg));
+    assert!(
+        combined(&mg).contains("invalid run json"),
+        "malformed case must fail the gate: {}",
+        combined(&mg)
+    );
     wipe(&root);
 }
 

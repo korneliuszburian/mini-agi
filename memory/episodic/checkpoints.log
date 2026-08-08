@@ -662,3 +662,4 @@
 2026-08-08T01:58:45Z VERIFY-PASS fix188-cli-ingest-malformed @ 7827431
 2026-08-08T01:59:28Z BEGIN fix189-cli-verify-malformed -> fce86f3
 2026-08-08T02:05:45Z VERIFY-PASS fix189-cli-verify-malformed @ be3cc4a
+2026-08-08T02:06:33Z BEGIN fix190-cli-gate-malformed -> ceefc72
