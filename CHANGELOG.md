@@ -205,6 +205,15 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   tmpfs inode quota was hit (QuotaExceeded flakiness in the bg/planner
   suites). Test suites now prune stale (>24h) roots once per process.
   Suite: 450 tests.
+- Architecture research (Gas Town / Beads, Steve Yegge): primary-source
+  audit landed in `research/gastown-beads-architecture.md`, 13 facts
+  promoted to canonical via dream-loop. Adoptions: parallel-batch respawn
+  summary (D6 never-silent); run-state ledger shows the multi-dim
+  composite quality axis (re-scored on the fly). Senior polish: 7
+  behavior-preserving refactors (cmd_loop_parallel setup + dispatch
+  render, finalize_and_merge per-ticket stage, loopcmd::verify evidence
+  block, cmd_dream idle guard, audit memory-load + action-log sections);
+  `# Panics` docs on panic-prone APIs. Suite: 450 -> 451 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
