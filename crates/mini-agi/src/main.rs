@@ -2239,7 +2239,7 @@ fn consolidate_text(
         .unwrap_or("buffer")
         .to_string();
     let opts = ConsolidateOptions {
-        domain: domain.to_string(),
+        domain: domain.trim().to_lowercase(),
         require_signoff,
         dry_run,
     };

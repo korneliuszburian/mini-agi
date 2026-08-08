@@ -3530,3 +3530,44 @@ fn cli_init_does_not_clobber_existing_agents_md() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_consolidate_normalizes_domain_case() {
+    // A domain like 'Testing' must be normalized to 'testing' so queries
+    // are not case-sensitive (a case variant would otherwise be a
+    // separate domain).
+    let root = tmp_root("cdn");
+    wipe(&root);
+    let buffer = root.join("b.md");
+    std::fs::write(&buffer, "FACT: domain case is normalized\n").unwrap();
+    let out = run(
+        &root,
+        &[
+            "mem",
+            "consolidate",
+            buffer.to_str().unwrap(),
+            "--domain",
+            "Testing",
+        ],
+    );
+    assert!(out.status.success(), "{}", combined(&out));
+    let entry = std::fs::read_to_string(
+        root.join("memory/canonical/entries")
+            .join(today())
+            .join(format!("{}-001.md", today())),
+    )
+    .unwrap();
+    assert!(
+        entry.contains("- domain: testing"),
+        "domain must be lowercased: {entry}"
+    );
+    // And a lowercase query finds it.
+    let q = run(&root, &["mem", "query", "--domain", "testing"]);
+    assert!(q.status.success(), "{}", combined(&q));
+    assert!(
+        stdout(&q).contains("domain case is normalized"),
+        "{}",
+        stdout(&q)
+    );
+    wipe(&root);
+}

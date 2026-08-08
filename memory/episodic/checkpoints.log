@@ -666,3 +666,4 @@
 2026-08-08T02:08:12Z VERIFY-PASS fix190-cli-gate-malformed @ 0948d34
 2026-08-08T02:10:24Z BEGIN fix191-changelog15 -> 86d278c
 2026-08-08T02:11:42Z VERIFY-PASS fix191-changelog15 @ 5daf16b
+2026-08-08T02:18:33Z BEGIN fix192-domain-normalize -> 362fd01
