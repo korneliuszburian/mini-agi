@@ -171,6 +171,9 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   hand-written AGENTS.md; `loop dispatch` refuses empty/claimed/blocked
   cases; `loop objective` wires budget_cost; `derive`/`replay` reject
   traversal names; `loop status --attempts` surfaced. Suite: 437 -> 441.
+- BUGFIX: `mem supersede` with a blank body wrote a junk canonical fact
+  (hash of the empty string); it is now refused. `mem query` keyword+
+  domain combo covered. Suite: 441 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
