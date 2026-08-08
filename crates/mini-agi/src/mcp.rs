@@ -1407,4 +1407,14 @@ mod tests {
         assert!(out.starts_with("error: unknown tool"), "{out}");
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn ping_returns_an_empty_result() {
+        let mut initialized = true;
+        let msg = json!({"jsonrpc":"2.0","id":7,"method":"ping","params":{}});
+        let resp = dispatch(&msg, &mut initialized).unwrap();
+        assert_eq!(resp["id"], 7);
+        assert!(resp["result"].is_object(), "{resp}");
+        assert!(resp["result"].as_object().unwrap().is_empty(), "{resp}");
+    }
 }
