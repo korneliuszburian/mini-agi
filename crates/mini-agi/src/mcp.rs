@@ -777,6 +777,70 @@ fn call_loop_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
     }
 }
 
+/// Dispatch the run-family MCP tools (`run_*`). Returns `None` when
+/// `name` is not a run tool so the caller falls through.
+fn call_run_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
+    macro_rules! arg {
+        ($key:literal) => {
+            args.get($key).and_then(Value::as_str).unwrap_or("")
+        };
+    }
+    match name {
+        "run_ingest" => Some({
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return Some("error: run_ingest requires an approval reason (approve) — a write that appends facts to canonical memory".to_string());
+            }
+            let run = arg!("run");
+            let retro = {
+                let r = arg!("retro");
+                if r.is_empty() {
+                    None
+                } else {
+                    Some(Path::new(r))
+                }
+            };
+            match super::ingest_text(root, Path::new(run), retro) {
+                Ok(text) => text,
+                Err(msg) => format!("error: {msg}"),
+            }
+        }),
+        "run_verify" => Some({
+            let run = arg!("run");
+            match mini_agi_core::verifier::verify_run(root, std::path::Path::new(run)) {
+                Ok(v) => format!(
+                    "verify {}: {} (exit {})",
+                    v.case,
+                    v.status,
+                    v.exit_code
+                        .map_or_else(|| "-".to_string(), |c| c.to_string())
+                ),
+                Err(e) => format!("error: {e}"),
+            }
+        }),
+        "run_failures" => Some({
+            let run = arg!("run");
+            match mini_agi_core::failure::analyze_run(std::path::Path::new(run), root) {
+                Ok((case, entries)) => {
+                    if entries.is_empty() {
+                        format!("no repeated failing actions in {case}")
+                    } else {
+                        match mini_agi_core::failure::update_register(root, &entries) {
+                            Ok(total) => format!(
+                                "recorded {} repeated failing actions in {case} (register total {total})",
+                                entries.len()
+                            ),
+                            Err(e) => format!("error: {e}"),
+                        }
+                    }
+                }
+                Err(e) => format!("error: {e}"),
+            }
+        }),
+        _ => None,
+    }
+}
+
 fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     macro_rules! arg {
         ($key:literal) => {
@@ -798,6 +862,9 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         return r;
     }
     if let Some(r) = call_loop_tools(name, args, root) {
+        return r;
+    }
+    if let Some(r) = call_run_tools(name, args, root) {
         return r;
     }
     match name {
@@ -843,25 +910,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 .join("\n"),
             Err(e) => format!("error: {e}"),
         },
-        "run_ingest" => {
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return "error: run_ingest requires an approval reason (approve) — a write that appends facts to canonical memory".to_string();
-            }
-            let run = arg!("run");
-            let retro = {
-                let r = arg!("retro");
-                if r.is_empty() {
-                    None
-                } else {
-                    Some(Path::new(r))
-                }
-            };
-            match super::ingest_text(root, Path::new(run), retro) {
-                Ok(text) => text,
-                Err(msg) => format!("error: {msg}"),
-            }
-        }
+
         "insights" => match insights::insights(root) {
             Ok(report) => {
                 let mut lines = vec![format!(
@@ -1094,38 +1143,6 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             )
         }
 
-        "run_verify" => {
-            let run = arg!("run");
-            match mini_agi_core::verifier::verify_run(root, std::path::Path::new(run)) {
-                Ok(v) => format!(
-                    "verify {}: {} (exit {})",
-                    v.case,
-                    v.status,
-                    v.exit_code
-                        .map_or_else(|| "-".to_string(), |c| c.to_string())
-                ),
-                Err(e) => format!("error: {e}"),
-            }
-        }
-        "run_failures" => {
-            let run = arg!("run");
-            match mini_agi_core::failure::analyze_run(std::path::Path::new(run), root) {
-                Ok((case, entries)) => {
-                    if entries.is_empty() {
-                        format!("no repeated failing actions in {case}")
-                    } else {
-                        match mini_agi_core::failure::update_register(root, &entries) {
-                            Ok(total) => format!(
-                                "recorded {} repeated failing actions in {case} (register total {total})",
-                                entries.len()
-                            ),
-                            Err(e) => format!("error: {e}"),
-                        }
-                    }
-                }
-                Err(e) => format!("error: {e}"),
-            }
-        }
         "harness" => {
             let approve = arg!("approve");
             if approve.is_empty() {
