@@ -612,3 +612,4 @@
 2026-08-08T00:48:30Z VERIFY-PASS fix163-cli-parallel-sandbox @ 715c757
 2026-08-08T00:49:13Z BEGIN fix164-cli-dream-source-missing -> 3f7d72a
 2026-08-08T00:51:23Z VERIFY-PASS fix164-cli-dream-source-missing @ 010927a
+2026-08-08T00:52:24Z BEGIN fix165-cli-dream-idle-busy -> 2966534

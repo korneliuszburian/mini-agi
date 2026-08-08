@@ -3242,3 +3242,16 @@ fn cli_dream_source_missing_file_fails_cleanly() {
     assert!(combined(&out).contains("cannot read"), "{}", combined(&out));
     wipe(&root);
 }
+
+#[test]
+fn cli_dream_idle_busy_skip_is_deterministic() {
+    // --idle-load 0.0 makes the load guard ALWAYS busy (load1 >= 0),
+    // giving a deterministic busy-skip without host-load dependence.
+    let root = tmp_root("cdib");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("evals/cases")).unwrap();
+    let out = run(&root, &["dream", "--idle", "--idle-load", "0.0"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(stdout(&out).contains("busy, skipping"), "{}", stdout(&out));
+    wipe(&root);
+}
