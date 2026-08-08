@@ -33,7 +33,9 @@ budget, insights, audit, sandbox) — a silent target is a failing target.
   (append-only, provenance on every entry). Derived views regenerate via
   `mini-agi derive`; on conflict canonical wins. Read
   `memory/derived/context-brief.md` before working; never re-research what
-  canonical already knows.
+  canonical already knows. `mini-agi mem verify` audits memory integrity
+  (duplicates, lineage, preservation); `mem supersede`/`preserve`/
+  `unpreserve` evolve the lineage deliberately (never edit an entry).
 - Checkpointing: `scripts/checkpoint.sh begin <label>` before every edit
   step, `scripts/checkpoint.sh verify <label>` after gates pass. The
   journal is audited by the gate (every VERIFY needs an earlier BEGIN).

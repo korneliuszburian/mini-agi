@@ -1550,6 +1550,10 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
         agents.contains("mem-dedup/integrity") && agents.contains("skills"),
         "AGENTS.md gate list must cover the full verify.sh steps"
     );
+    assert!(
+        agents.contains("mem verify") && agents.contains("mem supersede"),
+        "AGENTS.md memory rules must teach the integrity/lineage commands"
+    );
     // The generated rubric must carry the canonical posture/evidence
     // requirements (embedded from the repo copy, not a stale duplicate).
     let rubric = std::fs::read_to_string(root.join(".agents/checks/review-rubric.md")).unwrap();
