@@ -147,6 +147,10 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   determinism (re-snapshot still MATCHes), `dream --idle` freshness skip
   (pinned mtimes), `dream --promote` reject-verdict skip, per-domain
   fragment content assert. Suite: 428 -> 429 tests.
+- init-generated AGENTS.md memory rules now teach the mem
+  verify/supersede/preserve commands; CLI `validate` now covers all four
+  contracts (eval-run, ticket, spec, verdict) on both the pass and the
+  fail-closed path. Suite: 429 -> 431 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
