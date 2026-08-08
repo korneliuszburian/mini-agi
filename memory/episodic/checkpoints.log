@@ -597,3 +597,4 @@
 2026-08-08T00:23:06Z BEGIN fix156-changelog9 -> bb1b5ae
 2026-08-08T00:24:13Z VERIFY-PASS fix156-changelog9 @ 5ed45f4
 2026-08-08T00:25:12Z BEGIN fix157-snapshot-name-validation -> 24d9f45
+2026-08-08T00:30:51Z VERIFY-PASS fix157-snapshot-name-validation @ d1f3d6d
