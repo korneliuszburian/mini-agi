@@ -3147,7 +3147,7 @@ fn read_staged_facts(path: &Path) -> Result<Vec<mini_agi_core::dream::StagedFact
                 .and_then(|d| d.split(')').next())
                 .unwrap_or("general")
                 .trim()
-                .to_string();
+                .to_lowercase();
         } else if let Some(rest) = line.strip_prefix("- domain:") {
             domain = rest.trim().to_string();
         } else if !line.trim().is_empty()

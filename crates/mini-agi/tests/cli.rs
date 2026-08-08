@@ -2556,7 +2556,7 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     let staged_path = staging_dir.join("001.md");
     std::fs::write(
         &staged_path,
-        "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nwidget alpha mechanism records budget usage across nodes\n\n## S-001 (general)\n\nenforced_by review rubric: surgical changes only\n\n## S-002 (general)\n\ndubious ephemeral claim\n",
+        "# Staged candidates (dream distiller)\n\n## S-000 (General)\n\nwidget alpha mechanism records budget usage across nodes\n\n## S-001 (general)\n\nenforced_by review rubric: surgical changes only\n\n## S-002 (general)\n\ndubious ephemeral claim\n",
     )
     .unwrap();
     let manifest = staging_dir.join("001.verdicts.json");
@@ -2586,6 +2586,10 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     assert!(
         canonical.contains("widget alpha mechanism records budget usage"),
         "{canonical}"
+    );
+    assert!(
+        canonical.contains("- domain: general"),
+        "staged domain 'General' must be lowercased: {canonical}"
     );
     // The enforced_by fact must NOT be auto-promoted into canonical; it
     // routes to the human review queue (ADR-0010).
