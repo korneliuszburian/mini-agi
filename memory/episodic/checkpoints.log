@@ -698,3 +698,4 @@
 2026-08-08T03:30:41Z VERIFY-PASS fix206-cli-steps-malformed @ f7142fc
 2026-08-08T03:31:40Z BEGIN fix207-changelog19 -> 61354e0
 2026-08-08T03:32:53Z VERIFY-PASS fix207-changelog19 @ 316daf1
+2026-08-08T03:34:51Z BEGIN fix208-supersede-cycles-core-test -> 4ecca8a

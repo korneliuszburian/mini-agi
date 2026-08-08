@@ -1712,4 +1712,30 @@ mod fact_link_tests {
             "4 shared keywords must link: {links4:?}"
         );
     }
+
+    #[test]
+    fn supersede_cycles_detects_loops_and_dedups() {
+        // Direct core coverage for the cycle detector: a two-node loop,
+        // a three-node loop, and a plain chain must be classified
+        // correctly.
+        let edges = vec![
+            ("a".to_string(), vec!["b".to_string()]),
+            ("b".to_string(), vec!["c".to_string()]),
+            ("c".to_string(), vec!["a".to_string()]),
+            ("x".to_string(), vec!["y".to_string()]),
+            ("y".to_string(), vec!["x".to_string()]),
+            ("chain".to_string(), vec!["only".to_string()]),
+        ];
+        let cycles = supersede_cycles(&edges);
+        // Two distinct loops (a-b-c and x-y); the chain is not a cycle.
+        assert_eq!(cycles.len(), 2, "{cycles:?}");
+        assert!(
+            cycles.iter().any(|c| c.len() == 4),
+            "a-b-c-a cycle: {cycles:?}"
+        );
+        assert!(
+            cycles.iter().any(|c| c.len() == 3),
+            "x-y-x cycle: {cycles:?}"
+        );
+    }
 }
