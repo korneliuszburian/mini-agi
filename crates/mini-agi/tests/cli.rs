@@ -647,6 +647,29 @@ fn cli_checkpoint_audit_fails_when_journal_missing() {
 }
 
 #[test]
+fn cli_checkpoint_audit_accepts_in_flight_begin() {
+    // A journal whose LAST line is a BEGIN is an in-flight checkpoint —
+    // not a violation (verification in progress).
+    let root = tmp_root("c16i");
+    wipe(&root);
+    let journal = root.join("memory/episodic/checkpoints.log");
+    std::fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    std::fs::write(
+        &journal,
+        "2026-08-02T19:00:00Z BEGIN step -> abc\n2026-08-02T19:01:00Z VERIFY-PASS step @ abc\n2026-08-02T19:02:00Z BEGIN next -> def\n",
+    )
+    .unwrap();
+    let out = run(&root, &["checkpoint", "audit"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(
+        stdout(&out).contains("checkpoint cascade complete"),
+        "in-flight BEGIN must not be a violation: {}",
+        stdout(&out)
+    );
+    wipe(&root);
+}
+
+#[test]
 fn cli_mcp_handshake_and_tool_call() {
     use std::io::Write;
     use std::process::Stdio;
