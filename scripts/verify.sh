@@ -68,16 +68,22 @@ if [ -n "$BIN" ]; then
     # and stays gate-green (an init'd repo is gate-green by design).
     step "derive" sh -c '
         out1=$("$1" derive 2>&1); rc1=$?
-        if [ "$rc1" -ne 0 ] && ! echo "$out1" | grep -q "no canonical facts"; then
-            echo "derive: failed"; echo "$out1"; exit 1
+        if [ "$rc1" -ne 0 ]; then
+            echo "$out1" | grep -q "no canonical facts" || { echo "derive: failed"; echo "$out1"; exit 1; }
+            # A stale brief after the canonical was wiped would mask
+            # nondeterminism — refuse instead of hashing old output.
+            [ -f memory/derived/context-brief.md ] && { echo "derive: canonical wiped but stale brief present — rerun after ingest"; exit 1; }
+            echo "derive: deterministic (no facts)"; exit 0
         fi
-        [ -f memory/derived/context-brief.md ] || { echo "derive: deterministic (no facts)"; exit 0; }
-        h1=$(sha256sum memory/derived/context-brief.md 2>/dev/null | cut -d" " -f1) || exit 1
+        # Hash EVERY derived artifact (brief, per-domain fragments,
+        # CLAUDE.md) — a nondeterministic fragment must not pass.
+        derive_hashes() { sha256sum memory/derived/context-brief.md memory/derived/per-domain/AGENTS.*.md CLAUDE.md 2>/dev/null | cut -d" " -f1 | sha256sum | cut -d" " -f1; }
+        h1=$(derive_hashes) || exit 1
         out2=$("$1" derive 2>&1); rc2=$?
-        if [ "$rc2" -ne 0 ] && ! echo "$out2" | grep -q "no canonical facts"; then
+        if [ "$rc2" -ne 0 ]; then
             echo "derive: failed on second run"; echo "$out2"; exit 1
         fi
-        h2=$(sha256sum memory/derived/context-brief.md 2>/dev/null | cut -d" " -f1) || exit 1
+        h2=$(derive_hashes) || exit 1
         if [ "$h1" = "$h2" ]; then echo "derive: deterministic ($h1)"; else echo "derive: NOT DETERMINISTIC ($h1 != $h2)"; exit 1; fi
     ' sh "$BIN" || fail=1
 else

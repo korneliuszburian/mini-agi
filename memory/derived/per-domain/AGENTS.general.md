@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 7e5c75059747c766
-# canonical_entries: 79
+# canonical_sha256: a260321fac0884b4
+# canonical_entries: 80
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -811,7 +811,6 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `42801d9fc42fccc1` Gas Town (Jan 2026, v1.0) is an orchestrator built on the Beads ledger that runs dozens of parallel coding agents with oversight, an early 'Dark Factory' where agents work autonomously in the background.
 - `45921e9737d8f732` Gas City is a declarative orchestration SDK split from Gas Town that runs hundreds of concurrent agents.
 - `bbbe2b85e6d0db1a` Wasteland (Mar 2026) is a federation feature: link Gas Towns over the shared ledger, post/claim work on a wanted board, and earn multi-dimensional stamps (quality/reliability/creativity) that compose into a portable character sheet (reputation from real work).
-- `c3dff66fff8c9fda` Gas Town lexicon: bead = atomic durable unit of work (version-controlled git-backed DB); formula = template for a piece of work; polecat = worker agent with persistent identity and ephemeral sessions; witness = patrol/watchdog agent per rig; refinery = Bors-style merge-queue processor serializing merges; mayor = chief-of-staff coordinating across rigs; stamp = multi-dimensional attestation on completed work.
 - `3d5b6db5918b465b` Gas Town core thesis: 'durable memory plus parallelism win'; the stack is K8s-like (polecat workers, serializing refinery merge queue, per-group witness watchdog, cross-group mayor coordinator), and session crash/handoff is handled by the next session reading the ledger and continuing — the ledger, not the session, is the source of truth.
 - `f54b0ed68eef1372` Mapping to mini-agi: Beads ledger ~ checkpoint journal (memory/episodic/checkpoints.log) + evals/results run ledger + memory/canonical facts; Refinery ~ planner::finalize_and_merge; Witness ~ bg worker supervision / loop run watchdog; Polecat ~ bg workers with persistent session identity (MINIAGI_SESSION_TAG, detached runs, respawns); Stamp ~ eval gate multi-dim score (composite, outcome, cost_usd, tokens, tool_mismatches); persistent state ~ run-state index (status::index_runs).
 - `f54fde4a6d009561` Gas Town research status: audited (primary source yegge.ai/gastown, author = maintainer, single-source facts), research date 2026-08-08.
