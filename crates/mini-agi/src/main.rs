@@ -3308,4 +3308,47 @@ mod tests {
         };
         render_parallel_dispatch_results(&dispatch, &manifest);
     }
+
+    #[test]
+    fn dream_idle_freshness_selects_newer_run() {
+        // D2 idle freshness (deterministic with a huge load threshold:
+        // load1 < 100 on any host): a run newer than the newest staging
+        // is selected; a staging newer than the run returns None.
+        let root = std::env::temp_dir().join(format!(
+            "mag-dream-idle-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let run = root.join("evals/cases/a/run.json");
+        std::fs::create_dir_all(run.parent().unwrap()).unwrap();
+        std::fs::write(&run, r#"{"goal":"g","trajectory":[]}"#).unwrap();
+        // Backdate the run 1h so the freshness comparison is meaningful.
+        let past = std::time::SystemTime::now() - std::time::Duration::from_hours(1);
+        std::fs::File::open(&run)
+            .unwrap()
+            .set_modified(past)
+            .unwrap();
+        let src = dream_idle_source(&root, 100.0).unwrap();
+        assert!(
+            src.is_some(),
+            "a fresh run must be selected for distillation"
+        );
+        assert_eq!(src.unwrap(), run);
+        // Now write a staging file newer than the run: freshness fails.
+        let staging = root.join("memory/staging/2026-08-08/001.md");
+        std::fs::create_dir_all(staging.parent().unwrap()).unwrap();
+        std::fs::write(&staging, "# s").unwrap();
+        std::fs::File::open(&staging)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now())
+            .unwrap();
+        assert!(
+            dream_idle_source(&root, 100.0).unwrap().is_none(),
+            "staging newer than the run must skip distillation"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

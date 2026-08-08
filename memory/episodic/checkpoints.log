@@ -736,3 +736,4 @@
 2026-08-08T07:50:57Z VERIFY-PASS fix225-status-respawn-summary @ cc7f3d8
 2026-08-08T07:53:24Z BEGIN fix226-verify-derive-det -> ac8934c (clean)
 2026-08-08T07:54:25Z VERIFY-PASS fix226-verify-derive-det @ ac8934c
+2026-08-08T08:00:02Z BEGIN fix227-test-dream-idle-freshness -> f31b578 (clean)
