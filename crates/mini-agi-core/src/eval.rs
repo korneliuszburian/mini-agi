@@ -882,8 +882,28 @@ fn round4(value: f64) -> f64 {
 ///
 /// Returns [`EvalError`] when the file is missing or malformed.
 pub fn load_golden(golden_dir: &Path, name: &str) -> Result<Vec<Step>, EvalError> {
+    // Path safety: the golden name comes from run.json (user-controlled);
+    // a raw join would let '../x' read any file via golden_dir.
+    if !is_plain_name(name) {
+        return Err(EvalError::GoldenRead(std::io::Error::other(
+            "invalid golden name — use a plain file name (no separators)",
+        )));
+    }
     let text = fs::read_to_string(golden_dir.join(name)).map_err(EvalError::GoldenRead)?;
     Ok(serde_json::from_str(&text)?)
+}
+
+/// A golden/reference name must be a single plain path segment so a
+/// `golden_dir.join(name)` cannot escape the golden directory.
+#[must_use]
+pub fn is_plain_name(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && !name.starts_with('.')
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !name.contains(':')
 }
 
 /// Score a single run file (`PoC` `score.py` main).
@@ -1550,6 +1570,31 @@ mod tests {
         assert_eq!(repair_signal(&spin_run, Some(2)), RepairSignal::Spinning);
         // A clean run ignores the repeat threshold.
         assert_eq!(repair_signal(&spin_run, Some(10)), RepairSignal::Clean);
+    }
+
+    #[test]
+    fn load_golden_rejects_traversal_and_accepts_plain() {
+        let dir = std::env::temp_dir().join(format!(
+            "mag-eval-golden-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("g1.json"), r#"[{"tool":"read"}]"#).unwrap();
+        assert!(
+            load_golden(&dir, "g1.json").is_ok(),
+            "plain golden name must load"
+        );
+        for bad in ["../secret", "a/b", "..", "C:", "\\x", ".hidden"] {
+            assert!(
+                load_golden(&dir, bad).is_err(),
+                "traversal golden name {bad} must be rejected"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
