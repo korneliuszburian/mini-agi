@@ -689,6 +689,94 @@ fn call_skill_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
     }
 }
 
+/// Dispatch the loop-family MCP tools (`loop_*`). Returns `None` when
+/// `name` is not a loop tool so the caller falls through.
+fn call_loop_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
+    macro_rules! arg {
+        ($key:literal) => {
+            args.get($key).and_then(Value::as_str).unwrap_or("")
+        };
+    }
+    match name {
+        "loop_status" => Some(match mini_agi_core::loopcmd::status(root) {
+            Ok(report) => {
+                let mut lines = vec![format!(
+                    "{} runs, composite avg {:.4}, {} cases below target",
+                    report.runs,
+                    report.composite_avg,
+                    report.cases.len()
+                )];
+                for row in &report.cases {
+                    lines.push(format!(
+                        "  {:.4}  {:<24} ticket={:?} lease={:?} rerun={:?}",
+                        row.composite, row.case, row.ticket, row.claimant, row.rerun_composite
+                    ));
+                }
+                lines.join("\n")
+            }
+            Err(e) => format!("error: {e}"),
+        }),
+        "loop_dispatch" => Some({
+            let claimant = arg!("claimant");
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return Some("error: loop_dispatch requires an approval reason (approve) — a write that claims a ticket and writes a spec".to_string());
+            }
+            let case = arg!("case");
+            let case = if case.is_empty() { None } else { Some(case) };
+            match mini_agi_core::loopcmd::dispatch(root, case, 0.5, claimant) {
+                Ok(outcome) => format!(
+                    "dispatched: {} -> {} (spec: {})",
+                    outcome.case,
+                    outcome.ticket,
+                    outcome.spec.display()
+                ),
+                Err(e) => format!("error: {e}"),
+            }
+        }),
+        "loop_objective" => Some({
+            let claimant = arg!("claimant");
+            let approve = arg!("approve");
+            if approve.is_empty() {
+                return Some("error: loop_objective requires an approval reason (approve) — a write that claims tickets and writes specs".to_string());
+            }
+            let max_cases = arg!("max_cases").parse::<usize>().unwrap_or(3);
+            let budget_cost = arg!("budget_cost");
+            let budget_cost = if budget_cost.is_empty() {
+                None
+            } else {
+                match budget_cost.parse::<f64>() {
+                    Ok(v) => Some(v),
+                    Err(e) => {
+                        return Some(format!(
+                            "error: budget_cost '{budget_cost}' is not a number ({e})"
+                        ));
+                    }
+                }
+            };
+            match mini_agi_core::loopcmd::objective(root, max_cases, claimant, budget_cost) {
+                Ok(plan) => format!(
+                    "dispatched {} case(s); budget ${:.2}{}",
+                    plan.dispatched.len(),
+                    plan.budget_spent,
+                    plan.budget_cost
+                        .map_or_else(String::new, |b| format!(" / ${b:.2}"))
+                ),
+                Err(e) => format!("error: {e}"),
+            }
+        }),
+        "loop_verify" => Some({
+            let case = arg!("case");
+            let claimant = arg!("claimant");
+            match mini_agi_core::loopcmd::verify(root, case, claimant, false) {
+                Ok((text, _)) => text,
+                Err(e) => format!("error: {e}"),
+            }
+        }),
+        _ => None,
+    }
+}
+
 fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     macro_rules! arg {
         ($key:literal) => {
@@ -707,6 +795,9 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
         return r;
     }
     if let Some(r) = call_skill_tools(name, args, root) {
+        return r;
+    }
+    if let Some(r) = call_loop_tools(name, args, root) {
         return r;
     }
     match name {
@@ -825,24 +916,6 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             Ok(block) => block,
             Err(e) => format!("error: {e}"),
         },
-        "loop_status" => match mini_agi_core::loopcmd::status(root) {
-            Ok(report) => {
-                let mut lines = vec![format!(
-                    "{} runs, composite avg {:.4}, {} cases below target",
-                    report.runs,
-                    report.composite_avg,
-                    report.cases.len()
-                )];
-                for row in &report.cases {
-                    lines.push(format!(
-                        "  {:.4}  {:<24} ticket={:?} lease={:?} rerun={:?}",
-                        row.composite, row.case, row.ticket, row.claimant, row.rerun_composite
-                    ));
-                }
-                lines.join("\n")
-            }
-            Err(e) => format!("error: {e}"),
-        },
         "health" => match mini_agi_core::health::health(root) {
             Ok(report) => {
                 let mut lines = vec![format!("HEALTH CHECK — {}", report.verdict())];
@@ -927,53 +1000,6 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 .join("\n"),
             Err(e) => format!("error: {e}"),
         },
-        "loop_dispatch" => {
-            let claimant = arg!("claimant");
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return "error: loop_dispatch requires an approval reason (approve) — a write that claims a ticket and writes a spec".to_string();
-            }
-            let case = arg!("case");
-            let case = if case.is_empty() { None } else { Some(case) };
-            match mini_agi_core::loopcmd::dispatch(root, case, 0.5, claimant) {
-                Ok(outcome) => format!(
-                    "dispatched: {} -> {} (spec: {})",
-                    outcome.case,
-                    outcome.ticket,
-                    outcome.spec.display()
-                ),
-                Err(e) => format!("error: {e}"),
-            }
-        }
-        "loop_objective" => {
-            let claimant = arg!("claimant");
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return "error: loop_objective requires an approval reason (approve) — a write that claims tickets and writes specs".to_string();
-            }
-            let max_cases = arg!("max_cases").parse::<usize>().unwrap_or(3);
-            let budget_cost = arg!("budget_cost");
-            let budget_cost = if budget_cost.is_empty() {
-                None
-            } else {
-                match budget_cost.parse::<f64>() {
-                    Ok(v) => Some(v),
-                    Err(e) => {
-                        return format!("error: budget_cost '{budget_cost}' is not a number ({e})");
-                    }
-                }
-            };
-            match mini_agi_core::loopcmd::objective(root, max_cases, claimant, budget_cost) {
-                Ok(plan) => format!(
-                    "dispatched {} case(s); budget ${:.2}{}",
-                    plan.dispatched.len(),
-                    plan.budget_spent,
-                    plan.budget_cost
-                        .map_or_else(String::new, |b| format!(" / ${b:.2}"))
-                ),
-                Err(e) => format!("error: {e}"),
-            }
-        }
 
         "loop_run" => {
             let goal_or_case = arg!("goal_or_case");
@@ -1066,14 +1092,6 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 || "error: report not ready or handle missing".to_string(),
                 |text| serde_json::json!({ "report": text }).to_string(),
             )
-        }
-        "loop_verify" => {
-            let case = arg!("case");
-            let claimant = arg!("claimant");
-            match mini_agi_core::loopcmd::verify(root, case, claimant, false) {
-                Ok((text, _)) => text,
-                Err(e) => format!("error: {e}"),
-            }
         }
 
         "run_verify" => {
