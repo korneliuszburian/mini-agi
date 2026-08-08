@@ -3571,3 +3571,63 @@ fn cli_consolidate_normalizes_domain_case() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_signoff_normalizes_domain_case() {
+    // signoff with a case-variant domain must land as lowercase,
+    // consistent with consolidate normalization.
+    let root = tmp_root("csdn");
+    wipe(&root);
+    let first = root.join("b.md");
+    std::fs::write(
+        &first,
+        "FACT: A fact whose first forty characters are shared, original wording\n",
+    )
+    .unwrap();
+    let c1 = run(&root, &["mem", "consolidate", first.to_str().unwrap()]);
+    assert!(c1.status.success(), "{}", combined(&c1));
+    let variant = root.join("b2.md");
+    std::fs::write(
+        &variant,
+        "FACT: A fact whose first forty characters are shared, alternate wording\n",
+    )
+    .unwrap();
+    let con = run(
+        &root,
+        &[
+            "mem",
+            "consolidate",
+            variant.to_str().unwrap(),
+            "--require-signoff",
+        ],
+    );
+    assert!(con.status.success(), "{}", combined(&con));
+    let day = today();
+    let queue = root
+        .join("memory/review")
+        .join(format!("contested-{day}.md"));
+    assert!(queue.is_file(), "queue must exist");
+    let so = run(
+        &root,
+        &[
+            "mem",
+            "signoff",
+            queue.to_str().unwrap(),
+            "1",
+            "--domain",
+            "Testing",
+        ],
+    );
+    assert!(so.status.success(), "{}", combined(&so));
+    let canonical = std::fs::read_to_string(
+        root.join("memory/canonical/entries")
+            .join(&day)
+            .join(format!("{day}-002.md")),
+    )
+    .unwrap();
+    assert!(
+        canonical.contains("- domain: testing"),
+        "signoff domain must be lowercased: {canonical}"
+    );
+    wipe(&root);
+}

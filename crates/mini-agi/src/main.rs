@@ -2434,7 +2434,7 @@ fn cmd_mem_verify() -> ExitCode {
 }
 
 fn signoff_text(queue: &Path, index: usize, domain: &str, root: &Path) -> Result<String, String> {
-    match memory::signoff(root, queue, index, domain) {
+    match memory::signoff(root, queue, index, &domain.trim().to_lowercase()) {
         Ok(entry) => {
             let rel = entry.path.strip_prefix(root).unwrap_or(&entry.path);
             Ok(format!("signed off 1 fact\nentry: {}", rel.display()))
