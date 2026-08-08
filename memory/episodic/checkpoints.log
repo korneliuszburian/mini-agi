@@ -603,3 +603,4 @@
 2026-08-08T00:35:16Z BEGIN fix159-cli-steps-lines -> 431e498
 2026-08-08T00:36:44Z VERIFY-PASS fix159-cli-steps-lines @ d58ecb2
 2026-08-08T00:40:08Z BEGIN fix160-mcp-unknown-method -> 1a86f67
+2026-08-08T00:41:34Z VERIFY-PASS fix160-mcp-unknown-method @ 807ecbe
