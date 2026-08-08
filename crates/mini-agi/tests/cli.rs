@@ -2560,6 +2560,12 @@ fn cli_eval_steps_reports_suspicious_steps() {
         "expected suspicious count: {}",
         stdout(&out)
     );
+    // Per-step score lines must be present for every step.
+    assert!(
+        stdout(&out).contains("step 1 [read]") && stdout(&out).contains("step 2 [exec]"),
+        "per-step score lines missing: {}",
+        stdout(&out)
+    );
     // A clean run (all steps goal-aligned) must report the negative path.
     let clean_path = case_dir.join("clean.json");
     std::fs::write(
