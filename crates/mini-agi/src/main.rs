@@ -2714,13 +2714,7 @@ fn cmd_loop_parallel(
             ));
         }
     };
-    for r in &dispatch.results {
-        println!(
-            "  ticket {}: {}",
-            r.id,
-            if r.passed { "PASSED" } else { "NOT PASSED" }
-        );
-    }
+    render_parallel_dispatch_results(&dispatch, &manifest);
     let all_passed = dispatch.results.iter().all(|r| r.passed)
         && dispatch.results.len() == manifest.tickets.len();
     if !all_passed {
@@ -2766,6 +2760,26 @@ fn cmd_loop_parallel(
         println!("FINAL GATE: FAILED ({})", resolved.verify_cmd);
         ExitCode::from(1)
     }
+}
+
+/// Render the parallel-batch dispatch result summary (ticket-by-ticket
+/// verdicts after `planner::dispatch_batch`).
+fn render_parallel_dispatch_results(
+    dispatch: &planner::BatchDispatchResult,
+    manifest: &planner::PlannerManifest,
+) {
+    for r in &dispatch.results {
+        println!(
+            "  ticket {}: {}",
+            r.id,
+            if r.passed { "PASSED" } else { "NOT PASSED" }
+        );
+    }
+    println!(
+        "  batch: {} / {} tickets passed",
+        dispatch.results.iter().filter(|r| r.passed).count(),
+        manifest.tickets.len()
+    );
 }
 
 fn git_head(repo: &Path) -> Result<String, String> {

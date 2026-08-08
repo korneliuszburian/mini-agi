@@ -601,6 +601,12 @@ pub fn set_disabled(root: &Path, name: &str, disabled: bool) -> Result<(), Skill
 /// Returns [`SkillError::Io`] on filesystem failure, [`SkillError::Parse`]
 /// for malformed `SKILL.md`, or [`SkillError::VerifyFailed`] when git
 /// cannot clone the source.
+///
+/// # Panics
+///
+/// Panics if the staging path under the temp root is not valid UTF-8 —
+/// the staging directory is always created by this function, so this is
+/// not reachable in practice.
 pub fn install_skills(root: &Path, source: &str) -> Result<Vec<String>, SkillError> {
     let normalized = if source.contains('/') && !source.starts_with("http") {
         if source.starts_with("github.com") || source.matches('/').count() == 1 {

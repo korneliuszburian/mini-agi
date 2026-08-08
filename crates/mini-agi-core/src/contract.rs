@@ -200,6 +200,11 @@ pub fn validate_contract(contract: Contract, document: &Value) -> Option<SchemaE
 }
 
 /// Load the bundled schema for a contract.
+///
+/// # Panics
+///
+/// Panics if the bundled schema JSON is malformed — that is a build-time
+/// invariant violation, not a runtime failure mode.
 #[must_use]
 pub fn contract_schema(contract: Contract) -> Schema {
     let json = match contract {
