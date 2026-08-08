@@ -705,3 +705,4 @@
 2026-08-08T04:09:15Z BEGIN fix210-snapshot-corrupted-msg -> 592321e
 2026-08-08T04:10:59Z VERIFY-PASS fix210-snapshot-corrupted-msg @ 75815b7
 2026-08-08T04:33:51Z BEGIN fix211-changelog21 -> 24d7535
+2026-08-08T04:34:50Z VERIFY-PASS fix211-changelog21 @ ad79b11
