@@ -3672,3 +3672,22 @@ fn cli_eval_gate_detects_case_drop_from_baseline() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_gate_malformed_baseline_fails_cleanly() {
+    // A malformed baseline.json must fail the gate closed, not crash.
+    let root = tmp_root("cgmb");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("evals/cases")).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::create_dir_all(root.join("evals/results")).unwrap();
+    std::fs::write(root.join("evals/results/baseline.json"), "{bad json").unwrap();
+    let out = run(&root, &["eval", "gate"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("baseline malformed"),
+        "{}",
+        combined(&out)
+    );
+    wipe(&root);
+}
