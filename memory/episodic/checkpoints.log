@@ -786,3 +786,4 @@
 2026-08-08T22:34:44Z VERIFY-PASS fix250-supervisor-traversal @ cadb146
 2026-08-08T22:38:40Z BEGIN fix251-planner-zombie -> 23413f0 (clean)
 2026-08-08T22:39:25Z VERIFY-PASS fix251-planner-zombie @ 23413f0
+2026-08-08T22:39:34Z BEGIN fix252-errors-docs -> aa5193e

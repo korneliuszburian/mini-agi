@@ -248,6 +248,11 @@ pub struct SupervisorResult {
 /// attempt, runs the core, writes the run report, invokes the on-done
 /// hook. Returns the result (exit semantics belong to the caller: 0
 /// passed, 1 exhausted, 3 aborted).
+///
+/// # Errors
+///
+/// Returns a message when the workdir cannot be created, the worker
+/// cannot be spawned, or the run fails outside the defined budget paths.
 pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
     std::fs::create_dir_all(args.workdir).map_err(|e| e.to_string())?;
     let progress_path = args.workdir.join("progress.md");
@@ -539,6 +544,12 @@ pub struct ResolvedSpec {
 /// runs);
 /// an ad-hoc goal requires an explicit `--verify` (and defaults the
 /// target to the workdir).
+///
+/// # Errors
+///
+/// Returns a message when the case name is not path-safe or cannot be
+/// parsed, when the goal declares no verifier, or when the verifier
+/// shape is invalid.
 pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
     // Path safety (mirrors loopcmd/snapshot validation): a raw join
     // would let `loop run ../x` read a run.json outside evals/cases.

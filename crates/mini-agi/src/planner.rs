@@ -778,6 +778,10 @@ pub fn finalize_and_merge(
 /// Protected final gate (S5): snapshot the gate inputs (the protected
 /// paths) at the base sha; the merged tree must NOT have drifted on
 /// them — otherwise the final truth could be self-modified.
+///
+/// # Errors
+///
+/// Returns a message when git cannot be invoked.
 pub fn protected_paths_unchanged(repo: &Path, base_sha: &str) -> Result<bool, String> {
     // Committed drift vs the base.
     let out = std::process::Command::new("git")
@@ -802,6 +806,11 @@ pub fn protected_paths_unchanged(repo: &Path, base_sha: &str) -> Result<bool, St
 /// the goal into tickets and emits a strict JSON manifest. The output
 /// may carry prose/fences around the JSON — the manifest is extracted
 /// between the first '{' and the last '}' and parsed FAIL-CLOSED.
+///
+/// # Errors
+///
+/// Returns a message when the codex worker is unavailable, or the
+/// emitted manifest fails validation.
 pub fn run_planner_pass(
     goal: &str,
     workdir: &Path,
