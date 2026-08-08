@@ -2365,6 +2365,13 @@ fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
         vl.contains("fail-case") && vl.contains("disagrees"),
         "verifier attribution must be persisted: {vl}"
     );
+    // The verifier-vs-judge calibration row must be recorded too.
+    let cal =
+        std::fs::read_to_string(root.join("memory/derived/calibration.md")).unwrap_or_default();
+    assert!(
+        cal.contains("fail-case"),
+        "judge-calibration row must be persisted: {cal}"
+    );
     wipe(&root);
 }
 
