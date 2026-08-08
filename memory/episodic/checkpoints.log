@@ -748,3 +748,4 @@
 2026-08-08T09:06:42Z VERIFY-PASS fix231-remove-stale-allow @ f5845a4
 2026-08-08T09:12:34Z BEGIN fix232-changelog25 -> 295396c
 2026-08-08T09:14:02Z VERIFY-PASS fix232-changelog25 @ 12d1a1d
+2026-08-08T09:18:20Z BEGIN fix233-refactor-verify-budget -> b589e0d

@@ -879,6 +879,53 @@ fn record_close_evidence(
     true
 }
 
+/// Error-budget audit (cycle-33 Flat Score #98 pattern): surface the
+/// per-channel failure counts and the success-at-budget projection, plus
+/// the repetition watchdog (hardening audit P1-5) signal for a spinning
+/// worker — so the end-of-run composite cannot hide degraded reliability.
+fn verify_error_budget_audit(
+    root: &Path,
+    run_path: &Path,
+    report: &crate::eval::ScoreReport,
+    lines: &mut Vec<String>,
+) {
+    let audit = &report.error_budget;
+    let budget_line: Vec<String> = audit
+        .success_at_budget
+        .iter()
+        .enumerate()
+        .map(|(k, ok)| format!("{k}:{}", if *ok { "ok" } else { "fail" }))
+        .collect();
+    lines.push(format!(
+        "  error budget: {} steps, {} failed (dedup), {} gate-fail, {} goal-drift, {} reverted (by tool: {:?})",
+        audit.total_steps,
+        audit.failed_steps,
+        audit.failed_gate_steps,
+        audit.goal_drift_steps,
+        audit.reverted_steps,
+        audit.failed_by_tool
+    ));
+    lines.push(format!(
+        "  success at budget k (k: status): {}",
+        budget_line.join(" ")
+    ));
+    // Repetition watchdog: a trajectory repeating the same (tool,
+    // action) verbatim beyond max_repeated_steps is a spinning worker —
+    // a signal, not a hard block (repeated probes can be legitimate).
+    if let Some(max) = crate::config::Config::load(root).max_repeated_steps
+        && let Some(run) = serde_json::from_str::<eval::Run>(
+            &std::fs::read_to_string(run_path).unwrap_or_default(),
+        )
+        .ok()
+        && eval::max_consecutive_repeat(&run) > max
+    {
+        let repeats = eval::max_consecutive_repeat(&run);
+        lines.push(format!(
+            "  warning: repetition watchdog — {repeats} identical consecutive steps (max {max}); the worker may have spun"
+        ));
+    }
+}
+
 /// Close (or refuse to close) a gap by verifying a rerun against the
 /// case's deterministic verifier and the eval gate.
 ///
@@ -903,46 +950,11 @@ pub fn verify(
             report.tool_mismatches_vs_golden
         ),
     ];
-    // Error-budget audit (cycle-33 Flat Score #98 pattern): surface the
-    // per-channel failure counts and the success-at-budget projection so
-    // the end-of-run composite cannot hide a run whose per-step
-    // reliability is degraded inside its error budget.
-    let audit = &report.error_budget;
-    let budget_line: Vec<String> = audit
-        .success_at_budget
-        .iter()
-        .enumerate()
-        .map(|(k, ok)| format!("{k}:{}", if *ok { "ok" } else { "fail" }))
-        .collect();
-    lines.push(format!(
-        "  error budget: {} steps, {} failed (dedup), {} gate-fail, {} goal-drift, {} reverted (by tool: {:?})",
-        audit.total_steps,
-        audit.failed_steps,
-        audit.failed_gate_steps,
-        audit.goal_drift_steps,
-        audit.reverted_steps,
-        audit.failed_by_tool
-    ));
-    lines.push(format!(
-        "  success at budget k (k: status): {}",
-        budget_line.join(" ")
-    ));
-    // Repetition watchdog (hardening audit P1-5): a run whose trajectory
-    // repeats the same (tool, action) verbatim beyond the configured
-    // max_repeated_steps is flagged — a spinning worker. A signal, not a
-    // hard block (repeated probes can be legitimate).
-    if let Some(max) = crate::config::Config::load(root).max_repeated_steps
-        && let Some(run) = serde_json::from_str::<eval::Run>(
-            &std::fs::read_to_string(&run_path).unwrap_or_default(),
-        )
-        .ok()
-        && eval::max_consecutive_repeat(&run) > max
-    {
-        let repeats = eval::max_consecutive_repeat(&run);
-        lines.push(format!(
-            "  warning: repetition watchdog — {repeats} identical consecutive steps (max {max}); the worker may have spun"
-        ));
-    }
+    // Error-budget audit (cycle-33 Flat Score #98 pattern) + repetition
+    // watchdog (hardening audit P1-5): surface per-channel failure
+    // counts, the success-at-budget projection, and a spinning-worker
+    // signal so the composite cannot hide degraded reliability.
+    verify_error_budget_audit(root, &run_path, &report, &mut lines);
     // Verifiable reward layer (ADR-0011): when the run declares a
     // deterministic verifier, CLOSED requires it to pass — a self-
     // reported outcome is not trusted. A verifier ERROR (e.g. missing
