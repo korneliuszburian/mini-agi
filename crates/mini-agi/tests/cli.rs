@@ -2111,6 +2111,22 @@ fn cli_mem_query_finds_keyword_and_no_match_exits_1() {
         "{}",
         stdout(&dom)
     );
+    // Combined keyword + domain: hit for the matching domain, miss for
+    // a different one.
+    let combo = run(&root, &["mem", "query", "widget", "--domain", "general"]);
+    assert!(combo.status.success(), "{}", combined(&combo));
+    assert!(
+        stdout(&combo).contains("widget alpha mechanism"),
+        "{}",
+        stdout(&combo)
+    );
+    let combo_miss = run(&root, &["mem", "query", "widget", "--domain", "repair"]);
+    assert_eq!(
+        combo_miss.status.code(),
+        Some(1),
+        "{}",
+        combined(&combo_miss)
+    );
     assert!(
         combined(&none).contains("no facts match"),
         "{}",
