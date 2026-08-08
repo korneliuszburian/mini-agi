@@ -2861,6 +2861,61 @@ fn cmd_status(json: bool) -> ExitCode {
 
 /// Dream-loop entry (D2): `--source <material>` distills + audits into
 /// staging; `--promote` applies the latest manifest's verdicts.
+/// D2 idle trigger: return the newest run to distill only when the
+/// machine is quiet (load1 below the threshold) AND the newest run is
+/// newer than the newest staging file. Returns `None` (skip) when the
+/// box is busy, there is nothing to distill, or nothing is new.
+fn dream_idle_source(root: &Path, idle_load: f64) -> Result<Option<std::path::PathBuf>, String> {
+    let Some(load1) = std::fs::read_to_string("/proc/loadavg")
+        .ok()
+        .and_then(|l| l.split_whitespace().next().map(str::to_string))
+        .and_then(|v| v.parse::<f64>().ok())
+    else {
+        return Err("dream --idle: cannot read load average".to_string());
+    };
+    if load1 >= idle_load {
+        println!("dream --idle: load1 {load1:.2} >= {idle_load} — busy, skipping");
+        return Ok(None);
+    }
+    let idx = status::index_runs(&root.join("evals/cases"), root);
+    let Some(newest_run) = idx.rows.first() else {
+        println!("dream --idle: no runs to distill");
+        return Ok(None);
+    };
+    let staging_root = root.join(mini_agi_core::dream::STAGING_REL);
+    let newest_staging = std::fs::read_dir(&staging_root).ok().and_then(|days| {
+        let mut newest = None;
+        for day in days.flatten() {
+            let Ok(entries) = std::fs::read_dir(day.path()) else {
+                continue;
+            };
+            for e in entries
+                .flatten()
+                .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
+            {
+                if let Ok(meta) = std::fs::metadata(e.path())
+                    && let Ok(m) = meta.modified()
+                    && newest.is_none_or(|n| m > n)
+                {
+                    newest = Some(m);
+                }
+            }
+        }
+        newest
+    });
+    if let Some(st) = newest_staging
+        && st >= newest_run.modified
+    {
+        println!("dream --idle: no newer runs since the last staging");
+        return Ok(None);
+    }
+    Ok(Some(
+        root.join("evals/cases")
+            .join(&newest_run.case)
+            .join("run.json"),
+    ))
+}
+
 fn cmd_dream(
     source: Option<&Path>,
     distiller: &str,
@@ -2874,56 +2929,12 @@ fn cmd_dream(
     if promote {
         return cmd_dream_promote(&root, dry_run);
     }
-    let source = if let Some(idle_load) = idle_load {
-        // D2 idle trigger: only when the machine is quiet (a busy box
-        // would contend with the worker + the shared opencode state).
-        let Some(load1) = std::fs::read_to_string("/proc/loadavg")
-            .ok()
-            .and_then(|l| l.split_whitespace().next().map(str::to_string))
-            .and_then(|v| v.parse::<f64>().ok())
-        else {
-            return fail("dream --idle: cannot read load average");
-        };
-        if load1 >= idle_load {
-            println!("dream --idle: load1 {load1:.2} >= {idle_load} — busy, skipping");
-            return ExitCode::SUCCESS;
+    let source = if let Some(load) = idle_load {
+        match dream_idle_source(&root, load) {
+            Ok(Some(p)) => p,
+            Ok(None) => return ExitCode::SUCCESS,
+            Err(e) => return fail(&e),
         }
-        // Newest run report newer than the newest staging file.
-        let idx = status::index_runs(&root.join("evals/cases"), &root);
-        let Some(newest_run) = idx.rows.first() else {
-            println!("dream --idle: no runs to distill");
-            return ExitCode::SUCCESS;
-        };
-        let staging_root = root.join(mini_agi_core::dream::STAGING_REL);
-        let newest_staging = std::fs::read_dir(&staging_root).ok().and_then(|days| {
-            let mut newest = None;
-            for day in days.flatten() {
-                let Ok(entries) = std::fs::read_dir(day.path()) else {
-                    continue;
-                };
-                for e in entries
-                    .flatten()
-                    .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
-                {
-                    if let Ok(meta) = std::fs::metadata(e.path())
-                        && let Ok(m) = meta.modified()
-                        && newest.is_none_or(|n| m > n)
-                    {
-                        newest = Some(m);
-                    }
-                }
-            }
-            newest
-        });
-        if let Some(st) = newest_staging
-            && st >= newest_run.modified
-        {
-            println!("dream --idle: no newer runs since the last staging");
-            return ExitCode::SUCCESS;
-        }
-        root.join("evals/cases")
-            .join(&newest_run.case)
-            .join("run.json")
     } else {
         let Some(source) = source else {
             return fail("dream: give --source <episodic material>, --idle, or --promote");
