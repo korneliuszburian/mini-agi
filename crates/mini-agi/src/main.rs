@@ -2794,7 +2794,7 @@ fn render_parallel_dispatch_results(
     // relaunched ticket.
     if !dispatch.respawns.is_empty() {
         println!(
-            "  respawns: {} ticket(s) relaunched after crashing without a report (see stderr for events)",
+            "  respawns: {} ticket(s) relaunched after crashing without a report (events: stderr + .batch/respawns.log)",
             dispatch.respawns.len()
         );
     }
