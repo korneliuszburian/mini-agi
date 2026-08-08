@@ -3397,4 +3397,34 @@ mod tests {
         assert!(read_staged_facts(&root.join("empty.md")).is_err());
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn validate_doc_accepts_contract_and_rejects_bad() {
+        let root = std::env::temp_dir().join(format!(
+            "mag-vdoc-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let ok = root.join("ok.json");
+        std::fs::write(
+            &ok,
+            r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        let r = validate_doc_text("eval-run", &ok).unwrap();
+        assert!(r.contains("validates"), "{r}");
+        // Invalid document: missing required field.
+        let bad = root.join("bad.json");
+        std::fs::write(&bad, r#"{"goal":"g"}"#).unwrap();
+        assert!(validate_doc_text("eval-run", &bad).is_err());
+        // Unknown contract name.
+        assert!(validate_doc_text("nope", &ok).is_err());
+        // Missing file.
+        assert!(validate_doc_text("eval-run", &root.join("missing.json")).is_err());
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
