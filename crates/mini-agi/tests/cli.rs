@@ -3748,3 +3748,34 @@ fn cli_eval_gate_detects_cost_regression() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_gate_capability_drop_is_monitored_not_failed() {
+    // A composite drop on a 'capability' case is a monitoring signal,
+    // not a hard gate failure.
+    let root = tmp_root("cgcap");
+    wipe(&root);
+    let case = root.join("evals/cases/c");
+    std::fs::create_dir_all(&case).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::create_dir_all(root.join("evals/results")).unwrap();
+    std::fs::write(
+        case.join("run.json"),
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.01,"golden":null,"mode":"capability","verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":false,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("evals/results/baseline.json"),
+        r#"[{"case":"c","composite":0.9,"outcome":1.0,"cost_usd":0.1,"tokens":100,"tool_mismatches":0,"mode":"capability"}]"#,
+    )
+    .unwrap();
+    let out = run(&root, &["eval", "gate"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("CAPABILITY DROP"),
+        "capability drop must be reported: {}",
+        combined(&out)
+    );
+    assert!(combined(&out).contains("PASS"), "{}", combined(&out));
+    wipe(&root);
+}

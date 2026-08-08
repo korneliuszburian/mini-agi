@@ -688,3 +688,4 @@
 2026-08-08T03:08:26Z VERIFY-PASS fix201-cli-gate-newcase @ 8ab1b5a
 2026-08-08T03:09:12Z BEGIN fix202-cli-gate-cost -> f1e0d15
 2026-08-08T03:10:31Z VERIFY-PASS fix202-cli-gate-cost @ dbf69f1
+2026-08-08T03:12:33Z BEGIN fix203-cli-gate-capability-drop -> 451e93a

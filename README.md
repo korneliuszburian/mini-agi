@@ -15,7 +15,7 @@ skills registry, orchestration** — exposed as CLI + MCP server so ANY agent
 ## Status
 
 All phases 0-11 complete (memory, eval, skills, journal, MCP, loop, verifier,
-harness evolution, Rust quality gates), 447 tests green, gate ALL GREEN, v0.3.0:
+harness evolution, Rust quality gates), 448 tests green, gate ALL GREEN, v0.3.0:
 
 | Phase | Deliverable |
 | --- | --- |
