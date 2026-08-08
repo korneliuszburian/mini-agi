@@ -651,3 +651,4 @@
 2026-08-08T01:40:09Z BEGIN fix183-changelog13 -> bca74a9
 2026-08-08T01:41:19Z VERIFY-PASS fix183-changelog13 @ 92dff65
 2026-08-08T01:44:59Z BEGIN fix184-cli-query-combo -> 53565f2
+2026-08-08T01:46:32Z VERIFY-PASS fix184-cli-query-combo @ 8bce54c
