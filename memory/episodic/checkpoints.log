@@ -592,3 +592,4 @@
 2026-08-08T00:16:39Z VERIFY-PASS fix153-agents-md-memory-rules @ 42d869e
 2026-08-08T00:18:08Z BEGIN fix154-cli-validate-evalrun -> 82c3fa2
 2026-08-08T00:19:21Z VERIFY-PASS fix154-cli-validate-evalrun @ f27108b
+2026-08-08T00:20:21Z BEGIN fix155-cli-validate-spec-verdict -> 769e911

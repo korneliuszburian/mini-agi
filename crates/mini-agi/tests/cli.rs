@@ -3127,3 +3127,46 @@ fn cli_validate_eval_run_contract() {
     assert!(combined(&bv).contains("tokens_total"), "{}", combined(&bv));
     wipe(&root);
 }
+
+#[test]
+fn cli_validate_spec_and_verdict_contracts() {
+    // validate spec and verdict contracts were core-tested only; the CLI
+    // wiring for these two was untested.
+    let root = tmp_root("csvg");
+    wipe(&root);
+    let spec = root.join("spec.json");
+    std::fs::write(
+        &spec,
+        r#"{"ticket_id":"TICKET-3","goal":"g","acceptance_criteria":["a"]}"#,
+    )
+    .unwrap();
+    let sv = run(&root, &["validate", "spec", spec.to_str().unwrap()]);
+    assert!(sv.status.success(), "{}", combined(&sv));
+    // Bad ticket id pattern fails closed.
+    let bad_spec = root.join("badspec.json");
+    std::fs::write(
+        &bad_spec,
+        r#"{"ticket_id":"X-1","goal":"g","acceptance_criteria":["a"]}"#,
+    )
+    .unwrap();
+    let bsv = run(&root, &["validate", "spec", bad_spec.to_str().unwrap()]);
+    assert_eq!(bsv.status.code(), Some(1), "{}", combined(&bsv));
+    // Verdict contract: valid APPROVE passes, unknown verdict fails.
+    let verdict = root.join("verdict.json");
+    std::fs::write(
+        &verdict,
+        r#"{"verdict":"APPROVE","correctness":2,"security":2,"tests":2,"scope":2}"#,
+    )
+    .unwrap();
+    let vv = run(&root, &["validate", "verdict", verdict.to_str().unwrap()]);
+    assert!(vv.status.success(), "{}", combined(&vv));
+    let bad_v = root.join("badverdict.json");
+    std::fs::write(
+        &bad_v,
+        r#"{"verdict":"MAYBE","correctness":2,"security":2,"tests":2,"scope":2}"#,
+    )
+    .unwrap();
+    let bvv = run(&root, &["validate", "verdict", bad_v.to_str().unwrap()]);
+    assert_eq!(bvv.status.code(), Some(1), "{}", combined(&bvv));
+    wipe(&root);
+}
