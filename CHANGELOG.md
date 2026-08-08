@@ -141,6 +141,12 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   tolerance/mismatch-tolerance overrides, `stats`/`budget`/`provenance`
   report asserts, MCP tool-count (39) and instructions asserts, `codex`
   missing-spec fail-fast. Suite: 417 -> 428 tests.
+- Fixed a date-dependent flake: two dream CLI tests hard-coded
+  '2026-08-07' in staging/canonical paths and broke when UTC crossed
+  midnight; both now use today(). More coverage: `derive --snapshot`
+  determinism (re-snapshot still MATCHes), `dream --idle` freshness skip
+  (pinned mtimes), `dream --promote` reject-verdict skip, per-domain
+  fragment content assert. Suite: 428 -> 429 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
