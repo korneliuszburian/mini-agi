@@ -2535,14 +2535,12 @@ fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {
         // The RESOLVED target (a case's verify_target honored) — not
         // the raw flag (codex review F1).
         let vt = resolved.target.as_path();
-        let verify_cmd = if let Some(v) = a.verify.as_deref() {
-            v.to_string()
-        } else {
-            let v = resolved.verify_cmd;
-            if v.is_empty() {
-                return fail("cannot resolve a verifier for this goal");
-            }
-            v
+        let verify_cmd = match crate::supervisor::resolve_verify_cmd(
+            a.verify.as_deref(),
+            resolved.verify_cmd.clone(),
+        ) {
+            Ok(v) => v,
+            Err(e) => return fail(&e),
         };
         let report_default = a.workdir.join("REPORT.md");
         let report = a.report.as_deref().unwrap_or(&report_default);

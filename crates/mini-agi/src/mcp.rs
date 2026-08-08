@@ -215,7 +215,11 @@ fn tool_definitions() -> Vec<Value> {
         ToolDef {
             name: "eval_gate",
             description: "Regression gate over all cases vs the baseline.",
-            params: &[("tolerance", "number"), ("write_baseline", "boolean")],
+            params: &[
+                ("tolerance", "number"),
+                ("mismatch_tolerance", "number"),
+                ("write_baseline", "boolean"),
+            ],
             required: &[],
         },
         ToolDef {
@@ -592,7 +596,8 @@ fn call_eval_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
             )
         }
         "eval_gate" => {
-            let tolerance = arg_f64(args, "tolerance").unwrap_or(0.05);
+            let cfg = mini_agi_core::config::Config::load(root);
+            let tolerance = arg_f64(args, "tolerance").unwrap_or(cfg.regression_tolerance);
             let mismatch_tolerance =
                 usize::try_from(arg_u64(args, "mismatch_tolerance").unwrap_or(1)).unwrap_or(1);
             let write_baseline = arg_bool(args, "write_baseline");
@@ -1080,14 +1085,12 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             {
                 return format!("error: unknown template '{t}' (supported: sequential-reviewer)");
             }
-            let verify_cmd = if let Some(v) = opt_arg!("verify") {
-                v.to_string()
-            } else {
-                let v = resolved.verify_cmd;
-                if v.is_empty() {
-                    return "error: cannot resolve a verifier for this goal".to_string();
-                }
-                v
+            let verify_cmd = match crate::supervisor::resolve_verify_cmd(
+                opt_arg!("verify"),
+                resolved.verify_cmd.clone(),
+            ) {
+                Ok(v) => v,
+                Err(e) => return format!("error: {e}"),
             };
             let target = resolved.target;
             let report = opt_arg!("report")

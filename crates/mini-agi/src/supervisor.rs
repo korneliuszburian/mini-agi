@@ -611,6 +611,22 @@ fn resolve_idle_cap(explicit: Option<u64>, workdir: &Path) -> Option<u64> {
     explicit.or_else(|| mini_agi_core::config::Config::load(workdir).max_idle_seconds)
 }
 
+/// The verifier command to run: an explicit `--verify` wins, else the
+/// goal's resolved verifier (empty means the goal declares none).
+///
+/// # Errors
+///
+/// Returns a message when neither source yields a verifier.
+pub fn resolve_verify_cmd(explicit: Option<&str>, resolved_cmd: String) -> Result<String, String> {
+    if let Some(v) = explicit {
+        return Ok(v.to_string());
+    }
+    if resolved_cmd.is_empty() {
+        return Err("cannot resolve a verifier for this goal".to_string());
+    }
+    Ok(resolved_cmd)
+}
+
 fn append_progress(path: &Path, line: &str) {
     let _ = std::fs::OpenOptions::new()
         .create(true)

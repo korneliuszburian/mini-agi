@@ -802,3 +802,4 @@
 2026-08-08T23:01:49Z VERIFY-PASS fix258-dead-verifier-params @ a2de682
 2026-08-08T23:04:17Z BEGIN fix259-dream-dry-run -> efa9ba7
 2026-08-08T23:08:32Z VERIFY-PASS fix259-dream-dry-run @ 8cba85a
+2026-08-08T23:09:39Z BEGIN fix260-mcp-config-defaults -> d1ddaa6
