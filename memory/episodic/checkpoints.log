@@ -590,3 +590,4 @@
 2026-08-08T00:14:11Z VERIFY-PASS fix152-changelog8 @ c81747d
 2026-08-08T00:15:04Z BEGIN fix153-agents-md-memory-rules -> 5785956
 2026-08-08T00:16:39Z VERIFY-PASS fix153-agents-md-memory-rules @ 42d869e
+2026-08-08T00:18:08Z BEGIN fix154-cli-validate-evalrun -> 82c3fa2

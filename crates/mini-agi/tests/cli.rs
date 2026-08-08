@@ -3100,3 +3100,30 @@ fn cli_codex_missing_spec_fails_cleanly() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_validate_eval_run_contract() {
+    // validate eval-run (the scored-run contract) was only covered in
+    // core; the CLI wiring for this contract was untested.
+    let root = tmp_root("cver");
+    wipe(&root);
+    let ok = root.join("ok.json");
+    std::fs::write(
+        &ok,
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":10,"cost_usd":0.1,"golden":[],"trajectory":[{"step":1}]}"#,
+    )
+    .unwrap();
+    let v = run(&root, &["validate", "eval-run", ok.to_str().unwrap()]);
+    assert!(v.status.success(), "{}", combined(&v));
+    // Missing a required field -> fail closed.
+    let bad = root.join("bad.json");
+    std::fs::write(
+        &bad,
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true}}"#,
+    )
+    .unwrap();
+    let bv = run(&root, &["validate", "eval-run", bad.to_str().unwrap()]);
+    assert_eq!(bv.status.code(), Some(1), "{}", combined(&bv));
+    assert!(combined(&bv).contains("tokens_total"), "{}", combined(&bv));
+    wipe(&root);
+}
