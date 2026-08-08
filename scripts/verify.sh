@@ -62,6 +62,15 @@ if [ -n "$BIN" ]; then
     step "budget"       "$BIN" budget || fail=1
     step "insights"     "$BIN" insights || fail=1
     step "audit"        "$BIN" audit || fail=1
+    # Determinism (cycle-34 finding): derivation is a pure function of
+    # canonical memory — a second derive must not change the brief.
+    step "derive" sh -c '
+        "$1" derive >/dev/null 2>&1 || exit 1
+        h1=$(sha256sum memory/derived/context-brief.md 2>/dev/null | cut -d" " -f1) || exit 1
+        "$1" derive >/dev/null 2>&1 || exit 1
+        h2=$(sha256sum memory/derived/context-brief.md 2>/dev/null | cut -d" " -f1) || exit 1
+        if [ "$h1" = "$h2" ]; then echo "derive: deterministic ($h1)"; else echo "derive: NOT DETERMINISTIC ($h1 != $h2)"; exit 1; fi
+    ' sh "$BIN" || fail=1
 else
     if [ "$has_cargo" -eq 1 ]; then
         echo "[FAIL] build: kernel binary missing — expected target/debug/mini-agi or mini-agi on PATH"
