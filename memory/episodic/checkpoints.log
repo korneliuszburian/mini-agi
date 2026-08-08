@@ -772,3 +772,4 @@
 2026-08-08T11:01:17Z VERIFY-PASS fix243-refactor-mcp-run @ ed7b3e3
 2026-08-08T11:09:04Z BEGIN fix244-changelog26 -> 4886260
 2026-08-08T11:10:55Z VERIFY-PASS fix244-changelog26 @ c36d878
+2026-08-08T11:27:36Z BEGIN fix245-staged-facts-test -> 5355a7b (clean)

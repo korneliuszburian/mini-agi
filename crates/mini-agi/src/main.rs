@@ -3366,4 +3366,35 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn read_staged_facts_parses_domains_and_bodies() {
+        let root = std::env::temp_dir().join(format!(
+            "mag-staged-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let staged = root.join("staged.md");
+        std::fs::write(
+            &staged,
+            "# Candidate\n\n## S-001 (eval-core)\n- domain: agent-behavior\n\nbody one\n\n## S-002\n\nbody two\n",
+        )
+        .unwrap();
+        let facts = read_staged_facts(&staged).unwrap();
+        assert_eq!(facts.len(), 2, "{facts:?}");
+        assert_eq!(facts[0].body, "body one");
+        assert_eq!(
+            facts[0].domain, "agent-behavior",
+            "inline domain wins: {facts:?}"
+        );
+        assert_eq!(facts[1].domain, "general", "default domain: {facts:?}");
+        // Empty input fails cleanly.
+        std::fs::write(root.join("empty.md"), "# nothing\n").unwrap();
+        assert!(read_staged_facts(&root.join("empty.md")).is_err());
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
