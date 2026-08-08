@@ -265,7 +265,7 @@ fn collect_session_files(dir: &Path, out: &mut Vec<PathBuf>) {
 /// and a worker session was actually captured; otherwise the loop falls
 /// back to the cold re-invoke.
 #[must_use]
-pub const fn should_resume(resume: bool, attempt: usize, session: Option<&String>) -> bool {
+pub const fn should_resume(resume: bool, attempt: usize, session: Option<&str>) -> bool {
     resume && attempt > 1 && session.is_some()
 }
 
@@ -356,7 +356,7 @@ pub fn run_verified_iteration(
         // the distilled failure goes back into the same context instead
         // of a cold re-invoke; falls back to a fresh exec when no
         // session was captured (or --no-resume).
-        let resuming = should_resume(input.resume, attempt, resume_session.as_ref());
+        let resuming = should_resume(input.resume, attempt, resume_session.as_deref());
         let worker_kind = worker_kind(input.worker_name);
         let worker_args = if resuming {
             progress(ProgressEvent::SessionResumed {
@@ -1413,9 +1413,9 @@ mod session_resume_tests {
 
     #[test]
     fn resume_decision_falls_back_to_cold_invoke() {
-        assert!(!should_resume(false, 2, Some(&"s".to_string())), "disabled");
+        assert!(!should_resume(false, 2, Some("s")), "disabled");
         assert!(
-            !should_resume(true, 1, Some(&"s".to_string())),
+            !should_resume(true, 1, Some("s")),
             "first attempt"
         );
         assert!(!should_resume(true, 2, None), "no session captured");
