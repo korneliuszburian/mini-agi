@@ -622,3 +622,4 @@
 2026-08-08T01:02:46Z VERIFY-PASS fix168-cli-verify-attribution @ 6941248
 2026-08-08T01:03:27Z BEGIN fix169-cli-verify-calibration -> 30ed6b7
 2026-08-08T01:04:51Z VERIFY-PASS fix169-cli-verify-calibration @ 761fbdb
+2026-08-08T01:05:33Z BEGIN fix170-cli-gate-regression -> b511b95

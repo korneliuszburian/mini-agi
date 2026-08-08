@@ -839,6 +839,31 @@ fn cli_eval_gate_never_silently_rebaselines() {
     let loose_m = run(&root, &["eval", "gate", "--mismatch-tolerance", "100"]);
     assert!(loose_m.status.success(), "{}", combined(&loose_m));
     assert!(stdout(&loose_m).contains("PASS"), "{}", stdout(&loose_m));
+    // A REGRESSION (case composite dropped vs the baseline) must fail the
+    // gate — the best-state bound, not a silent rebaseline.
+    let real = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("evals/cases/real-ticket-008-v2/run.json");
+    std::fs::create_dir_all(root.join("evals/cases/real")).unwrap();
+    std::fs::copy(&real, root.join("evals/cases/real/run.json")).unwrap();
+    let g = run(&root, &["eval", "gate"]);
+    assert!(g.status.success(), "{}", combined(&g));
+    // Now weaken the case: a trajectory with goal_aligned=false.
+    std::fs::write(
+        root.join("evals/cases/real/run.json"),
+        r#"{"goal":"g","scope":["x"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":null,"verify_target":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":false,"tokens":1,"output_tokens":1}]}"#,
+    )
+    .unwrap();
+    let rg = run(&root, &["eval", "gate"]);
+    assert_eq!(rg.status.code(), Some(1), "{}", combined(&rg));
+    assert!(
+        combined(&rg).contains("REGRESSION"),
+        "weakened case must be flagged: {}",
+        combined(&rg)
+    );
     wipe(&root);
 }
 
