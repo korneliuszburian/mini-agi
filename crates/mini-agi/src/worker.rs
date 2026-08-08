@@ -1418,4 +1418,34 @@ mod session_resume_tests {
         assert!(!should_resume(true, 2, None), "no session captured");
         assert!(should_resume(true, 2, Some("s")), "resume");
     }
+
+    #[test]
+    fn case_details_extracts_fail_and_error_names() {
+        let out = "FAIL: test_a\nAssertionError: want 1 got 2\nFAIL: test_b\nTraceback\n  x\n";
+        let d = extract_case_details(out);
+        assert_eq!(
+            d[0],
+            ("test_a".to_string(), "want 1 got 2".to_string()),
+            "{d:?}"
+        );
+        assert_eq!(d[1].0, "test_b", "{d:?}");
+        // ERROR: prefix and the non-traceback fallback detail.
+        let out2 = "ERROR: test_c\nboom detail\n";
+        let d2 = extract_case_details(out2);
+        assert_eq!(d2.len(), 1, "{d2:?}");
+        assert_eq!(d2[0], ("test_c".to_string(), "boom detail".to_string()));
+    }
+
+    #[test]
+    fn distill_failure_escalates_details_on_later_attempts() {
+        let out = "FAIL: test_a\nAssertionError: want 1 got 2\n";
+        let d1 = distill_failure(1, out);
+        assert!(d1.contains("test_a"), "{d1}");
+        assert!(!d1.contains("want 1 got 2"), "attempt 1: names only: {d1}");
+        let d2 = distill_failure(2, out);
+        assert!(d2.contains("want 1 got 2"), "attempt 2: detail added: {d2}");
+        // No failing case: the excerpt path.
+        let empty = distill_failure(1, "no case here");
+        assert!(empty.contains("the verifier FAILED"), "{empty}");
+    }
 }
