@@ -3526,6 +3526,16 @@ fn cli_derive_snapshot_rejects_traversal_name() {
     // A dotted name (snap.v1) is valid — a dot is not a path separator.
     let dotted = run(&root, &["derive", "--snapshot", "snap.v1"]);
     assert!(dotted.status.success(), "{}", combined(&dotted));
+    // A corrupted snapshot file must report a clear parse error, not an
+    // opaque 'entry write failed'.
+    std::fs::write(root.join("memory/derived/snapshots/broken.json"), "{bad").unwrap();
+    let br = run(&root, &["derive", "--replay", "broken"]);
+    assert_eq!(br.status.code(), Some(1), "{}", combined(&br));
+    assert!(
+        combined(&br).contains("corrupted snapshot"),
+        "{}",
+        combined(&br)
+    );
     wipe(&root);
 }
 

@@ -61,6 +61,9 @@ pub enum MemoryError {
     /// A derive snapshot/replay name contained path separators/traversal.
     #[error("invalid snapshot name '{0}' — use plain alphanumeric/-_ (no path separators)")]
     InvalidSnapshotName(String),
+    /// A derive snapshot file existed but did not parse as JSON.
+    #[error("corrupted snapshot '{0}': not valid JSON")]
+    CorruptedSnapshot(String),
 }
 
 /// Options for a consolidation run.
@@ -1200,8 +1203,8 @@ pub fn replay(root: &Path, name: &str) -> Result<String, MemoryError> {
     }
     let path = root.join(SNAPSHOTS_REL).join(format!("{name}.json"));
     let text = fs::read_to_string(&path).map_err(|_| MemoryError::SnapshotMissing(name.into()))?;
-    let doc: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| MemoryError::Io(std::io::Error::other(e)))?;
+    let doc: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|_| MemoryError::CorruptedSnapshot(name.to_string()))?;
     let snap_canon = doc["canonical_sha256"].as_str().unwrap_or("").to_string();
     let snap_brief = doc["brief_sha256"].as_str().unwrap_or("").to_string();
     derive(root, false)?;
