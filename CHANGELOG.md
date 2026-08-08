@@ -196,6 +196,10 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   steps` malformed-json error covered. Suite: 448 -> 449 tests.
 - Core test for `supersede_cycles` (two- and three-node loops plus a
   plain chain). Suite: 449 -> 450 tests.
+- BUGFIX: `derive --replay` on a corrupted snapshot surfaced the
+  misleading 'entry write failed'; added `MemoryError::CorruptedSnapshot`
+  with a clear parse error. Suite: 450 tests (coverage extended, count
+  unchanged).
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
