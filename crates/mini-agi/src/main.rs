@@ -2921,6 +2921,55 @@ fn dream_idle_source(root: &Path, idle_load: f64) -> Result<Option<std::path::Pa
     ))
 }
 
+/// Run the cheap distiller once, then retry once with validator feedback
+/// when it returned no parseable facts (cycle-33 finding: cheap models
+/// occasionally emit prose/fences instead of the JSON fact array).
+/// Returns the final worker output + parsed facts, or `Err` when the
+/// worker is unavailable or exits nonzero.
+fn run_distill_with_retry(
+    workdir: &Path,
+    distiller: &str,
+    material: &str,
+    max_wall: u64,
+) -> Result<
+    (
+        mini_agi_core::worker::WorkerResult,
+        Vec<mini_agi_core::dream::StagedFact>,
+    ),
+    String,
+> {
+    let mut dist = worker::run_opencode_worker(
+        workdir,
+        distiller,
+        &mini_agi_core::dream::distiller_prompt(material),
+        Some(max_wall),
+        None,
+    )
+    .map_err(|e| format!("dream distiller not available: {e}"))?;
+    let mut staged = mini_agi_core::dream::parse_distilled_facts(&dist.output);
+    if staged.is_empty() && dist.status == Some(0) {
+        eprintln!(
+            "  [warn] distiller returned no parseable facts ({} bytes) — retrying once with feedback",
+            dist.output.len()
+        );
+        let prompt = format!(
+            "{}\n\n{}",
+            mini_agi_core::dream::distiller_prompt(material),
+            mini_agi_core::dream::distiller_retry_feedback()
+        );
+        dist = worker::run_opencode_worker(workdir, distiller, &prompt, Some(max_wall), None)
+            .map_err(|e| format!("dream distiller retry not available: {e}"))?;
+        staged = mini_agi_core::dream::parse_distilled_facts(&dist.output);
+    }
+    if dist.status != Some(0) {
+        return Err(format!(
+            "dream distiller exited {:?} — no candidates",
+            dist.status
+        ));
+    }
+    Ok((dist, staged))
+}
+
 fn cmd_dream(
     source: Option<&Path>,
     distiller: &str,
@@ -2963,45 +3012,11 @@ fn cmd_dream(
         .strip_prefix(&root.to_string_lossy().into_owned())
         .unwrap_or(&source.to_string_lossy())
         .to_string();
-    // 1. Distill (cheap worker, D1 adapter).
-    let mut dist = match worker::run_opencode_worker(
-        &workdir,
-        distiller,
-        &mini_agi_core::dream::distiller_prompt(&material),
-        Some(max_wall),
-        None,
-    ) {
-        Ok(w) => w,
-        Err(e) => return fail(&format!("dream distiller not available: {e}")),
+    // 1. Distill (cheap worker, D1 adapter) with bounded retry.
+    let staged = match run_distill_with_retry(&workdir, distiller, &material, max_wall) {
+        Ok((_dist, staged)) => staged,
+        Err(e) => return fail(&e),
     };
-    let mut staged = mini_agi_core::dream::parse_distilled_facts(&dist.output);
-    // Bounded retry with validator feedback (cycle 33 finding): the
-    // distiller is a cheap model that occasionally returns prose/fences
-    // instead of the JSON fact array (observed on a 105 KB report). One
-    // retry feeding the validator's failure mode back recovers most
-    // cases; two total attempts bounds the wall cost.
-    if staged.is_empty() && dist.status == Some(0) {
-        eprintln!(
-            "  [warn] distiller returned no parseable facts ({} bytes) — retrying once with feedback",
-            dist.output.len()
-        );
-        let prompt = format!(
-            "{}\n\n{}",
-            mini_agi_core::dream::distiller_prompt(&material),
-            mini_agi_core::dream::distiller_retry_feedback()
-        );
-        match worker::run_opencode_worker(&workdir, distiller, &prompt, Some(max_wall), None) {
-            Ok(w) => dist = w,
-            Err(e) => return fail(&format!("dream distiller retry not available: {e}")),
-        }
-        staged = mini_agi_core::dream::parse_distilled_facts(&dist.output);
-    }
-    if dist.status != Some(0) {
-        return fail(&format!(
-            "dream distiller exited {:?} — no candidates",
-            dist.status
-        ));
-    }
     if staged.is_empty() {
         println!("dream: distiller returned no candidate facts");
         return ExitCode::SUCCESS;

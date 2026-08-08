@@ -750,3 +750,5 @@
 2026-08-08T09:14:02Z VERIFY-PASS fix232-changelog25 @ 12d1a1d
 2026-08-08T09:18:20Z BEGIN fix233-refactor-verify-budget -> b589e0d
 2026-08-08T09:22:27Z VERIFY-PASS fix233-refactor-verify-budget @ 8c23534
+2026-08-08T09:38:05Z BEGIN fix234-refactor-dream-distill -> adbc522 (restored by rollback)
+2026-08-08T09:38:05Z VERIFY-FAIL fix234-refactor-dream-distill @ 5db0abe -> ROLLBACK to adbc522
