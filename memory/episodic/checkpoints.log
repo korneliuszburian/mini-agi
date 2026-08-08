@@ -605,3 +605,4 @@
 2026-08-08T00:40:08Z BEGIN fix160-mcp-unknown-method -> 1a86f67
 2026-08-08T00:41:34Z VERIFY-PASS fix160-mcp-unknown-method @ 807ecbe
 2026-08-08T00:42:28Z BEGIN fix161-mcp-unknown-tool -> d78df81
+2026-08-08T00:44:11Z VERIFY-PASS fix161-mcp-unknown-tool @ 7e024b8
