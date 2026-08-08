@@ -174,6 +174,10 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 - BUGFIX: `mem supersede` with a blank body wrote a junk canonical fact
   (hash of the empty string); it is now refused. `mem query` keyword+
   domain combo covered. Suite: 441 tests.
+- Malformed-input hardening: `eval score`, `run ingest`, `loop verify`
+  (exit 2), and `eval gate` (fail-closed) all surface a clean 'invalid
+  run json' error; insights/status report healthily by skipping malformed
+  runs. Suite: 441 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
