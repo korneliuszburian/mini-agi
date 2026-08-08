@@ -685,3 +685,4 @@
 2026-08-08T03:04:56Z BEGIN fix200-cli-gate-baseline-malformed -> e40ec93
 2026-08-08T03:06:12Z VERIFY-PASS fix200-cli-gate-baseline-malformed @ b725da5
 2026-08-08T03:07:01Z BEGIN fix201-cli-gate-newcase -> bc8f5f5
+2026-08-08T03:08:26Z VERIFY-PASS fix201-cli-gate-newcase @ 8ab1b5a
