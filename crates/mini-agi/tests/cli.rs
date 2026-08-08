@@ -821,6 +821,11 @@ fn cli_full_ticket_run_end_to_end() {
         "stats must report facts and derived views: {}",
         stdout(&stats)
     );
+    assert!(
+        stdout(&stats).contains("gate: PASS"),
+        "stats must carry the gate verdict: {}",
+        stdout(&stats)
+    );
     let budget = run(&root, &["budget"]);
     assert!(budget.status.success());
     assert!(stdout(&budget).contains("AGENTS chain:"));

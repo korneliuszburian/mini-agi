@@ -632,3 +632,4 @@
 2026-08-08T01:15:17Z VERIFY-PASS fix173-skills-over-budget @ 873c83b
 2026-08-08T01:16:01Z BEGIN fix174-cli-budget-overcap -> 301ea3b
 2026-08-08T01:17:14Z VERIFY-PASS fix174-cli-budget-overcap @ 117e3c6
+2026-08-08T01:18:09Z BEGIN fix175-cli-stats-gate -> 8b5b1fe
