@@ -832,6 +832,58 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
 ///
 /// # Errors
 ///
+/// On a verified close, consolidate a canonical contrast fact pairing the
+/// failure reflection (from the register) with the verified success
+/// evidence — future runs condition on the contrast, not just the
+/// failure lesson. Returns `true` (the close stands); a persistence
+/// failure is reported as a warning line, never a silent drop.
+fn record_close_evidence(
+    root: &Path,
+    base: &str,
+    case: &str,
+    report: &crate::eval::ScoreReport,
+    verification: Option<&crate::verifier::Verification>,
+    lines: &mut Vec<String>,
+) -> bool {
+    let failure_reflection = crate::failure::read_register(root)
+        .unwrap_or_default()
+        .iter()
+        .find(|e| e.case == base)
+        .and_then(|e| e.reflection.clone())
+        .unwrap_or_else(|| "none recorded".to_string());
+    // The success-evidence phrase must reflect the ACTUAL trust path
+    // (codex review): a verifier pass says "deterministic gate passed";
+    // an --allow-unverified close says "explicit trust".
+    let trust_path = match verification.map(|v| v.status.as_str()) {
+        Some("verified") => "deterministic gate passed",
+        _ => "explicit trust (no deterministic verifier)",
+    };
+    let contrast = format!(
+        "FACT: gap {base} closed by rerun {case} (composite {:.4}, verifier {}) — failure reflection: {failure_reflection} — success evidence: {trust_path}",
+        report.composite,
+        verification.map_or_else(|| "none".to_string(), |v| v.status.clone())
+    );
+    match crate::memory::consolidate(
+        root,
+        &contrast,
+        &format!("loop-verify-{case}"),
+        &crate::memory::ConsolidateOptions {
+            domain: "eval".into(),
+            require_signoff: false,
+            dry_run: false,
+        },
+    ) {
+        Ok(_) => {}
+        Err(e) => lines.push(format!("  warning: contrast fact not persisted — {e}")),
+    }
+    true
+}
+
+/// Close (or refuse to close) a gap by verifying a rerun against the
+/// case's deterministic verifier and the eval gate.
+///
+/// # Errors
+///
 /// Returns a message when the case cannot be scored or ingested.
 pub fn verify(
     root: &Path,
@@ -1059,45 +1111,11 @@ pub fn verify(
         if let Err(e) = append_metrics(root, case, report.composite, report.tokens_total) {
             lines.push(format!("  warning: metrics not published — {e}"));
         }
-        // Reflection-diff (Phase 9 slice 3, GRSD 2607.28076): on close,
-        // consolidate a canonical contrast fact pairing the failure
-        // reflection (from the register) with the verified success
-        // evidence — future runs condition on the contrast, not just
-        // the failure lesson.
-        let failure_reflection = crate::failure::read_register(root)
-            .unwrap_or_default()
-            .iter()
-            .find(|e| e.case == base)
-            .and_then(|e| e.reflection.clone())
-            .unwrap_or_else(|| "none recorded".to_string());
-        // The success-evidence phrase must reflect the ACTUAL trust path
-        // (codex review): a verifier pass says "deterministic gate
-        // passed"; an --allow-unverified close says "explicit trust".
-        let trust_path = match verification.as_ref().map(|v| v.status.as_str()) {
-            Some("verified") => "deterministic gate passed",
-            _ => "explicit trust (no deterministic verifier)",
-        };
-        let contrast = format!(
-            "FACT: gap {base} closed by rerun {case} (composite {:.4}, verifier {}) — failure reflection: {failure_reflection} — success evidence: {trust_path}",
-            report.composite,
-            verification
-                .as_ref()
-                .map_or_else(|| "none".to_string(), |v| v.status.clone())
-        );
-        match crate::memory::consolidate(
-            root,
-            &contrast,
-            &format!("loop-verify-{case}"),
-            &crate::memory::ConsolidateOptions {
-                domain: "eval".into(),
-                require_signoff: false,
-                dry_run: false,
-            },
-        ) {
-            Ok(_) => {}
-            Err(e) => lines.push(format!("  warning: contrast fact not persisted — {e}")),
-        }
-        true
+        // Reflection-diff (Phase 9 slice 3, GRSD 2607.28076) + success
+        // evidence: on close, consolidate a canonical contrast fact
+        // pairing the failure reflection (from the register) with the
+        // verified success evidence.
+        record_close_evidence(root, base, case, &report, verification.as_ref(), &mut lines)
     } else {
         lines.push(if !verified {
             "  gap open: deterministic verifier not satisfied — outcome untrusted, keep working"
