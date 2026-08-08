@@ -584,3 +584,4 @@
 2026-08-07T23:56:10Z VERIFY-PASS fix149-cli-dream-idle-fresh @ 9236d60
 2026-08-07T23:56:51Z BEGIN fix150-cli-promote-reject -> 86e67a6
 2026-08-07T23:58:52Z VERIFY-PASS fix150-cli-promote-reject @ 5f78315
+2026-08-08T00:02:14Z BEGIN fix151-promote-date-flaky -> 676031f

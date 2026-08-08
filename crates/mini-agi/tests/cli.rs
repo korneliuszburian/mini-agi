@@ -1744,7 +1744,7 @@ fn cli_dream_idle_no_newer_runs_skips() {
     )
     .unwrap();
     // Staging is NEWER than the run -> 'no newer runs' skip.
-    let staging = root.join("memory/staging/2026-08-07/001.md");
+    let staging = root.join("memory/staging").join(today()).join("001.md");
     std::fs::create_dir_all(staging.parent().unwrap()).unwrap();
     std::fs::write(&staging, "# staged\n\n## S-000 (general)\n\nfact\n").unwrap();
     let base = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
@@ -2360,14 +2360,15 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     // (e.g. wrong staging dir, missing manifest check) silently.
     let root = tmp_root("dream-pro");
     wipe(&root);
-    std::fs::create_dir_all(root.join("memory/staging/2026-08-07")).unwrap();
-    let staged_path = root.join("memory/staging/2026-08-07/001.md");
+    let staging_dir = root.join("memory/staging").join(today());
+    std::fs::create_dir_all(&staging_dir).unwrap();
+    let staged_path = staging_dir.join("001.md");
     std::fs::write(
         &staged_path,
         "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nwidget alpha mechanism records budget usage across nodes\n\n## S-001 (general)\n\nenforced_by review rubric: surgical changes only\n\n## S-002 (general)\n\ndubious ephemeral claim\n",
     )
     .unwrap();
-    let manifest = root.join("memory/staging/2026-08-07/001.verdicts.json");
+    let manifest = staging_dir.join("001.verdicts.json");
     std::fs::write(
         &manifest,
         serde_json::to_string_pretty(&serde_json::json!({
@@ -2385,9 +2386,12 @@ fn cli_dream_promote_applies_verdicts_into_canonical() {
     assert!(out.status.success(), "{}", combined(&out));
     assert!(stdout(&out).contains("promoted"), "{}", stdout(&out));
     // The promoted fact must land in canonical.
-    let canonical =
-        std::fs::read_to_string(root.join("memory/canonical/entries/2026-08-07/2026-08-07-001.md"))
-            .unwrap_or_default();
+    let canonical = std::fs::read_to_string(
+        root.join("memory/canonical/entries")
+            .join(today())
+            .join(format!("{}-001.md", today())),
+    )
+    .unwrap_or_default();
     assert!(
         canonical.contains("widget alpha mechanism records budget usage"),
         "{canonical}"
