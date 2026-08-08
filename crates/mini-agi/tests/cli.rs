@@ -3028,6 +3028,14 @@ fn cli_ingest_and_score_missing_file_fail_cleanly() {
         "{}",
         combined(&out)
     );
+    // run ingest on the same malformed run.json must also fail cleanly.
+    let out2 = run(&root, &["run", "ingest", malformed.to_str().unwrap()]);
+    assert_eq!(out2.status.code(), Some(1), "{}", combined(&out2));
+    assert!(
+        combined(&out2).contains("invalid run json"),
+        "{}",
+        combined(&out2)
+    );
     wipe(&root);
 }
 
