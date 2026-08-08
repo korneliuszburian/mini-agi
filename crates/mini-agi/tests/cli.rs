@@ -26,9 +26,34 @@ fn combined(output: &Output) -> String {
 }
 
 fn tmp_root(tag: &str) -> PathBuf {
+    static CLEANUP: std::sync::Once = std::sync::Once::new();
+    CLEANUP.call_once(cleanup_old_cli_roots);
     let root = std::env::temp_dir().join(format!("mag-cli-test-{tag}-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
     root
+}
+
+/// Remove this suite's orphaned temp roots from earlier test processes
+/// (each cargo test run uses a fresh pid in the dir name, so dirs pile up
+/// until the tmpfs inode quota is hit — clean stale ones at the start).
+fn cleanup_old_cli_roots() {
+    const AGE: std::time::Duration = std::time::Duration::from_hours(24);
+    let now = std::time::SystemTime::now();
+    if let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) {
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if !name.starts_with("mag-") {
+                continue;
+            }
+            let stale = e
+                .metadata()
+                .and_then(|m| m.modified())
+                .is_ok_and(|t| now.duration_since(t).unwrap_or_default() > AGE);
+            if stale {
+                let _ = std::fs::remove_dir_all(e.path());
+            }
+        }
+    }
 }
 
 fn wipe(root: &Path) {

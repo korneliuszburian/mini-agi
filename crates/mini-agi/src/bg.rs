@@ -513,6 +513,29 @@ mod tests {
     use super::*;
 
     fn tmp_root(tag: &str) -> PathBuf {
+        static CLEANUP: std::sync::Once = std::sync::Once::new();
+        CLEANUP.call_once(|| {
+            // Each cargo test run uses a fresh pid in the temp-dir name, so
+            // bg temp roots pile up until the tmpfs inode quota is hit.
+            // Remove stale ones (older than a day) once per process.
+            let age = std::time::Duration::from_hours(24);
+            let now = std::time::SystemTime::now();
+            if let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) {
+                for e in entries.flatten() {
+                    let name = e.file_name().to_string_lossy().into_owned();
+                    if !name.starts_with("mag-") {
+                        continue;
+                    }
+                    let stale = e
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .is_ok_and(|t| now.duration_since(t).unwrap_or_default() > age);
+                    if stale {
+                        let _ = std::fs::remove_dir_all(e.path());
+                    }
+                }
+            }
+        });
         let root = std::env::temp_dir().join(format!("mag-bg-{}-{}", tag, std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
