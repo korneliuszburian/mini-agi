@@ -18,6 +18,8 @@ use crate::ticket::{self, Ticket};
 /// Composite a case must reach to leave the loop's open set (same bar as
 /// TICKET-9's rerun target).
 pub const TARGET_COMPOSITE: f64 = 0.5;
+const GATE_TOLERANCE: f64 = 0.05;
+const GATE_MISMATCH_TOLERANCE: usize = 1;
 
 /// One case's loop row: composite, ticket mapping, claim, ticket status.
 #[derive(Debug)]
@@ -158,22 +160,53 @@ fn append_metrics(root: &Path, case: &str, composite: f64, tokens: u64) -> std::
     fs::write(&path, format!("{body}{row}"))
 }
 
-/// Count of rerun attempt dirs for a case (`<case>-rerun`, `<case>-rerun-2`,
-/// ...) — the pilot-before-scale numerator (Ringelmann 2606.02646).
-#[must_use]
-pub fn count_reruns(root: &Path, case: &str) -> usize {
+struct RerunState {
+    composite: Option<f64>,
+    attempts: usize,
+}
+
+fn for_each_rerun_run(root: &Path, case: &str, mut visit: impl FnMut(&Path)) {
     let cases_dir = root.join("evals/cases");
     let Ok(entries) = fs::read_dir(&cases_dir) else {
-        return 0;
+        return;
     };
-    entries
-        .flatten()
-        .filter(|e| {
-            let name = e.file_name();
-            let name = name.to_string_lossy();
-            is_rerun_attempt_dir(&name, case) && e.path().join("run.json").is_file()
-        })
-        .count()
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        if !is_rerun_attempt_dir(&name.to_string_lossy(), case) {
+            continue;
+        }
+        let run = entry.path().join("run.json");
+        if !run.is_file() {
+            continue;
+        }
+        visit(&run);
+    }
+}
+
+fn rerun_state(root: &Path, case: &str) -> RerunState {
+    let mut state = RerunState {
+        composite: None,
+        attempts: 0,
+    };
+    for_each_rerun_run(root, case, |run| {
+        state.attempts += 1;
+        if let Ok(score) = eval::score_run(run, root, &root.join("evals/golden")) {
+            state.composite = Some(
+                state
+                    .composite
+                    .map_or(score.composite, |best: f64| best.max(score.composite)),
+            );
+        }
+    });
+    state
+}
+
+/// Count of rerun attempt dirs for a case (`<case>-rerun`, `<case>-rerun-2`, ...).
+#[must_use]
+pub fn count_reruns(root: &Path, case: &str) -> usize {
+    let mut attempts = 0;
+    for_each_rerun_run(root, case, |_| attempts += 1);
+    attempts
 }
 
 /// Composite of the best rerun attempt: max over every
@@ -181,26 +214,16 @@ pub fn count_reruns(root: &Path, case: &str) -> usize {
 /// *best*, not the latest (SQLQE #19: a bad retry must not regress).
 #[must_use]
 pub fn rerun_composite(root: &Path, case: &str) -> Option<f64> {
-    let cases_dir = root.join("evals/cases");
-    let Ok(entries) = fs::read_dir(&cases_dir) else {
-        return None;
-    };
-    let mut best: Option<f64> = None;
-    for e in entries.flatten() {
-        let file_name = e.file_name();
-        let name = file_name.to_string_lossy();
-        if !is_rerun_attempt_dir(&name, case) {
-            continue;
-        }
-        let run = e.path().join("run.json");
-        if !run.is_file() {
-            continue;
-        }
-        if let Ok(r) = eval::score_run(&run, root, &root.join("evals/golden")) {
-            best = Some(best.map_or(r.composite, |b| b.max(r.composite)));
-        }
+    rerun_state(root, case).composite
+}
+
+const fn best_composite_from(original: Option<f64>, rerun: Option<f64>) -> Option<f64> {
+    match (original, rerun) {
+        (Some(original), Some(rerun)) => Some(original.max(rerun)),
+        (Some(original), None) => Some(original),
+        (None, Some(rerun)) => Some(rerun),
+        (None, None) => None,
     }
-    best
 }
 
 /// Best composite across the original and all rerun attempts (SQLQE
@@ -214,12 +237,7 @@ pub fn best_composite(root: &Path, case: &str) -> Option<f64> {
             .ok()
             .map(|r| r.composite)
     };
-    match (original, rerun_composite(root, case)) {
-        (Some(o), Some(r)) => Some(o.max(r)),
-        (Some(o), None) => Some(o),
-        (None, Some(r)) => Some(r),
-        (None, None) => None,
-    }
+    best_composite_from(original, rerun_state(root, case).composite)
 }
 
 /// A case is closed when its rerun reaches the loop target — the original
@@ -253,12 +271,9 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
         // Compute the rerun best ONCE per case and derive the original
         // score from the already-scored insight row (cycle-33 review F4:
         // avoids re-scanning + re-scoring the cases dir per call).
-        let rerun = rerun_composite(root, &case.case);
-        let best = match (case.composite, rerun) {
-            (o, Some(r)) => Some(o.max(r)),
-            (o, None) => Some(o),
-        };
-        let attempts = 1 + count_reruns(root, &case.case);
+        let rerun = rerun_state(root, &case.case);
+        let best = best_composite_from(Some(case.composite), rerun.composite);
+        let attempts = 1 + rerun.attempts;
         // Repair gate + bounded-retry abstention (cycle-33 findings):
         // surface the per-case repair classification and whether further
         // retries are pointless (attempts past the configured bound with
@@ -277,7 +292,7 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
         rows.push(LoopRow {
             case: case.case.clone(),
             composite: case.composite,
-            rerun_composite: rerun,
+            rerun_composite: rerun.composite,
             best_composite: best,
             attempts,
             repair_signal,
@@ -380,12 +395,9 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
     let mut state: std::collections::HashMap<String, (Option<f64>, usize)> =
         std::collections::HashMap::new();
     for c in &candidates {
-        let rerun = rerun_composite(root, &c.case);
-        let best = match (c.composite, rerun) {
-            (o, Some(r)) => Some(o.max(r)),
-            (o, None) => Some(o),
-        };
-        let attempts = 1 + count_reruns(root, &c.case);
+        let rerun = rerun_state(root, &c.case);
+        let best = best_composite_from(Some(c.composite), rerun.composite);
+        let attempts = 1 + rerun.attempts;
         state.insert(c.case.clone(), (best, attempts));
     }
     for candidate in candidates {
@@ -688,12 +700,9 @@ pub fn objective(
     let mut state: std::collections::HashMap<String, (Option<f64>, usize)> =
         std::collections::HashMap::new();
     for c in &candidates {
-        let rerun = rerun_composite(root, &c.case);
-        let best = match (c.composite, rerun) {
-            (o, Some(r)) => Some(o.max(r)),
-            (o, None) => Some(o),
-        };
-        let attempts = 1 + count_reruns(root, &c.case);
+        let rerun = rerun_state(root, &c.case);
+        let best = best_composite_from(Some(c.composite), rerun.composite);
+        let attempts = 1 + rerun.attempts;
         state.insert(c.case.clone(), (best, attempts));
     }
     for candidate in candidates {
@@ -772,6 +781,13 @@ pub fn dispatch(
     below: f64,
     claimant: &str,
 ) -> Result<DispatchOutcome, String> {
+    if let Some(case) = case
+        && !case_is_plain_segment(case)
+    {
+        return Err(format!(
+            "invalid case name '{case}' — use a plain name (no separators)"
+        ));
+    }
     let case = pick_target(root, case, below)?;
     // P0-3 (hardening audit C.3): no trust-only worker runs. The spec
     // embeds the case's verify_command when one exists; when it does not
@@ -820,20 +836,8 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
     Ok(id)
 }
 
-/// `loop verify`: score + ingest a rerun case; at/above the target the
-/// claim on the underlying ticket is released and the gap reports closed.
-///
-/// # Errors
-///
-/// `loop verify`: score + ingest a rerun; at/above the target (with the
-/// verifier passing and zero gate regressions) the claim is released and
-/// the gap reports closed. Returns `(text, closed)` so callers can exit
-/// non-zero on an open gap (codex review finding).
-///
-/// # Errors
-///
-/// A case name must be a single plain path segment (no separators, no
-/// `..`/`.` traversal) so `evals/cases/<case>/run.json` can never escape.
+/// Returns whether `case` is a non-hidden plain path segment without
+/// separators or drive prefixes.
 #[must_use]
 fn case_is_plain_segment(case: &str) -> bool {
     !case.is_empty()
@@ -1083,8 +1087,8 @@ pub fn verify(
                 .map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())?,
-        0.05,
-        1,
+        GATE_TOLERANCE,
+        GATE_MISMATCH_TOLERANCE,
     );
     let gate_clean = gate.failures == 0;
     if !gate_clean {
@@ -1260,6 +1264,22 @@ mod tests {
                 .any(|c| c.ticket == "TICKET-008-v2" && c.claimant == claimant)
         );
         ticket::release_ticket(&root, "TICKET-008-v2", claimant).unwrap();
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_rejects_non_plain_case_before_writes() {
+        let root = env::temp_dir().join(format!("mag-loop-dispatch-path-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+
+        let error = dispatch(&root, Some("../../evil"), 0.5, "loop-test").unwrap_err();
+
+        assert_eq!(
+            error,
+            "invalid case name '../../evil' — use a plain name (no separators)"
+        );
+        assert!(!root.join("tickets").exists());
         let _ = fs::remove_dir_all(&root);
     }
 

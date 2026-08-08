@@ -169,9 +169,10 @@ pub const fn auditor_retry_feedback() -> &'static str {
      candidates into one object."
 }
 
-/// The auditor prompt: strong model judges each staged fact.
+/// The auditor prompt: strong model judges each staged fact against the
+/// caller-selected canonical fact index.
 #[must_use]
-pub fn auditor_prompt(staged: &[StagedFact]) -> String {
+pub fn auditor_prompt(staged: &[StagedFact], canonical_index: &str) -> String {
     let items: Vec<String> = staged
         .iter()
         .enumerate()
@@ -189,19 +190,9 @@ pub fn auditor_prompt(staged: &[StagedFact]) -> String {
          carried), CORRUPTION (wording upgrades hedging to confidence), and \
          FABRICATION (a claim the material does not support). Any of the three -> \
          conflict or reject with the reason, never promote. Emit ONLY the JSON array.\n\n\
-         CANDIDATES:\n{}\n\nCANONICAL FACTS (id: body):\n{}",
-        items.join("\n"),
-        canonical_index()
+         CANDIDATES:\n{}\n\nCANONICAL FACTS (id: body):\n{canonical_index}",
+        items.join("\n")
     )
-}
-
-/// The canonical index the auditor is handed (id + flat body, newest
-/// first, superseded facts excluded).
-#[must_use]
-pub const fn canonical_index() -> String {
-    // Filled by the caller's view of the world; the prompt contract only
-    // needs the shape. The binary crate injects read_facts output.
-    String::new()
 }
 
 /// One auditor verdict.
@@ -342,7 +333,6 @@ pub fn write_staging(
 ///
 /// Returns [`MemoryError::Io`] when the manifest cannot be written.
 pub fn write_verdicts(
-    _root: &Path,
     staged_path: &Path,
     verdicts: &[AuditorVerdict],
 ) -> Result<std::path::PathBuf, crate::memory::MemoryError> {
@@ -432,8 +422,8 @@ pub fn apply_verdicts(
     // candidate against an existing fact's body; reading the whole
     // canonical store per duplicate verdict was O(verdicts × entries).
     let all_facts = crate::memory::read_all_facts(root);
-    let mut promoted: Vec<(String, String)> = Vec::new();
-    let mut promoted_domain = "general".to_string();
+    let mut promoted: std::collections::BTreeMap<String, Vec<(String, String)>> =
+        std::collections::BTreeMap::new();
     let mut queued = 0usize;
     let mut skipped = 0usize;
     for v in verdicts {
@@ -474,8 +464,10 @@ pub fn apply_verdicts(
                     queued += 1;
                     continue;
                 }
-                promoted_domain.clone_from(&fact.domain);
-                promoted.push((fact.body.clone(), h));
+                promoted
+                    .entry(fact.domain.clone())
+                    .or_default()
+                    .push((fact.body.clone(), h));
             }
             "conflict" => {
                 let existing = v
@@ -543,9 +535,9 @@ pub fn apply_verdicts(
             }
         }
     }
-    let promoted_count = promoted.len();
-    if !promoted.is_empty() {
-        crate::memory::write_canonical_entry(root, &promoted, source, &promoted_domain, "dream")?;
+    let promoted_count = promoted.values().map(Vec::len).sum();
+    for (domain, facts) in promoted {
+        crate::memory::write_canonical_entry(root, &facts, source, &domain, "dream")?;
     }
     Ok((promoted_count, queued, skipped))
 }
@@ -616,14 +608,18 @@ mod tests {
             ar.contains("ONE array object PER candidate"),
             "retry feedback must not imply a single-object array"
         );
-        let a = auditor_prompt(&[StagedFact {
-            body: "y".into(),
-            domain: "general".into(),
-        }]);
+        let a = auditor_prompt(
+            &[StagedFact {
+                body: "y".into(),
+                domain: "general".into(),
+            }],
+            "deadbeefdeadbeef: existing durable fact",
+        );
         assert!(a.contains("OMISSION"));
         assert!(a.contains("CORRUPTION"));
         assert!(a.contains("FABRICATION"));
         assert!(a.contains("never promote"));
+        assert!(a.contains("deadbeefdeadbeef: existing durable fact"));
     }
 
     #[test]
@@ -714,6 +710,56 @@ mod tests {
         let canonical = crate::memory::read_facts(&root);
         assert_eq!(canonical.len(), 1);
         assert!(canonical[0].2.contains("new durable fact"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn promotion_writes_separate_canonical_entries_per_domain() {
+        let root = std::env::temp_dir().join(format!("mag-dream-domains-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let testing_body = "testing fact belongs to the testing domain".to_string();
+        let evidence_body = "evidence fact belongs to the evidence domain".to_string();
+        let staged = vec![
+            StagedFact {
+                body: testing_body.clone(),
+                domain: "testing".to_string(),
+            },
+            StagedFact {
+                body: evidence_body.clone(),
+                domain: "evidence-status".to_string(),
+            },
+        ];
+        let verdicts = vec![
+            AuditorVerdict {
+                index: 0,
+                verdict: "promote".into(),
+                reason: None,
+                existing_id: None,
+            },
+            AuditorVerdict {
+                index: 1,
+                verdict: "promote".into(),
+                reason: None,
+                existing_id: None,
+            },
+        ];
+
+        let counts = apply_verdicts(&root, &staged, &verdicts, "dream-test").unwrap();
+
+        assert_eq!(counts, (2, 0, 0));
+        let facts: std::collections::BTreeMap<String, String> = crate::memory::read_facts(&root)
+            .into_iter()
+            .map(|(_, domain, body)| (body, domain))
+            .collect();
+        assert_eq!(
+            facts.get(&testing_body).map(String::as_str),
+            Some("testing")
+        );
+        assert_eq!(
+            facts.get(&evidence_body).map(String::as_str),
+            Some("evidence-status")
+        );
+        assert_eq!(crate::memory::canonical_entries(&root).len(), 2);
         let _ = std::fs::remove_dir_all(&root);
     }
 

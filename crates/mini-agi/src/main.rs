@@ -3059,11 +3059,7 @@ fn cmd_dream(
     let audit_batch_size = 15usize;
     let mut verdicts: Vec<mini_agi_core::dream::AuditorVerdict> = Vec::new();
     for (batch_idx, chunk) in staged.chunks(audit_batch_size).enumerate() {
-        let batch_prompt = format!(
-            "{}\n\nCANONICAL FACTS (id: body):\n{}",
-            mini_agi_core::dream::auditor_prompt(chunk),
-            audit_material
-        );
+        let batch_prompt = mini_agi_core::dream::auditor_prompt(chunk, &audit_material);
         let aud = match worker::run_opencode_worker(
             &workdir,
             auditor,
@@ -3130,7 +3126,7 @@ fn cmd_dream(
             staged.len()
         ));
     }
-    match mini_agi_core::dream::write_verdicts(&root, &staging, &verdicts) {
+    match mini_agi_core::dream::write_verdicts(&staging, &verdicts) {
         Ok(m) => println!("  verdicts manifest: {}", m.display()),
         Err(e) => return fail(&format!("dream: verdict manifest write failed: {e}")),
     }

@@ -780,3 +780,4 @@
 2026-08-08T11:39:58Z VERIFY-PASS fix247-changelog27 @ c94deb4
 2026-08-08T13:59:55Z BEGIN fix248-dream-domain-per-fact -> 6d3ded2
 2026-08-08T14:01:08Z VERIFY-PASS fix248-dream-domain-per-fact @ 6d3ded2
+2026-08-08T14:03:15Z BEGIN fix249-codex-f1-f7 -> c0e3f30 (clean)
