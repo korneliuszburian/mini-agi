@@ -3354,3 +3354,19 @@ fn cli_budget_warns_on_chain_over_cap() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_init_does_not_clobber_existing_agents_md() {
+    // init must never overwrite a repo's hand-written AGENTS.md.
+    let root = tmp_root("cinc");
+    wipe(&root);
+    std::fs::write(root.join("AGENTS.md"), "# CUSTOM\n\nrepo-specific rules\n").unwrap();
+    let out = run(&root, &["init"]);
+    assert!(out.status.success(), "{}", combined(&out));
+    let agents = std::fs::read_to_string(root.join("AGENTS.md")).unwrap();
+    assert!(
+        agents.contains("CUSTOM") && agents.contains("repo-specific rules"),
+        "init must keep the existing AGENTS.md: {agents}"
+    );
+    wipe(&root);
+}

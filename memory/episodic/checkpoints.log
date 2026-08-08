@@ -636,3 +636,4 @@
 2026-08-08T01:20:00Z VERIFY-PASS fix175-cli-stats-gate @ 270896f
 2026-08-08T01:20:43Z BEGIN fix176-cli-health-journal -> 1a56ec1
 2026-08-08T01:22:44Z VERIFY-PASS fix176-cli-health-journal @ 4d8dfa9
+2026-08-08T01:23:50Z BEGIN fix177-cli-init-no-clobber -> 20d833f
