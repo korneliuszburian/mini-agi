@@ -1397,4 +1397,14 @@ mod tests {
         let text = resp["result"]["content"][0]["text"].as_str().unwrap_or("");
         assert!(text.contains("unknown method"), "{text}");
     }
+
+    #[test]
+    fn unknown_tool_call_is_a_clean_error() {
+        let root = std::env::temp_dir().join(format!("mag-mcp-ut-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = call_tool("no-such-tool", &serde_json::json!({}), &root);
+        assert!(out.starts_with("error: unknown tool"), "{out}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
