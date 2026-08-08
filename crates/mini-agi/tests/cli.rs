@@ -1374,6 +1374,12 @@ fn cli_eval_mismatches_writes_register_and_resume_shows_block() {
 fn cli_health_reports_and_exits_zero_on_healthy_repo() {
     let root = tmp_root("c26");
     wipe(&root);
+    std::fs::create_dir_all(root.join("memory/episodic")).unwrap();
+    std::fs::write(
+        root.join("memory/episodic/checkpoints.log"),
+        "2026-08-02T19:00:00Z BEGIN step -> abc\n2026-08-02T19:01:00Z VERIFY-PASS step @ abc\n",
+    )
+    .unwrap();
     let health = run(&root, &["health"]);
     // The machine snapshot reflects REAL load: OK=0, WARN=1, CRITICAL=2
     // are all valid verdicts depending on the host state (a loaded box
@@ -1393,6 +1399,10 @@ fn cli_health_reports_and_exits_zero_on_healthy_repo() {
         "report must carry a verdict: {text}"
     );
     assert!(text.contains("no findings") || text.contains("[warn]") || text.contains("[critical]"));
+    assert!(
+        text.contains("journal:") && text.contains("begins"),
+        "health must report journal integrity: {text}"
+    );
     wipe(&root);
 }
 
