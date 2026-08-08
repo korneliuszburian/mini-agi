@@ -3310,6 +3310,14 @@ fn cli_derive_snapshot_rejects_traversal_name() {
         !root.join("memory/derived/evil.json").exists(),
         "traversal must not escape the snapshots dir"
     );
+    // replay must apply the same name validation.
+    let rv = run(&root, &["derive", "--replay", "../evil"]);
+    assert_eq!(rv.status.code(), Some(1), "{}", combined(&rv));
+    assert!(
+        combined(&rv).contains("invalid snapshot name"),
+        "{}",
+        combined(&rv)
+    );
     wipe(&root);
 }
 
