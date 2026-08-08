@@ -481,15 +481,13 @@ fn handle_tools_call(params: &Value) -> Value {
     json!({ "content": [{ "type": "text", "text": text }] })
 }
 
-fn call_tool(name: &str, args: &Value, root: &Path) -> String {
+/// Dispatch the memory-family MCP tools (`memory_*`). Returns `None`
+/// when `name` is not a memory tool so the caller falls through to the
+/// other families.
+fn call_memory_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
     macro_rules! arg {
         ($key:literal) => {
             args.get($key).and_then(Value::as_str).unwrap_or("")
-        };
-    }
-    macro_rules! opt_arg {
-        ($key:literal) => {
-            args.get($key).and_then(Value::as_str)
         };
     }
     match name {
@@ -499,7 +497,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             if !dry_run {
                 let approve = arg!("approve");
                 if approve.is_empty() {
-                    return "error: memory_consolidate requires an approval reason (approve) unless dry_run — a write that appends facts to canonical memory".to_string();
+                    return Some("error: memory_consolidate requires an approval reason (approve) unless dry_run — a write that appends facts to canonical memory".to_string());
                 }
             }
             let domain = arg!("domain").to_string();
@@ -509,21 +507,23 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 domain
             };
             let require_signoff = arg_bool(args, "require_signoff");
-            match super::consolidate_text(
-                Path::new(episodic),
-                &domain,
-                require_signoff,
-                dry_run,
-                root,
-            ) {
-                Ok(text) => text,
-                Err(msg) => format!("error: {msg}"),
-            }
+            Some(
+                match super::consolidate_text(
+                    Path::new(episodic),
+                    &domain,
+                    require_signoff,
+                    dry_run,
+                    root,
+                ) {
+                    Ok(text) => text,
+                    Err(msg) => format!("error: {msg}"),
+                },
+            )
         }
         "memory_signoff" => {
             let approve = arg!("approve");
             if approve.is_empty() {
-                return "error: memory_signoff requires an approval reason (approve) — a write that promotes a fact into canonical memory".to_string();
+                return Some("error: memory_signoff requires an approval reason (approve) — a write that promotes a fact into canonical memory".to_string());
             }
             let queue = arg!("queue");
             let index = arg_u64(args, "index")
@@ -535,22 +535,59 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             } else {
                 domain.to_string()
             };
-            match super::signoff_text(Path::new(queue), index, &domain, root) {
-                Ok(text) => text,
-                Err(msg) => format!("error: {msg}"),
-            }
+            Some(
+                match super::signoff_text(Path::new(queue), index, &domain, root) {
+                    Ok(text) => text,
+                    Err(msg) => format!("error: {msg}"),
+                },
+            )
         }
         "memory_derive" => {
             let approve = arg!("approve");
             if approve.is_empty() {
-                return "error: memory_derive requires an approval reason (approve) — a write that regenerates derived views".to_string();
+                return Some("error: memory_derive requires an approval reason (approve) — a write that regenerates derived views".to_string());
             }
             let brief_only = arg_bool(args, "brief_only");
-            match super::derive_text(brief_only, root) {
+            Some(match super::derive_text(brief_only, root) {
                 Ok(text) => text,
                 Err(msg) => format!("error: {msg}"),
-            }
+            })
         }
+        "memory_query" => {
+            let keyword = arg!("keyword");
+            let domain = arg!("domain");
+            let keyword = (!keyword.is_empty()).then_some(keyword);
+            let domain = (!domain.is_empty()).then_some(domain);
+            let facts = mini_agi_core::memory::query_facts(root, domain, keyword);
+            Some(if facts.is_empty() {
+                "no facts match".to_string()
+            } else {
+                facts
+                    .iter()
+                    .map(|(id, d, body)| format!("- `{id}` ({d}) {body}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+        }
+        _ => None,
+    }
+}
+
+fn call_tool(name: &str, args: &Value, root: &Path) -> String {
+    macro_rules! arg {
+        ($key:literal) => {
+            args.get($key).and_then(Value::as_str).unwrap_or("")
+        };
+    }
+    macro_rules! opt_arg {
+        ($key:literal) => {
+            args.get($key).and_then(Value::as_str)
+        };
+    }
+    if let Some(r) = call_memory_tools(name, args, root) {
+        return r;
+    }
+    match name {
         "provenance" => memory::canonical_fingerprint(root),
         "eval_score" => {
             let run = arg!("run");
@@ -874,22 +911,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 Err(e) => format!("error: {e}"),
             }
         }
-        "memory_query" => {
-            let keyword = arg!("keyword");
-            let domain = arg!("domain");
-            let keyword = (!keyword.is_empty()).then_some(keyword);
-            let domain = (!domain.is_empty()).then_some(domain);
-            let facts = mini_agi_core::memory::query_facts(root, domain, keyword);
-            if facts.is_empty() {
-                "no facts match".to_string()
-            } else {
-                facts
-                    .iter()
-                    .map(|(id, d, body)| format!("- `{id}` ({d}) {body}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            }
-        }
+
         "loop_run" => {
             let goal_or_case = arg!("goal_or_case");
             let workdir = std::path::PathBuf::from(arg!("workdir"));
