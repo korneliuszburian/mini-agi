@@ -144,6 +144,14 @@ pub fn index_runs(cases_dir: &Path, root: &Path) -> RunIndex {
     }
 }
 
+/// Number of respawn events recorded in `.batch/respawns.log` (D6
+/// durable audit trail); `0` when no respawns were ever recorded.
+#[must_use]
+pub fn respawn_summary(root: &Path) -> usize {
+    std::fs::read_to_string(root.join(".batch/respawns.log"))
+        .map_or(0, |t| t.lines().filter(|l| !l.trim().is_empty()).count())
+}
+
 /// Last `n` lines of the checkpoint journal.
 #[must_use]
 pub fn journal_tail(root: &Path, n: usize) -> Vec<String> {
@@ -298,6 +306,23 @@ mod tests {
             vec!["line-3".to_string(), "line-4".to_string()]
         );
         assert!(journal_tail(&root.join("nope"), 2).is_empty());
+    }
+
+    #[test]
+    fn respawn_summary_counts_recorded_events() {
+        let root = std::env::temp_dir().join(format!(
+            "mag-status-ev-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join(".batch")).unwrap();
+        assert_eq!(respawn_summary(&root), 0, "no file yet -> 0");
+        std::fs::write(root.join(".batch/respawns.log"), "t1: respawned 1x\n\n").unwrap();
+        assert_eq!(respawn_summary(&root), 1, "blank lines ignored");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

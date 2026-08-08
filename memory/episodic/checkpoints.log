@@ -732,3 +732,4 @@
 2026-08-08T07:41:59Z VERIFY-PASS fix223-changelog23 @ b7918c3
 2026-08-08T07:44:35Z BEGIN fix224-respawn-evidence-file -> e4ada11
 2026-08-08T07:46:40Z VERIFY-PASS fix224-respawn-evidence-file @ 1841051
+2026-08-08T07:47:14Z BEGIN fix225-status-respawn-summary -> af6379a

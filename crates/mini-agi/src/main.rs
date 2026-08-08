@@ -2818,11 +2818,13 @@ fn cmd_status(json: bool) -> ExitCode {
     let idx = status::index_runs(&root.join("evals/cases"), &root);
     let journal = status::journal_tail(&root, 4);
     let workers = status::live_workers(&root);
+    let respawns = status::respawn_summary(&root);
     if json {
         let out = serde_json::json!({
             "runs": idx,
             "journal_tail": journal,
             "workers": workers,
+            "respawns": respawns,
         });
         println!(
             "{}",
@@ -2855,6 +2857,9 @@ fn cmd_status(json: bool) -> ExitCode {
             "  {}  alive={} report_ready={}",
             w.handle, w.alive, w.report_ready
         );
+    }
+    if respawns > 0 {
+        println!("respawns: {respawns} recorded (.batch/respawns.log)");
     }
     ExitCode::SUCCESS
 }
