@@ -639,3 +639,4 @@
 2026-08-08T01:23:50Z BEGIN fix177-cli-init-no-clobber -> 20d833f
 2026-08-08T01:25:02Z VERIFY-PASS fix177-cli-init-no-clobber @ 657fc9b
 2026-08-08T01:25:45Z BEGIN fix178-cli-replay-traversal -> 28a90f1
+2026-08-08T01:27:14Z VERIFY-PASS fix178-cli-replay-traversal @ a3fffbf
