@@ -182,6 +182,9 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   (consolidate, signoff, dream promote) so a case-variant domain no
   longer splits the taxonomy or produces colliding per-domain fragment
   files. Suite: 441 -> 443 tests.
+- Snapshot-name hardening: names are capped at 100 chars (clean
+  validation error instead of an opaque FS 'File name too long') and now
+  allow dots ('snap.v1'), while still rejecting separators/traversal.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
