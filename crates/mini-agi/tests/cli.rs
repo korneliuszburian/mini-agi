@@ -2476,6 +2476,18 @@ fn cli_loop_verify_exit_codes_distinguish_open_from_error() {
         cal.contains("fail-case"),
         "judge-calibration row must be persisted: {cal}"
     );
+    // A malformed case run.json is a machinery error (exit 2) — checked
+    // LAST so its broken gate scan does not disturb the CLOSED path.
+    let mal_dir = root.join("evals/cases/mal-case");
+    std::fs::create_dir_all(&mal_dir).unwrap();
+    std::fs::write(mal_dir.join("run.json"), "{bad json").unwrap();
+    let merr = run(&root, &["loop", "verify", "mal-case", "--claimant", "t"]);
+    assert_eq!(merr.status.code(), Some(2), "{}", combined(&merr));
+    assert!(
+        combined(&merr).contains("invalid run json"),
+        "{}",
+        combined(&merr)
+    );
     wipe(&root);
 }
 

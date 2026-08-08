@@ -660,3 +660,4 @@
 2026-08-08T01:56:31Z VERIFY-PASS fix187-cli-score-malformed @ 5f45ef8
 2026-08-08T01:57:14Z BEGIN fix188-cli-ingest-malformed -> df4ef74
 2026-08-08T01:58:45Z VERIFY-PASS fix188-cli-ingest-malformed @ 7827431
+2026-08-08T01:59:28Z BEGIN fix189-cli-verify-malformed -> fce86f3
