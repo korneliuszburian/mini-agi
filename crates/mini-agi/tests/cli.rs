@@ -2147,6 +2147,31 @@ fn cli_loop_parallel_fails_closed_without_verifier_and_on_bad_manifest() {
         ],
     );
     assert!(!prot_run.status.success(), "{}", combined(&prot_run));
+    // A valid manifest must still be gated by the sandbox opt-in.
+    let ok_m = root.join("ok.json");
+    std::fs::write(
+        &ok_m,
+        r#"{"version":1,"tickets":[{"id":"t","goal":"g","scope":["x"],"verify":"true"}]}"#,
+    )
+    .unwrap();
+    let sb = run(
+        &root,
+        &[
+            "loop",
+            "parallel",
+            "goal",
+            "--verify",
+            "true",
+            "--manifest",
+            ok_m.to_str().unwrap(),
+        ],
+    );
+    assert!(!sb.status.success(), "{}", combined(&sb));
+    assert!(
+        combined(&sb).contains("--no-sandbox"),
+        "valid manifest must still require the sandbox opt-in: {}",
+        combined(&sb)
+    );
     wipe(&root);
 }
 

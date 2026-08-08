@@ -608,3 +608,4 @@
 2026-08-08T00:44:11Z VERIFY-PASS fix161-mcp-unknown-tool @ 7e024b8
 2026-08-08T00:44:54Z BEGIN fix162-mcp-ping -> 1b119f7
 2026-08-08T00:46:16Z VERIFY-PASS fix162-mcp-ping @ b6b90af
+2026-08-08T00:47:02Z BEGIN fix163-cli-parallel-sandbox -> d8dfa6d
