@@ -3306,10 +3306,8 @@ mod tests {
         let dispatch = planner::BatchDispatchResult {
             results: vec![planner::BatchTicketResult {
                 id: "t1".into(),
-                handle: "/tmp/h".into(),
                 worktree: "/tmp/w".into(),
                 passed: true,
-                report: None,
             }],
             respawns: vec!["t1 crashed once".into()],
         };

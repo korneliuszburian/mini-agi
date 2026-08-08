@@ -1,7 +1,6 @@
 //! Parallel-planner manifest + fail-closed validation (AFK v4).
 //! The batch coordinator (S2-S5) consumes this module; until then the
 //! binary build sees it as dead code.
-#![allow(dead_code)]
 //!
 //! The planner pass (a read-only codex session) emits a STRICT versioned
 //! JSON manifest; the kernel parses it FAIL-CLOSED — any violation
@@ -354,14 +353,10 @@ pub fn provision_batch(
 pub struct BatchTicketResult {
     /// The ticket id.
     pub id: String,
-    /// The bg run handle (evidence: run.out, run.pid, launch.json).
-    pub handle: std::path::PathBuf,
     /// The worktree (the produced changes live here).
     pub worktree: std::path::PathBuf,
     /// The supervisor's final outcome (the report's final line).
     pub passed: bool,
-    /// The report path when the run finished.
-    pub report: Option<std::path::PathBuf>,
 }
 
 /// The batch outcome after dispatch+poll.
@@ -484,13 +479,11 @@ pub fn dispatch_batch(
             break;
         }
         if std::time::Instant::now() >= batch_deadline {
-            for (id, handle, wt) in &active {
+            for (id, _handle, wt) in &active {
                 results.push(BatchTicketResult {
                     id: id.clone(),
-                    handle: handle.clone(),
                     worktree: wt.clone(),
                     passed: false,
-                    report: None,
                 });
             }
             return Err(
@@ -513,10 +506,8 @@ pub fn dispatch_batch(
                     let Some(ticket) = manifest.tickets.iter().find(|t| t.id == *id) else {
                         results.push(BatchTicketResult {
                             id: id.clone(),
-                            handle: handle.clone(),
                             worktree: wt.clone(),
                             passed: false,
-                            report: None,
                         });
                         done.push(i);
                         continue;
@@ -537,10 +528,8 @@ pub fn dispatch_batch(
                     eprintln!("  [respawn] ticket {id} crashed {n}x — respawn budget exhausted");
                     results.push(BatchTicketResult {
                         id: id.clone(),
-                        handle: handle.clone(),
                         worktree: wt.clone(),
                         passed: false,
-                        report: None,
                     });
                     done.push(i);
                     continue;
@@ -550,12 +539,8 @@ pub fn dispatch_batch(
                     .is_some_and(|r| r.contains("final outcome: PASSED"));
                 results.push(BatchTicketResult {
                     id: id.clone(),
-                    handle: handle.clone(),
                     worktree: wt.clone(),
                     passed,
-                    report: report_text
-                        .map(std::path::PathBuf::from)
-                        .or_else(|| st.report.as_ref().map(std::path::PathBuf::from)),
                 });
                 done.push(i);
             }
@@ -1232,10 +1217,8 @@ mod tests {
         std::fs::write(provision.worktrees[0].join("a.txt"), "changed").unwrap();
         let results = vec![BatchTicketResult {
             id: "t1".into(),
-            handle: provision.worktrees[0].join(".supervisor"),
             worktree: provision.worktrees[0].clone(),
             passed: true,
-            report: None,
         }];
         let merged = finalize_and_merge(&root, &manifest, &provision, &results).unwrap();
         assert_eq!(merged.merged, vec!["t1".to_string()]);
@@ -1276,10 +1259,8 @@ mod tests {
         std::fs::write(provision.worktrees[0].join("b.txt"), "sneaky").unwrap();
         let results = vec![BatchTicketResult {
             id: "t1".into(),
-            handle: provision.worktrees[0].join(".supervisor"),
             worktree: provision.worktrees[0].clone(),
             passed: true,
-            report: None,
         }];
         let err = finalize_and_merge(&root, &manifest, &provision, &results).unwrap_err();
         assert!(err.contains("CONTAINMENT VIOLATION"), "{err}");
@@ -1303,10 +1284,8 @@ mod tests {
         let provision = provision_batch(&root, &manifest, &base).unwrap();
         let results = vec![BatchTicketResult {
             id: "t1".into(),
-            handle: provision.worktrees[0].join(".supervisor"),
             worktree: provision.worktrees[0].clone(),
             passed: false,
-            report: None,
         }];
         let err = finalize_and_merge(&root, &manifest, &provision, &results).unwrap_err();
         assert!(err.contains("fails atomically"), "{err}");
@@ -1334,10 +1313,8 @@ mod tests {
         std::fs::write(provision.worktrees[0].join("a.txt"), "changed").unwrap();
         let results = vec![BatchTicketResult {
             id: "t1".into(),
-            handle: provision.worktrees[0].join(".supervisor"),
             worktree: provision.worktrees[0].clone(),
             passed: true,
-            report: None,
         }];
         // Pre-create the scratch branch (residue from a previous batch).
         let short = &base[..10];
