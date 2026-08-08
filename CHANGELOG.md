@@ -165,6 +165,12 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   verifier attribution (verify.log) and judge-calibration persistence
   (calibration.md); `eval gate` asserts the best-state REGRESSION bound
   (a weakened case must fail, not silently rebaseline). Suite: 437 tests.
+- `checkpoint audit` accepts an in-flight trailing BEGIN (not a
+  violation); `stats` asserts the gate verdict; `health` asserts journal
+  integrity; `budget` warns on chain over-cap; `init` never clobbers a
+  hand-written AGENTS.md; `loop dispatch` refuses empty/claimed/blocked
+  cases; `loop objective` wires budget_cost; `derive`/`replay` reject
+  traversal names; `loop status --attempts` surfaced. Suite: 437 -> 441.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
