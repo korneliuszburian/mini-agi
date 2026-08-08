@@ -2805,6 +2805,16 @@ fn cli_eval_steps_reports_suspicious_steps() {
         "{}",
         stdout(&clean)
     );
+    // A malformed run.json must fail cleanly (invalid json), not panic.
+    let mal = root.join("bad.json");
+    std::fs::write(&mal, "{bad json").unwrap();
+    let m = run(&root, &["eval", "steps", mal.to_str().unwrap()]);
+    assert_eq!(m.status.code(), Some(1), "{}", combined(&m));
+    assert!(
+        combined(&m).contains("invalid run json"),
+        "{}",
+        combined(&m)
+    );
     wipe(&root);
 }
 
