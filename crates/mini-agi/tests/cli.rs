@@ -1921,6 +1921,27 @@ fn cli_mem_supersede_writes_lineage_and_rejects_unknown_id() {
         "{}",
         combined(&bad)
     );
+    // An empty superseding body must be refused (no junk facts).
+    let empty = run(
+        &root,
+        &[
+            "mem",
+            "supersede",
+            "",
+            "--supersedes",
+            "0123456789abcde0",
+            "--domain",
+            "general",
+            "--source",
+            "test",
+        ],
+    );
+    assert_eq!(empty.status.code(), Some(1), "{}", combined(&empty));
+    assert!(
+        combined(&empty).contains("must not be empty"),
+        "{}",
+        combined(&empty)
+    );
     // Valid supersede -> success + lineage entry written.
     let ok = run(
         &root,

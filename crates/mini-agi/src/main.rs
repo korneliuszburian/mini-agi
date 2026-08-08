@@ -2318,6 +2318,9 @@ fn cmd_mem_query(
 
 fn cmd_mem_supersede(body: &str, supersedes: &[String], domain: &str, source: &str) -> ExitCode {
     let root = root();
+    if body.trim().is_empty() {
+        return fail("mem supersede: the superseding body must not be empty");
+    }
     if supersedes.is_empty() {
         return fail("mem supersede: give at least one --supersedes <16-hex id>");
     }
