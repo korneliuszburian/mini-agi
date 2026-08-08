@@ -3018,6 +3018,16 @@ fn cli_ingest_and_score_missing_file_fail_cleanly() {
         let out = run(&root, sub);
         assert_eq!(out.status.code(), Some(1), "{sub:?}: {}", combined(&out));
     }
+    // A malformed run.json must also fail cleanly (invalid json error).
+    let malformed = root.join("bad.json");
+    std::fs::write(&malformed, "{bad json").unwrap();
+    let out = run(&root, &["eval", "score", malformed.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("invalid run json"),
+        "{}",
+        combined(&out)
+    );
     wipe(&root);
 }
 
