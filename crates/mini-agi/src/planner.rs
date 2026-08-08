@@ -564,10 +564,35 @@ pub fn dispatch_batch(
             active.remove(i);
         }
     }
+    // D6 persistence: respawn events are never silent — beyond the
+    // per-event stderr + batch summary, write a durable audit trail so
+    // crashes/relaunches survive the run (evidence under .batch/).
+    write_respawn_evidence(repo, &respawn_log);
     Ok(BatchDispatchResult {
         results,
         respawns: respawn_log,
     })
+}
+
+/// D6 persistence: append respawn events to `.batch/respawns.log` (an
+/// audit trail of crashes/relaunches; failures to write are non-fatal —
+/// the stderr + batch summary already surfaced them).
+fn write_respawn_evidence(repo: &Path, respawn_log: &[String]) {
+    if respawn_log.is_empty() {
+        return;
+    }
+    let batch_dir = repo.join(".batch");
+    let _ = std::fs::create_dir_all(&batch_dir);
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(batch_dir.join("respawns.log"))
+    {
+        for line in respawn_log {
+            let _ = std::io::Write::write_all(&mut f, line.as_bytes());
+            let _ = std::io::Write::write_all(&mut f, b"\n");
+        }
+    }
 }
 
 /// Finalize + merge (S4): for each PASSING ticket the kernel commits
@@ -878,6 +903,35 @@ mod tests {
         assert!(respawn_allowed(1));
         assert!(!respawn_allowed(2));
         assert!(!respawn_allowed(5));
+    }
+
+    #[test]
+    fn respawn_evidence_writes_audit_trail() {
+        // D6 persistence: respawn events land in .batch/respawns.log;
+        // an empty log writes nothing.
+        let root = std::env::temp_dir().join(format!(
+            "mag-planner-ev-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        write_respawn_evidence(&root, &["t1: respawned 1x".into()]);
+        let trail = root.join(".batch/respawns.log");
+        assert!(trail.is_file(), "respawn evidence must be written");
+        let text = std::fs::read_to_string(&trail).unwrap();
+        assert!(text.contains("t1: respawned 1x"), "{text}");
+        // Append semantics: a second batch appends, never truncates.
+        write_respawn_evidence(&root, &["t2: respawned 2x".into()]);
+        let text = std::fs::read_to_string(&trail).unwrap();
+        assert!(text.contains("t2: respawned 2x"), "{text}");
+        // Empty log: file untouched.
+        let before = std::fs::read_to_string(&trail).unwrap();
+        write_respawn_evidence(&root, &[]);
+        assert_eq!(std::fs::read_to_string(&trail).unwrap(), before);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     const VALID: &str = r#"{
