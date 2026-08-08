@@ -2152,11 +2152,6 @@ fn eval_gate_text(
     let baseline_path = root.join("evals/results/baseline.json");
     let entries = eval::score_all_cases(&cases_dir, root, &golden_dir)
         .map_err(|e| format!("eval gate: {e}"))?;
-    if entries.is_empty() {
-        // A fresh repo has nothing to regress: the gate passes trivially,
-        // so an init'd repo is gate-green from the first commit.
-        return Ok("PASS: 0 cases, 0 regressions — no cases in evals/cases/".to_string());
-    }
     if write_baseline {
         if let Some(parent) = baseline_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -2178,6 +2173,11 @@ fn eval_gate_text(
     })?;
     let baseline: Vec<eval::GateEntry> =
         serde_json::from_str(&text).map_err(|_| "baseline malformed".to_string())?;
+    if entries.is_empty() && baseline.is_empty() {
+        // A fresh repo has nothing to regress: the gate passes trivially,
+        // so an init'd repo is gate-green from the first commit.
+        return Ok("PASS: 0 cases, 0 regressions — no cases in evals/cases/".to_string());
+    }
     let result = eval::run_gate(&entries, &baseline, tolerance, mismatch_tolerance);
     let mut lines = result.messages.clone();
     let verdict = if result.failures == 0 { "PASS" } else { "FAIL" };

@@ -3648,3 +3648,27 @@ fn cli_signoff_normalizes_domain_case() {
     );
     wipe(&root);
 }
+
+#[test]
+fn cli_eval_gate_detects_case_drop_from_baseline() {
+    // A baseline case that vanished from evals/cases must fail the gate —
+    // silently shrinking the frozen suite must not go green.
+    let root = tmp_root("cgcd");
+    wipe(&root);
+    std::fs::create_dir_all(root.join("evals/cases")).unwrap();
+    std::fs::create_dir_all(root.join("evals/golden")).unwrap();
+    std::fs::create_dir_all(root.join("evals/results")).unwrap();
+    std::fs::write(
+        root.join("evals/results/baseline.json"),
+        r#"[{"case":"ghost","composite":0.5,"outcome":1.0,"cost_usd":0.1,"tokens":100,"tool_mismatches":0,"mode":"regression"}]"#,
+    )
+    .unwrap();
+    let out = run(&root, &["eval", "gate"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("case missing"),
+        "case drop must be flagged: {}",
+        combined(&out)
+    );
+    wipe(&root);
+}
