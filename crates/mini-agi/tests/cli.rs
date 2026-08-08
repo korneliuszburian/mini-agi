@@ -2908,6 +2908,30 @@ fn cli_loop_dispatch_no_case_fails_cleanly() {
         "{}",
         combined(&out2)
     );
+    // A case whose ticket is BLOCKED by an open dependency is not
+    // dispatchable either.
+    std::fs::write(
+        root.join("tickets/TICKET-0.md"),
+        "- id: TICKET-0\n- title: dep\n- goal: open dep\n- scope: evals/cases\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("tickets/TICKET-1.md"),
+        "- id: TICKET-1\n- title: c gap\n- goal: fix c\n- scope: evals/cases\n- blocked_by: TICKET-0\n",
+    )
+    .unwrap();
+    let rel = run(
+        &root,
+        &["ticket", "release", "TICKET-1", "--claimant", "other"],
+    );
+    assert!(rel.status.success(), "{}", combined(&rel));
+    let out3 = run(&root, &["loop", "dispatch", "--claimant", "t"]);
+    assert_eq!(out3.status.code(), Some(1), "{}", combined(&out3));
+    assert!(
+        combined(&out3).contains("blocked by TICKET-0"),
+        "blocked case must be refused: {}",
+        combined(&out3)
+    );
     wipe(&root);
 }
 

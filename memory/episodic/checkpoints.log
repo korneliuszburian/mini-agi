@@ -644,3 +644,4 @@
 2026-08-08T01:29:30Z VERIFY-PASS fix179-cli-loop-status-attempts @ 9cf25ba
 2026-08-08T01:30:29Z BEGIN fix180-cli-dispatch-claimed -> 43f93b8
 2026-08-08T01:32:21Z VERIFY-PASS fix180-cli-dispatch-claimed @ fa4a2b4
+2026-08-08T01:33:06Z BEGIN fix181-cli-dispatch-blocked -> c245428
