@@ -777,3 +777,4 @@
 2026-08-08T11:32:49Z BEGIN fix246-validate-doc-test -> 1be0cc3
 2026-08-08T11:34:44Z VERIFY-PASS fix246-validate-doc-test @ 49c7550
 2026-08-08T11:38:19Z BEGIN fix247-changelog27 -> 91c059d
+2026-08-08T11:39:58Z VERIFY-PASS fix247-changelog27 @ c94deb4
