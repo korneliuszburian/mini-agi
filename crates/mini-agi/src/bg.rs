@@ -322,21 +322,28 @@ fn lock_holder_alive(handle: &Path) -> bool {
     process_live(pid, start)
 }
 
+/// Read `/proc/<pid>/stat` once: the process state (field 2) and the
+/// start-time (field 21) — the two fields every liveness check needs.
+fn proc_stat(pid: u32) -> Option<(String, u64)> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let fields: Vec<&str> = stat.split_whitespace().collect();
+    let state = fields.get(2).copied().unwrap_or("?").to_string();
+    let proc_start = fields
+        .get(21)
+        .and_then(|f| f.parse::<u64>().ok())
+        .unwrap_or(0);
+    Some((state, proc_start))
+}
+
 /// A process instance is alive when it exists, is not a zombie, and its
 /// start-time matches the recorded identity.
 fn process_live(pid: u32, recorded_start: u64) -> bool {
     if recorded_start == 0 {
         return false;
     }
-    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+    let Some((state, starttime)) = proc_stat(pid) else {
         return false;
     };
-    let fields: Vec<&str> = stat.split_whitespace().collect();
-    let state = fields.get(2).copied().unwrap_or("?");
-    let starttime = fields
-        .get(21)
-        .and_then(|f| f.parse::<u64>().ok())
-        .unwrap_or(0);
     state != "Z" && starttime == recorded_start
 }
 
@@ -346,10 +353,7 @@ fn report_ready_checked(launch: &LaunchInfo) -> bool {
 }
 
 fn process_starttime(pid: u32) -> u64 {
-    std::fs::read_to_string(format!("/proc/{pid}/stat"))
-        .ok()
-        .and_then(|stat| stat.split_whitespace().nth(21).and_then(|f| f.parse().ok()))
-        .unwrap_or(0)
+    proc_stat(pid).map_or(0, |(_, start)| start)
 }
 
 /// Liveness of a launched run: the process exists AND its Linux
