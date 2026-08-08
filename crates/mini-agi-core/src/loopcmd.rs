@@ -832,6 +832,19 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
 ///
 /// # Errors
 ///
+/// A case name must be a single plain path segment (no separators, no
+/// `..`/`.` traversal) so `evals/cases/<case>/run.json` can never escape.
+#[must_use]
+fn case_is_plain_segment(case: &str) -> bool {
+    !case.is_empty()
+        && case != "."
+        && case != ".."
+        && !case.starts_with('.')
+        && !case.contains('/')
+        && !case.contains('\\')
+        && !case.contains(':')
+}
+
 /// On a verified close, consolidate a canonical contrast fact pairing the
 /// failure reflection (from the register) with the verified success
 /// evidence — future runs condition on the contrast, not just the
@@ -938,6 +951,14 @@ pub fn verify(
     claimant: &str,
     allow_unverified: bool,
 ) -> Result<(String, bool), String> {
+    // Path safety (mirrors find_skill/snapshot validation): a raw
+    // `join` would let `loop verify ../x` read a run.json outside
+    // `evals/cases/`.
+    if !case_is_plain_segment(case) {
+        return Err(format!(
+            "invalid case name '{case}' — use a plain name (no separators)"
+        ));
+    }
     let base = case.strip_suffix("-rerun").unwrap_or(case);
     let run_path = root.join("evals/cases").join(case).join("run.json");
     let report = eval::score_run(&run_path, root, &root.join("evals/golden"))

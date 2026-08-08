@@ -491,6 +491,16 @@ fn cli_skill_verify_pass_and_fail() {
         "---\nname: bad\ndescription: no\nverify: 'exit 2'\n---\n",
     )
     .unwrap();
+    // Traversal guard (security review): `skill show ../...` must be
+    // rejected as unknown, never resolve a path outside .agents/skills/.
+    let traversal = run(&root, &["skill", "show", ".."]);
+    assert_eq!(traversal.status.code(), Some(1), "{}", combined(&traversal));
+    assert!(
+        combined(&traversal).contains("no skill named")
+            || combined(&traversal).contains("unknown skill"),
+        "traversal name must read as unknown: {}",
+        combined(&traversal)
+    );
     let ok = run(&root, &["skill", "verify", "good"]);
     assert!(ok.status.success());
     assert!(stdout(&ok).contains("PASS: good"));
@@ -3238,10 +3248,7 @@ fn cli_eval_hidden_missing_dir_fails_cleanly() {
     // clear message, not panic.
     let root = tmp_root("cehm");
     wipe(&root);
-    let out = run(
-        &root,
-        &["eval", "hidden", root.join("nope").to_str().unwrap()],
-    );
+    let out = run(&root, &["eval", "hidden", "nope"]);
     assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
     assert!(
         combined(&out).contains("no hidden cases"),

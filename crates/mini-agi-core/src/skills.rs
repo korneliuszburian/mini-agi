@@ -212,6 +212,20 @@ fn required(fields: &HashMap<String, String>, key: &str) -> Result<String, Skill
         .ok_or_else(|| SkillError::MissingField(key.to_string()))
 }
 
+/// A skill name must be a single plain path segment (no separators,
+/// no `..`/`.` traversal, no leading dot) so `agents_dir(root).join(name)`
+/// can never escape `.agents/skills/`.
+#[must_use]
+fn name_is_plain_segment(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && !name.starts_with('.')
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !name.contains(':')
+}
+
 /// The registry root for a repo: `<root>/.agents/skills` (ADR-0002).
 #[must_use]
 pub fn agents_dir(root: &Path) -> PathBuf {
@@ -263,9 +277,18 @@ pub fn discover_skills(root: &Path) -> Result<Vec<Skill>, SkillError> {
 ///
 /// # Errors
 ///
-/// Returns [`SkillError::Unknown`] when no `SKILL.md` exists for the name.
+/// Returns [`SkillError::Unknown`] when no `SKILL.md` exists for the name,
+/// or when the name is not path-safe (separators/traversal would escape
+/// `.agents/skills/`).
 pub fn find_skill(root: &Path, name: &str) -> Result<Skill, SkillError> {
-    let dir = agents_dir(root).join(name);
+    // Path safety (mirrors derive-snapshot validation): a raw `join`
+    // would let `skill show ../../x` read SKILL.md outside
+    // `.agents/skills/` (MCP-amplified read). Symlink check below.
+    let dir = if name_is_plain_segment(name) {
+        agents_dir(root).join(name)
+    } else {
+        return Err(SkillError::Unknown(name.to_string()));
+    };
     // The skill DIR must not be a symlink: traversing
     // `.agents/skills/<name>` would resolve an outside target.
     match std::fs::symlink_metadata(&dir) {
