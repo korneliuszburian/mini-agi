@@ -1377,4 +1377,36 @@ mod tests {
         let wt = ticket_worktree(Path::new("/repo"), "t1");
         assert_eq!(wt, Path::new("/repo/.batch/t1"));
     }
+
+    #[test]
+    fn relative_path_rejects_escapes() {
+        assert!(valid_relative_path("src/lib.rs"));
+        assert!(!valid_relative_path("../x"));
+        assert!(!valid_relative_path("/abs"));
+        assert!(!valid_relative_path("~home"));
+        assert!(!valid_relative_path("a/b/../c"));
+        assert!(!valid_relative_path("C:"));
+        assert!(!valid_relative_path(""));
+        assert!(!valid_relative_path("x\\..\\y"));
+    }
+
+    #[test]
+    fn protected_path_detection_is_prefix_exact() {
+        // PROTECTED_PATHS: exact file or any path beneath it.
+        let p = PROTECTED_PATHS[0];
+        assert!(touches_protected(p));
+        assert!(touches_protected(&format!("{p}/sub/file")));
+        assert!(!touches_protected("README.md"));
+        assert!(!touches_protected(&format!("{p}x"))); // not a dir boundary
+    }
+
+    #[test]
+    fn worktree_path_is_batch_scoped() {
+        let wt = ticket_worktree(Path::new("/repo"), "t1");
+        assert_eq!(wt, Path::new("/repo/.batch/t1"));
+        assert_eq!(
+            ticket_worktree(Path::new("/repo"), "t-2"),
+            Path::new("/repo/.batch/t-2")
+        );
+    }
 }
