@@ -703,3 +703,4 @@
 2026-08-08T03:52:24Z BEGIN fix209-changelog20 -> 92d0755
 2026-08-08T03:53:41Z VERIFY-PASS fix209-changelog20 @ 74ee2c0
 2026-08-08T04:09:15Z BEGIN fix210-snapshot-corrupted-msg -> 592321e
+2026-08-08T04:10:59Z VERIFY-PASS fix210-snapshot-corrupted-msg @ 75815b7
