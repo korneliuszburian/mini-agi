@@ -191,6 +191,9 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   only when the baseline is also empty. Gate-path coverage closed: case
   drop, malformed baseline, NEW CASE, COST REGRESSION, CAPABILITY DROP.
   Suite: 443 -> 448 tests.
+- `mem verify` now detects supersede CYCLES (a supersedes b, b supersedes
+  a — broken lineage that passed as OK) via a deterministic DFS; `eval
+  steps` malformed-json error covered. Suite: 448 -> 449 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
