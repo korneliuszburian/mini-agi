@@ -214,6 +214,12 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
   render, finalize_and_merge per-ticket stage, loopcmd::verify evidence
   block, cmd_dream idle guard, audit memory-load + action-log sections);
   `# Panics` docs on panic-prone APIs. Suite: 450 -> 451 tests.
+- D6 respawn durability: events persisted to `.batch/respawns.log`
+  (append, evidence preserved) and surfaced in `status` (text + --json).
+- Gate hardening: `verify.sh` derives twice and fails on a nondeterministic
+  brief (determinism gate), tolerating a fresh empty repo; respawn
+  summary names the evidence file. Freshness logic for `dream --idle`
+  covered by a deterministic unit test. Suite: 451 -> 454 tests.
 
 ### Added (AFK v2 — session resume + sequential-reviewer)
 - Session resume (Sandcastle parity): verifier failure feeds the worker's
