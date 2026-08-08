@@ -22,7 +22,7 @@ use mini_agi_core::contract;
 use mini_agi_core::eval::{self, EvalError};
 use mini_agi_core::insights;
 use mini_agi_core::journal;
-use mini_agi_core::memory::{self, ConsolidateOptions, ENTRIES_REL, MemoryError};
+use mini_agi_core::memory::{self, ConsolidateOptions, MemoryError};
 use mini_agi_core::metrics;
 use mini_agi_core::skills;
 use mini_agi_core::ticket;
@@ -2516,12 +2516,6 @@ fn derive_text(brief_only: bool, root: &Path) -> Result<String, String> {
         Err(MemoryError::Io(e)) => Err(format!("derive failed: {e}")),
         Err(_) => Err("unexpected memory error".to_string()),
     }
-}
-
-/// Re-export used in tests to assert entry layout.
-#[allow(dead_code)]
-const fn _entries_rel() -> &'static str {
-    ENTRIES_REL
 }
 
 fn cmd_loop_run(a: &LoopRunArgs) -> ExitCode {

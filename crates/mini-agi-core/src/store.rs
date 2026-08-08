@@ -51,31 +51,6 @@ pub fn next_entry(root: &Path, today: &str) -> EntryFile {
     }
 }
 
-/// Collect every 16-hex-char fact id referenced anywhere under entries/.
-#[must_use]
-pub fn all_fact_ids(root: &Path) -> Vec<String> {
-    let mut ids = Vec::new();
-    let entries_root = root.join(ENTRIES_REL);
-    if !entries_root.is_dir() {
-        return ids;
-    }
-    for dir in entries_root.read_dir().ok().into_iter().flatten() {
-        let Ok(dir) = dir else { continue };
-        let Ok(day) = dir.file_type() else { continue };
-        if !day.is_dir() {
-            continue;
-        }
-        for entry in dir.path().read_dir().ok().into_iter().flatten() {
-            let Ok(e) = entry else { continue };
-            let Ok(text) = std::fs::read_to_string(e.path()) else {
-                continue;
-            };
-            ids.extend(extract_fact_ids(&text));
-        }
-    }
-    ids
-}
-
 /// Extract every backtick-delimited 16-hex-char id from text (one per line).
 #[must_use]
 pub fn extract_fact_ids(text: &str) -> Vec<String> {

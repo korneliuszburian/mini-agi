@@ -158,27 +158,6 @@ pub fn parse_schema(text: &str) -> Result<Schema, serde_json::Error> {
     serde_json::from_str(text).map(Schema::new)
 }
 
-/// Validate a JSON document against a schema text.
-///
-/// # Errors
-///
-/// Returns the first [`SchemaError`] when the document violates the
-/// schema.
-pub fn validate_json(schema_text: &str, doc_text: &str) -> Result<(), SchemaError> {
-    let schema = parse_schema(schema_text).map_err(|e| SchemaError {
-        path: "<schema>".to_string(),
-        message: format!("invalid schema json: {e}"),
-    })?;
-    let doc: Value = serde_json::from_str(doc_text).map_err(|e| SchemaError {
-        path: "<document>".to_string(),
-        message: format!("invalid document json: {e}"),
-    })?;
-    if let Some(err) = schema.validate(&doc) {
-        return Err(err);
-    }
-    Ok(())
-}
-
 /// The four pipeline schemas bundled with the kernel (`PoC` `schemas/`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Contract {
