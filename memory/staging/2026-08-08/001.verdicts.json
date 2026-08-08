@@ -1,0 +1,83 @@
+{
+  "staged": "001.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New factual claim about an external project (Beads) with specific provenance (Oct 2025, MIT, ~23k stars); no canonical fact references Beads — no conflict, no duplication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "New factual claim about Gas Town (Jan 2026, v1.0) as an orchestrator on the Beads ledger; no canonical conflict or duplication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "New factual claim about Gas City as a declarative orchestration SDK split from Gas Town; no canonical conflict or duplication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "New factual claim about Wasteland (Mar 2026) as a federation feature; no canonical conflict or duplication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Gas Town lexicon definitions — durable, specific terminology; no canonical conflict or duplication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Gas Town core thesis and architectural description — durable claim; no canonical conflict or duplication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Mapping of Gas Town concepts to mini-agi internals — aligns with canonical run records (composite scores, eval gate), checkpoint journal path is repo-verifiable; no contradiction with canon.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Research provenance claim (source, author, date) — self-attesting metadata; no canonical conflict or duplication.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Adoption analysis (1): unified ledger summary index recommendation — specific, scoped to kernel, references actual mini-agi state split; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Adoption analysis (2): scope assessment that Wasteland-style federation is out of scope for single-binary kernel — specific, reasoned; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Adoption analysis (3): formula template as candidate feature — specific suggestion scoped to loop batches; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Adoption analysis (4): per-rig witness semantics as candidate deepening — specific, kernel-scoped; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Verdict summary: core ideas already held, federation/SDK out of scope, two incremental adoptions recommended — durable conclusion from research; no canonical conflict.",
+      "verdict": "promote"
+    }
+  ]
+}

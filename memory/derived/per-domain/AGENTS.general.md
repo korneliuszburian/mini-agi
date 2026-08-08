@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 9d093c0ce06d0850
-# canonical_entries: 78
+# canonical_sha256: 7e5c75059747c766
+# canonical_entries: 79
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -807,3 +807,16 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `8c75ebbe3905e88f` The fmt and clippy gates are documented by those projects themselves; neither the Cargo Book nor clippy/rustfmt READMEs present measurements of these gates' effect on defect rates.
 - `0f1a1f2be8e214d4` Every behavioral practice covered — warnings-deny in CI, small unsafe blocks, SAFETY comments, Result over panic, sealed traits, property-testing as a complement, toolchain pinning, the CI channel matrix — appears in primary sources as expert/official guidance supported by stated rationale, not by controlled or comparative measurement; none of the sources cites a study measuring defect-reduction effects.
 - `3e2267fb03bf9e44` The closest things to evidence in the reached sources are (a) Miri demonstrably catching a concrete UB in the Book's worked example, and (b) the cargo-fuzz trophy-case list — both are existence proofs, not efficacy comparisons.
+- `23db60932cbf376c` Beads (Oct 2025, MIT, ~23k stars) is a portable work ledger: each unit of work is a bead — atomic, durable, version-controlled, audit-trailed, queryable across sessions — and stands alone as a coding-agent memory/persistence layer.
+- `42801d9fc42fccc1` Gas Town (Jan 2026, v1.0) is an orchestrator built on the Beads ledger that runs dozens of parallel coding agents with oversight, an early 'Dark Factory' where agents work autonomously in the background.
+- `45921e9737d8f732` Gas City is a declarative orchestration SDK split from Gas Town that runs hundreds of concurrent agents.
+- `bbbe2b85e6d0db1a` Wasteland (Mar 2026) is a federation feature: link Gas Towns over the shared ledger, post/claim work on a wanted board, and earn multi-dimensional stamps (quality/reliability/creativity) that compose into a portable character sheet (reputation from real work).
+- `c3dff66fff8c9fda` Gas Town lexicon: bead = atomic durable unit of work (version-controlled git-backed DB); formula = template for a piece of work; polecat = worker agent with persistent identity and ephemeral sessions; witness = patrol/watchdog agent per rig; refinery = Bors-style merge-queue processor serializing merges; mayor = chief-of-staff coordinating across rigs; stamp = multi-dimensional attestation on completed work.
+- `3d5b6db5918b465b` Gas Town core thesis: 'durable memory plus parallelism win'; the stack is K8s-like (polecat workers, serializing refinery merge queue, per-group witness watchdog, cross-group mayor coordinator), and session crash/handoff is handled by the next session reading the ledger and continuing — the ledger, not the session, is the source of truth.
+- `f54b0ed68eef1372` Mapping to mini-agi: Beads ledger ~ checkpoint journal (memory/episodic/checkpoints.log) + evals/results run ledger + memory/canonical facts; Refinery ~ planner::finalize_and_merge; Witness ~ bg worker supervision / loop run watchdog; Polecat ~ bg workers with persistent session identity (MINIAGI_SESSION_TAG, detached runs, respawns); Stamp ~ eval gate multi-dim score (composite, outcome, cost_usd, tokens, tool_mismatches); persistent state ~ run-state index (status::index_runs).
+- `f54fde4a6d009561` Gas Town research status: audited (primary source yegge.ai/gastown, author = maintainer, single-source facts), research date 2026-08-08.
+- `b91eeab1a9452dee` Candidate adoption (1): keep run.json authoritative but consider a unified ledger summary index that is git-commit-friendly and queryable (status already partially does this); Beads is a single version-controlled DB while mini-agi splits state across checkpoints.log + run.json + canonical.
+- `1691fdd86c2e2438` Candidate adoption (2): Wasteland-style portable multi-dimensional stamps with provenance is a federation feature (out of scope for a single-binary kernel); mini-agi eval has multi-dim score but no portable attestation concept across repos.
+- `9df0ff407c4668c0` Candidate adoption (3): a first-class 'formula' template for loop batches is a candidate feature; mini-agi has evals/golden (template-like).
+- `1b261b0e97a18552` Candidate adoption (4): per-batch witness with autonomous failure diagnosis is a candidate deepening of the planner/bg layer; mini-agi currently has only global supervision, not per-rig watchdog semantics.
+- `b4ee49de2637dd9e` Verdict for mini-agi: core kernel ideas (durable ledger, serializing merge, watchdog, multi-dim eval) are already held; the differentiated adoptions worth pursuing are (1) a unified queryable ledger view and (4) per-rig witness semantics — both incremental, kernel-scoped, and matching the charter — while federation (Wasteland) and declarative SDK (Gas City) are out of scope for a single-binary kernel.
