@@ -356,8 +356,6 @@ fn process_starttime(pid: u32) -> u64 {
 /// start-time matches the recorded identity AND it is not a zombie
 /// (state Z). A stale pid (reused or zombie) reports dead.
 #[must_use]
-// Consumed by the MCP tools (AFK v3 S2).
-#[allow(dead_code)]
 pub fn is_alive(handle: &Path) -> bool {
     let pid: u32 = match std::fs::read_to_string(handle.join("run.pid")) {
         Ok(p) => p.trim().parse().unwrap_or(0),
@@ -382,8 +380,6 @@ pub fn is_alive(handle: &Path) -> bool {
 /// whose launch.json names that same workdir. Anything else (an
 /// arbitrary path the client points at) is invalid.
 #[must_use]
-// Consumed by the MCP tools (AFK v3 S2).
-#[allow(dead_code)]
 /// Handle authority (F3): parse launch.json ONCE and validate it — the
 /// handle must be named `.supervisor`, its parent must be the launch's
 /// workdir, and the report path must live inside that workdir. Returns
@@ -421,7 +417,7 @@ fn launch_report_from(launch: &LaunchInfo) -> Option<std::path::PathBuf> {
 /// arbitrary path the client points at) is invalid.
 #[must_use]
 // Consumed by the MCP tools (AFK v3 S2).
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn valid_handle(handle: &Path) -> bool {
     validated_launch(handle).is_some()
 }
@@ -431,14 +427,13 @@ pub fn valid_handle(handle: &Path) -> bool {
 /// authorized workdir.
 #[must_use]
 // Consumed by the MCP tools (AFK v3 S2).
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn launch_report(handle: &Path) -> Option<std::path::PathBuf> {
     validated_launch(handle).and_then(|l| launch_report_from(&l))
 }
 
 /// A background run's status snapshot.
 // Consumed by the MCP tools (AFK v3 S2).
-#[allow(dead_code)]
 pub struct BgStatus {
     /// Whether the supervisor process is still running.
     pub alive: bool,
@@ -455,7 +450,6 @@ pub struct BgStatus {
 /// Read the status of a launched run.
 #[must_use]
 // Consumed by the MCP tools (AFK v3 S2).
-#[allow(dead_code)]
 pub fn run_status(handle: &Path) -> BgStatus {
     // Single validated read (F3): launch.json is parsed ONCE and the
     // result drives everything — no guard-then-reread TOCTOU window.
@@ -501,7 +495,6 @@ pub fn run_status(handle: &Path) -> BgStatus {
 /// The run report text when ready.
 #[must_use]
 // Consumed by the MCP tools (AFK v3 S2).
-#[allow(dead_code)]
 pub fn run_report_text(handle: &Path) -> Option<String> {
     let launch = validated_launch(handle)?;
     let report = launch_report_from(&launch)?;
