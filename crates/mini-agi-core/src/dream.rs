@@ -415,6 +415,7 @@ pub fn apply_verdicts(
     staged: &[StagedFact],
     verdicts: &[AuditorVerdict],
     source: &str,
+    dry_run: bool,
 ) -> Result<(usize, usize, usize), crate::memory::MemoryError> {
     let known = crate::memory::existing_fact_ids(root);
     let preserved = crate::memory::preserved_ids(root);
@@ -537,7 +538,9 @@ pub fn apply_verdicts(
     }
     let promoted_count = promoted.values().map(Vec::len).sum();
     for (domain, facts) in promoted {
-        crate::memory::write_canonical_entry(root, &facts, source, &domain, "dream")?;
+        if !dry_run {
+            crate::memory::write_canonical_entry(root, &facts, source, &domain, "dream")?;
+        }
     }
     Ok((promoted_count, queued, skipped))
 }
@@ -694,7 +697,7 @@ mod tests {
             },
         ];
         let (promoted, queued, skipped) =
-            apply_verdicts(&root, &staged, &verdicts, "dream-test").unwrap();
+            apply_verdicts(&root, &staged, &verdicts, "dream-test", false).unwrap();
         assert_eq!(promoted, 1, "enforced fact must NOT be auto-promoted");
         assert_eq!(queued, 2, "enforced + conflict land in the human queue");
         assert_eq!(skipped, 1, "reject is skipped");
@@ -710,6 +713,39 @@ mod tests {
         let canonical = crate::memory::read_facts(&root);
         assert_eq!(canonical.len(), 1);
         assert!(canonical[0].2.contains("new durable fact"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dry_run_promotion_writes_nothing() {
+        // `dream --promote --dry-run` must not touch canonical memory.
+        let root = std::env::temp_dir().join(format!(
+            "mag-dream-dry-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let staged = vec![StagedFact {
+            body: "new dry fact".into(),
+            domain: "general".into(),
+        }];
+        let verdicts = vec![AuditorVerdict {
+            index: 0,
+            verdict: "promote".into(),
+            reason: None,
+            existing_id: None,
+        }];
+        let before = crate::memory::read_facts(&root).len();
+        let (promoted, _, _) = apply_verdicts(&root, &staged, &verdicts, "dry-test", true).unwrap();
+        assert_eq!(promoted, 1, "dry-run still reports the would-be count");
+        assert_eq!(
+            crate::memory::read_facts(&root).len(),
+            before,
+            "dry-run must not write canonical facts"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -744,7 +780,7 @@ mod tests {
             },
         ];
 
-        let counts = apply_verdicts(&root, &staged, &verdicts, "dream-test").unwrap();
+        let counts = apply_verdicts(&root, &staged, &verdicts, "dream-test", false).unwrap();
 
         assert_eq!(counts, (2, 0, 0));
         let facts: std::collections::BTreeMap<String, String> = crate::memory::read_facts(&root)
@@ -794,7 +830,7 @@ mod tests {
             existing_id: Some(existing_id.clone()),
         }];
         let (promoted, queued, skipped) =
-            apply_verdicts(&root, &staged, &verdicts, "dream-test").unwrap();
+            apply_verdicts(&root, &staged, &verdicts, "dream-test", false).unwrap();
         assert_eq!(promoted, 0);
         assert_eq!(queued, 1, "supersede is written as a new canonical entry");
         assert_eq!(skipped, 0);
@@ -846,7 +882,7 @@ mod tests {
             existing_id: Some(old_id.clone()),
         }];
         let (promoted, queued, skipped) =
-            apply_verdicts(&root, &staged, &verdicts, "dream-test").unwrap();
+            apply_verdicts(&root, &staged, &verdicts, "dream-test", false).unwrap();
         assert_eq!(promoted, 0);
         assert_eq!(
             queued, 1,

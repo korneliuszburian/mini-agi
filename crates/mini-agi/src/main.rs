@@ -3149,7 +3149,7 @@ fn cmd_dream(
 /// pipeline the audit output is re-run here only when `--reaudit` is
 /// given; by default promotion applies verdicts recorded in the last
 /// `dream` run).
-fn cmd_dream_promote(root: &Path, _dry_run: bool) -> ExitCode {
+fn cmd_dream_promote(root: &Path, dry_run: bool) -> ExitCode {
     // Locate the newest staging file.
     let staging_root = root.join(mini_agi_core::dream::STAGING_REL);
     let mut files: Vec<std::path::PathBuf> = Vec::new();
@@ -3186,12 +3186,18 @@ fn cmd_dream_promote(root: &Path, _dry_run: bool) -> ExitCode {
         &staged,
         &verdicts,
         &format!("dream promote ({})", latest.display()),
+        dry_run,
     ) {
         Ok(r) => r,
         Err(e) => return fail(&format!("dream promote: {e}")),
     };
     println!(
-        "dream promote: {} promoted, {} queued (human), {} skipped — from {}",
+        "dream promote{}: {} promoted, {} queued (human), {} skipped — from {}",
+        if dry_run {
+            " (dry-run — nothing written)"
+        } else {
+            ""
+        },
         promoted,
         queued,
         skipped,
