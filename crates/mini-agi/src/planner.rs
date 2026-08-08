@@ -591,6 +591,92 @@ pub struct BatchMergeResult {
 ///
 /// Returns the first violation; the batch must be considered FAILED
 /// (worktrees and branches remain as evidence).
+/// Stage + commit one ticket's worktree changes and enforce containment:
+/// the committed diff vs the base must stay inside the ticket's declared
+/// scope. Returns `Err` on any git failure, an empty-commit case, or a
+/// containment violation.
+fn commit_ticket_changes(
+    ticket: &PlannerTicket,
+    result: &BatchTicketResult,
+    base_sha: &str,
+) -> Result<(), String> {
+    // Kernel-owned mechanical commit in the worktree. The run EVIDENCE
+    // files (the supervisor's reports/transcripts in the worktree root)
+    // are excluded from the merge — they are evidence, not repo content,
+    // and they sit outside every ticket's declared scope.
+    let wt = &result.worktree;
+    let status = std::process::Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(wt)
+        .status()
+        .map_err(|e| format!("git add in {} failed: {e}", wt.display()))?;
+    if !status.success() {
+        return Err(format!("git add failed in {}", wt.display()));
+    }
+    let status = std::process::Command::new("git")
+        .args(["reset", "-q", "--"])
+        .args(EVIDENCE_PATHS)
+        .current_dir(wt)
+        .status()
+        .map_err(|e| format!("git reset in {} failed: {e}", wt.display()))?;
+    if !status.success() {
+        return Err(format!("git reset failed in {}", wt.display()));
+    }
+    // The kernel-owned commit is OPTIONAL: a worker that ran the repo's
+    // checkpoint discipline already committed its changes on the branch.
+    // Commit only when there is an unstaged diff.
+    let staged = std::process::Command::new("git")
+        .args(["diff", "--cached", "--quiet"])
+        .current_dir(wt)
+        .status()
+        .map_err(|e| format!("git diff in {} failed: {e}", wt.display()))?;
+    if !staged.success() {
+        let commit = std::process::Command::new("git")
+            .args(["commit", "-qm", &format!("batch: {}", ticket.id)])
+            .current_dir(wt)
+            .env("GIT_AUTHOR_NAME", "mini-agi")
+            .env("GIT_AUTHOR_EMAIL", "kernel@mini-agi.local")
+            .env("GIT_COMMITTER_NAME", "mini-agi")
+            .env("GIT_COMMITTER_EMAIL", "kernel@mini-agi.local")
+            .status()
+            .map_err(|e| format!("git commit in {} failed: {e}", wt.display()))?;
+        if !commit.success() {
+            return Err(format!(
+                "ticket {}: worktree commit failed (nothing committed?)",
+                ticket.id
+            ));
+        }
+    }
+    // Containment: the committed diff vs the base must be inside the
+    // declared scope. The diff runs INSIDE the worktree — the worktree's
+    // own HEAD is not in the main repo's history yet.
+    let changed = std::process::Command::new("git")
+        .args(["diff", "--name-only", base_sha, "HEAD"])
+        .current_dir(wt)
+        .output()
+        .map_err(|e| format!("containment diff failed: {e}"))?;
+    let changed = String::from_utf8_lossy(&changed.stdout).to_string();
+    for path in changed.lines() {
+        if EVIDENCE_PATHS
+            .iter()
+            .any(|e| path == *e || path.starts_with(&format!("{e}/")))
+        {
+            continue;
+        }
+        let in_scope = ticket
+            .scope
+            .iter()
+            .any(|s| path == s || path.starts_with(&format!("{s}/")));
+        if !in_scope {
+            return Err(format!(
+                "ticket {}: CONTAINMENT VIOLATION — changed '{}' outside the declared scope",
+                ticket.id, path
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub fn finalize_and_merge(
     repo: &Path,
     manifest: &PlannerManifest,
@@ -622,81 +708,7 @@ pub fn finalize_and_merge(
                 ticket.id
             ));
         }
-        // Kernel-owned mechanical commit in the worktree. The run
-        // EVIDENCE files (the supervisor's reports/transcripts in the
-        // worktree root) are excluded from the merge — they are
-        // evidence, not repo content, and they sit outside every
-        // ticket's declared scope.
-        let wt = &result.worktree;
-        let status = std::process::Command::new("git")
-            .args(["add", "-A"])
-            .current_dir(wt)
-            .status()
-            .map_err(|e| format!("git add in {} failed: {e}", wt.display()))?;
-        if !status.success() {
-            return Err(format!("git add failed in {}", wt.display()));
-        }
-        let status = std::process::Command::new("git")
-            .args(["reset", "-q", "--"])
-            .args(EVIDENCE_PATHS)
-            .current_dir(wt)
-            .status()
-            .map_err(|e| format!("git reset in {} failed: {e}", wt.display()))?;
-        if !status.success() {
-            return Err(format!("git reset failed in {}", wt.display()));
-        }
-        // The kernel-owned commit is OPTIONAL: a worker that ran the
-        // repo's checkpoint discipline already committed its changes on
-        // the branch. Commit only when there is an unstaged diff.
-        let staged = std::process::Command::new("git")
-            .args(["diff", "--cached", "--quiet"])
-            .current_dir(wt)
-            .status()
-            .map_err(|e| format!("git diff in {} failed: {e}", wt.display()))?;
-        if !staged.success() {
-            let commit = std::process::Command::new("git")
-                .args(["commit", "-qm", &format!("batch: {}", ticket.id)])
-                .current_dir(wt)
-                .env("GIT_AUTHOR_NAME", "mini-agi")
-                .env("GIT_AUTHOR_EMAIL", "kernel@mini-agi.local")
-                .env("GIT_COMMITTER_NAME", "mini-agi")
-                .env("GIT_COMMITTER_EMAIL", "kernel@mini-agi.local")
-                .status()
-                .map_err(|e| format!("git commit in {} failed: {e}", wt.display()))?;
-            if !commit.success() {
-                return Err(format!(
-                    "ticket {}: worktree commit failed (nothing committed?)",
-                    ticket.id
-                ));
-            }
-        }
-        // Containment: the committed diff vs the base must be inside
-        // the declared scope. The diff runs INSIDE the worktree — the
-        // worktree's own HEAD is not in the main repo's history yet.
-        let changed = std::process::Command::new("git")
-            .args(["diff", "--name-only", &provision.base_sha, "HEAD"])
-            .current_dir(wt)
-            .output()
-            .map_err(|e| format!("containment diff failed: {e}"))?;
-        let changed = String::from_utf8_lossy(&changed.stdout).to_string();
-        for path in changed.lines() {
-            if EVIDENCE_PATHS
-                .iter()
-                .any(|e| path == *e || path.starts_with(&format!("{e}/")))
-            {
-                continue;
-            }
-            let in_scope = ticket
-                .scope
-                .iter()
-                .any(|s| path == s || path.starts_with(&format!("{s}/")));
-            if !in_scope {
-                return Err(format!(
-                    "ticket {}: CONTAINMENT VIOLATION — changed '{}' outside the declared scope",
-                    ticket.id, path
-                ));
-            }
-        }
+        commit_ticket_changes(ticket, result, &provision.base_sha)?;
         merged.push(ticket.id.clone());
     }
     // ATOMIC merge (F1): assemble the batch on a SCRATCH branch; only
