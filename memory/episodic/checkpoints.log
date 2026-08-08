@@ -683,3 +683,4 @@
 2026-08-08T03:00:01Z BEGIN fix199-gate-case-drop -> 5af03d5
 2026-08-08T03:03:56Z VERIFY-PASS fix199-gate-case-drop @ f39a059
 2026-08-08T03:04:56Z BEGIN fix200-cli-gate-baseline-malformed -> e40ec93
+2026-08-08T03:06:12Z VERIFY-PASS fix200-cli-gate-baseline-malformed @ b725da5
