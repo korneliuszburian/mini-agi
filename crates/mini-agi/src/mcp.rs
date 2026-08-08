@@ -1384,4 +1384,17 @@ mod tests {
         assert!(text.contains("approve reason"), "{text}");
         assert!(text.contains("NEVER claim success"), "{text}");
     }
+
+    #[test]
+    fn unknown_method_is_a_clean_error_response() {
+        let mut initialized = true;
+        let msg = json!({"jsonrpc":"2.0","id":9,"method":"bogus/method","params":{}});
+        let resp = dispatch(&msg, &mut initialized).unwrap();
+        assert!(
+            resp["result"]["isError"].as_bool().unwrap_or(false),
+            "{resp}"
+        );
+        let text = resp["result"]["content"][0]["text"].as_str().unwrap_or("");
+        assert!(text.contains("unknown method"), "{text}");
+    }
 }
