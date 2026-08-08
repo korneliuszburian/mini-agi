@@ -573,6 +573,65 @@ fn call_memory_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
     }
 }
 
+/// Dispatch the eval-family MCP tools (`eval_*`). Returns `None` when
+/// `name` is not an eval tool so the caller falls through.
+fn call_eval_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
+    macro_rules! arg {
+        ($key:literal) => {
+            args.get($key).and_then(Value::as_str).unwrap_or("")
+        };
+    }
+    match name {
+        "eval_score" => {
+            let run = arg!("run");
+            Some(
+                match eval::score_run(Path::new(run), root, &root.join("evals/golden")) {
+                    Ok(report) => serde_json::to_string_pretty(&report).unwrap_or_default(),
+                    Err(e) => format!("error: {e}"),
+                },
+            )
+        }
+        "eval_gate" => {
+            let tolerance = arg_f64(args, "tolerance").unwrap_or(0.05);
+            let mismatch_tolerance =
+                usize::try_from(arg_u64(args, "mismatch_tolerance").unwrap_or(1)).unwrap_or(1);
+            let write_baseline = arg_bool(args, "write_baseline");
+            Some(
+                match super::eval_gate_text(root, tolerance, mismatch_tolerance, write_baseline) {
+                    Ok(text) => text,
+                    Err(msg) => format!("error: {msg}"),
+                },
+            )
+        }
+        "eval_steps" => {
+            let run = arg!("run");
+            Some(match std::fs::read_to_string(run) {
+                Ok(text) => match serde_json::from_str::<mini_agi_core::eval::Run>(&text) {
+                    Ok(run) => {
+                        let verdicts = mini_agi_core::eval::score_steps(&run);
+                        verdicts
+                            .iter()
+                            .map(|v| {
+                                format!(
+                                    "step {} [{}] score {:.2}{}",
+                                    v.step,
+                                    v.tool,
+                                    v.score,
+                                    if v.suspicious { "  <-- SUSPICIOUS" } else { "" }
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    }
+                    Err(e) => format!("error: invalid run json: {e}"),
+                },
+                Err(e) => format!("error: {e}"),
+            })
+        }
+        _ => None,
+    }
+}
+
 fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     macro_rules! arg {
         ($key:literal) => {
@@ -587,25 +646,11 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     if let Some(r) = call_memory_tools(name, args, root) {
         return r;
     }
+    if let Some(r) = call_eval_tools(name, args, root) {
+        return r;
+    }
     match name {
         "provenance" => memory::canonical_fingerprint(root),
-        "eval_score" => {
-            let run = arg!("run");
-            match eval::score_run(Path::new(run), root, &root.join("evals/golden")) {
-                Ok(report) => serde_json::to_string_pretty(&report).unwrap_or_default(),
-                Err(e) => format!("error: {e}"),
-            }
-        }
-        "eval_gate" => {
-            let tolerance = arg_f64(args, "tolerance").unwrap_or(0.05);
-            let mismatch_tolerance =
-                usize::try_from(arg_u64(args, "mismatch_tolerance").unwrap_or(1)).unwrap_or(1);
-            let write_baseline = arg_bool(args, "write_baseline");
-            match super::eval_gate_text(root, tolerance, mismatch_tolerance, write_baseline) {
-                Ok(text) => text,
-                Err(msg) => format!("error: {msg}"),
-            }
-        }
         "skill_list" => match skills::discover_skills(root) {
             Ok(reg) => reg
                 .iter()
@@ -1012,31 +1057,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 Err(e) => format!("error: {e}"),
             }
         }
-        "eval_steps" => {
-            let run = arg!("run");
-            match std::fs::read_to_string(run) {
-                Ok(text) => match serde_json::from_str::<mini_agi_core::eval::Run>(&text) {
-                    Ok(run) => {
-                        let verdicts = mini_agi_core::eval::score_steps(&run);
-                        verdicts
-                            .iter()
-                            .map(|v| {
-                                format!(
-                                    "step {} [{}] score {:.2}{}",
-                                    v.step,
-                                    v.tool,
-                                    v.score,
-                                    if v.suspicious { "  <-- SUSPICIOUS" } else { "" }
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    }
-                    Err(e) => format!("error: invalid run json: {e}"),
-                },
-                Err(e) => format!("error: {e}"),
-            }
-        }
+
         "run_verify" => {
             let run = arg!("run");
             match mini_agi_core::verifier::verify_run(root, std::path::Path::new(run)) {
