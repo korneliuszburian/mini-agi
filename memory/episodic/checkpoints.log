@@ -596,3 +596,4 @@
 2026-08-08T00:22:04Z VERIFY-PASS fix155-cli-validate-spec-verdict @ bac1c96
 2026-08-08T00:23:06Z BEGIN fix156-changelog9 -> bb1b5ae
 2026-08-08T00:24:13Z VERIFY-PASS fix156-changelog9 @ 5ed45f4
+2026-08-08T00:25:12Z BEGIN fix157-snapshot-name-validation -> 24d9f45

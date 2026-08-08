@@ -58,6 +58,9 @@ pub enum MemoryError {
     /// A supersede write targeted a preserved (load-bearing) fact id.
     #[error("cannot supersede preserved id {0} — preservation is a stronger contract (ADR-0010)")]
     PreservedId(String),
+    /// A derive snapshot/replay name contained path separators/traversal.
+    #[error("invalid snapshot name '{0}' — use plain alphanumeric/-_ (no path separators)")]
+    InvalidSnapshotName(String),
 }
 
 /// Options for a consolidation run.
@@ -1067,6 +1070,15 @@ pub fn derive(root: &Path, brief_only: bool) -> Result<(usize, usize), MemoryErr
     Ok((facts.len(), fragments.len()))
 }
 
+/// Derive snapshot names are file names under `SNAPSHOTS_REL`; only plain
+/// alphanumeric plus `-`/`_` are allowed (no separators or traversal).
+fn valid_snapshot_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 /// Snapshot the derived views (production-readiness F.1).
 ///
 /// Records the canonical fingerprint + the brief hash under a named
@@ -1075,8 +1087,15 @@ pub fn derive(root: &Path, brief_only: bool) -> Result<(usize, usize), MemoryErr
 ///
 /// # Errors
 ///
-/// Returns [`MemoryError::Io`] when the snapshot cannot be written.
+/// Returns [`MemoryError::Io`] when the snapshot cannot be written, or
+/// [`MemoryError::InvalidSnapshotName`] when the name is not path-safe.
 pub fn snapshot(root: &Path, name: &str) -> Result<String, MemoryError> {
+    // Path-safety: the name becomes a file name under SNAPSHOTS_REL, so
+    // it must not contain separators or traversal that would escape the
+    // snapshots dir (e.g. "../evil" landed in derived/).
+    if !valid_snapshot_name(name) {
+        return Err(MemoryError::InvalidSnapshotName(name.to_string()));
+    }
     let fingerprint = canonical_fingerprint(root);
     let brief =
         fs::read_to_string(root.join(DERIVED_REL).join("context-brief.md")).unwrap_or_default();
@@ -1106,6 +1125,9 @@ pub fn snapshot(root: &Path, name: &str) -> Result<String, MemoryError> {
 /// Returns [`MemoryError::SnapshotMissing`] when the named snapshot does
 /// not exist, or [`MemoryError::NoCanonical`] when there are no facts.
 pub fn replay(root: &Path, name: &str) -> Result<String, MemoryError> {
+    if !valid_snapshot_name(name) {
+        return Err(MemoryError::InvalidSnapshotName(name.to_string()));
+    }
     let path = root.join(SNAPSHOTS_REL).join(format!("{name}.json"));
     let text = fs::read_to_string(&path).map_err(|_| MemoryError::SnapshotMissing(name.into()))?;
     let doc: serde_json::Value =

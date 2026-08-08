@@ -1564,7 +1564,7 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
     // The generated .gitignore must ignore kernel runtime artifacts.
     let gi = std::fs::read_to_string(root.join(".gitignore")).unwrap();
     assert!(
-        gi.contains(".supervisor/") && gi.contains("memory/snapshots/"),
+        gi.contains(".supervisor/") && gi.contains("memory/derived/snapshots/"),
         "init-generated gitignore must cover runtime dirs"
     );
     // The codex config must be wired with the MCP allowlist + HITL
@@ -3168,5 +3168,33 @@ fn cli_validate_spec_and_verdict_contracts() {
     .unwrap();
     let bvv = run(&root, &["validate", "verdict", bad_v.to_str().unwrap()]);
     assert_eq!(bvv.status.code(), Some(1), "{}", combined(&bvv));
+    wipe(&root);
+}
+
+#[test]
+fn cli_derive_snapshot_rejects_traversal_name() {
+    // Snapshot names become file names; a traversal name must be refused
+    // (previously '../evil' escaped the snapshots dir into derived/).
+    let root = tmp_root("csnt");
+    wipe(&root);
+    seed_existing_entry(
+        &root,
+        &today(),
+        1,
+        "# e\n\n- domain: general\n\n## F-000 `0123456789abcdf0`\n\nwidget alpha\n",
+    );
+    let d = run(&root, &["derive"]);
+    assert!(d.status.success(), "{}", combined(&d));
+    let out = run(&root, &["derive", "--snapshot", "../evil"]);
+    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert!(
+        combined(&out).contains("invalid snapshot name"),
+        "{}",
+        combined(&out)
+    );
+    assert!(
+        !root.join("memory/derived/evil.json").exists(),
+        "traversal must not escape the snapshots dir"
+    );
     wipe(&root);
 }

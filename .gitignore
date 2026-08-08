@@ -16,4 +16,4 @@ run.json
 
 # Derive snapshots (deterministic-materialization references, F.1) are
 # regenerable runtime artifacts — never commit them.
-memory/snapshots/
+memory/derived/snapshots/

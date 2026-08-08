@@ -75,7 +75,7 @@ const GITIGNORE: &str = "target/\n\
 codex.log\n\
 progress.md\n\
 run.json\n\
-memory/snapshots/\n";
+memory/derived/snapshots/\n";
 
 /// Codex onboarding: marking the repo trusted lets `codex exec` run
 /// without `--skip-git-repo-check` (verified in EXP-001).
