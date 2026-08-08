@@ -734,3 +734,5 @@
 2026-08-08T07:46:40Z VERIFY-PASS fix224-respawn-evidence-file @ 1841051
 2026-08-08T07:47:14Z BEGIN fix225-status-respawn-summary -> af6379a
 2026-08-08T07:50:57Z VERIFY-PASS fix225-status-respawn-summary @ cc7f3d8
+2026-08-08T07:53:24Z BEGIN fix226-verify-derive-det -> ac8934c (clean)
+2026-08-08T07:54:25Z VERIFY-PASS fix226-verify-derive-det @ ac8934c

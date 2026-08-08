@@ -63,11 +63,20 @@ if [ -n "$BIN" ]; then
     step "insights"     "$BIN" insights || fail=1
     step "audit"        "$BIN" audit || fail=1
     # Determinism (cycle-34 finding): derivation is a pure function of
-    # canonical memory — a second derive must not change the brief.
+    # canonical memory — a second derive must not change the brief. A
+    # fresh init'd repo has no facts yet; derive reports that cleanly
+    # and stays gate-green (an init'd repo is gate-green by design).
     step "derive" sh -c '
-        "$1" derive >/dev/null 2>&1 || exit 1
+        out1=$("$1" derive 2>&1); rc1=$?
+        if [ "$rc1" -ne 0 ] && ! echo "$out1" | grep -q "no canonical facts"; then
+            echo "derive: failed"; echo "$out1"; exit 1
+        fi
+        [ -f memory/derived/context-brief.md ] || { echo "derive: deterministic (no facts)"; exit 0; }
         h1=$(sha256sum memory/derived/context-brief.md 2>/dev/null | cut -d" " -f1) || exit 1
-        "$1" derive >/dev/null 2>&1 || exit 1
+        out2=$("$1" derive 2>&1); rc2=$?
+        if [ "$rc2" -ne 0 ] && ! echo "$out2" | grep -q "no canonical facts"; then
+            echo "derive: failed on second run"; echo "$out2"; exit 1
+        fi
         h2=$(sha256sum memory/derived/context-brief.md 2>/dev/null | cut -d" " -f1) || exit 1
         if [ "$h1" = "$h2" ]; then echo "derive: deterministic ($h1)"; else echo "derive: NOT DETERMINISTIC ($h1 != $h2)"; exit 1; fi
     ' sh "$BIN" || fail=1
