@@ -463,6 +463,16 @@ struct ResearchArgs {
     /// Re-research even when findings already exist (registry dedup).
     #[arg(long)]
     force: bool,
+    /// Full autoresearch chain: research -> distill -> audit -> promote
+    /// in one call (the D2 loop as a single pipeline).
+    #[arg(long)]
+    chain: bool,
+    /// Distiller worker for `--chain` (default opencode flash).
+    #[arg(long, default_value = "opencode-opencode-go/deepseek-v4-flash")]
+    distiller: String,
+    /// Auditor worker for `--chain` (default opencode pro).
+    #[arg(long, default_value = "opencode-opencode-go/deepseek-v4-pro")]
+    auditor: String,
 }
 
 #[derive(Args, Debug)]
@@ -847,7 +857,12 @@ fn main() -> ExitCode {
             worker,
             max_wall,
             force,
-        }) => cmd_research(&question, &worker, max_wall, force),
+            chain,
+            distiller,
+            auditor,
+        }) => cmd_research(
+            &question, &worker, max_wall, force, chain, &distiller, &auditor,
+        ),
         Command::Ui(UiArgs { port }) => match ui::serve(&root(), port) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => fail(&format!("ui: {e}")),
@@ -3255,7 +3270,19 @@ fn read_staged_facts(path: &Path) -> Result<Vec<mini_agi_core::dream::StagedFact
 /// `research/registry.json`; asking the same question again when its
 /// findings already exist resolves to the existing file instead of
 /// spawning a second worker run (`--force` re-researches).
-fn cmd_research(question: &str, worker: &str, max_wall: u64, force: bool) -> ExitCode {
+///
+/// `--chain`: the full D2 autoresearch pipeline in one call —
+/// research -> distill -> audit -> promote -> registry status `Promoted`
+/// — so the knowledge loop closes without three manual invocations.
+fn cmd_research(
+    question: &str,
+    worker: &str,
+    max_wall: u64,
+    force: bool,
+    chain: bool,
+    distiller: &str,
+    auditor: &str,
+) -> ExitCode {
     let root = root();
     let slug = research::slugify(question);
     let out_path = research::findings_path(&root, question);
@@ -3267,6 +3294,21 @@ fn cmd_research(question: &str, worker: &str, max_wall: u64, force: bool) -> Exi
             "research: duplicate question — findings already exist at {} (status: {status:?}); pass --force to re-research",
             out_path.display()
         );
+        if chain
+            && matches!(
+                status,
+                research_registry::QuestionStatus::Promoted
+                    | research_registry::QuestionStatus::Decided
+            )
+        {
+            println!(
+                "research chain: already promoted/decided — nothing to distill, pass --force to re-run"
+            );
+            return ExitCode::SUCCESS;
+        }
+        if chain {
+            return run_research_chain(&root, &out_path, &slug, distiller, auditor);
+        }
         return ExitCode::SUCCESS;
     }
     let workdir = std::env::temp_dir().join(format!("mag-research-wd-{}", std::process::id()));
@@ -3324,11 +3366,43 @@ fn cmd_research(question: &str, worker: &str, max_wall: u64, force: bool) -> Exi
                 result.wall_seconds,
                 result.usage.map_or(0.0, |u| u.cost_usd)
             );
+            if chain {
+                return run_research_chain(&root, &out_path, &slug, distiller, auditor);
+            }
             println!("next: mini-agi dream --source {}", out_path.display());
             ExitCode::SUCCESS
         }
         Err(e) => fail(&format!("research: cannot write findings: {e}")),
     }
+}
+
+/// The D2 autoresearch chain after findings exist: distill -> audit ->
+/// promote, then mark the registry `Promoted`. A single failure fails
+/// the whole chain (no silent partial promotion).
+fn run_research_chain(
+    root: &std::path::Path,
+    findings: &std::path::Path,
+    slug: &str,
+    distiller: &str,
+    auditor: &str,
+) -> ExitCode {
+    let dream = cmd_dream(Some(findings), distiller, auditor, false, false, None, None);
+    if dream != ExitCode::SUCCESS {
+        return dream;
+    }
+    let promote = cmd_dream_promote(root, false);
+    if promote != ExitCode::SUCCESS {
+        return promote;
+    }
+    if let Err(e) =
+        research_registry::advance_status(root, slug, research_registry::QuestionStatus::Promoted)
+    {
+        return fail(&format!("research: registry write failed: {e}"));
+    }
+    println!(
+        "research chain: findings distilled, audited, promoted — registry '{slug}' = Promoted"
+    );
+    ExitCode::SUCCESS
 }
 
 #[cfg(test)]

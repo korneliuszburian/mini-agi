@@ -1,0 +1,59 @@
+{
+  "staged": "002.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Specific, verifiable claim about mcp-hub npm package; no canonical fact addresses this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific, verifiable claim citing CHANGELOG.md; no canonical fact addresses this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Specific, verifiable claim about release.sh mechanics; no canonical fact addresses this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Corroborated claim matching registry history to changelog; no canonical fact addresses this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Specific, verifiable claim citing CONTRIBUTING.md; no canonical fact addresses this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Non-claim about absence of policy — a finding, not an assertion; correctly scoped as documentation gap, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Specific, verifiable claim (PyPI 404); no canonical fact addresses this domain.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Redundant synthesis of candidates 0-4; adds no new claim beyond what 0-4 already assert individually. Promoting it alongside them creates a duplicate-without-source-distinction.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Explicitly admits uncertainty ('Uncertain:'); not a durable truth. Content duplicates candidate 5 but wrapped in hedging that undermines fact status.",
+      "verdict": "reject"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: bb486b1e16d47524
-# canonical_entries: 81
+# canonical_sha256: 639e50ad4b078570
+# canonical_entries: 83
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -846,3 +846,19 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `07b0d711ef3fc303` Opinion / verified absence: no controlled, head-to-head measurement of 'one shared brain vs per-project instances' is published in the primary sources; the only numeric outcomes found are anecdotal team reports (e.g., 3x faster incident triage, ~80% reduction in research time) that do not compare memory architectures.
 - `d39c4dd366a95d2e` Verdict (established): the four systems converge on one pattern — a single kernel binary whose identity, memory, and enforcement are all resolved per-repo from a scope stack (global/user, project, nested subdirectory), with git root as the identity anchor and a trust gate on project-loaded content; MCP is the only cross-repo mechanism and is stateless per-request with no memory or eval semantics.
 - `e8df321a0ca42231` Verdict (uncertain): the 'one shared brain vs per-project instances' tradeoff has no controlled measurement in any reached primary source; the documented rationale is qualitative (context degradation, illustrative startup token costs, RAG-index staleness) and operational guidance uniformly favors many small instances; a concrete per-task or per-repo memory architecture (e.g., canonical-memory kernel) is not a documented pattern in any of the four systems' official docs.
+- `666be2622013c3ae` mcp-hub is an npm package (author 'Ravitemer'), MIT-licensed, repository git+https://github.com/ravitemer/mcp-hub.git; current latest dist-tag is 4.2.1 and every published version is a plain x.y.z with no prerelease tags.
+- `036d4210a72a6375` The only explicit published version-policy statement of mcp-hub is in CHANGELOG.md: 'The format is based on Keep a Changelog, and this project adheres to Semantic Versioning 2.0.0.'
+- `34fc1c71481976d6` mcp-hub's scripts/release.sh mechanically enforces semver: must run on main with a clean tree, bumps via npm --no-git-tag-version version patch|minor|major, gates the release on a matching ## [new-version] CHANGELOG.md entry (aborts and reverts otherwise), creates annotated tag vX.Y.Z, a single chore(release): vX.Y.Z commit, npm publish, and a GitHub release.
+- `a46362f8efe48984` mcp-hub's practice matches its declared semver policy: the registry sequence (62 versions 1.0.0 to 4.2.1) aligns with changelog entries — 2.0.0 (endpoints moved from URL params to server_name body), 3.0.0 (client registration endpoints removed), 4.0.0 (marketplace API schema/endpoint migration) — each released as a major with a '### Breaking Changes' section; features landed as minors and bug fixes as patches.
+- `675e3592262ae39f` mcp-hub's CONTRIBUTING.md instructs PR authors to 'Update the CHANGELOG.md with notes on your changes' as part of the pull-request process, feeding the changelog gate.
+- `486c92d91a5c5d33` mcp-hub documents no support/maintenance policy for older major versions (no LTS window, no deprecation/end-of-life statement), no prerelease/RC/nightly policy (and no such versions published), and no minimum-Node-version support commitment beyond the README runtime requirement 'Node.js >= 18.0.0'; the absence of a support-window policy is itself a finding, not a claim about what the policy is.
+- `1b264bd2db12c508` PyPI lookup for mcp-hub returned 404 (https://pypi.org/pypi/mcp-hub/json) — no Python distribution of that name was found; the package in question is the npm one.
+- `cbf6476b32f767bc` mcp-hub is an npm package (author "Ravitemer"), MIT-licensed, repository git+https://github.com/ravitemer/mcp-hub.git; latest dist-tag is 4.2.1; every published version is a plain x.y.z with no prerelease tags.
+- `a4b2703c22963a98` mcp-hub's CHANGELOG.md states verbatim: 'The format is based on Keep a Changelog, and this project adheres to Semantic Versioning' — the only explicit published version-policy statement found.
+- `f2c01f5064674e32` mcp-hub's scripts/release.sh mechanically enforces semver: must run on main with a clean tree, bumps via 'npm --no-git-tag-version version', gates the release on a matching '## [new-version]' entry in CHANGELOG.md (aborts and reverts otherwise), creates annotated tag vX.Y.Z, one 'chore(release): vX.Y.Z' commit, npm publish, and a GitHub release.
+- `13cb6f40a083137a` mcp-hub's observed release history (62 versions 1.0.0 to 4.2.1) matches its declared semver policy: breaking changes shipped as majors 2.0.0 (endpoints moved from URL params to server_name body), 3.0.0 (client registration endpoints removed), 4.0.0 (marketplace API schema/endpoint migration), each with a '### Breaking Changes' section; features landed as minors, bug fixes as patches.
+- `d25b446e25b94b13` mcp-hub CONTRIBUTING.md instructs PR authors to update CHANGELOG.md as part of the pull-request process — the mechanism feeding the changelog release gate.
+- `d479456f357031ec` mcp-hub documents no support/maintenance policy for older major versions (no LTS window, no deprecation/end-of-life statement for past majors).
+- `9a3185f8c42ed664` mcp-hub documents no policy for prereleases, release candidates, or nightly builds, and none have been published (registry shows only stable x.y.z).
+- `f8fc8c1992134bc3` mcp-hub states no minimum-version-support promise for Node beyond the README runtime requirement 'Node.js >= 18.0.0'.
+- `cc5ee7db3c43ac65` mcp-hub PyPI lookup returned 404 (pypi.org/pypi/mcp-hub/json) — no Python distribution of this name; the package in question is the npm one.

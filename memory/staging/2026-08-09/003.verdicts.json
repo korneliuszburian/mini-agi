@@ -1,0 +1,59 @@
+{
+  "staged": "003.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "New domain (mcp-hub) absent from canonical facts; specific, verifiable package metadata with no duplicate or conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "No existing mcp-hub facts in canonical memory; cites a specific published policy statement — not ephemeral or vague.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "No overlap with canonical facts; describes a mechanical enforcement mechanism in a specific file — durable process claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "No existing mcp-hub facts to duplicate or conflict with; specific release-history evidence supporting the semver claim.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "No canonical overlap; documents a specific documented contributor process — durable procedural fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "No duplicate/conflict; documents the absence of a support policy — a durable negative finding.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "No canonical overlap; documents absence of prerelease policy and observed absence of prerelease versions — durable negative finding.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "No duplicate/conflict; states a specific documented runtime requirement — durable constraint.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "No canonical overlap; specific lookup observation — records that no Python distribution exists for this name at time of audit.",
+      "verdict": "promote"
+    }
+  ]
+}

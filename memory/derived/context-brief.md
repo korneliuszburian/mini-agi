@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: bb486b1e16d47524
-# canonical_entries: 81
+# canonical_sha256: 639e50ad4b078570
+# canonical_entries: 83
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -506,6 +506,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 308c11e281ffbca4, 1d39a325632460a2, 39c9cdfc179c58ba, 5f7aa50430ec256f, 998dc6a4eeebfd10
 - `467e731dc67aed05` [general] A claim that a failure was recovered is only as good as its verifier: this repo's AGENTS.md requires run verify to actually execute the declared verify_command before an outcome is trusted — no external source substitutes for executing a recovery path on your own system.
   links: 20775a40371d1e55, 7fe943345da11d30, ac9b554f4139828d, abee484fca1be8a6, 8af8f2689671ac0a
+- `486c92d91a5c5d33` [general] mcp-hub documents no support/maintenance policy for older major versions (no LTS window, no deprecation/end-of-life statement), no prerelease/RC/nightly policy (and no such versions published), and no minimum-Node-version support commitment beyond the README runtime requirement 'Node.js >= 18.0.0'; the absence of a support-window policy is itself a finding, not a claim about what the policy is.
+  links: 036d4210a72a6375, a4b2703c22963a98, d479456f357031ec, 9a3185f8c42ed664, f8fc8c1992134bc3
 - `4f5ffa664297decb` [general] BFCL robustness (arXiv:2504.00914): function-calling selection and slot-filling degrade when the toolkit grows from mean 2.7 to 5.6 tools: Llama-3.1-70B 0.965→0.825, Claude-3.5-Sonnet 0.915→0.845, gpt-4o-mini 0.925→0.765. 70–90% of errors in the meaning-preserving-rephrasing condition are parameter-value mismatches (an eval artifact). Adding tools occasionally made models 'repair' a previously failed call — stochastic flip-flop relevant to retry-loop design (a retry with perturbed context can both fix and break a call).
   links: 2df44a2e25263275, a4951002397ee060, 4d082f928948911f, f15a4d58c0bb1a4a, b25f3d9404e1c402
 - `554b0217976296b3` [general] DeepVerifier DRA failure taxonomy (Wan et al., CUHK/Tencent; arXiv 2601.15808, ACL 2026 Findings) defines 5 major classes and 13 sub-classes built to drive rubric-based verification: Problem Understanding, Finding Sources (dominant — e.g., consulting wrong evidence, generic searches), Reasoning (premature conclusions, misinterpretation, hallucinated/overconfident claims), Action Errors, Max Step Reached; 13 sub-class names shown in Fig. 3 were not all reproduced in the fetched text.
@@ -768,6 +770,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 49b7fb8236915e10, e5e1072ffa4930c8, 5940164f5de5669e
 - `6cf5f705aaedf39d` [general] Established multi-source finding: hard limits — calibrated LMs must hallucinate single-occurrence facts (Kalai & Vempala 2024) and UQ degrades under genuine ambiguity (Tomov 2025) — so confidence display must be paired with abstention/verification.
   links: ddfc343faef6bd2c, 6e30b9e0905d102a, b7ab00766ba80fd0
+- `75648dd5d0625730` [general] cargo-semver-checks lints API diffs against the Cargo SemVer reference, supports deny/warn/allow lint levels and required-update (major/minor), has defined exit codes (0 clean, 100 violations, 101 error), and targets not to have false positives; its FAQ states it does not catch every violation.
+  links: 9aa8824078e5adf2, 9a4df56f7d846a01, 34fc1c71481976d6
 - `79088f70c96759ad` [repair] SQL Query Engine (system report): on the synthetic benchmark (75 questions, 3 DBs) Config C (generation only) 48.0% → Config A (up to 5 repairs) 57.3% for Llama 4 Scout 17B (+9.3 pp, zero regressions); on BIRD mini-dev (437 questions, 11 DBs) the full pipeline reached 49.0% execution accuracy (GPT-OSS-120B), +4.6 pp from self-healing; repair latency cost visible: Scout 1.67 s → 4.19 s mean.
   links: 135c69977d75322e, a090ad17666f0913, 5480bd685bff8004
 - `7b032b76d2592172` [general] Seccomp ptrace escape: 'seccomp-based sandboxes MUST NOT allow use of ptrace, even of other sandboxed processes, without extreme care; ptracers can use this mechanism to escape' (SECCOMP_RET_TRACE lets a tracer rewrite the syscall, and before 4.8 the check was not re-run after tracer notification).
@@ -860,6 +864,8 @@ Read this before starting any session. Canonical wins over this file.
   links: cec104f546b03f85, b023dfa34d7b6603
 - `028e8effd0ed2845` [general] LongMemEval (arXiv:2410.10813 Fig 3a): commercial memory systems on histories ~10x shorter: ChatGPT (GPT-4o) 0.5773 vs offline reading 0.9184 (37% drop); Coze 0.3299 (64% drop).
   links: 50662f026de1acfe, 0e8c9801a605c550
+- `036d4210a72a6375` [general] The only explicit published version-policy statement of mcp-hub is in CHANGELOG.md: 'The format is based on Keep a Changelog, and this project adheres to Semantic Versioning 2.0.0.'
+  links: 486c92d91a5c5d33, a4b2703c22963a98
 - `045bcab59e18db4a` [general] LongMemEval KU definition: 'Ability to recognize the changes in the user's personal information and update the knowledge of the user dynamically over time.' KU error analysis states the retriever was only able to identify the updated knowledge but failed to retrieve the previous information before update, counted as retrieval failure.
   links: 0e8c9801a605c550, 348e2784f9115e96
 - `0658c76662a6a80e` [evidence-status] mini-agi repo-wide gate is `scripts/verify.sh`; AGENTS.md binds `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` to it ('A pass you did not observe is a failed gate').
@@ -908,6 +914,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 7fcceed280fcc7b0, 8baa3b2f82d7faa6
 - `3286897269792642` [general] Rust SDK (rmcp) CVE-2026-63127 (GHSA-33f5-2c5q-wgwj, CVSS 8.2): missing OAuth Protected Resource resource validation lets a malicious server redirect the flow to a legitimate AS and steal tokens; patched in 2.0.0.
   links: c81957cf3aac4c06, 6d2f6996dd28f2d0
+- `34fc1c71481976d6` [general] mcp-hub's scripts/release.sh mechanically enforces semver: must run on main with a clean tree, bumps via npm --no-git-tag-version version patch|minor|major, gates the release on a matching ## [new-version] CHANGELOG.md entry (aborts and reverts otherwise), creates annotated tag vX.Y.Z, a single chore(release): vX.Y.Z commit, npm publish, and a GitHub release.
+  links: 75648dd5d0625730, f2c01f5064674e32
 - `3758f98022d19fbb` [general] SQLite database files are ordinary disk files; any process can open the file and overwrite it with garbage, there is nothing the SQLite library can do to defend against this, and there is no built-in access control — protection is whatever the OS filesystem permissions provide.
   links: d86f43007ae0e974, 3e5e18d029069f90
 - `3aee4552498f51e4` [general] GCP audit logs carry the caller identity in AuditLog.authenticationInfo (principalEmail) and network origin in RequestMetadata.callerIp; for service-to-service calls inside Google's production network callerIp is redacted to 'private', and this includes calls made by Google-owned service accounts (service agents) even when initiated by a user.
@@ -976,8 +984,6 @@ Read this before starting any session. Canonical wins over this file.
   links: ddf4bfc7760221e4, e232f1c2ce57f2cf
 - `75149e672ee23e31` [general] Letta sleep-time compute (2025) is idle-time batch consolidation: two agents, the sleep-time agent owns the memory-edit tools and rewrites the primary agent's in-context memory blocks; it is "the closest published analogue to 'nightly'" [S3].
   links: a1cb6948c6bd72ed, ecda50a3261745b3
-- `75648dd5d0625730` [general] cargo-semver-checks lints API diffs against the Cargo SemVer reference, supports deny/warn/allow lint levels and required-update (major/minor), has defined exit codes (0 clean, 100 violations, 101 error), and targets not to have false positives; its FAQ states it does not catch every violation.
-  links: 9aa8824078e5adf2, 9a4df56f7d846a01
 - `7c6f0eb74c7ce6fc` [general] This repo's ADR-0012 chose Landlock write-containment for the worker (read+execute on the tree, write confined to workdir/state) over a full namespace sandbox, citing 'no root, no user namespaces, no external binary' and the binding risk being filesystem writes rather than network egress. The threat-model ranking ('writes are the real risk') is repo opinion.
   links: bfe28bd5ddad1fe0, 980038e5090eec8b
 - `7c86cd916f6513f8` [general] SQLite lists 'very large datasets' and 'many concurrent writers' as cases where a client/server RDBMS 'may work better.'
@@ -1032,6 +1038,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 3d4cc0a018b20c21, 8af8f2689671ac0a
 - `a0ae947f3627d7ca` [general] Seccomp architecture/ABI confusion vectors: always check arch; on x86-64, the x32 ABI shares AUDIT_ARCH_X86_64 and a policy that does not account for __X32_SYSCALL_BIT 'can be bypassed by a malicious program that sets __X32_SYSCALL_BIT'; kernels before 5.4 permitted nr 512-547 plus x32-ORed forms that could invoke ptrace with confused x32-vs-x86_64 semantics.
   links: 7b032b76d2592172, 76649269e1ba035d
+- `a4b2703c22963a98` [general] mcp-hub's CHANGELOG.md states verbatim: 'The format is based on Keep a Changelog, and this project adheres to Semantic Versioning' — the only explicit published version-policy statement found.
+  links: 036d4210a72a6375, 486c92d91a5c5d33
 - `a7ce42ab7d93d083` [general] OpenAI Agents SDK guardrails have three layers: input (on first-agent input, parallel or blocking), output (on final output), and tool guardrails (input checks before a function-tool runs — can skip, replace output, or raise a tripwire; output checks after); tripwires raise exceptions and halt the run; ordering vs approvals is configurable via `ToolExecutionConfig(pre_approval_tool_input_guardrails=True)`; tool guardrails apply only to `function_tool` tools, not hosted/built-in tools or handoffs.
   links: dc228d975c9158da, 84c8cabac4c26d5f
 - `abb7fe3daf6e746d` [general] OpenAI docs distinguish JSON mode from Structured Outputs: JSON mode 'outputs valid JSON: Yes' but 'adheres to schema: No'; Structured Outputs adheres (first-party claim, no measured rate given).
@@ -1164,6 +1172,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 9a4df56f7d846a01
 - `13abdc5cbdc4afeb` [general] On LoCoMo with GPT-4o-mini, construction tokens: Mem0 1,233.5K / A-Mem 1,143.3K vs RecMem 202.4K, i.e. up to ~7.8x fewer tokens for RecMem (RecMem Table 1).
   links: 27cb143596b061e2
+- `13cb6f40a083137a` [general] mcp-hub's observed release history (62 versions 1.0.0 to 4.2.1) matches its declared semver policy: breaking changes shipped as majors 2.0.0 (endpoints moved from URL params to server_name body), 3.0.0 (client registration endpoints removed), 4.0.0 (marketplace API schema/endpoint migration), each with a '### Breaking Changes' section; features landed as minors, bug fixes as patches.
+  links: a46362f8efe48984
 - `151c07708b758bac` [general] Official guidance: keep unsafe blocks small; wrap unsafe code in a safe abstraction prevents uses of unsafe from leaking out; SAFETY: comments on unsafe fns and blocks are idiomatic.
   links: 0f1a1f2be8e214d4
 - `15a5494102fc23e9` [general] Stripe Radar presents a review queue ('a prioritized list of completed or to-be-captured payments') in two modes: a list view to scan without opening details, and a detailed view with customizable risk context; operators navigate with J/K keys or Previous/Next buttons and act on each item (Approve / Refund / Refund-and-report-fraud).
@@ -1182,6 +1192,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 266b8325088b1614
 - `1b261b0e97a18552` [general] Candidate adoption (4): per-batch witness with autonomous failure diagnosis is a candidate deepening of the planner/bg layer; mini-agi currently has only global supervision, not per-rig watchdog semantics.
   links: f54b0ed68eef1372
+- `1b264bd2db12c508` [general] PyPI lookup for mcp-hub returned 404 (https://pypi.org/pypi/mcp-hub/json) — no Python distribution of that name was found; the package in question is the npm one.
+  links: cc5ee7db3c43ac65
 - `1b415f6ca1c96c6c` [general] LangGraph implements HITL via dynamic interrupts: the graph pauses at interrupt(...), returns an interrupt payload to the caller, and resumes by posting a Command(resume=...) with the human's input; static interrupts (interrupt_before/after) exist but the docs recommend against them for HITL, calling them debug/test tools.
   links: c25768dab2411013
 - `1c641abef370327a` [general] Event sourcing replay re-runs side effects, so external systems must be wrapped with a Gateway that can detect replay mode and suppress outbound calls — the same problem durable-execution platforms solve with idempotency.
@@ -1282,8 +1294,12 @@ Read this before starting any session. Canonical wins over this file.
   links: e1f2e874ff8f4e1d
 - `649f2dd5755ff2c1` [general] Uncertain, not established from these sources: no primary source quantifies end-to-end failure-recovery success rates, RTO/RPO for arbitrary agent workloads, or a cost model for choosing among the three approaches; the WAL-reset bug shows latent-corruption risk exists even in the most battle-tested implementation, and nothing in these docs proves any engine's recovery is correct under every crash point.
   links: 3b3bae3fd783ee40
+- `666be2622013c3ae` [general] mcp-hub is an npm package (author 'Ravitemer'), MIT-licensed, repository git+https://github.com/ravitemer/mcp-hub.git; current latest dist-tag is 4.2.1 and every published version is a plain x.y.z with no prerelease tags.
+  links: cbf6476b32f767bc
 - `66da2477aa7e8e3f` [general] In a 199-participant study, adding explanations to AI recommendations did not reduce acceptance of wrong advice; forcing deliberative engagement ('cognitive forcing') did reduce overreliance but was the least-liked design and helped high 'Need for Cognition' users more. (Buçinca et al., CSCW 2021; verified abstract)
   links: b7ab00766ba80fd0
+- `675e3592262ae39f` [general] mcp-hub's CONTRIBUTING.md instructs PR authors to 'Update the CHANGELOG.md with notes on your changes' as part of the pull-request process, feeding the changelog gate.
+  links: d25b446e25b94b13
 - `692f03b97bba1e0f` [general] Structured note-taking/agentic memory: the agent regularly writes notes persisted to memory outside the context window, pulled back into the window at later times; memory tool keeps key findings and project state across sessions out of the window. (Effective context engineering; context-management blog)
   links: ae9c67ba8d9f53fa
 - `6b7f36fab910c326` [general] Mem0 (arXiv:2504.19413) reports >90% token-cost saving and 91% lower p95 latency vs processing the whole 26,031-token conversation each query (Mem0 retrieves ~1,764 tokens avg) (Mem0 Abstract, §1, Table 2).
@@ -1342,6 +1358,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 86494d2770f9e1c6
 - `981a18a75e3286e0` [general] GitHub announced (Sept 2025) changing cache eviction checks from every 24 hours to every hour, noting increased eviction frequency could lead to additional cache thrashing.
   links: 081b26a9420810cb
+- `9a3185f8c42ed664` [general] mcp-hub documents no policy for prereleases, release candidates, or nightly builds, and none have been published (registry shows only stable x.y.z).
+  links: 486c92d91a5c5d33
 - `9aa8824078e5adf2` [general] Clippy is a collection of >800 lints with default levels: correctness = deny, suspicious/style/complexity/perf = warn (together clippy::all); pedantic, restriction, nursery, cargo are allow by default.
   links: 75648dd5d0625730
 - `9cc229d3928af9fd` [general] RouteLLM trains a binary 'win prediction' router P_θ(wins|q) from Chatbot Arena human preference data and routes to the strong model iff P(wins|q) >= cost threshold α. Four parameterizations: similarity-weighted (SW) Bradley–Terry ranking, matrix factorization, BERT classifier, causal LLM classifier (Llama 3 8B). (RouteLLM, arXiv 2406.18665v4, §3.1, §4.2)
@@ -1360,6 +1378,8 @@ Read this before starting any session. Canonical wins over this file.
   links: f3b28a55a63ea68b
 - `a2ba28d2061e0152` [general] Claude Code treats hooks as not the enforcement layer: 'Because the `if` filter is best-effort, use the permission system rather than a hook to enforce a hard allow or deny', and a hook 'can deny the call, but staying silent doesn't approve it.'
   links: 900ff2712391e9e4
+- `a46362f8efe48984` [general] mcp-hub's practice matches its declared semver policy: the registry sequence (62 versions 1.0.0 to 4.2.1) aligns with changelog entries — 2.0.0 (endpoints moved from URL params to server_name body), 3.0.0 (client registration endpoints removed), 4.0.0 (marketplace API schema/endpoint migration) — each released as a major with a '### Breaking Changes' section; features landed as minors and bug fixes as patches.
+  links: 13cb6f40a083137a
 - `a5be82962e50e626` [general] LangChain drift/issue detection is externalized to LangSmith Engine, which monitors traces, detects issues, proposes fixes, and can open a PR with the fix.
   links: ecb39c6174cac241
 - `a66abf4c0c1f97cf` [general] Temporal Durable Execution: a workflow maintains its state and progress across failures, crashes, or server outages because the Event History records state at each step and the execution resumes from the last recorded event.
@@ -1412,6 +1432,10 @@ Read this before starting any session. Canonical wins over this file.
   links: a4d77e88c7e61873
 - `cba421bad5c5a34c` [general] Zep vs full-context baseline on LongMemEval (~115k token conversations): accuracy +15.2% (gpt-4o-mini) and +18.5% (gpt-4o); latency 31.3s→3.20s and 28.9s→2.58s ("reducing response times by approximately 90%"); context tokens 115k→1.6k [S5] §4.3.2.
   links: acbe5b346b26c040
+- `cbf6476b32f767bc` [general] mcp-hub is an npm package (author "Ravitemer"), MIT-licensed, repository git+https://github.com/ravitemer/mcp-hub.git; latest dist-tag is 4.2.1; every published version is a plain x.y.z with no prerelease tags.
+  links: 666be2622013c3ae
+- `cc5ee7db3c43ac65` [general] mcp-hub PyPI lookup returned 404 (pypi.org/pypi/mcp-hub/json) — no Python distribution of this name; the package in question is the npm one.
+  links: 1b264bd2db12c508
 - `ccc01d856b49501a` [general] Skill-layer changes are USER-governed (HITL): consumer and sole writer is the USER; the falsifier is gate-bound — mini-agi skill verify --all must stay 14+ PASS and one-owner lint must pass after any skill edit; to-questionnaire hook must verify the template + grill-the-send rule.
   links: da7d898b4b623136
 - `ce2aee7d1f5ece13` [general] MemGPT formalized OS-style virtual context management: 'intelligently manages different memory tiers... providing extended context within the LLM's limited context window.' (Packer et al., arXiv:2310.08560)
@@ -1422,6 +1446,10 @@ Read this before starting any session. Canonical wins over this file.
   links: 02a02d256e8ffada
 - `d1df44ba19d24fa5` [general] Seccomp: BPF 'may not dereference pointers,' so pathnames, buffers, and most argument content are invisible; only register values are visible.
   links: d71aa36a9e81bc8c
+- `d25b446e25b94b13` [general] mcp-hub CONTRIBUTING.md instructs PR authors to update CHANGELOG.md as part of the pull-request process — the mechanism feeding the changelog release gate.
+  links: 675e3592262ae39f
+- `d479456f357031ec` [general] mcp-hub documents no support/maintenance policy for older major versions (no LTS window, no deprecation/end-of-life statement for past majors).
+  links: 486c92d91a5c5d33
 - `d58edf0e65fb0f8f` [general] CouchDB caches reduce results in B-tree interior nodes, so range-aggregate queries are answered from cached partial reductions, recalculating only a minimum number of nodes.
   links: 6dbd271b7ce0e25e
 - `d5b02e7e2030b2b9` [general] DeepSeek officially warns it plans to raise overall API pricing significantly in the near future, subject to official notice — so deepseek-v4-flash rates are time-sensitive and only valid until the pricing page changes.
@@ -1466,6 +1494,8 @@ Read this before starting any session. Canonical wins over this file.
   links: a68feba40bd78382
 - `f0ed662457e1c79e` [repair] TCMIIES (system report): measured per-task API cost anchor of roughly $0.38/1,000 papers (DeepSeek v4-flash) to $3.41 (Qwen max) at ~2,000 input + 500 output tokens per paper — a rare measured per-task cost figure for extraction (not isolating retry cost).
   links: 73454769bc163ce3
+- `f2c01f5064674e32` [general] mcp-hub's scripts/release.sh mechanically enforces semver: must run on main with a clean tree, bumps via 'npm --no-git-tag-version version', gates the release on a matching '## [new-version]' entry in CHANGELOG.md (aborts and reverts otherwise), creates annotated tag vX.Y.Z, one 'chore(release): vX.Y.Z' commit, npm publish, and a GitHub release.
+  links: 34fc1c71481976d6
 - `f4790ce2a495fb98` [ai-auditability] OWASP log separation: process monitoring, audit, and transaction logs/trails are usually collected for different purposes than security event logging, and this often means they should be kept separate.
   links: 77ad6114bf5546c2
 - `f481b98eb5ba6799` [general] CouchDB runs the map function over all documents only once, on first query; when a document is changed, the map function runs only once for that single document.
@@ -1480,6 +1510,8 @@ Read this before starting any session. Canonical wins over this file.
   links: 1c1bd4db44906d9f
 - `f89a7953b2d236cf` [general] Kafka's log-compaction and EventStoreDB projections as mechanisms for derived state are unverified: the Kafka documentation site served only a JS redirect and EventStoreDB's projections docs were unreachable, so compacted-topic-as-derived-state and projection-over-event-stream claims must not be attributed to primary sources until fetched directly.
   links: 7b3058140a429de1
+- `f8fc8c1992134bc3` [general] mcp-hub states no minimum-version-support promise for Node beyond the README runtime requirement 'Node.js >= 18.0.0'.
+  links: 486c92d91a5c5d33
 - `f9a27846604a85ce` [general] NOMAD (Giannouris & Ananiadou; arXiv 2511.22409) presents an error taxonomy for LLM-generated UML diagrams covering structural, relationship, and semantic/logical errors.
   links: 4d082f928948911f
 - `fac488c6012dc0f4` [general] MCP identity is carried per-request in _meta (io.modelcontextprotocol/clientInfo); the protocol is stateless and does not dictate how applications use LLMs or manage context; local (stdio) servers serve a single client, remote (Streamable HTTP) servers serve many; scoping which servers a project sees is entirely a client-side concern.
