@@ -646,17 +646,17 @@ fn call_skill_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
         };
     }
     match name {
-        "skill_list" => Some(match skills::discover_skills(root) {
-            Ok(reg) => reg
-                .iter()
-                .map(|s| {
-                    let hook = if s.verify.is_some() { "verify" } else { "ref" };
-                    format!("{}  [{hook}]  {}", s.name, s.description)
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
-            Err(e) => format!("error: {e}"),
-        }),
+        "skill_list" => {
+            // TICKET-14: agents see the BOUNDED working set (ranked,
+            // capped at SKILLS_BUDGET_CHARS with a truncation notice),
+            // not the unbounded registry.
+            let listed = skills::budgeted_list(root, skills::SKILLS_BUDGET_CHARS);
+            Some(if listed.entries.is_empty() {
+                "(no skills found)".to_string()
+            } else {
+                listed.entries.join("\n")
+            })
+        }
         "skill_show" => Some(match skills::find_skill(root, arg!("name")) {
             Ok(skill) => format!(
                 "name: {}\ndescription: {}\nverify: {}\npath: {}",

@@ -52,7 +52,8 @@ pub struct BudgetReport {
 }
 
 const CHAIN_CAP_BYTES: u64 = 32 * 1024;
-const SKILLS_BUDGET_CHARS: usize = 8000;
+// TICKET-14: the skills budget constant moved to `skills` so the
+// enforcement point (`skills::budgeted_list`) owns the bound.
 
 /// Compute canonical-memory statistics for a repo root.
 ///
@@ -149,34 +150,17 @@ pub fn budget(root: &Path) -> BudgetReport {
     let pct = 100.0 * chain_bytes as f64 / CHAIN_CAP_BYTES as f64;
     let chain_over_cap = chain_bytes > CHAIN_CAP_BYTES;
 
-    let skills_dir = root.join(".agents/skills");
-    let mut skills_count = 0usize;
-    let mut list_bytes = 0usize;
-    if skills_dir.is_dir() {
-        let mut md_files = Vec::new();
-        if let Ok(entries) = fs::read_dir(&skills_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() && path.join("SKILL.md").is_file() {
-                    md_files.push(path.join("SKILL.md"));
-                }
-            }
-        }
-        md_files.sort();
-        for skill_md in md_files {
-            if let Ok(text) = fs::read_to_string(&skill_md) {
-                if let Some(block) = frontmatter_block(&text) {
-                    // Budget is defined in CHARS (SKILLS_BUDGET_CHARS);
-                    // count chars, not bytes — em-dashes / non-ASCII
-                    // descriptions otherwise inflate the percentage.
-                    list_bytes += block.chars().count();
-                }
-                skills_count += 1;
-            }
-        }
-    }
-    let skills_pct = 100.0 * list_bytes as f64 / SKILLS_BUDGET_CHARS as f64;
-    let skills_over_budget = list_bytes > SKILLS_BUDGET_CHARS;
+    // TICKET-14: the skills listing is an ENFORCED working set —
+    // `skills::budgeted_list` ranks and caps it (mirror of the brief
+    // cap); the report measures the enforced list instead of the
+    // unbounded registry.
+    let listed = crate::skills::budgeted_list(root, crate::skills::SKILLS_BUDGET_CHARS);
+    let skills_count = listed.total;
+    let list_bytes = listed.chars;
+    let skills_pct = 100.0 * list_bytes as f64 / crate::skills::SKILLS_BUDGET_CHARS as f64;
+    // Unreachable by construction (the list is capped, not just
+    // measured); kept so the report shape and main.rs WARN stay intact.
+    let skills_over_budget = false;
 
     let canonical_bytes = dir_md_bytes(&root.join("memory/canonical"));
     let brief_bytes = root
@@ -202,12 +186,6 @@ pub fn budget(root: &Path) -> BudgetReport {
 
 fn read_quiet(path: &Path) -> String {
     fs::read_to_string(path).unwrap_or_default()
-}
-
-fn frontmatter_block(text: &str) -> Option<&str> {
-    let rest = text.strip_prefix("---")?;
-    let end = rest.find("---")?;
-    Some(&rest[..end])
 }
 
 fn dir_md_bytes(dir: &Path) -> u64 {
@@ -369,27 +347,11 @@ mod tests {
     }
 
     #[test]
-    fn frontmatter_block_extracts_between_dashes_and_handles_missing() {
-        // frontmatter_block parses skill metadata for the skills budget
-        // count; a parse regression would silently mis-count the list.
-        let text = "---\nname: demo\ndescription: d\n---\n# body\n";
-        let block = frontmatter_block(text).unwrap();
-        assert!(block.contains("name: demo"), "{block}");
-        assert!(block.contains("description: d"), "{block}");
-        assert!(
-            !block.contains("body"),
-            "block must stop at the closing ---"
-        );
-        // No opening fence -> None (no skills-list contribution).
-        assert!(frontmatter_block("no frontmatter").is_none());
-        // Unterminated fence -> None.
-        assert!(frontmatter_block("---\nname: demo\n").is_none());
-    }
-
-    #[test]
-    fn skills_over_budget_is_flagged() {
-        // The 2% skills budget cap: a single over-long frontmatter block
-        // must set skills_over_budget (only the negative path was tested).
+    fn skills_list_is_capped_instead_of_flagged() {
+        // TICKET-14: an over-long frontmatter block can no longer blow
+        // the 2% budget — the budgeted listing truncates it and the
+        // report measures the enforced working set. The old
+        // skills_over_budget positive path is unreachable by design.
         let root = std::env::temp_dir().join(format!("mag-metrics-sk-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let skills = root.join(".agents/skills/big");
@@ -398,12 +360,21 @@ mod tests {
             skills.join("SKILL.md"),
             format!(
                 "---\nname: big\ndescription: {}\n---\n",
-                "x".repeat(SKILLS_BUDGET_CHARS + 100)
+                "x".repeat(crate::skills::SKILLS_BUDGET_CHARS + 100)
             ),
         )
         .unwrap();
         let b = budget(&root);
-        assert!(b.skills_over_budget, "over-long skill must flag the budget");
+        assert!(
+            !b.skills_over_budget,
+            "the cap is enforced, not merely reported"
+        );
+        assert!(
+            b.skills_list_bytes <= crate::skills::SKILLS_BUDGET_CHARS,
+            "list {} chars exceeds the {}-char cap",
+            b.skills_list_bytes,
+            crate::skills::SKILLS_BUDGET_CHARS
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

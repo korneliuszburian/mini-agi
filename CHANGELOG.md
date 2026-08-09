@@ -5,6 +5,17 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ## [Unreleased]
 
+### Fixed (TICKET-14 — the skills listing is a capped working set)
+- The "2% budget" was a report, not a limit: `metrics::budget` measured
+  the unbounded registry (7831 chars / 17 skills = 97.9% of the
+  8000-char cap) and only warned past 100%. New `skills::budgeted_list`
+  ranks deterministically (enabled+verify, enabled-only, disabled; then
+  alphabetical) and fills to `SKILLS_BUDGET_CHARS` with a truncation
+  notice — the listing agents see is strictly within budget (mirror of
+  the TICKET-13 brief cap). `budget` measures the enforced list;
+  MCP `skill_list` renders it. Tests: cap respected, ranking,
+  determinism.
+
 ### Fixed (TICKET-13 — the brief working-set cap is enforced again)
 - `MAX_BRIEF_BYTES` (8192) was dead code since the Phase 8 slice-6
   rewrite: `render_brief` dumped every fact, so the brief was 477,881B

@@ -273,6 +273,99 @@ pub fn discover_skills(root: &Path) -> Result<Vec<Skill>, SkillError> {
     Ok(skills)
 }
 
+/// The 2% context budget for the skills registry listing, in chars
+/// (TICKET-14 moved the bound here so the enforcement point owns it).
+pub const SKILLS_BUDGET_CHARS: usize = 8000;
+
+/// The skills registry as a BOUNDED working set (TICKET-14).
+///
+/// `metrics::budget` used to measure the unbounded registry: every
+/// `SKILL.md` frontmatter counted, no ranking, no cap — the "2% budget"
+/// was a report, not a limit (the TICKET-13 `MAX_BRIEF_BYTES` dead-code
+/// pattern). This is the listing agents actually see: deterministic
+/// ranking (enabled-with-verify-hook, enabled-without, disabled; then
+/// alphabetical), filled to `cap_chars` with the same frontmatter-char
+/// accounting as the budget report, and a truncation notice. The
+/// accounting is strictly <= `cap_chars`.
+#[derive(Debug, Clone, Default)]
+pub struct BudgetedList {
+    /// Rendered listing lines (the working set; the last line is the
+    /// truncation notice when the registry exceeds the cap).
+    pub entries: Vec<String>,
+    /// Total skills in the registry (all discovered, incl. disabled).
+    pub total: usize,
+    /// Skills rendered into `entries` (excludes truncated ones).
+    pub shown: usize,
+    /// Frontmatter chars of the shown skills (cap accounting).
+    pub chars: usize,
+}
+
+/// Build the bounded skills listing (TICKET-14).
+#[must_use]
+pub fn budgeted_list(root: &Path, cap_chars: usize) -> BudgetedList {
+    // Reserve room for the notice so the accounting stays <= cap
+    // (mirror of the brief-cap notice reservation).
+    const NOTICE_RESERVE: usize = 96;
+    let Ok(mut skills) = discover_skills(root) else {
+        return BudgetedList::default();
+    };
+    let budget = cap_chars.saturating_sub(NOTICE_RESERVE);
+    let total = skills.len();
+    skills.sort_by(|a, b| {
+        skill_rank(a)
+            .cmp(&skill_rank(b))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    let mut chars = 0usize;
+    let mut entries = Vec::new();
+    let mut shown = 0usize;
+    for skill in &skills {
+        let Some(block_chars) = frontmatter_chars(&skill.path) else {
+            continue;
+        };
+        if chars + block_chars > budget {
+            break;
+        }
+        chars += block_chars;
+        let hook = if skill.verify.is_some() {
+            "verify"
+        } else {
+            "ref"
+        };
+        entries.push(format!("{}  [{hook}]  {}", skill.name, skill.description));
+        shown += 1;
+    }
+    if shown < total {
+        entries.push(format!(
+            "... {} more skills in .agents/skills/",
+            total - shown
+        ));
+    }
+    BudgetedList {
+        entries,
+        total,
+        shown,
+        chars,
+    }
+}
+
+/// Deterministic listing rank: enabled-with-verify first, enabled-only
+/// second, disabled last.
+const fn skill_rank(s: &Skill) -> u8 {
+    match (s.disabled, s.verify.is_some()) {
+        (false, true) => 0,
+        (false, false) => 1,
+        (true, _) => 2,
+    }
+}
+
+/// Frontmatter char count of a `SKILL.md` (the budget accounting unit).
+fn frontmatter_chars(path: &Path) -> Option<usize> {
+    let text = fs::read_to_string(path).ok()?;
+    let block = frontmatter_block(&text).ok()?;
+    Some(block.chars().count())
+}
+
 /// Find one skill by name.
 ///
 /// # Errors
@@ -1339,6 +1432,79 @@ description: >
         let plain = find_skill(&root, "plain").unwrap();
         let err = verify_skill(&plain, &root).unwrap_err();
         assert!(matches!(err, SkillError::NoVerifyHook(_)));
+    }
+
+    #[test]
+    fn budgeted_list_respects_cap_and_reports_truncation() {
+        // TICKET-14: the skills listing is a bounded working set. Two
+        // skills whose frontmatter blocks each nearly fill the budget:
+        // the first renders, the second is truncated, and the notice
+        // names the remainder.
+        let root = tempfile_dir("budget-cap");
+        let cap = 200usize;
+        for (name, letter) in [("alpha", 'a'), ("beta", 'b')] {
+            let dir = root.join(format!(".agents/skills/{name}"));
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(
+                dir.join("SKILL.md"),
+                format!(
+                    "---\nname: {name}\ndescription: {}\n---\n",
+                    letter.to_string().repeat(60)
+                ),
+            )
+            .unwrap();
+        }
+        let listed = budgeted_list(&root, cap);
+        assert!(
+            listed.chars <= cap,
+            "accounting {} chars > cap {cap} chars",
+            listed.chars
+        );
+        assert_eq!(listed.total, 2);
+        assert_eq!(listed.shown, 1);
+        assert_eq!(listed.entries.len(), 2, "one entry + truncation notice");
+        assert!(listed.entries[0].starts_with("alpha  [ref]"));
+        assert!(
+            listed.entries[1].starts_with("... 1 more skills"),
+            "notice must name the remainder: {}",
+            listed.entries[1]
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn budgeted_list_ranks_verify_hooked_enabled_first_and_is_deterministic() {
+        // Ordering: enabled+verify, enabled-only, disabled; alphabetical
+        // inside a group. Two calls produce identical listings.
+        let root = tempfile_dir("budget-rank");
+        let mk = |name: &str, verify: Option<&str>, disabled: bool| {
+            let dir = root.join(format!(".agents/skills/{name}"));
+            fs::create_dir_all(&dir).unwrap();
+            let mut fm = format!("---\nname: {name}\ndescription: skill {name}\n");
+            if let Some(v) = verify {
+                fm.push_str("verify: ");
+                fm.push_str(v);
+                fm.push('\n');
+            }
+            if disabled {
+                fm.push_str("disabled: true\n");
+            }
+            fm.push_str("---\n");
+            fs::write(dir.join("SKILL.md"), fm).unwrap();
+        };
+        mk("zeta", Some("sh -c 'exit 0'"), false);
+        mk("alpha", None, false);
+        mk("mid", None, true);
+        let listed = budgeted_list(&root, 4096);
+        assert_eq!(listed.total, 3);
+        assert_eq!(listed.shown, 3);
+        assert!(listed.entries[0].starts_with("zeta  [verify]"));
+        assert!(listed.entries[1].starts_with("alpha  [ref]"));
+        assert!(listed.entries[2].starts_with("mid  [ref]"), "disabled last");
+        assert!(!listed.entries.iter().any(|e| e.starts_with("...")));
+        let again = budgeted_list(&root, 4096);
+        assert_eq!(listed.entries, again.entries, "listing is deterministic");
+        let _ = fs::remove_dir_all(&root);
     }
 
     fn tempfile_dir(name: &str) -> PathBuf {
