@@ -87,7 +87,7 @@ enum Command {
     /// Compounding report: runs, memory, tickets, gaps.
     Insights,
     /// Failure signal -> roadmap: gaps become tickets (ADR-0005).
-    Backlog,
+    Backlog(BacklogArgs),
     /// Resume block for a fresh session.
     Resume,
     /// Runtime observability: load, memory, process zoo, journal, claims.
@@ -245,6 +245,14 @@ enum RunAction {
 struct TicketArgs {
     #[command(subcommand)]
     action: TicketAction,
+}
+
+#[derive(Args, Debug)]
+struct BacklogArgs {
+    /// Map knowledge gaps (failure register + canonical memory) to
+    /// research questions instead of eval-gap tickets.
+    #[arg(long)]
+    knowledge: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -847,7 +855,13 @@ fn main() -> ExitCode {
             RunAction::Failures { run } => cmd_run_failures(&run),
         },
         Command::Insights => cmd_insights(),
-        Command::Backlog => cmd_backlog(),
+        Command::Backlog(BacklogArgs { knowledge }) => {
+            if knowledge {
+                cmd_backlog_knowledge()
+            } else {
+                cmd_backlog()
+            }
+        }
         Command::Resume => cmd_resume(),
         Command::Health => cmd_health(),
         Command::Audit => cmd_audit(),
@@ -1264,6 +1278,78 @@ fn cmd_backlog() -> ExitCode {
         }
         Err(e) => fail(&format!("cannot generate backlog: {e}")),
     }
+}
+
+/// Knowledge-backlog question generation (pure): combine repeated
+/// failure reflections with stalled registry questions into deduplicated
+/// `(slug, question)` pairs. Pure so the mapping is unit-testable
+/// without a filesystem.
+fn knowledge_questions(
+    failures: &[mini_agi_core::failure::FailureEntry],
+    registry: &[research_registry::RegistryEntry],
+) -> Vec<(String, String)> {
+    let mut questions: Vec<(String, String)> = Vec::new();
+    for e in failures {
+        if e.count < 2 || e.reflection.as_deref().unwrap_or("").trim().is_empty() {
+            continue;
+        }
+        let question = format!(
+            "How do production agent kernels prevent the repeated failure '{}' (tool: {}, {}x) — what guardrail or planning mechanism encodes the fix the reflection names?",
+            e.action.chars().take(60).collect::<String>(),
+            e.tool,
+            e.count
+        );
+        let slug = research::slugify(&question);
+        if !questions.iter().any(|(s, _)| s == &slug) {
+            questions.push((slug, question));
+        }
+    }
+    for e in registry {
+        let stalled = matches!(
+            e.status,
+            research_registry::QuestionStatus::Distilled
+                | research_registry::QuestionStatus::Findings
+        );
+        if stalled && !questions.iter().any(|(s, _)| *s == e.slug) {
+            questions.push((e.slug.clone(), e.question.clone()));
+        }
+    }
+    questions.sort();
+    questions.dedup_by(|a, b| a.0 == b.0);
+    questions
+}
+
+/// `backlog --knowledge`: map knowledge gaps to research questions.
+///
+/// The knowledge layer is the loop's missing signal — eval gaps are
+/// ticket-backed (ADR-0005) but a repeated failure pattern or a stale
+/// research question is not. This surfaces the research backlog from
+/// two registers:
+///   1. `failure` — repeated failing actions (FM-1.3 etc.) whose
+///      reflection names a fix the codebase does not yet encode;
+///   2. `research/registry.json` — questions in `distilled` or
+///      `findings` state (audited but never promoted/decided).
+///
+/// Output is a suggested question per gap, deduplicated by slug, ready
+/// to feed `mini-agi research --chain` — never a second research file
+/// for a question the registry already holds.
+fn cmd_backlog_knowledge() -> ExitCode {
+    let root = root();
+    let failures = mini_agi_core::failure::read_register(&root).unwrap_or_default();
+    let registry = research_registry::load_registry(&root);
+    let questions = knowledge_questions(&failures, &registry);
+    if questions.is_empty() {
+        println!("no knowledge gaps — research backlog is clear");
+        return ExitCode::SUCCESS;
+    }
+    println!(
+        "knowledge backlog: {} research question(s) — feed via `mini-agi research --chain \"<q>\"`",
+        questions.len()
+    );
+    for (slug, q) in &questions {
+        println!("  {slug}: {q}");
+    }
+    ExitCode::SUCCESS
 }
 
 fn cmd_resume() -> ExitCode {
@@ -3408,6 +3494,56 @@ fn run_research_chain(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn knowledge_questions_map_failures_and_stalled_registry() {
+        let fail = mini_agi_core::failure::FailureEntry {
+            hash: "abc".into(),
+            tool: "edit".into(),
+            action: "edit same line".into(),
+            count: 3,
+            steps: vec![1, 2, 3],
+            case: "case-x".into(),
+            reflection: Some("plan the fix before editing".into()),
+            mast: Some("FM-1.3 step repetition".into()),
+            verifier: None,
+        };
+        // Single-occurrence failures and reflection-less failures are not
+        // knowledge gaps.
+        let noise = mini_agi_core::failure::FailureEntry {
+            count: 1,
+            reflection: Some("noise".into()),
+            ..fail.clone()
+        };
+        let stall = research_registry::RegistryEntry {
+            question: "Is multi-repo the right shape?".into(),
+            slug: "is-multi-repo-the-right-shape".into(),
+            status: research_registry::QuestionStatus::Distilled,
+            updated: "2026-08-09".into(),
+        };
+        let promoted = research_registry::RegistryEntry {
+            status: research_registry::QuestionStatus::Promoted,
+            ..stall.clone()
+        };
+        let qs = knowledge_questions(&[fail.clone(), noise], &[stall, promoted]);
+        assert_eq!(qs.len(), 2, "one failure gap + one stalled question");
+        let failure_slug = research::slugify(&qs[0].1);
+        assert!(
+            qs.iter().any(|(s, _)| s == &failure_slug),
+            "failure reflection surfaces a question"
+        );
+        assert!(
+            qs.iter().any(|(s, _)| s == "is-multi-repo-the-right-shape"),
+            "stalled registry question surfaces"
+        );
+        assert!(
+            !qs.iter().any(|(s, _)| s == "noise"),
+            "single/reflection-less failures are not gaps"
+        );
+        // Dedup: the same failure twice produces one question.
+        let dedup = knowledge_questions(&[fail.clone(), fail], &[]);
+        assert_eq!(dedup.len(), 1, "duplicate failure dedups by slug");
+    }
 
     #[test]
     fn parallel_respawn_summary_renders_without_panicking() {
