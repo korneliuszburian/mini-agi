@@ -98,9 +98,9 @@ if [ -n "$BIN" ]; then
             [ -f memory/derived/context-brief.md ] && { echo "derive: canonical wiped but stale brief present — rerun after ingest"; exit 1; }
             echo "derive: deterministic (no facts)"; exit 0
         fi
-        # Hash EVERY derived artifact (brief, per-domain fragments,
-        # CLAUDE.md) — a nondeterministic fragment must not pass.
-        derive_hashes() { sha256sum memory/derived/context-brief.md memory/derived/per-domain/AGENTS.*.md CLAUDE.md 2>/dev/null | cut -d" " -f1 | sha256sum | cut -d" " -f1; }
+        # Hash EVERY derived artifact (brief, per-domain fragments) — a
+        # nondeterministic fragment must not pass.
+        derive_hashes() { sha256sum memory/derived/context-brief.md memory/derived/per-domain/AGENTS.*.md 2>/dev/null | cut -d" " -f1 | sha256sum | cut -d" " -f1; }
         h1=$(derive_hashes) || exit 1
         out2=$("$1" derive 2>&1); rc2=$?
         if [ "$rc2" -ne 0 ]; then

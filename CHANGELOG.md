@@ -5,6 +5,15 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ## [Unreleased]
 
+### Changed (AGENTS.md canonical — CLAUDE.md is now a symlink)
+- CLAUDE.md is a symlink to AGENTS.md (single source of agent
+  instructions). `mini-agi derive` no longer generates the import shim
+  (CLAUDE.md was the pre-AGENTS.md convention; Claude Code reads
+  AGENTS.md natively); `mini-agi init` creates the symlink for legacy
+  tooling that still looks for CLAUDE.md. `budget` counts the agent
+  chain once (no double-counting through the symlink); the derive
+  determinism hash in verify.sh no longer includes CLAUDE.md.
+
 ### Added (AFK v4 — parallel-planner)
 - `loop parallel`: the kernel decomposes one goal into N tickets (real
   planner pass or `--manifest`), validates the manifest fail-closed

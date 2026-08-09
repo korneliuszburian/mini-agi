@@ -143,9 +143,8 @@ fn domain_for(text: &str) -> String {
 )]
 pub fn budget(root: &Path) -> BudgetReport {
     let agents_md = root.join("AGENTS.md");
-    let claude_md = root.join("CLAUDE.md");
     let chain_bytes = agents_md.metadata().map_or(0, |m| m.len());
-    let chain_text = read_quiet(&agents_md) + &read_quiet(&claude_md);
+    let chain_text = read_quiet(&agents_md);
     let chain_tokens = approx_tokens(&chain_text);
     let pct = 100.0 * chain_bytes as f64 / CHAIN_CAP_BYTES as f64;
     let chain_over_cap = chain_bytes > CHAIN_CAP_BYTES;
@@ -307,7 +306,6 @@ mod tests {
     fn budget_measures_chain_skills_and_leverage() {
         let root = root_with("c-budget", &[("a.md", "general", &["e".repeat(16)])]);
         fs::write(root.join("AGENTS.md"), "agents instructions here").unwrap();
-        fs::write(root.join("CLAUDE.md"), "shim").unwrap();
         let skills = root.join(".agents/skills/demo");
         fs::create_dir_all(&skills).unwrap();
         fs::write(

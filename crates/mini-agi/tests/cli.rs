@@ -356,7 +356,6 @@ fn cli_derive_reports_and_writes_views() {
         frag.contains("derive produces views"),
         "domain fragment must carry its facts: {frag}"
     );
-    assert!(root.join("CLAUDE.md").exists());
     wipe(&root);
 }
 
@@ -1653,6 +1652,21 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
     }
     assert!(root.join("AGENTS.md").is_file());
     assert!(root.join("scripts/verify.sh").is_file());
+    // CLAUDE.md is a symlink to AGENTS.md — one canonical agent
+    // instructions file; legacy tooling still finds CLAUDE.md.
+    let claude_md = root.join("CLAUDE.md");
+    assert!(
+        std::fs::symlink_metadata(&claude_md)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+        "CLAUDE.md must be a symlink to AGENTS.md"
+    );
+    assert_eq!(
+        std::fs::read_link(&claude_md).unwrap().to_str().unwrap(),
+        "AGENTS.md",
+        "CLAUDE.md must point at AGENTS.md"
+    );
     // AGENTS.md must carry the HITL write rule (kernel enforces approve;
     // the template must teach sessions about it).
     let agents = std::fs::read_to_string(root.join("AGENTS.md")).unwrap();
