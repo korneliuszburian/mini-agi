@@ -826,3 +826,7 @@ research/what-are-the-most-notable-and-interesting-ai-agent-developme.md
 research/what-are-the-most-notable-and-interesting-ai-agent-developme.md
 2026-08-09T07:18:00Z BEGIN claude-symlink -> 6d51965 (clean)
 2026-08-09T07:22:17Z VERIFY-PASS claude-symlink @ 18f4bd5
+2026-08-09T07:25:57Z BEGIN brief-cap -> bda0805
+2026-08-09T07:30:32Z VERIFY-PASS brief-cap @ c204658
+2026-08-09T07:40:39Z CHECKPOINT-ABORT nul-fix disallowed dirty paths: research/registry.json
+research/what-is-22-answer-briefly.md

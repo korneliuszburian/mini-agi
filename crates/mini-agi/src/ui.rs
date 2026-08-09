@@ -320,8 +320,12 @@ pub fn serve(root: &Path, port: u16) -> std::io::Result<()> {
         let running = Arc::clone(&running);
         std::thread::spawn(move || {
             let mut buf = [0u8; 8192];
-            let _ = stream.read(&mut buf);
-            let req = String::from_utf8_lossy(&buf[..]).to_string();
+            // Read returns the ACTUAL byte count; the buffer beyond it is
+            // stale zero padding. Parsing the whole buffer would corrupt
+            // every body with trailing NUL bytes (observed: a chat
+            // message grew 8k of \x00 and the worker rejected the prompt).
+            let n = stream.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]).to_string();
             let mut parts = req.split_whitespace();
             let method = parts.next().unwrap_or("GET").to_string();
             let path = parts.next().unwrap_or("/").to_string();
@@ -725,6 +729,32 @@ mod tests {
         assert!(read_thread(&root, "../etc/passwd").is_none());
         assert!(read_thread(&root, "/tmp/x").is_none());
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn chat_parses_message_without_zero_padding() {
+        // Regression (observed live): the server read a POST into a
+        // zero-initialized 8192-byte buffer and parsed the WHOLE buffer,
+        // so a short message arrived with ~8k of trailing NUL bytes and
+        // the worker rejected the prompt. The fix slices the buffer to
+        // the actual read length before parsing. This test reproduces the
+        // exact read pattern (n < buffer len) and asserts the parsed
+        // message is clean.
+        let mut buf = [0u8; 8192];
+        let raw = b"POST /api/chat HTTP/1.1\r\nx-message: hello kernel\r\n\r\n";
+        let n = raw.len();
+        buf[..n].copy_from_slice(raw);
+        let req = String::from_utf8_lossy(&buf[..n]).to_string();
+        let message = req
+            .lines()
+            .find(|l| l.starts_with("x-message:"))
+            .map(|l| l["x-message:".len()..].trim().to_string())
+            .unwrap_or_default();
+        assert_eq!(message, "hello kernel", "no NUL padding in the message");
+        assert!(!message.contains('\0'));
+        // The OLD behavior (whole buffer) must never come back:
+        let old = String::from_utf8_lossy(&buf[..]).to_string();
+        assert!(old.contains('\0'), "precondition: stale buffer had zeros");
     }
 
     #[test]

@@ -6,6 +6,12 @@
     "updated": "2026-08-09"
   },
   {
+    "question": "What is 2+2? answer briefly",
+    "slug": "what-is-22-answer-briefly",
+    "status": "findings",
+    "updated": "2026-08-09"
+  },
+  {
     "question": "What is the published mcp-hub package version policy?",
     "slug": "what-is-the-published-mcp-hub-package-version-policy",
     "status": "promoted",
