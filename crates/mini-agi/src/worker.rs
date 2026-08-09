@@ -1017,6 +1017,16 @@ pub fn run_worker_sandboxed(
                             wrapper.push(dir.to_string_lossy().into_owned());
                         }
                     }
+                    // opencode logs under `~/.local/share/opencode/log/`
+                    // (observed live: a sandboxed chat worker died with
+                    // `PermissionDenied: FileSystem.open (.../log/opencode.log)`
+                    // while the CLI ran fine unsandboxed — the log dir was
+                    // missing from the write set).
+                    let log_dir = std::path::Path::new(&home).join(".local/share/opencode/log");
+                    if log_dir.is_dir() {
+                        wrapper.push("--allow-write".to_string());
+                        wrapper.push(log_dir.to_string_lossy().into_owned());
+                    }
                     wrapper.push("--allow-write".to_string());
                     wrapper.push("/dev/null".to_string());
                 }

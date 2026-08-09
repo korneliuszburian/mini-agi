@@ -496,6 +496,27 @@ struct ChatMessage {
     ts: String,
 }
 
+/// The chat worker argv: opencode `run --agent plan --format default
+/// -- <prompt>`. Plan agent = read-only (no edit tools), default format
+/// = clean text answer (not the JSON event stream the `--format json`
+/// worker path produces).
+///
+/// NO explicit `-m`: with `--agent plan` a pinned model id makes the
+/// opencode server fail with "Unexpected server error" (observed
+/// 2026-08-09 on opencode 1.18.11 — reproduced bare, no sandbox); the
+/// plan agent resolves its own default model and answers fine.
+fn chat_worker_args(prompt: &str) -> Vec<String> {
+    vec![
+        "run".to_string(),
+        "--agent".to_string(),
+        "plan".to_string(),
+        "--format".to_string(),
+        "default".to_string(),
+        "--".to_string(),
+        prompt.to_string(),
+    ]
+}
+
 /// The chat thread store: `memory/episodic/chat/<thread-id>.jsonl`.
 ///
 /// Threads are first-class: a conversation continues by id, each turn
@@ -642,14 +663,27 @@ fn chat_with_kernel(root: &Path, thread: Option<&str>, message: &str) -> ChatRes
          and NEVER invent facts — say 'unknown' when the context does not \
          answer."
     );
-    let workdir = std::env::temp_dir().join(format!("mag-ui-chat-{}", std::process::id()));
-    let _ = std::fs::create_dir_all(&workdir);
-    let result = crate::worker::run_opencode_worker(
-        &workdir,
+    // The worker runs IN THE REPO ROOT (not a temp dir) so it reads the
+    // real canonical memory, journal and brief — the resume block says
+    // "0 facts" when the workdir is elsewhere (observed live: the chat
+    // answered from a blank repo). Plan agent is read-only by design, so
+    // running in-root cannot mutate anything.
+    let workdir = root.to_path_buf();
+    // The chat worker is a PLAN-ONLY agent: `--agent plan` runs without
+    // edit tools (the dashboard is read-only by design — writes stay
+    // HITL in the terminal) and `--format default` returns a clean text
+    // answer instead of a raw JSON event stream (observed: the first
+    // chat attempt returned opencode step_start/tool_use JSONL events).
+    let args = chat_worker_args(&prompt);
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let result = crate::worker::run_worker_sandboxed(
         "opencode-opencode-go/deepseek-v4-flash",
-        &prompt,
+        &workdir,
+        false,
+        true,
         Some(120),
         None,
+        &arg_refs,
     );
     let output = match result {
         Ok(w) => {
