@@ -16,9 +16,11 @@ jobs:
       - name: install pinned toolchain (1.97.1, rust-toolchain.toml)
         uses: dtolnay/rust-toolchain@1.97.1
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools
           targets: x86_64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
+      - name: install cargo-llvm-cov (coverage gate)
+        run: cargo install cargo-llvm-cov --locked
       - name: run the deterministic gate
         run: scripts/verify.sh
       - name: diagnostic — full test output when the gate fails

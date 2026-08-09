@@ -815,3 +815,6 @@
 2026-08-09T06:09:41Z VERIFY-PASS research-chain @ 679e53c
 2026-08-09T06:14:11Z BEGIN backlog-knowledge -> 0caf515 (clean)
 2026-08-09T06:14:51Z VERIFY-PASS backlog-knowledge @ 0caf515
+2026-08-09T06:20:33Z BEGIN no-progress-guard -> 0016996 (clean)
+2026-08-09T06:21:21Z VERIFY-PASS no-progress-guard @ 0016996
+2026-08-09T06:25:26Z CHECKPOINT-ABORT coverage-gate disallowed dirty paths: .github/workflows/ci.yml

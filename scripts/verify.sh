@@ -31,6 +31,28 @@ if [ -f Cargo.toml ]; then
     step "fmt-check"    sh -c 'cargo fmt --check && echo "fmt-check: clean"' || fail=1
     step "clippy"       cargo clippy --all-targets --all-features -- -D warnings || fail=1
     step "tests"        cargo test --all --all-features || fail=1
+    # Coverage gate (D2): line coverage is measured, not assumed. The
+    # step is portable — it skips when cargo-llvm-cov (or a system
+    # llvm-cov) is unavailable, and FAILS when total line coverage drops
+    # below the floor. The gate needs `LLVM_COV`/`LLVM_PROFDATA` env
+    # (system install) or the `llvm-tools-preview` rustup component.
+    step "coverage" sh -c '
+        if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
+            echo "coverage: skipped (cargo-llvm-cov not installed)"
+            exit 0
+        fi
+        export LLVM_COV="${LLVM_COV:-$(command -v llvm-cov 2>/dev/null || true)}"
+        export LLVM_PROFDATA="${LLVM_PROFDATA:-$(command -v llvm-profdata 2>/dev/null || true)}"
+        summary=$(cargo llvm-cov --workspace --summary-only 2>&1) || { echo "$summary"; exit 1; }
+        # TOTAL row: last column is the line-coverage percent.
+        pct=$(printf "%s\n" "$summary" | awk "/^TOTAL/{print \$NF}" | tr -d "%")
+        [ -n "$pct" ] || { echo "coverage: no TOTAL row in summary"; printf "%s\n" "$summary" | tail -5; exit 1; }
+        if [ "$pct" -lt 80 ]; then
+            echo "coverage: FAIL — total line coverage ${pct}% below the 80% floor"
+            exit 1
+        fi
+        echo "coverage: total line coverage ${pct}% (floor 80%)"
+    ' || fail=1
     if [ -n "$BIN" ] && [ -x "$BIN" ]; then
         step "skills"       "$BIN" skill verify-all || fail=1
     else
@@ -41,6 +63,7 @@ else
     skip "fmt-check" "no Cargo.toml"
     skip "clippy" "no Cargo.toml"
     skip "tests" "no Cargo.toml"
+    skip "coverage" "no Cargo.toml"
 fi
 
 # Resolve the kernel binary AFTER the build step, so a just-built local
