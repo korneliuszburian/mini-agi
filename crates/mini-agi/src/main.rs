@@ -12,6 +12,7 @@ mod bg;
 mod clifmt;
 mod planner;
 mod research;
+mod research_registry;
 #[cfg(target_os = "linux")]
 mod sandbox;
 mod status;
@@ -459,6 +460,9 @@ struct ResearchArgs {
     /// Wall cap per worker invocation, seconds.
     #[arg(long, default_value = "600")]
     max_wall: u64,
+    /// Re-research even when findings already exist (registry dedup).
+    #[arg(long)]
+    force: bool,
 }
 
 #[derive(Args, Debug)]
@@ -842,7 +846,8 @@ fn main() -> ExitCode {
             question,
             worker,
             max_wall,
-        }) => cmd_research(&question, &worker, max_wall),
+            force,
+        }) => cmd_research(&question, &worker, max_wall, force),
         Command::Ui(UiArgs { port }) => match ui::serve(&root(), port) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => fail(&format!("ui: {e}")),
@@ -3245,8 +3250,25 @@ fn read_staged_facts(path: &Path) -> Result<Vec<mini_agi_core::dream::StagedFact
 /// Auto-researcher: run the flash worker with the research contract,
 /// capture the answer, write research/<slug>.md (findings feed the
 /// dream-loop).
-fn cmd_research(question: &str, worker: &str, max_wall: u64) -> ExitCode {
+///
+/// Registry + dedup (autoresearch wiring): every question is recorded in
+/// `research/registry.json`; asking the same question again when its
+/// findings already exist resolves to the existing file instead of
+/// spawning a second worker run (`--force` re-researches).
+fn cmd_research(question: &str, worker: &str, max_wall: u64, force: bool) -> ExitCode {
     let root = root();
+    let slug = research::slugify(question);
+    let out_path = research::findings_path(&root, question);
+    if !force && out_path.is_file() {
+        let entries = research_registry::load_registry(&root);
+        let status = research_registry::find_entry(&entries, &slug)
+            .map_or(research_registry::QuestionStatus::Findings, |e| e.status);
+        println!(
+            "research: duplicate question — findings already exist at {} (status: {status:?}); pass --force to re-research",
+            out_path.display()
+        );
+        return ExitCode::SUCCESS;
+    }
     let workdir = std::env::temp_dir().join(format!("mag-research-wd-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&workdir);
     let result = match worker::run_opencode_worker(
@@ -3282,6 +3304,19 @@ fn cmd_research(question: &str, worker: &str, max_wall: u64) -> ExitCode {
     }
     match std::fs::write(&out_path, &findings) {
         Ok(()) => {
+            let entry = research_registry::record_asked(&root, question)
+                .map_err(|e| format!("research: registry write failed: {e}"))
+                .map(|e| {
+                    research_registry::advance_status(
+                        &root,
+                        &e.slug,
+                        research_registry::QuestionStatus::Findings,
+                    )
+                    .map_err(|e| format!("research: registry write failed: {e}"))
+                });
+            if let Err(e) = entry.flatten() {
+                return fail(&e);
+            }
             println!(
                 "research: {} bytes -> {} ({}s, cost ${:.6})",
                 findings.len(),

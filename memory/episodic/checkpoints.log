@@ -809,3 +809,4 @@
 2026-08-09T05:25:15Z CHECKPOINT-ABORT dream-multirepo disallowed dirty paths: research/what-are-the-documented-design-patterns-for-multi-repo-multi.md
 2026-08-09T05:42:49Z BEGIN ui-gaps-best -> c2fd661 (clean)
 2026-08-09T05:58:27Z VERIFY-PASS ui-gaps-best @ cc4e533
+2026-08-09T05:58:50Z BEGIN research-registry -> c9ebb17
