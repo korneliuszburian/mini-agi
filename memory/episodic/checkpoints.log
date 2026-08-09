@@ -818,3 +818,4 @@
 2026-08-09T06:20:33Z BEGIN no-progress-guard -> 0016996 (clean)
 2026-08-09T06:21:21Z VERIFY-PASS no-progress-guard @ 0016996
 2026-08-09T06:25:26Z CHECKPOINT-ABORT coverage-gate disallowed dirty paths: .github/workflows/ci.yml
+2026-08-09T06:43:08Z BEGIN research-ticket -> cad6b9b
