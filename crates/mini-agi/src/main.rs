@@ -3474,8 +3474,8 @@ fn cmd_research(
 }
 
 /// The D2 autoresearch chain after findings exist: distill -> audit ->
-/// promote, then mark the registry `Promoted`. A single failure fails
-/// the whole chain (no silent partial promotion).
+/// promote -> ticket, then mark the registry `Decided`. A single failure
+/// fails the whole chain (no silent partial promotion).
 fn run_research_chain(
     root: &std::path::Path,
     findings: &std::path::Path,
@@ -3491,20 +3491,93 @@ fn run_research_chain(
     if promote != ExitCode::SUCCESS {
         return promote;
     }
+    // Close the loop research -> decision: promote alone leaves the
+    // findings as knowledge without a next action. A research ticket
+    // makes the decision explicit (domain `research`), deduplicated by
+    // slug so a chain re-run on the same question finds it.
+    let ticket_id = match ensure_research_ticket(root, slug, findings) {
+        Ok(id) => id,
+        Err(code) => return code,
+    };
     if let Err(e) =
-        research_registry::advance_status(root, slug, research_registry::QuestionStatus::Promoted)
+        research_registry::advance_status(root, slug, research_registry::QuestionStatus::Decided)
     {
         return fail(&format!("research: registry write failed: {e}"));
     }
     println!(
-        "research chain: findings distilled, audited, promoted — registry '{slug}' = Promoted"
+        "research chain: findings distilled, audited, promoted, decided — registry '{slug}' = Decided, ticket {ticket_id}"
     );
     ExitCode::SUCCESS
+}
+
+/// Create (or return the existing) research ticket for a question.
+/// Dedup by slug in the ticket title; the id is the next free `TICKET-<n>`.
+fn ensure_research_ticket(
+    root: &std::path::Path,
+    slug: &str,
+    findings: &std::path::Path,
+) -> Result<String, ExitCode> {
+    let existing = mini_agi_core::ticket::list_tickets(root).unwrap_or_default();
+    if let Some(t) = existing
+        .iter()
+        .find(|t| t.goal.contains(slug) || t.title.contains(slug))
+    {
+        return Ok(t.id.clone());
+    }
+    let next_number = existing
+        .iter()
+        .filter_map(|t| {
+            t.id.strip_prefix("TICKET-")
+                .and_then(|s| s.split(|c: char| !c.is_ascii_digit()).next())
+                .and_then(|d| d.parse::<u32>().ok())
+        })
+        .max()
+        .unwrap_or(0)
+        + 1;
+    let id = format!("TICKET-{next_number}");
+    let rel = findings
+        .strip_prefix(root)
+        .unwrap_or(findings)
+        .to_string_lossy();
+    let body = format!(
+        "# Ticket\n\n- id: {id}\n- title: Research decision: {slug}\n- goal (one sentence): Apply the researched findings at {rel} — decide, implement, and measure the change they call for.\n- scope: research\n- domain: research\n- source: {rel}\n"
+    );
+    let path = root.join("tickets").join(format!("{id}.md"));
+    if let Err(e) = std::fs::write(&path, body) {
+        return Err(fail(&format!("research: ticket write failed: {e}")));
+    }
+    Ok(id)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn research_ticket_created_once_and_dedups_by_slug() {
+        let root = std::env::temp_dir().join(format!("mag-research-ticket-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("tickets")).unwrap();
+        let findings = root.join("research").join("what-is-x.md");
+        std::fs::create_dir_all(findings.parent().unwrap()).unwrap();
+        std::fs::write(&findings, "x").unwrap();
+        let id1 = ensure_research_ticket(&root, "what-is-x", &findings).unwrap();
+        assert!(id1.starts_with("TICKET-"), "id: {id1}");
+        let path = root.join("tickets").join(format!("{id1}.md"));
+        assert!(path.is_file(), "ticket written");
+        // Same slug again -> same ticket, no duplicate file.
+        let id2 = ensure_research_ticket(&root, "what-is-x", &findings).unwrap();
+        assert_eq!(id1, id2, "dedup by slug");
+        let count = std::fs::read_dir(root.join("tickets"))
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .is_ok_and(|e| e.file_name().to_string_lossy().starts_with("TICKET-"))
+            })
+            .count();
+        assert_eq!(count, 1, "no duplicate ticket files");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn knowledge_questions_map_failures_and_stalled_registry() {
