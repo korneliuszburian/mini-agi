@@ -1838,8 +1838,11 @@ fn cmd_budget() -> ExitCode {
         report.canonical_bytes,
         report.brief_bytes,
         report.leverage_ratio,
-        if report.brief_bytes > report.canonical_bytes {
-            "brief is larger than canonical".to_string()
+        if report.brief_bytes > memory::MAX_BRIEF_BYTES as u64 {
+            format!(
+                "brief exceeds the {}B working-set cap",
+                memory::MAX_BRIEF_BYTES
+            )
         } else {
             "compression into working set".to_string()
         }
@@ -2611,8 +2614,8 @@ fn cmd_derive(brief_only: bool, snapshot: Option<&str>, replay: Option<&str>) ->
 
 fn derive_text(brief_only: bool, root: &Path) -> Result<String, String> {
     match memory::derive(root, brief_only) {
-        Ok((facts, fragments)) => Ok(format!(
-            "derived: context-brief.md ({facts} facts)\nderived: {fragments} per-domain fragments"
+        Ok((in_brief, total, fragments)) => Ok(format!(
+            "derived: context-brief.md ({in_brief}/{total} facts)\nderived: {fragments} per-domain fragments"
         )),
         Err(MemoryError::NoCanonical) => {
             Err("no canonical facts yet — run ingest first".to_string())

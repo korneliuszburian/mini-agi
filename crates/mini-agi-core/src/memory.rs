@@ -1031,29 +1031,56 @@ pub fn fact_links(
     links
 }
 
+/// Reserved bytes for the truncation notice (TICKET-13): the notice is
+/// emitted only when facts are dropped, so the fill loop reserves its
+/// worst-case length to keep the brief strictly <= [`MAX_BRIEF_BYTES`].
+const BRIEF_NOTICE_RESERVE: usize = 192;
+
 /// Render the context brief with importance-ordered facts + links
 /// (Phase 8 slice 6). Linked facts come first — importance learned
 /// from cross-referencing, not hand-assigned.
+///
+/// The brief is a BUDGETED working set (TICKET-13): facts are ranked by
+/// enforced(3) + link-degree(2) + recency via [`ranked_facts`] and
+/// filled until [`MAX_BRIEF_BYTES`]; truncated facts stay available in
+/// canonical (append-only source of truth). Returns `(output, facts
+/// written)`.
 #[must_use]
-pub fn render_brief(root: &Path, facts: &[(String, String, String)]) -> String {
+pub fn render_brief(root: &Path, facts: &[(String, String, String)]) -> (String, usize) {
     let links = fact_links(facts);
-    let mut ordered: Vec<(String, String, String, usize)> = facts
+    let enforced: Vec<String> = facts
         .iter()
-        .map(|(fid, domain, text)| {
-            let importance = links.get(fid).map_or(0, Vec::len);
-            (fid.clone(), domain.clone(), text.clone(), importance)
-        })
+        .filter(|(_, _, body)| body.contains("enforced_by"))
+        .map(|(id, _, _)| id.clone())
         .collect();
-    ordered.sort_by(|a, b| b.3.cmp(&a.3).then_with(|| a.0.cmp(&b.0)));
+    let total = facts.len();
     let mut out = provenance_block(root);
-    out.push_str("# CONTEXT BRIEF (derived)\n\nRead this before starting any session. Canonical wins over this file.\n\n");
-    for (fid, domain, text, importance) in &ordered {
-        let _ = writeln!(out, "- `{fid}` [{domain}] {text}");
-        if *importance > 0 {
-            let _ = writeln!(out, "  links: {}", links[fid].join(", "));
+    let header = "# CONTEXT BRIEF (derived)\n\nRead this before starting any session. Canonical wins over this file.\n\n";
+    let budget = MAX_BRIEF_BYTES.saturating_sub(out.len() + header.len() + BRIEF_NOTICE_RESERVE);
+    let mut body = String::new();
+    let mut written = 0usize;
+    for (fid, domain, text) in ranked_facts(facts, &links, &enforced) {
+        let mut line = format!("- `{fid}` [{domain}] {text}\n");
+        let importance = links.get(&fid).map_or(0, Vec::len);
+        if importance > 0 {
+            let _ = writeln!(line, "  links: {}", links[&fid].join(", "));
         }
+        if body.len() + line.len() > budget {
+            break;
+        }
+        body.push_str(&line);
+        written += 1;
     }
-    out
+    out.push_str(header);
+    out.push_str(&body);
+    if written < total {
+        let _ = writeln!(
+            out,
+            "\n# truncated: {} of {total} facts fit the {MAX_BRIEF_BYTES}B brief cap — full listing: memory/canonical/ (append-only)",
+            total - written
+        );
+    }
+    (out, written)
 }
 
 /// Render per-domain `AGENTS.md` fragments (`PoC` `render_domain_agents`).
@@ -1093,22 +1120,20 @@ pub fn render_domain_agents(
 
 /// Regenerate all derived views from canonical memory (`PoC` `main`).
 ///
-/// Returns `(fact_count, fragment_count)`.
+/// Returns `(facts_in_brief, facts_total, fragment_count)`.
 ///
 /// # Errors
 ///
 /// Returns [`MemoryError::NoCanonical`] when no facts exist and
 /// [`MemoryError::Io`] for filesystem failures.
-pub fn derive(root: &Path, brief_only: bool) -> Result<(usize, usize), MemoryError> {
+pub fn derive(root: &Path, brief_only: bool) -> Result<(usize, usize, usize), MemoryError> {
     let facts = read_facts(root);
     if facts.is_empty() {
         return Err(MemoryError::NoCanonical);
     }
     fs::create_dir_all(root.join(DERIVED_REL))?;
-    fs::write(
-        root.join(DERIVED_REL).join("context-brief.md"),
-        render_brief(root, &facts),
-    )?;
+    let (brief, in_brief) = render_brief(root, &facts);
+    fs::write(root.join(DERIVED_REL).join("context-brief.md"), brief)?;
 
     let fragments = if brief_only {
         BTreeMap::new()
@@ -1121,7 +1146,7 @@ pub fn derive(root: &Path, brief_only: bool) -> Result<(usize, usize), MemoryErr
         }
         fragments
     };
-    Ok((facts.len(), fragments.len()))
+    Ok((in_brief, facts.len(), fragments.len()))
 }
 
 /// Derive snapshot names are file names under `SNAPSHOTS_REL`; only plain
@@ -1628,7 +1653,8 @@ mod fact_link_tests {
                 "composite scoring measures outcome trajectory tool use".into(),
             ),
         ];
-        let brief = render_brief(&root, &facts);
+        let (brief, written) = render_brief(&root, &facts);
+        assert_eq!(written, facts.len(), "all facts fit the budget");
         let pos_a = brief.find("`aaa`").unwrap();
         let pos_b = brief.find("`bbb`").unwrap();
         let pos_c = brief.find("`ccc`").unwrap();
@@ -1637,6 +1663,54 @@ mod fact_link_tests {
             "linked facts come before isolated ones"
         );
         assert!(brief.contains("links: bbb"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn brief_respects_the_working_set_cap() {
+        // TICKET-13: MAX_BRIEF_BYTES was dead code — the brief rendered
+        // every fact (58x the cap on the live corpus). The cap is now
+        // enforced strictly: output <= MAX_BRIEF_BYTES, enforced facts
+        // present when they fit, deterministic across calls.
+        let root = env::temp_dir().join(format!("mag-brief-cap-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let body = "widget alpha mechanism tracks budget usage across many systems";
+        let facts: Vec<(String, String, String)> = (0..200)
+            .map(|i| {
+                let enforced = if i == 0 || i == 1 {
+                    "enforced_by: test gate"
+                } else {
+                    ""
+                };
+                (
+                    format!("fact-{i:04}"),
+                    "general".into(),
+                    format!("{body} {enforced} with extra detail number {i:04}"),
+                )
+            })
+            .collect();
+        let (brief, written) = render_brief(&root, &facts);
+        assert!(
+            brief.len() <= MAX_BRIEF_BYTES,
+            "brief {}B exceeds the {}B cap",
+            brief.len(),
+            MAX_BRIEF_BYTES
+        );
+        assert!(
+            written < facts.len(),
+            "200 facts must not fit in the 8KiB cap"
+        );
+        assert!(
+            brief.contains("`fact-0000`") && brief.contains("`fact-0001`"),
+            "enforced facts rank first and fit"
+        );
+        assert!(
+            brief.contains("truncated"),
+            "a truncation notice must point at canonical"
+        );
+        let (again, again_written) = render_brief(&root, &facts);
+        assert_eq!(brief, again, "brief rendering must be deterministic");
+        assert_eq!(written, again_written);
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -5,6 +5,21 @@ follows semantic versioning (workspace `Cargo.toml` `version`).
 
 ## [Unreleased]
 
+### Fixed (TICKET-13 — the brief working-set cap is enforced again)
+- `MAX_BRIEF_BYTES` (8192) was dead code since the Phase 8 slice-6
+  rewrite: `render_brief` dumped every fact, so the brief was 477,881B
+  on the live corpus — 58x the declared cap, larger than canonical.
+- `render_brief` now ranks via `ranked_facts` (enforced + link-degree +
+  recency) and fills to the cap with a truncation notice pointing at
+  canonical; brief is 7,648B (13/1075 facts), strictly <= 8192B,
+  deterministic. `derive` returns (in_brief, total, fragments) and the
+  CLI prints `context-brief.md (N/M facts)` truthfully.
+- `budget` re-anchored on the cap: the "brief larger than canonical"
+  warning became "brief exceeds the 8KiB working-set cap"; the
+  leverage bound (0,5] (written for the uncapped dump) is replaced by
+  a strict cap check. New tests: cap respected, enforced facts fit,
+  determinism (475 tests green).
+
 ### Changed (AGENTS.md canonical — CLAUDE.md is now a symlink)
 - CLAUDE.md is a symlink to AGENTS.md (single source of agent
   instructions). `mini-agi derive` no longer generates the import shim

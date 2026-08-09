@@ -328,18 +328,18 @@ mod tests {
         assert!(!b.skills_over_budget);
         assert!(b.canonical_bytes > 0);
         assert!(b.brief_bytes > 0);
-        // Leverage = canonical / brief. Sanity bound: the working-set
-        // brief must not be an order of magnitude larger than the source
-        // canonical (the pre-iter-22 fact-linking bug made it 5x larger
-        // = leverage 0.19). A tiny fixture legitimately sits near 2-3;
-        // the bound catches pathological expansion (>= 5x).
+        // TICKET-13: the brief is a budgeted working set — the cap is
+        // the invariant, not the canonical/brief ratio. A capped brief
+        // legitimately compresses far beyond the old (0,5] bound (the
+        // pre-iter-22 fact-linking bug made the brief 5x canonical;
+        // the cap makes the reverse impossible).
         assert!(
-            b.leverage_ratio > 0.0 && b.leverage_ratio <= 5.0,
-            "leverage {} out of sane (0,5] — brief {} vs canonical {}",
-            b.leverage_ratio,
+            b.brief_bytes <= crate::memory::MAX_BRIEF_BYTES as u64,
+            "brief {}B exceeds the {}B working-set cap",
             b.brief_bytes,
-            b.canonical_bytes
+            crate::memory::MAX_BRIEF_BYTES
         );
+        assert!(b.leverage_ratio > 0.0);
     }
 
     #[test]

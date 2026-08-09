@@ -342,7 +342,7 @@ fn cli_derive_reports_and_writes_views() {
 
     let out = run(&root, &["derive"]);
     assert!(out.status.success(), "{}", stdout(&out));
-    assert!(stdout(&out).contains("derived: context-brief.md (1 facts)"));
+    assert!(stdout(&out).contains("derived: context-brief.md (1/1 facts)"));
     assert!(root.join("memory/derived/context-brief.md").exists());
     assert!(
         root.join("memory/derived/per-domain/AGENTS.agent-harness.md")
@@ -807,7 +807,7 @@ fn cli_full_ticket_run_end_to_end() {
     assert!(stdout(&c).contains("consolidated 2 new facts"));
     let d = run(&root, &["derive"]);
     assert!(d.status.success());
-    assert!(stdout(&d).contains("context-brief.md (2 facts)"));
+    assert!(stdout(&d).contains("context-brief.md (2/2 facts)"));
     let p = run(&root, &["provenance"]);
     assert!(p.status.success());
     assert_eq!(stdout(&p).trim().len(), 16 + "canonical_sha256: ".len());
