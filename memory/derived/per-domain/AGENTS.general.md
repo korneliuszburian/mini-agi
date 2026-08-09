@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 639e50ad4b078570
-# canonical_entries: 83
+# canonical_sha256: ec06db3e56807c58
+# canonical_entries: 87
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -862,3 +862,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `9a3185f8c42ed664` mcp-hub documents no policy for prereleases, release candidates, or nightly builds, and none have been published (registry shows only stable x.y.z).
 - `f8fc8c1992134bc3` mcp-hub states no minimum-version-support promise for Node beyond the README runtime requirement 'Node.js >= 18.0.0'.
 - `cc5ee7db3c43ac65` mcp-hub PyPI lookup returned 404 (pypi.org/pypi/mcp-hub/json) — no Python distribution of this name; the package in question is the npm one.
+- `2ca7de470c41e3be` Benchmark numbers in this knowledge register are vendor/author self-reported unless explicitly noted otherwise.
