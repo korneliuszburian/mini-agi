@@ -221,11 +221,14 @@ fn api_payload(root: &Path) -> ApiPayload {
         }),
         gaps: serde_json::json!(
             gaps.into_iter()
+                .filter(|g| g.status.as_deref() != Some("CLOSED"))
                 .map(|g| serde_json::json!({
                     "case": g.case,
                     "composite": g.composite,
+                    "best_composite": g.best_composite,
                     "ticket": g.ticket,
                     "attempts": g.attempts,
+                    "exhausted": g.exhausted,
                 }))
                 .collect::<Vec<_>>()
         ),
