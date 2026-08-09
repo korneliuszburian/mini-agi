@@ -820,3 +820,7 @@
 2026-08-09T06:25:26Z CHECKPOINT-ABORT coverage-gate disallowed dirty paths: .github/workflows/ci.yml
 2026-08-09T06:43:08Z BEGIN research-ticket -> cad6b9b
 2026-08-09T06:45:19Z VERIFY-PASS research-ticket @ 67b11a0
+2026-08-09T07:06:51Z CHECKPOINT-ABORT ui-chat disallowed dirty paths: research/registry.json
+research/what-are-the-most-notable-and-interesting-ai-agent-developme.md
+2026-08-09T07:13:54Z CHECKPOINT-ABORT ui-chat-threads disallowed dirty paths: research/registry.json
+research/what-are-the-most-notable-and-interesting-ai-agent-developme.md

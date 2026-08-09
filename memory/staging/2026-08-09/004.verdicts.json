@@ -1,0 +1,143 @@
+{
+  "staged": "004.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "unverifiable: canonical facts contain only mini-agi run data and Karpathy guidelines; no source material provided to check omission/corruption/fabrication",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable claim: specific vendor-reported scores, model version, and attribution. No canonical conflict — canonical facts are internal mini-agi run results, not external AI landscape events.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New durable claim: specific internal metrics (22x, 100x, 99.8%, pricing) attributed to OpenAI. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable claim: specific open-weight model releases (GLM-5.2, NVFP4 quant) with version and provenance. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Candidate itself admits specs are unverified and not checked against vendor documentation. Fails verifiability — cannot promote an explicitly unverified claim.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Durable meta-observation: vendor-reported benchmarks are mutually contradictory across labs with no independent arbitration. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Durable note: specific claims (Co-Scientist, Mythos 5) await independent verification. Attributions preserved, no hedging-to-confidence corruption. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Ephemeral procedural note (cited but not fully read). States no durable claim about the material's content — merely records reading status. Not a truth to preserve.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Durable procedural guard: establishes default burden of proof for benchmark numbers in the register. No canonical conflict — complements existing run-result facts by clarifying their provenance.",
+      "verdict": "promote"
+    }
+  ]
+}

@@ -1,5 +1,11 @@
 [
   {
+    "question": "What are the most notable and interesting AI agent developments in 2026 so far — new frameworks, surprising findings, or breakthroughs worth reading about?",
+    "slug": "what-are-the-most-notable-and-interesting-ai-agent-developme",
+    "status": "decided",
+    "updated": "2026-08-09"
+  },
+  {
     "question": "What is the published mcp-hub package version policy?",
     "slug": "what-is-the-published-mcp-hub-package-version-policy",
     "status": "promoted",

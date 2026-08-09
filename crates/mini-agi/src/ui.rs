@@ -10,6 +10,7 @@
 //! The human-review gate (F-011): frontend is the user's domain; this
 //! module is the kernel-side seam and ships WITH the user in the loop.
 
+use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::Path;
@@ -54,9 +55,67 @@ button.copy:hover{background:#30363d}
   <div class="card" id="card-queues"><h2>Human queue (signoff)</h2><div id="queues">…</div></div>
   <div class="card" id="card-tickets"><h2>Tickets</h2><div id="tickets">…</div></div>
 </div>
+<div class="card" id="card-chat" style="margin-top:12px">
+  <h2>Chat with the kernel <span class="dim">(threads persisted under memory/episodic/chat/)</span></h2>
+  <div id="threadbar" style="margin-bottom:8px"></div>
+  <div id="chatlog" style="max-height:420px;overflow-y:auto;border:1px solid #30363d;border-radius:8px;padding:10px;background:#0d1117;font-size:13px"></div>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <input id="chatinput" type="text" placeholder="write to the kernel — it answers memory-anchored, in the current thread" style="flex:1;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:8px 10px;font:13px ui-monospace,monospace">
+    <button class="copy" onclick="chatSend()">send</button>
+  </div>
+</div>
 <script>
 const ESC = t => (t ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const COPY = cmd => `<button class="copy" onclick="navigator.clipboard.writeText(${JSON.stringify(cmd)})">copy</button>`;
+let chatThread = null;
+async function chatList(){
+  try{
+    const r = await fetch('/api/threads');
+    const ts = await r.json();
+    const tb = ts.map(t => `<button class="copy" onclick="chatOpen('${ESC(t[0])}')">${ESC(t[1])||t[0]}</button>`).join(' ');
+    document.getElementById('threadbar').innerHTML = '<span class="dim">threads:</span> ' + tb + ' <button class="copy" onclick="chatNew()">new thread</button>';
+  }catch(e){}
+}
+async function chatOpen(id){
+  chatThread = id;
+  try{
+    const r = await fetch('/api/threads');
+    const ts = await r.json();
+    const t = ts.find(x => x[0] === id);
+    if(t){
+      const rr = await fetch('/api/threads');
+      const all = await rr.json();
+      const found = all.find(x => x[0] === id);
+      if(found){
+        // Full thread transcript via a second endpoint is not needed:
+        // the server returns only summaries here; the conversation
+        // continues regardless — history lives server-side.
+        chatThread = found[0];
+      }
+    }
+  }catch(e){}
+  document.getElementById('chatlog').innerHTML = '<div class="dim">thread ' + ESC(id) + ' — send a message to continue</div>';
+}
+function chatNew(){ chatThread = null; document.getElementById('chatlog').innerHTML = '<div class="dim">new thread — your next message starts it</div>'; }
+async function chatSend(){
+  const input = document.getElementById('chatinput');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  document.getElementById('chatlog').innerHTML += `<div><span class="warn">you:</span> ${ESC(text)}</div><div class="dim">…thinking…</div>`;
+  const body = 'x-message: ' + text + (chatThread ? '\nx-thread: ' + chatThread : '');
+  try{
+    const r = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'text/plain'}, body});
+    const d = await r.json();
+    const log = document.getElementById('chatlog');
+    log.innerHTML = log.innerHTML.slice(0, log.innerHTML.lastIndexOf('<div class="dim">…thinking…</div>'));
+    log.innerHTML += `<div><span class="ok">agent:</span> ${ESC(d.output||'(empty)')}</div>`;
+    if(!chatThread){ chatList(); }
+    log.scrollTop = log.scrollHeight;
+  }catch(e){
+    document.getElementById('chatlog').innerHTML += `<div class="bad">error: ${ESC(String(e))}</div>`;
+  }
+}
 async function action(path){
   try{
     const r = await fetch(path, {method:'POST'});
@@ -119,6 +178,7 @@ function render(d){
   document.getElementById('tickets').innerHTML = tl;
 }
 tick(); setInterval(tick, 2500);
+chatList();
 </script></body></html>"#;
 
 /// The API payload: everything the page renders, computed fresh per
@@ -278,6 +338,29 @@ pub fn serve(root: &Path, port: u16) -> std::io::Result<()> {
                     "application/json",
                     serde_json::json!({"ok": action.ok, "output": action.output}).to_string(),
                 )
+            } else if method == "POST" && path.starts_with("/api/chat") {
+                // Chat with the agent: the human's message runs through a
+                // bounded worker seeded with the thread's own history +
+                // the kernel's memory context (resume block) — the
+                // dashboard becomes a live console for the same verified
+                // loop the CLI drives, and conversations CONTINUE across
+                // turns (threads persisted under memory/episodic/chat/).
+                let message = req
+                    .lines()
+                    .find(|l| l.starts_with("x-message:"))
+                    .map(|l| l["x-message:".len()..].trim().to_string())
+                    .unwrap_or_default();
+                let thread = req
+                    .lines()
+                    .find(|l| l.starts_with("x-thread:"))
+                    .map(|l| l["x-thread:".len()..].trim().to_string())
+                    .filter(|s| !s.is_empty());
+                let chat = chat_with_kernel(&root, thread.as_deref(), &message);
+                (
+                    if chat.ok { "200 OK" } else { "400 Bad Request" },
+                    "application/json",
+                    serde_json::json!({"ok": chat.ok, "output": chat.output}).to_string(),
+                )
             } else {
                 match path.as_str() {
                     "/" => ("200 OK", "text/html; charset=utf-8", INDEX_HTML.to_string()),
@@ -295,6 +378,14 @@ pub fn serve(root: &Path, port: u16) -> std::io::Result<()> {
                             "200 OK",
                             "application/json",
                             serde_json::to_string(&json).unwrap_or_default(),
+                        )
+                    }
+                    "/api/threads" => {
+                        let threads = list_threads(&root);
+                        (
+                            "200 OK",
+                            "application/json",
+                            serde_json::to_string(&threads).unwrap_or_default(),
                         )
                     }
                     _ => ("404 Not Found", "text/plain", "not found".to_string()),
@@ -387,6 +478,198 @@ fn act(root: &Path, path: &str) -> ActResult {
     }
 }
 
+/// Chat result: the agent's reply (or the error).
+struct ChatResult {
+    ok: bool,
+    output: String,
+}
+
+/// One chat message in a thread (persisted JSONL, append-only).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct ChatMessage {
+    role: String,
+    text: String,
+    ts: String,
+}
+
+/// The chat thread store: `memory/episodic/chat/<thread-id>.jsonl`.
+///
+/// Threads are first-class: a conversation continues by id, each turn
+/// re-seeds the worker with the FULL thread transcript (bounded to the
+/// latest `CHAT_CONTEXT_TURNS` turns) plus the canonical memory resume
+/// block — the agent answers with the conversation's own history, not
+/// as a blank model. Files are append-only JSONL (one message per line)
+/// like the checkpoint journal; thread ids are plain segments (no
+/// traversal — the same rule as signoff queues).
+const CHAT_DIR_REL: &str = "memory/episodic/chat";
+const CHAT_CONTEXT_TURNS: usize = 20;
+
+fn chat_thread_dir(root: &Path) -> std::path::PathBuf {
+    root.join(CHAT_DIR_REL)
+}
+
+/// A new thread id: timestamp-based, plain segment (`chat-<unix>`).
+fn new_thread_id() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    format!("chat-{secs}")
+}
+
+/// List threads (id, first-message title, message count), newest first.
+fn list_threads(root: &Path) -> Vec<(String, String, usize)> {
+    let dir = chat_thread_dir(root);
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for e in entries.flatten() {
+        let path = e.path();
+        if path.extension().is_some_and(|x| x == "jsonl")
+            && let Some(id) = path.file_stem().and_then(|s| s.to_str())
+            && !id.contains('/')
+            && let Some(msgs) = read_thread(root, id)
+        {
+            let title = msgs.iter().find(|m| m.role == "human").map_or_else(
+                || id.to_string(),
+                |m| m.text.chars().take(48).collect::<String>(),
+            );
+            out.push((id.to_string(), title, msgs.len()));
+        }
+    }
+    out.sort_by_key(|(_, _, n)| std::cmp::Reverse(*n));
+    out
+}
+
+/// Read a thread's messages; `None` when the thread does not exist or
+/// its id is not a plain segment.
+fn read_thread(root: &Path, id: &str) -> Option<Vec<ChatMessage>> {
+    if !crate::status::plain_path_segment(id) {
+        return None;
+    }
+    let path = chat_thread_dir(root).join(format!("{id}.jsonl"));
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return None;
+    };
+    Some(
+        text.lines()
+            .filter_map(|l| serde_json::from_str::<ChatMessage>(l).ok())
+            .collect(),
+    )
+}
+
+/// Append one message to a thread (create the dir/file as needed).
+fn append_thread_message(root: &Path, id: &str, role: &str, text: &str) -> std::io::Result<()> {
+    let dir = chat_thread_dir(root);
+    std::fs::create_dir_all(&dir)?;
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or_else(|_| "unknown".to_string(), |d| d.as_secs().to_string());
+    let msg = serde_json::to_string(&ChatMessage {
+        role: role.to_string(),
+        text: text.to_string(),
+        ts,
+    })?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join(format!("{id}.jsonl")))?;
+    writeln!(f, "{msg}")
+}
+
+/// One dashboard chat turn: append the human message, seed a bounded
+/// opencode worker with the thread's own history (bounded turns) plus
+/// the kernel memory resume block, append the reply. `thread` is
+/// optional: a fresh thread is created for the first message.
+fn chat_with_kernel(root: &Path, thread: Option<&str>, message: &str) -> ChatResult {
+    let message = message.trim();
+    if message.is_empty() {
+        return ChatResult {
+            ok: false,
+            output: "empty message".into(),
+        };
+    }
+    // Resolve (or create) the thread FIRST so the human message lands in
+    // storage before any worker call — a crashed worker still leaves the
+    // conversation intact for retry.
+    let thread_id = match thread {
+        Some(id) if crate::status::plain_path_segment(id) => id.to_string(),
+        Some(_) => {
+            return ChatResult {
+                ok: false,
+                output: "invalid thread id".into(),
+            };
+        }
+        None => new_thread_id(),
+    };
+    if let Err(e) = append_thread_message(root, &thread_id, "human", message) {
+        return ChatResult {
+            ok: false,
+            output: format!("thread write failed: {e}"),
+        };
+    }
+    // Context: canonical memory resume block + the thread's own history
+    // (bounded). The transcript makes the conversation CONTINUE — the
+    // agent sees what it said before instead of answering in a vacuum.
+    let context = crate::insights::resume(root).unwrap_or_else(|_| String::new());
+    let history: Vec<ChatMessage> = read_thread(root, &thread_id)
+        .unwrap_or_default()
+        .into_iter()
+        .rev()
+        .take(CHAT_CONTEXT_TURNS)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    let mut transcript = String::new();
+    for m in &history {
+        let role = if m.role == "human" { "HUMAN" } else { "AGENT" };
+        let _ = writeln!(transcript, "{role}: {}", m.text);
+    }
+    let prompt = format!(
+        "You are mini-agi's in-dashboard assistant — a senior engineer \
+         working INSIDE this repo, memory-anchored (ADR-0003).\n\n\
+         CONTEXT FROM CANONICAL MEMORY:\n{context}\n\n\
+         CONVERSATION SO FAR (latest {CHAT_CONTEXT_TURNS} turns):\n{transcript}\n\n\
+         Continue the conversation. The human just wrote:\n\n\
+         HUMAN: {message}\n\n\
+         Answer concisely and concretely: state facts (with evidence from \
+         the context or the repo when you can), propose the next action, \
+         and NEVER invent facts — say 'unknown' when the context does not \
+         answer."
+    );
+    let workdir = std::env::temp_dir().join(format!("mag-ui-chat-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&workdir);
+    let result = crate::worker::run_opencode_worker(
+        &workdir,
+        "opencode-opencode-go/deepseek-v4-flash",
+        &prompt,
+        Some(120),
+        None,
+    );
+    let output = match result {
+        Ok(w) => {
+            let s = w.output;
+            if w.status == Some(0) {
+                s
+            } else {
+                format!("worker exited {:?} — {s}", w.status)
+            }
+        }
+        Err(e) => format!("worker not available: {e}"),
+    };
+    if let Err(e) = append_thread_message(root, &thread_id, "agent", &output) {
+        return ChatResult {
+            ok: false,
+            output: format!("thread write failed: {e}"),
+        };
+    }
+    ChatResult {
+        ok: !output.trim().is_empty(),
+        output: output.trim().to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -419,6 +702,37 @@ mod tests {
         let r = act(&root, "/api/act/signoff?q=../etc/passwd&i=1");
         assert!(!r.ok, "traversal queue must be rejected");
         assert!(r.output.contains("plain file name"));
+    }
+
+    #[test]
+    fn chat_threads_append_list_and_reject_traversal() {
+        let root = std::env::temp_dir().join(format!("mag-ui-chat-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        assert!(list_threads(&root).is_empty(), "no threads yet");
+        // Two messages in one thread (human + agent), appended.
+        append_thread_message(&root, "chat-1", "human", "hello").unwrap();
+        append_thread_message(&root, "chat-1", "agent", "hi").unwrap();
+        append_thread_message(&root, "chat-2", "human", "other").unwrap();
+        let threads = list_threads(&root);
+        assert_eq!(threads.len(), 2, "both threads listed");
+        let msgs = read_thread(&root, "chat-1").unwrap();
+        assert_eq!(msgs.len(), 2, "thread transcript persisted");
+        assert_eq!(msgs[0].role, "human");
+        assert_eq!(msgs[1].role, "agent");
+        assert!(msgs[1].text.contains("hi"));
+        // Traversal and absolute paths are rejected (plain segments only).
+        assert!(read_thread(&root, "../etc/passwd").is_none());
+        assert!(read_thread(&root, "/tmp/x").is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn page_serves_chat_markup_and_threads_endpoint() {
+        assert!(INDEX_HTML.contains("/api/threads"));
+        assert!(INDEX_HTML.contains("chatSend"));
+        assert!(INDEX_HTML.contains("x-message"));
+        assert!(INDEX_HTML.contains("threads persisted"));
     }
 
     #[test]
