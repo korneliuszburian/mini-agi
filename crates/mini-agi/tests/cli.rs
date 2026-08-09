@@ -3023,9 +3023,10 @@ fn cli_ui_fails_cleanly_on_busy_port() {
 }
 
 #[test]
-fn cli_loop_dispatch_no_case_fails_cleanly() {
+fn cli_loop_dispatch_no_case_stops_cleanly() {
     // loop dispatch with nothing dispatchable (no case below target)
-    // must error cleanly (exit 1) instead of panicking on an empty set.
+    // must STOP cleanly (exit 0, positive no-progress signal) instead of
+    // erroring or panicking on an empty set — the D2 no-progress guard.
     let root = tmp_root("cdnc");
     wipe(&root);
     std::fs::create_dir_all(root.join("evals/cases")).unwrap();
@@ -3034,14 +3035,19 @@ fn cli_loop_dispatch_no_case_fails_cleanly() {
     std::fs::create_dir_all(root.join("tickets")).unwrap();
     std::fs::write(root.join("evals/results/baseline.json"), "[]").unwrap();
     let out = run(&root, &["loop", "dispatch", "--claimant", "t"]);
-    assert_eq!(out.status.code(), Some(1), "{}", combined(&out));
+    assert_eq!(out.status.code(), Some(0), "{}", combined(&out));
     assert!(
-        combined(&out).contains("no case below the target"),
+        combined(&out).contains("STOP"),
+        "no-progress is a STOP signal: {}",
+        combined(&out)
+    );
+    assert!(
+        combined(&out).contains("no cases below the target"),
         "{}",
         combined(&out)
     );
     // A case whose ticket is claimed by someone else is not dispatchable
-    // either (lease held) — the same clean refusal.
+    // either (lease held) — the same clean STOP.
     let case = root.join("evals/cases/c");
     std::fs::create_dir_all(&case).unwrap();
     std::fs::write(
@@ -3060,10 +3066,10 @@ fn cli_loop_dispatch_no_case_fails_cleanly() {
     );
     assert!(cl.status.success(), "{}", combined(&cl));
     let out2 = run(&root, &["loop", "dispatch", "--claimant", "t"]);
-    assert_eq!(out2.status.code(), Some(1), "{}", combined(&out2));
+    assert_eq!(out2.status.code(), Some(0), "{}", combined(&out2));
     assert!(
-        combined(&out2).contains("no case below the target") || combined(&out2).contains("claimed"),
-        "{}",
+        combined(&out2).contains("STOP") && combined(&out2).contains("leased"),
+        "claimed case is a stop, not an error: {}",
         combined(&out2)
     );
     // A case whose ticket is BLOCKED by an open dependency is not

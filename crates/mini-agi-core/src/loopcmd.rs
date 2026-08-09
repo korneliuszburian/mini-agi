@@ -425,6 +425,63 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
     )
 }
 
+/// No-progress guard (D2 autoresearch wiring): explain why dispatch has
+/// no work, as a positive STOP signal instead of a generic error.
+///
+/// Returns `Some(reason)` when every case below `below` is non-dispatchable
+/// (closed by a rerun ≥ target, past its bounded-retry abstention, or
+/// leased/claimed) — a loop consuming this signal stops and reports
+/// instead of spinning on nothing. Returns `None` when real work exists.
+#[must_use]
+pub fn dispatch_no_work(root: &Path, below: f64) -> Option<String> {
+    let report = crate::insights::insights(root).ok()?;
+    let candidates: Vec<&crate::insights::CaseInsight> = report
+        .cases
+        .iter()
+        .filter(|c| !is_rerun_case(&c.case) && c.composite < below)
+        .collect();
+    if candidates.is_empty() {
+        return Some("no cases below the target — loop is clear".to_string());
+    }
+    let cfg = crate::config::Config::load(root);
+    let mut closed = 0usize;
+    let mut exhausted = 0usize;
+    let mut leased = 0usize;
+    for c in &candidates {
+        let rerun = rerun_state(root, &c.case);
+        let best = best_composite_from(Some(c.composite), rerun.composite);
+        let attempts = 1 + rerun.attempts;
+        if best.is_some_and(|b| b >= below) {
+            closed += 1;
+        } else if cfg.max_rerun_attempts.is_some_and(|limit| attempts > limit) {
+            exhausted += 1;
+        } else if let Some(ticket) = ticket_for_case(root, &c.case)
+            && (ticket.status == "CLOSED" || claimant_for(root, &ticket.id).is_some())
+        {
+            leased += 1;
+        }
+    }
+    let total = candidates.len();
+    if closed + exhausted + leased < total {
+        return None; // at least one dispatchable case exists
+    }
+    let mut parts = Vec::new();
+    if closed > 0 {
+        parts.push(format!("{closed} closed by rerun"));
+    }
+    if exhausted > 0 {
+        parts.push(format!("{exhausted} past the retry bound (need a human)"));
+    }
+    if leased > 0 {
+        parts.push(format!("{leased} leased/claimed"));
+    }
+    Some(format!(
+        "{} case(s) below target, none dispatchable — {}; STOP, or review with `loop status` / `backlog --knowledge`",
+        total,
+        parts.join(", ")
+    ))
+}
+
 /// Write the implementation slice for a case next to its ticket.
 ///
 /// # Errors
@@ -1517,6 +1574,27 @@ mod tests {
         fs::write(&run_path, serde_json::to_string_pretty(&run).unwrap()).unwrap();
         let err = pick_target(&root, None, 0.5).expect_err("all gaps are closed by rerun");
         assert!(err.contains("no case below the target is dispatchable"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_no_work_is_a_positive_stop_signal() {
+        // No cases below target at all -> clear STOP.
+        let root = tmp_case_root("no-work-clear");
+        let reason = dispatch_no_work(&root, 0.5);
+        assert!(reason.is_some(), "empty loop is a stop, not work");
+        assert!(reason.unwrap().contains("no cases below"));
+        // One open, dispatchable case -> None (real work exists).
+        let run_path = root.join("evals/cases/real-ticket-008-v2/run.json");
+        let mut run: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&run_path).unwrap()).unwrap();
+        run["outcome"]["achieved"] = serde_json::json!(false);
+        run["outcome"]["tests"] = serde_json::json!(false);
+        fs::write(&run_path, serde_json::to_string_pretty(&run).unwrap()).unwrap();
+        assert!(
+            dispatch_no_work(&root, 0.5).is_none(),
+            "an open failing case is dispatchable work"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -1192,7 +1192,18 @@ fn cmd_loop_dispatch(case: Option<&str>, below: f64, claimant: &str) -> ExitCode
             );
             ExitCode::SUCCESS
         }
-        Err(e) => fail(&format!("loop dispatch: {e}")),
+        Err(e) => {
+            // No-progress guard (autoresearch wiring): when dispatch has
+            // no real work — every gap closed by rerun, past its retry
+            // bound, or leased — that is a STOP signal (exit 0) with a
+            // report, not a generic error. The loop consuming this
+            // command stops instead of auto-continuing into nothing.
+            if let Some(reason) = mini_agi_core::loopcmd::dispatch_no_work(&root(), below) {
+                println!("loop dispatch: STOP — {reason}");
+                return ExitCode::SUCCESS;
+            }
+            fail(&format!("loop dispatch: {e}"))
+        }
     }
 }
 
