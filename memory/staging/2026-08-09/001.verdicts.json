@@ -1,0 +1,179 @@
+{
+  "staged": "001.md",
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Claude Code instruction-loading tiers: no canonical fact covers this domain; claim is specific and verifiable against Claude Code docs.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Claude Code auto-memory keyed to git repo identity: no overlap with canonical facts; claim is concrete and durable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Claude Code subagent memory isolation: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Codex instruction-chain build order: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Codex AGENTS.md directory-scoping rule: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Codex global cross-chat Memories: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "opencode rule discovery order: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "opencode no memory subsystem (404 verified): new domain, no canonical conflict; no source-material omission/corruption/fabrication detectable without original material.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "opencode identity config stack: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Codex project_root_markers: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Codex trust-gated project config loading: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Claude Code four settings scopes with managed override: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "MCP _meta identity and protocol statelessness: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Claude Code CLAUDE.md as context not enforcement: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Codex sandbox/approval/hooks enforcement: new domain, no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Specific, verifiable claim about opencode's permission model; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Self-labeled as 'Estimate (synthesis)'; explicitly provisional and not a primary finding from source material",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Specific, verifiable claim about Claude Code's documented verification contract; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Specific, verifiable claim about Codex cloud processing model; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Specific, verifiable reference to published paper (arXiv:2310.06770); no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Specific, verifiable negative finding about absence of cross-repo eval registries; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Specific, documented guidance about context window management; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Self-labeled as 'Estimate (from illustrative token figures)'; explicitly illustrative and not a durable factual finding",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Specific claim about Anthropic's documented guidance on small instances and subagents; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Specific claim about Claude Code's documented large-codebase analysis; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Specific, verifiable claim about Codex's shared-memory feature design; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Specific verified-absence finding; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "Established synthesis verdict with a clear, specific claim about convergence pattern; no canonical fact addresses this topic",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "Specific finding of absence (no controlled measurement, no documented memory-kernel pattern) despite uncertain label; durable negative result",
+      "verdict": "promote"
+    }
+  ]
+}
