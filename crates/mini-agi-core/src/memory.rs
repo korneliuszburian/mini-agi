@@ -277,6 +277,52 @@ pub fn exact_duplicates(root: &Path) -> Vec<(String, String)> {
     out
 }
 
+/// Deterministic findings used by `mem verify` and read-only supervision.
+/// Empty means the scan observed no exact duplicates, broken lineage, or
+/// preservation violations. This function performs no writes.
+#[must_use]
+pub fn integrity_findings(root: &Path) -> Vec<String> {
+    let mut findings = Vec::new();
+    for (a, b) in exact_duplicates(root) {
+        findings.push(format!(
+            "exact duplicate bodies: {a} == {b} (supersede one)"
+        ));
+    }
+    let known = existing_fact_ids(root);
+    let preserved = preserved_ids(root);
+    let edges = supersede_edges(root);
+    for (superseding, superseded) in &edges {
+        for id in superseded {
+            if !known.contains(id) {
+                findings.push(format!(
+                    "supersede ref to unknown id {id} (from {superseding})"
+                ));
+            } else if preserved.contains(id) {
+                // Preservation is a stronger contract than supersede:
+                // a load-bearing id must not be soft-deleted by a
+                // lineage write (A-MEM supersede-never).
+                findings.push(format!(
+                    "supersede ref targets preserved id {id} (from {superseding}) — preserved facts must not be superseded"
+                ));
+            }
+        }
+    }
+    // A supersede CYCLE (a supersedes b and b supersedes a) is broken
+    // lineage — both ends are soft-deleted and unreachable.
+    for cycle in supersede_cycles(&edges) {
+        findings.push(format!(
+            "supersede cycle: {} — lineage must be a DAG (break the cycle with a fresh entry)",
+            cycle.join(" -> ")
+        ));
+    }
+    for id in preserved_ids(root) {
+        if !known.contains(&id) {
+            findings.push(format!("preserved id {id} does not exist in canonical"));
+        }
+    }
+    findings
+}
+
 /// Preserved fact ids from `memory/canonical/preserved.md`.
 ///
 /// One 16-hex id per line, `#` comments. Load-bearing facts exempt from

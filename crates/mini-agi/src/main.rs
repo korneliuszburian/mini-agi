@@ -1440,6 +1440,9 @@ fn cmd_run_verify(run: &Path, dry_run: bool) -> ExitCode {
                         command: command.clone(),
                         target: target.clone(),
                         status: v.status.clone(),
+                        run_sha256: std::fs::read(run).ok().map(|bytes| {
+                            mini_agi_core::hash::source_sha256_bytes(&bytes)
+                        }),
                     },
                 )
             {
@@ -2518,44 +2521,7 @@ fn cmd_mem_unpreserve(ids: &[String]) -> ExitCode {
 
 fn cmd_mem_verify() -> ExitCode {
     let root = root();
-    let mut findings: Vec<String> = Vec::new();
-    for (a, b) in memory::exact_duplicates(&root) {
-        findings.push(format!(
-            "exact duplicate bodies: {a} == {b} (supersede one)"
-        ));
-    }
-    let known = memory::existing_fact_ids(&root);
-    let preserved = memory::preserved_ids(&root);
-    let edges = memory::supersede_edges(&root);
-    for (superseding, superseded) in &edges {
-        for id in superseded {
-            if !known.contains(id) {
-                findings.push(format!(
-                    "supersede ref to unknown id {id} (from {superseding})"
-                ));
-            } else if preserved.contains(id) {
-                // Preservation is a stronger contract than supersede:
-                // a load-bearing id must not be soft-deleted by a
-                // lineage write (ADR-0010 / A-MEM supersede-never).
-                findings.push(format!(
-                    "supersede ref targets preserved id {id} (from {superseding}) — preserved facts must not be superseded"
-                ));
-            }
-        }
-    }
-    // A supersede CYCLE (a supersedes b and b supersedes a) is broken
-    // lineage — both ends are soft-deleted and unreachable.
-    for cycle in memory::supersede_cycles(&edges) {
-        findings.push(format!(
-            "supersede cycle: {} — lineage must be a DAG (break the cycle with a fresh entry)",
-            cycle.join(" -> ")
-        ));
-    }
-    for id in memory::preserved_ids(&root) {
-        if !known.contains(&id) {
-            findings.push(format!("preserved id {id} does not exist in canonical"));
-        }
-    }
+    let findings = memory::integrity_findings(&root);
     if findings.is_empty() {
         println!("mem verify: OK — no duplicates, no broken lineage, preservation intact");
         ExitCode::SUCCESS
@@ -3285,10 +3251,19 @@ fn cmd_dream_promote(root: &Path, dry_run: bool) -> ExitCode {
         }
     }
     files.sort();
-    let Some(latest) = files.last() else {
-        return fail("dream promote: no staged facts");
+    let Some(latest) = files
+        .iter()
+        .rev()
+        .find(|path| {
+            mini_agi_core::dream::read_promotion_receipt(path)
+                .is_none_or(|receipt| !mini_agi_core::dream::receipt_matches_staged(path, &receipt))
+        })
+        .cloned()
+    else {
+        println!("dream promote: every staged batch has a matching application receipt");
+        return ExitCode::SUCCESS;
     };
-    let staged = match read_staged_facts(latest) {
+    let staged = match read_staged_facts(&latest) {
         Ok(s) => s,
         Err(e) => return fail(&e),
     };
@@ -3309,6 +3284,21 @@ fn cmd_dream_promote(root: &Path, dry_run: bool) -> ExitCode {
         Ok(r) => r,
         Err(e) => return fail(&format!("dream promote: {e}")),
     };
+    if !dry_run {
+        // The application receipt is written LAST: a failure here is
+        // loud and leaves the batch `pending`, never a false `applied`.
+        if let Err(e) = mini_agi_core::dream::write_promotion_receipt(
+            &latest,
+            promoted,
+            queued,
+            skipped,
+        ) {
+            return fail(&format!(
+                "dream promote: verdicts were applied but the promotion receipt could not be written: {e}"
+            ));
+        }
+        println!("  promotion receipt: {}", latest.with_extension("promotion.json").display());
+    }
     println!(
         "dream promote{}: {} promoted, {} queued (human), {} skipped — from {}",
         if dry_run {

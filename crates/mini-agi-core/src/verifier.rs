@@ -374,6 +374,11 @@ pub struct VerifyAttribution {
     pub target: String,
     /// Verifier status.
     pub status: String,
+    /// SHA-256 of the exact run.json bytes this evidence was produced
+    /// against. `None` on legacy rows: evidence that a command ran, not
+    /// proof for different current bytes.
+    #[serde(default)]
+    pub run_sha256: Option<String>,
 }
 
 /// Append one attribution row (JSON line).
@@ -901,6 +906,7 @@ mod attribution_tests {
             command: "sh v.sh".into(),
             target: "/tmp/x".into(),
             status: "verified".into(),
+            run_sha256: Some("0123456789abcdef".into()),
         };
         append_attribution(&root, &row).unwrap();
         assert!(root.join("memory/episodic/verify.log").is_file());

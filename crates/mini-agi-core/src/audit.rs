@@ -648,6 +648,7 @@ mod memory_load_tests {
                 command: "make verify".into(),
                 target: "/tmp/t".into(),
                 status: "verified".into(),
+                run_sha256: None,
             },
         )
         .unwrap();

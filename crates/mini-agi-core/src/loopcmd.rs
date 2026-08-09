@@ -1097,6 +1097,9 @@ pub fn verify(
                     command: command.clone(),
                     target: target.clone(),
                     status: v.status.clone(),
+                    run_sha256: std::fs::read(&run_path).ok().map(|bytes| {
+                        crate::hash::source_sha256_bytes(&bytes)
+                    }),
                 },
             )
         {

@@ -396,6 +396,77 @@ fn staging_seq(root: &Path, today: &str) -> usize {
         .map_or(1, |m| m + 1)
 }
 
+/// Durable proof that one staged batch's recorded verdicts were applied.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PromotionReceipt {
+    /// ISO timestamp of the application.
+    pub at: String,
+    /// Staged file name this receipt covers.
+    pub staged: String,
+    /// SHA-256 of the exact staged bytes at application time.
+    pub staged_sha256: String,
+    /// Facts written to canonical memory.
+    pub promoted: usize,
+    /// Facts routed to the human queue (enforcement/conflict).
+    pub queued: usize,
+    /// Facts skipped (duplicate/reject/known).
+    pub skipped: usize,
+}
+
+/// The receipt path for a staged file (`<stem>.promotion.json`).
+#[must_use]
+pub fn promotion_receipt_path(staged: &Path) -> std::path::PathBuf {
+    staged.with_extension("promotion.json")
+}
+
+/// Read the application receipt for a staged file, if one exists.
+#[must_use]
+pub fn read_promotion_receipt(staged: &Path) -> Option<PromotionReceipt> {
+    let text = std::fs::read_to_string(promotion_receipt_path(staged)).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// Write the application receipt LAST, after `apply_verdicts` has
+/// completed successfully.
+///
+/// # Errors
+///
+/// Returns a memory error when the staged file cannot be read or the
+/// receipt cannot be written.
+pub fn write_promotion_receipt(
+    staged: &Path,
+    promoted: usize,
+    queued: usize,
+    skipped: usize,
+) -> Result<std::path::PathBuf, crate::memory::MemoryError> {
+    let bytes = std::fs::read(staged).map_err(crate::memory::MemoryError::Io)?;
+    let receipt = PromotionReceipt {
+        at: crate::memory::utc_now_stamp(),
+        staged: staged
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("")
+            .to_string(),
+        staged_sha256: crate::hash::source_sha256_bytes(&bytes),
+        promoted,
+        queued,
+        skipped,
+    };
+    let json = serde_json::to_string_pretty(&receipt)
+        .map_err(|error| crate::memory::MemoryError::Io(std::io::Error::other(error)))?;
+    let path = promotion_receipt_path(staged);
+    std::fs::write(&path, json).map_err(crate::memory::MemoryError::Io)?;
+    Ok(path)
+}
+
+/// Whether a receipt still describes the CURRENT staged bytes.
+#[must_use]
+pub fn receipt_matches_staged(staged: &Path, receipt: &PromotionReceipt) -> bool {
+    std::fs::read(staged).is_ok_and(|bytes| {
+        crate::hash::source_sha256_bytes(&bytes) == receipt.staged_sha256
+    })
+}
+
 /// Apply auditor verdicts to staged facts (D2 promotion).
 ///
 /// - `promote` -> written to canonical (kind `dream`), unless the body

@@ -2,8 +2,11 @@
 //! tail, and live detached workers — the machine-readable surface for
 //! supervisors and the future files-first UI (D4).
 
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::time::SystemTime;
+use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime};
 
 /// One indexed run.json row.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -30,6 +33,58 @@ pub struct RunRow {
     pub n_steps: usize,
     /// run.json mtime (newest first ordering).
     pub modified: SystemTime,
+    /// run.json mtime as epoch milliseconds (freshness rendering).
+    pub modified_at_ms: u64,
+    /// Repository-relative run.json path for exact replay commands.
+    pub run_file: String,
+    /// Immutable-run-bound verification state (claim vs proof).
+    pub verification: RunVerification,
+}
+
+/// One verifier attribution row that matches a run, rendered for the
+/// supervision surface.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RunVerificationEvidence {
+    /// ISO timestamp of the verifier execution.
+    pub at: String,
+    /// Verifier status (`verified` | `verified-failed` | `disagrees`).
+    pub status: String,
+    /// The executed command.
+    pub command: String,
+    /// Target repo the command ran in.
+    pub target: String,
+    /// Run fingerprint the evidence was produced against, when the row
+    /// carried one.
+    pub run_sha256: Option<String>,
+    /// True when the fingerprint matches the CURRENT run bytes.
+    pub current_run: bool,
+    /// Evidence log location.
+    pub log: String,
+}
+
+/// Verification truth for one run: the run's own `achieved` is a CLAIM;
+/// only fingerprint-bound verifier evidence is proof.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RunVerification {
+    /// `verified` | `verified_failed` | `disagrees` | `required` |
+    /// `unverified`.
+    pub state: String,
+    /// The run declares both a verifier command and a target.
+    pub declared: bool,
+    /// Declared verifier command (`verify_command`).
+    pub command: Option<String>,
+    /// Declared target repo (`verify_target`).
+    pub target: Option<String>,
+    /// SHA-256 of the current run.json bytes.
+    pub run_sha256: String,
+    /// Exact pasteable command the human can run.
+    pub command_text: String,
+    /// Same-origin execute route when the case is a plain path segment.
+    pub execute_path: Option<String>,
+    /// Fingerprint-bound evidence for the CURRENT run bytes, if any.
+    pub evidence: Option<RunVerificationEvidence>,
+    /// Older case-level evidence that does not bind current bytes.
+    pub legacy_evidence: Option<RunVerificationEvidence>,
 }
 
 /// The aggregated index.
@@ -45,23 +100,125 @@ pub struct RunIndex {
 /// One discovered detached-worker handle (a `.supervisor` dir).
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct WorkerStatus {
+    /// Workdir basename, or `supervisor` when absent.
+    pub id: String,
+    /// The `.supervisor` handle path.
     pub handle: String,
     pub workdir: Option<String>,
+    /// The report path from launch.json (may not exist yet).
+    pub report: Option<String>,
     pub report_ready: bool,
     pub alive: bool,
+    /// `working` | `finished` | `crashed`.
+    pub state: String,
+    /// Alive but without recent artifact activity.
+    pub stale: bool,
+    /// Idle threshold the `stale` flag was evaluated against.
+    pub stale_after_seconds: u64,
+    pub started_at_ms: Option<u64>,
+    /// Newest activity across launch.json/run.out/progress.md/report.
+    pub updated_at_ms: Option<u64>,
+    /// progress.md tail when readable.
+    pub progress_tail: Option<String>,
 }
 
-/// A path argument must be a single plain segment (no separators, no
-/// `..`/`.` traversal) so `join` cannot escape the intended directory.
+/// A path argument must be a single plain segment — ASCII alphanumerics
+/// and `-`/`_`/`.` only — so `join` cannot escape the intended directory
+/// and query delimiters/quote characters can never reach a URL.
 #[must_use]
-pub fn plain_path_segment(s: &str) -> bool {
-    !s.is_empty()
-        && s != "."
-        && s != ".."
-        && !s.starts_with('.')
-        && !s.contains('/')
-        && !s.contains('\\')
-        && !s.contains(':')
+pub fn plain_path_segment(value: &str) -> bool {
+    !value.is_empty()
+        && value != "."
+        && value != ".."
+        && !value.starts_with('.')
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
+        })
+}
+
+/// SystemTime as epoch milliseconds (`0` before the Unix epoch).
+#[must_use]
+pub fn system_time_ms(time: SystemTime) -> u64 {
+    time.duration_since(SystemTime::UNIX_EPOCH)
+        .map_or(0, |duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
+}
+
+/// File mtime as epoch milliseconds, `None` when unreadable.
+#[must_use]
+fn modified_ms(path: &Path) -> Option<u64> {
+    std::fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .map(system_time_ms)
+}
+
+fn evidence_view(
+    row: &mini_agi_core::verifier::VerifyAttribution,
+    current_run: bool,
+) -> RunVerificationEvidence {
+    RunVerificationEvidence {
+        at: row.at.clone(),
+        status: row.status.clone(),
+        command: row.command.clone(),
+        target: row.target.clone(),
+        run_sha256: row.run_sha256.clone(),
+        current_run,
+        log: "memory/episodic/verify.log".to_string(),
+    }
+}
+
+/// Derive the run verification state from immutable bytes + the verifier
+/// attribution log. Only a fingerprint-bound row confers `verified`.
+fn run_verification(
+    case: &str,
+    run_file: &str,
+    run_sha256: &str,
+    command: Option<String>,
+    target: Option<String>,
+    attribution: &[mini_agi_core::verifier::VerifyAttribution],
+) -> RunVerification {
+    let declared = command.is_some() && target.is_some();
+    let matching: Vec<&mini_agi_core::verifier::VerifyAttribution> = attribution
+        .iter()
+        .rev()
+        .filter(|row| {
+            row.case == case
+                && command.as_deref() == Some(row.command.as_str())
+                && target.as_deref() == Some(row.target.as_str())
+        })
+        .collect();
+    let exact = matching
+        .iter()
+        .copied()
+        .find(|row| row.run_sha256.as_deref() == Some(run_sha256));
+    let legacy = matching
+        .iter()
+        .copied()
+        .find(|row| row.run_sha256.as_deref() != Some(run_sha256));
+    let state = if !declared {
+        "unverified"
+    } else if let Some(row) = exact {
+        match row.status.as_str() {
+            "verified" => "verified",
+            "verified-failed" => "verified_failed",
+            "disagrees" => "disagrees",
+            _ => "required",
+        }
+    } else {
+        "required"
+    };
+    RunVerification {
+        state: state.to_string(),
+        declared,
+        command,
+        target,
+        run_sha256: run_sha256.to_string(),
+        command_text: format!("mini-agi run verify {run_file}"),
+        execute_path: (declared && plain_path_segment(case))
+            .then(|| format!("/api/act/run-verify?case={case}")),
+        evidence: exact.map(|row| evidence_view(row, true)),
+        legacy_evidence: legacy.map(|row| evidence_view(row, false)),
+    }
 }
 
 /// Index every `evals/cases/<case>/run.json` (including `-rerun` dirs),
@@ -69,6 +226,7 @@ pub fn plain_path_segment(s: &str) -> bool {
 #[must_use]
 pub fn index_runs(cases_dir: &Path, root: &Path) -> RunIndex {
     let mut rows: Vec<RunRow> = Vec::new();
+    let attribution = mini_agi_core::verifier::read_attribution(root).unwrap_or_default();
     let Ok(entries) = std::fs::read_dir(cases_dir) else {
         return RunIndex {
             rows,
@@ -130,6 +288,28 @@ pub fn index_runs(cases_dir: &Path, root: &Path) -> RunIndex {
         let modified = std::fs::metadata(&run_path)
             .and_then(|m| m.modified())
             .unwrap_or(SystemTime::UNIX_EPOCH);
+        // Immutable-run verification: the fingerprint is bound to the
+        // EXACT bytes the verifier executed against; a modified run can
+        // never inherit old evidence (claim stays a claim).
+        let run_file_path = run_path.strip_prefix(root).unwrap_or(&run_path);
+        let run_file = run_file_path.to_string_lossy().into_owned();
+        let run_sha256 = mini_agi_core::hash::source_sha256_bytes(text.as_bytes());
+        let verify_command = v
+            .get("verify_command")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string);
+        let verify_target = v
+            .get("verify_target")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string);
+        let verification = run_verification(
+            &case,
+            &run_file,
+            &run_sha256,
+            verify_command,
+            verify_target,
+            &attribution,
+        );
         rows.push(RunRow {
             case,
             goal,
@@ -141,6 +321,9 @@ pub fn index_runs(cases_dir: &Path, root: &Path) -> RunIndex {
             composite,
             n_steps,
             modified,
+            modified_at_ms: system_time_ms(modified),
+            run_file,
+            verification,
         });
     }
     rows.sort_by_key(|r| std::cmp::Reverse(r.modified));
@@ -199,21 +382,381 @@ pub fn live_workers(root: &Path) -> Vec<WorkerStatus> {
         }
     }
     let mut workers = Vec::new();
+    let stale_after_seconds = mini_agi_core::config::Config::load(root)
+        .max_idle_seconds
+        .unwrap_or(300);
+    let now_ms = system_time_ms(SystemTime::now());
     for dir in dirs {
         let handle = dir.join(".supervisor");
         if !handle.join("launch.json").is_file() {
             continue;
         }
         let st = crate::bg::run_status(&handle);
+        let started_at_ms = modified_ms(&handle.join("launch.json"));
+        let mut activity = vec![
+            modified_ms(&handle.join("launch.json")),
+            modified_ms(&handle.join("run.out")),
+        ];
+        if let Some(workdir) = st.workdir.as_deref() {
+            activity.push(modified_ms(&Path::new(workdir).join("progress.md")));
+        }
+        if let Some(report) = st.report.as_deref() {
+            activity.push(modified_ms(Path::new(report)));
+        }
+        let updated_at_ms = activity.into_iter().flatten().max();
+        let state = if st.alive {
+            "working"
+        } else if st.report_ready {
+            "finished"
+        } else {
+            "crashed"
+        };
+        let stale = st.alive
+            && updated_at_ms.is_some_and(|updated| {
+                now_ms.saturating_sub(updated) > stale_after_seconds.saturating_mul(1000)
+            });
+        let id = st
+            .workdir
+            .as_deref()
+            .and_then(|workdir| Path::new(workdir).file_name())
+            .map_or_else(
+                || "supervisor".to_string(),
+                |name| name.to_string_lossy().into_owned(),
+            );
         workers.push(WorkerStatus {
+            id,
             handle: handle.to_string_lossy().into_owned(),
             workdir: st.workdir,
+            report: st.report,
             report_ready: st.report_ready,
             alive: st.alive,
+            state: state.to_string(),
+            stale,
+            stale_after_seconds,
+            started_at_ms,
+            updated_at_ms,
+            progress_tail: st.progress_tail,
         });
     }
-    workers.sort_by_key(|w| std::cmp::Reverse(w.alive));
+    // Severity first (crashed > stale-working > working > finished),
+    // freshness second: the human sees the broken before the rest.
+    workers.sort_by(|left, right| {
+        fn rank(state: &str, stale: bool) -> u8 {
+            match (state, stale) {
+                ("crashed", _) => 0,
+                ("working", true) => 1,
+                ("working", false) => 2,
+                _ => 3,
+            }
+        }
+        rank(&left.state, left.stale)
+            .cmp(&rank(&right.state, right.stale))
+            .then_with(|| right.updated_at_ms.cmp(&left.updated_at_ms))
+    });
     workers
+}
+
+/// Typed checkpoint-journal supervision: BEGIN/VERIFY resolution, audit
+/// anomalies and in-progress state — the browser renders classified rows,
+/// never raw lines.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct JournalCounts {
+    pub begin: usize,
+    pub verify_pass: usize,
+    pub verify_fail: usize,
+    pub status: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct JournalEventView {
+    /// 1-based journal line.
+    pub line_no: usize,
+    /// ISO timestamp.
+    pub at: String,
+    /// `begin` | `verify_pass` | `verify_fail` | `status` | `end`.
+    pub kind: String,
+    /// The checkpoint label.
+    pub label: String,
+    /// `resolved_pass` | `resolved_fail` | `in_progress` | `anomaly` |
+    /// `historical` | `event`.
+    pub state: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct JournalAnomalyView {
+    pub line_no: usize,
+    /// `bad` (fails the gate) | `historical` (warning).
+    pub severity: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct JournalSnapshot {
+    /// `ok` | `in_progress` | `anomaly` | `absent`.
+    pub state: String,
+    pub counts: JournalCounts,
+    /// Newest-first event window.
+    pub events: Vec<JournalEventView>,
+    pub anomalies: Vec<JournalAnomalyView>,
+}
+
+/// Supervision view of the checkpoint journal; no editing, no pairing
+/// logic in the browser.
+#[must_use]
+pub fn journal_snapshot(root: &Path, limit: usize) -> JournalSnapshot {
+    use mini_agi_core::journal::{JournalKind, audit_journal, parse_journal};
+
+    let path = root.join("memory/episodic/checkpoints.log");
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return JournalSnapshot {
+            state: "absent".to_string(),
+            counts: JournalCounts { begin: 0, verify_pass: 0, verify_fail: 0, status: 0 },
+            events: Vec::new(),
+            anomalies: Vec::new(),
+        };
+    };
+    let parsed = parse_journal(&text);
+    let audit = audit_journal(&parsed);
+    let bad_lines: HashSet<usize> = audit.bad.iter().map(|item| item.line_no).collect();
+    let historical_lines: HashSet<usize> =
+        audit.historical.iter().map(|item| item.line_no).collect();
+    let mut resolution: HashMap<usize, &str> = HashMap::new();
+    let mut open: HashMap<String, usize> = HashMap::new();
+    let mut counts = JournalCounts { begin: 0, verify_pass: 0, verify_fail: 0, status: 0 };
+    for event in &parsed {
+        match event.kind {
+            JournalKind::Begin => {
+                counts.begin += 1;
+                open.insert(event.label.clone(), event.line_no);
+            }
+            JournalKind::VerifyPass => {
+                counts.verify_pass += 1;
+                if let Some(line) = open.remove(&event.label) {
+                    resolution.insert(line, "resolved_pass");
+                }
+            }
+            JournalKind::VerifyFail => {
+                counts.verify_fail += 1;
+                if let Some(line) = open.remove(&event.label) {
+                    resolution.insert(line, "resolved_fail");
+                }
+            }
+            JournalKind::Status => counts.status += 1,
+            JournalKind::End => {}
+        }
+    }
+    let last_line = parsed.last().map(|event| event.line_no);
+    for line in open.values() {
+        if Some(*line) == last_line {
+            resolution.insert(*line, "in_progress");
+        }
+    }
+    let events = parsed
+        .iter()
+        .rev()
+        .take(limit)
+        .rev()
+        .map(|event| {
+            let state = if bad_lines.contains(&event.line_no) {
+                "anomaly"
+            } else if historical_lines.contains(&event.line_no) {
+                "historical"
+            } else if let Some(state) = resolution.get(&event.line_no) {
+                state
+            } else {
+                "event"
+            };
+            let kind = match event.kind {
+                JournalKind::Begin => "begin",
+                JournalKind::VerifyPass => "verify_pass",
+                JournalKind::VerifyFail => "verify_fail",
+                JournalKind::Status => "status",
+                JournalKind::End => "end",
+            };
+            JournalEventView {
+                line_no: event.line_no,
+                at: event.ts.clone(),
+                kind: kind.to_string(),
+                label: event.label.clone(),
+                state: state.to_string(),
+            }
+        })
+        .collect();
+    let mut anomalies: Vec<JournalAnomalyView> = audit
+        .bad
+        .into_iter()
+        .map(|item| JournalAnomalyView {
+            line_no: item.line_no,
+            severity: "bad".to_string(),
+            message: item.message,
+        })
+        .chain(audit.historical.into_iter().map(|item| JournalAnomalyView {
+            line_no: item.line_no,
+            severity: "historical".to_string(),
+            message: item.message,
+        }))
+        .collect();
+    anomalies.sort_by_key(|item| item.line_no);
+    let state = if !bad_lines.is_empty() {
+        "anomaly"
+    } else if last_line.is_some_and(|line| resolution.get(&line) == Some(&"in_progress")) {
+        "in_progress"
+    } else {
+        "ok"
+    };
+    JournalSnapshot { state: state.to_string(), counts, events, anomalies }
+}
+
+/// Bounded in-process cache TTL for the read-only integrity scan.
+const MEMORY_SCAN_TTL: Duration = Duration::from_secs(60);
+
+/// Live memory-integrity signal: the same deterministic findings
+/// `mem verify` reports, computed read-only with a short cache.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MemoryHealth {
+    /// `ok` | `findings` | `unknown`.
+    pub state: String,
+    pub checked_at_ms: u64,
+    pub cache_ttl_seconds: u64,
+    pub findings: Vec<String>,
+    pub command: String,
+    pub execute_path: String,
+}
+
+struct CachedMemoryHealth {
+    root: PathBuf,
+    checked: Instant,
+    value: MemoryHealth,
+}
+
+static MEMORY_HEALTH_CACHE: OnceLock<Mutex<Vec<CachedMemoryHealth>>> = OnceLock::new();
+
+fn memory_cache() -> &'static Mutex<Vec<CachedMemoryHealth>> {
+    MEMORY_HEALTH_CACHE.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+/// Read-only integrity scan with a 60-second in-process cache; never
+/// spawns a shell and never writes.
+#[must_use]
+pub fn memory_health(root: &Path) -> MemoryHealth {
+    {
+        let cache = memory_cache()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(hit) = cache
+            .iter()
+            .find(|entry| entry.root == root && entry.checked.elapsed() < MEMORY_SCAN_TTL)
+        {
+            return hit.value.clone();
+        }
+    }
+    let canonical = root.join("memory/canonical/entries");
+    let findings = if canonical.is_dir() {
+        mini_agi_core::memory::integrity_findings(root)
+    } else {
+        vec![format!("canonical entries directory is absent: {}", canonical.display())]
+    };
+    let state = if !canonical.is_dir() {
+        "unknown"
+    } else if findings.is_empty() {
+        "ok"
+    } else {
+        "findings"
+    };
+    let value = MemoryHealth {
+        state: state.to_string(),
+        checked_at_ms: system_time_ms(SystemTime::now()),
+        cache_ttl_seconds: MEMORY_SCAN_TTL.as_secs(),
+        findings,
+        command: "mini-agi mem verify".to_string(),
+        execute_path: "/api/act/mem-verify".to_string(),
+    };
+    let mut cache = memory_cache()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    cache.retain(|entry| entry.root != root);
+    cache.push(CachedMemoryHealth {
+        root: root.to_path_buf(),
+        checked: Instant::now(),
+        value: value.clone(),
+    });
+    value
+}
+
+/// Drop the cached scan for one root so the next read is fresh (called
+/// after an action that mutates canonical memory).
+pub fn invalidate_memory_health(root: &Path) {
+    let mut cache = memory_cache()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    cache.retain(|entry| entry.root != root);
+}
+
+/// Repository context: two bounded read-only Git child processes, never
+/// shelled strings.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RepositoryStatus {
+    pub root: String,
+    pub name: String,
+    /// `clean` | `dirty` | `unavailable`.
+    pub state: String,
+    pub branch: Option<String>,
+    pub revision: Option<String>,
+    pub changed_files: Option<usize>,
+    pub target_composite: f64,
+    pub max_rerun_attempts: Option<usize>,
+    pub max_idle_seconds: Option<u64>,
+    pub require_approval: bool,
+}
+
+#[must_use]
+pub fn repository_status(root: &Path) -> RepositoryStatus {
+    let config = mini_agi_core::config::Config::load(root);
+    let status = std::process::Command::new("git")
+        .args(["status", "--porcelain=v1", "--branch", "--untracked-files=normal"])
+        .current_dir(root)
+        .output();
+    let revision = std::process::Command::new("git")
+        .args(["rev-parse", "--short=12", "HEAD"])
+        .current_dir(root)
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .filter(|value| !value.is_empty());
+    let (state, branch, changed_files) = match status {
+        Ok(output) if output.status.success() => {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let mut lines = text.lines();
+            let branch = lines.next().and_then(|line| line.strip_prefix("## ")).map(|line| {
+                line.split("...").next().unwrap_or(line)
+                    .split_whitespace().next().unwrap_or(line)
+                    .to_string()
+            });
+            let changed = lines.filter(|line| !line.trim().is_empty()).count();
+            (
+                if changed == 0 { "clean" } else { "dirty" }.to_string(),
+                branch,
+                Some(changed),
+            )
+        }
+        _ => ("unavailable".to_string(), None, None),
+    };
+    RepositoryStatus {
+        root: root.to_string_lossy().into_owned(),
+        name: root.file_name().map_or_else(
+            || "repository".to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        ),
+        state,
+        branch,
+        revision,
+        changed_files,
+        target_composite: config.target_composite,
+        max_rerun_attempts: config.max_rerun_attempts,
+        max_idle_seconds: config.max_idle_seconds,
+        require_approval: config.require_approval,
+    }
 }
 
 #[cfg(test)]
