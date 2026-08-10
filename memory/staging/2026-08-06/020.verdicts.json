@@ -93,6 +93,96 @@
     },
     {
       "existing_id": null,
+      "index": 15,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Specific, verifiable OTel GenAI semconv cross-cutting rule; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Specific, verifiable OTel GenAI semconv span declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Specific, verifiable OTel GenAI semconv metric rule; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Specific, verifiable OTel GenAI semconv metric declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "Specific, verifiable OTel GenAI semconv metric declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "Specific, verifiable OTel GenAI semconv metric declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "Specific, verifiable OTel GenAI semconv metric declaration; no canonical fact in this domain to conflict with or duplicate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
       "index": 30,
       "reason": "No canonical fact covers gen_ai server metrics; specific, durable, and verifiable against OTel semantic conventions. No source material provided for fidelity check — no omission/corruption/fabrication detectable.",
       "verdict": "promote"

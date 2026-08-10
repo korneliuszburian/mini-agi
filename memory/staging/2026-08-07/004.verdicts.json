@@ -240,18 +240,6 @@
       "index": 39,
       "reason": "New durable truth: claim about absence of defect-rate measurements in fmt/clippy docs is a verifiable negative; no overlap with existing canonical facts.",
       "verdict": "promote"
-    },
-    {
-      "existing_id": null,
-      "index": 40,
-      "reason": "New durable truth: meta-claim that primary sources provide rationale without controlled measurement; no overlap with existing canonical facts.",
-      "verdict": "promote"
-    },
-    {
-      "existing_id": null,
-      "index": 41,
-      "reason": "New durable truth: identifies the strongest evidence forms in reached sources (Miri demo, trophy case) as existence proofs; no overlap with existing canonical facts.",
-      "verdict": "promote"
     }
   ]
 }

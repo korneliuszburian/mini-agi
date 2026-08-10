@@ -90,6 +90,24 @@
       "index": 14,
       "reason": "Domain not represented in canonical memory; no source material to apply OMISSION/CORRUPTION/FABRICATION test.",
       "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Self-labeled opinion; synthesis unmoored from any canonical fact; no source material cited to verify against OPA/RocksDB/Akka/Vault/Kafka/Rekor claims; fails FABRICATION risk (claims a consistent pattern across six systems without source evidence).",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Self-labeled uncertain/unverified; no canonical fact covers RocksDB compaction filters for access-control policy; assertion hedged as conjecture.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Ephemeral meta-commentary about research access failure (JS redirect), not a durable fact; self-labeled uncertain; no canonical fact relates to Kafka documentation reachability.",
+      "verdict": "reject"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: ec06db3e56807c58
-# canonical_entries: 87
+# canonical_sha256: 70f4683f99132649
+# canonical_entries: 99
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -19,3 +19,5 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `c318ea3b6d3d57a6` GNU `find -exec command {} +` / `-execdir`: 'The result is always true' — find's exit status does not reflect whether the executed command succeeded; a gate ending in such a find is green whenever find runs (GNU Findutils manual §3.3.2).
 - `d7094e95f846a4e7` GNU grep exit status: 0 if a line is selected, 1 if no lines selected, 2 on error — the anti-footgun: `grep -q` as the last stage fails on an empty match set, making 'assert something exists' gates non-vacuous (GNU Grep 3.12 manual §2.3).
 - `fc88da0620bc3b99` pytest treats a zero-test run as an error: exit code 5 = 'No tests were collected' (pytest docs, Exit codes).
+- `dfbedd918b8faaa3` Jest's `--passWithNoTests` flag allows the test suite to pass when no files are found. Inference (opinion): the flag exists because the default is to fail on a test run that finds nothing; opting in recreates the vacuous pass.
+- `346fe871acd99e57` pytest-cov `--cov-fail-under MIN` fails if total coverage is less than MIN. Opinion: this only bounds quantity of execution, not whether executed code is the code under review; with an empty suite it is not a strong non-vacuity guarantee (a coverage threshold cannot detect that the wrong branch was checked out).

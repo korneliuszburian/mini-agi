@@ -90,6 +90,60 @@
       "index": 14,
       "reason": "Specific, verifiable claim citing pytest docs; operational knowledge for test-suite-as-gate design.",
       "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "Verifiable tool behavior: Jest's --passWithNoTests flag and its default-fail semantics are documented and testable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "Verifiable tool behavior: GNU Make manual §5.9 documents empty recipes explicitly.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "Specific, verifiable claim about mini-agi's own code at traceable file:line locations; no canonical fact on this topic exists.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "Specific, verifiable claim about mini-agi's gate behavior at traceable file:line locations.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "Specific, verifiable claim about mini-agi's verifier implementation at traceable locations; cites ADR-0011.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Verifiable tool behavior: GitHub Actions workflow syntax documentation confirms shell defaults, fail-fast, and container sh behavior.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Verifiable specification claim: slsa.dev/spec/v1.0/verifying-artifacts is a primary source with extractable requirements.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Verifiable tool behavior: pytest-cov --cov-fail-under semantics are documented; the opinion is tagged as such and the core fact is accurate.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Composite summary masquerading as atomic fact; bundles >10 distinct tool behaviors plus a normative 'established verdict' framing into one entry. Each shell tool behavior deserves its own fact. The individual claims are not fabricated, but this is a derived view, not a canonical fact.",
+      "verdict": "reject"
     }
   ]
 }

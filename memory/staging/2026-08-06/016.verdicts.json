@@ -90,6 +90,78 @@
       "index": 14,
       "reason": "Specific measured claim citing LightMem Table 2, §5.4 — notes no measured tradeoff honestly; no canonical conflict; source deferred.",
       "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New research finding from Mem0 arXiv:2504.19413 — accuracy/latency frontier data with specific J-scores and p95 latencies. No canonical fact covers memory-system benchmarks.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New research finding from Zep arXiv:2501.13956 — DMR, LongMemEval-S gains, latency cuts, and caveat on single-session-assistant regression. No canonical fact covers external memory benchmarks.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New research finding from MemSIF arXiv:2608.01742 — dual-track consolidation with token-economy and accuracy numbers across backbones. No canonical fact covers this.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "New research finding from Sleep-time Compute arXiv:2504.13171 — amortized offline cost reduction, accuracy scaling, SWE case study. Specific authors and sections cited. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New research finding from Auto-Dreamer arXiv:2605.20616 — RL-trained offline consolidation, ScienceWorld/ALFWorld/WebArena results, 12x memory reduction. No canonical coverage.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "Methodological model from LightMem §4 with explicit O(N) / O(N*r^x*T/th) formulas and provenance (paper's own accounting). Verifiable against the cited source. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "Methodological caveat on cross-paper comparability — enumerates specific divergent factors (backbones, datasets, protocols, cost ratios). Verifiable observation about the survey's source material, not mere opinion. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "Provenance attribution note — clarifies that A-Mem/MemoryOS/LangMem numbers come from RecMem/LightMem re-measurements, not original papers. Verifiable methodological hygiene fact. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Gap statement: absence of head-to-head consolidation comparison, absence of USD costs, untested generalization. Self-labeled uncertain but specific and verifiable as a statement about the literature's current boundaries. No fabrication detected.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "Methodological desideratum describing a hypothetical settling study with concrete criteria (a-d). Asserts no such study exists in sources reached — a verifiable negative claim from the survey scope. No canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "Synthesized verdict from multiple papers (RecMem, LightMem, Mem0, Zep, sleep-time) with specific numbers and qualifying conditions. Attribution-check passes: each claim maps to a cited source in [11]. No omission/corruption/fabrication detected.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "Bibliographic anchors with arXiv IDs, venue tags, and read-format notes. Verifiable references. No canonical fact duplicates this bibliography.",
+      "verdict": "promote"
     }
   ]
 }

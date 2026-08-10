@@ -93,6 +93,96 @@
     },
     {
       "existing_id": null,
+      "index": 15,
+      "reason": "New verifiable claim from published paper (RouteLLM, arXiv 2406.18665v4); no overlap with any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New verifiable claim with explicit methodology (RouteLLM §5.4, Appendix D); no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New verifiable claim from RouteLLM §4.1.1, §5.1, Tables 1-3; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "New verifiable claim from RouteLLM §5.1, Tables 2-3; no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New verifiable claim from RouteLLM §5.2, Table 4; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "New verifiable claim from RouteLLM §5.5, Table 7; no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "New verifiable claim from RouterArena, arXiv 2510.00202v3, §6.2, Fig 7; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "New verifiable claim from RouterArena §6.2, Fig 7-8; no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "New verifiable claim from RouterArena §6.2, §6.5, Table 2; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "New verifiable claim from RouterArena §6.3; no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "New verifiable claim from RouterArena §6.2; no overlap with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "New verifiable claim from RouterBench arXiv 2403.12031 and RouterArena §1, §3; no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "Abstract-only claim with zero concrete numbers verified; candidate itself flags it as unverified — CORRUPTION risk if promoted without quantification.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "Not a factual claim — it is a search-status note that a paper could not be located. Ephemeral and unverifiable.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "New verifiable synthesis citing specific published sources (RouteLLM, Hybrid LLM, FrugalGPT); no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
       "index": 30,
       "reason": "No overlap with any canonical fact; specific, verifiable claims citing RouterArena and measurable dimensions (quality gap, deferral curve, overhead vs generation cost).",
       "verdict": "promote"

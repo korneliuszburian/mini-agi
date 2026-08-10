@@ -3,6 +3,96 @@
   "verdicts": [
     {
       "existing_id": null,
+      "index": 0,
+      "reason": "Specific, verifiable claim about Anthropic's per-1M-token pricing and prompt-caching cost structure, sourced to their Pricing page and Models overview.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific, verifiable claim about OpenAI's per-1M-token pricing and models-endpoint metadata, sourced to their Pricing page.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Durable reasoning derived from facts 0 and 1: different input/output rates imply separate random-variable modeling for budgets.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Verifiable claim about OpenAI's usage.prompt_tokens/completion_tokens return fields and tiktoken as the deterministic local estimator.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Verifiable claim about Anthropic's usage.input_tokens/output_tokens and separate cache-creation/cache-read metering fields.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Ephemeral and unverifiable: 'most production stacks' is an industry-observed opinion pattern, not a durable fact anchored to a primary source.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Specific, verifiable claim about MCP spec's mcp_usage carrying opaque total_tokens with no input/output split, sourced to dated spec versions.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Verifiable claim quoting Anthropic's 'cannot get exact token count without calling the model' stance, plus tiktoken as canonical local estimator.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Mixes an unverifiable prevalence claim ('most common production approach') with methodological decomposition; the opinion component makes it non-durable.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Verifiable claim about Anthropic's BudgetHistory endpoint and OpenAI's usage/billing hard/soft limits as enforcement primitives.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Verifiable claim about OpenAI's hard spend limit rejecting requests and Anthropic's BudgetAlert notifications requiring org-level limits for hard blocking.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Verifiable claim about both vendors returning 429 with Retry-After and recommending exponential backoff, with the noted limitation on cost-overrun prevention.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Verifiable claim about OpenAI Responses max_output_tokens and Anthropic Messages max_tokens as application-level per-call cost-bound primitives.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Verifiable negative fact: no vendor-side agent-budget object exists in primary docs; agent-loop containment uses model-level plus loop-level primitives.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Self-labeled as unverified; a gap statement ('none found') is not a durable fact — it is a research artifact, not a claim about what is true.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
       "index": 15,
       "reason": "Unverifiable: claims industry-wide absence of a token budget schema, but the canon covers only this repo's runs and architectural facts. Cannot verify what the entire industry does or does not define from internal repo data alone.",
       "verdict": "reject"

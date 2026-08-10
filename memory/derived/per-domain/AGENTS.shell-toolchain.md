@@ -4,7 +4,7 @@
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
-# Domain: dogfood (derived from canonical memory)
+# Domain: shell-toolchain (derived from canonical memory)
 
 Applies when working on this domain. Canonical memory wins on conflict.
-- `a573e7c2f8f88cae` the dogfood ticket proves the pipeline runs through the kernel CLI alone
+- `7e77b86355342739` GNU make explicitly supports recipes that do nothing: a recipe consisting of nothing but whitespace (`target: ;`) (GNU Make manual §5.9 Empty Recipes).

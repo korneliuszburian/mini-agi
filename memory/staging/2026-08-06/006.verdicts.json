@@ -1,4 +1,137 @@
 {
   "staged": "006.md",
-  "verdicts": []
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "synthesis classification of published agent-memory consolidation regimes, sourced [S1]-[S7]; no existing canonical cover; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "precise negation distinguishing 'literal nightly cron' from published approximations; supported by detailed system descriptions in candidates [2]-[14]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "specific factual parameter from Generative Agents (Stanford 2023) — threshold 150, 2-3x/day — verifiable against [S4]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Generative Agents ablation results (TrueSkill, Cohen's d=8.16, direct quote) faithfully carried from [S4]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "MemGPT memory-pressure mechanics (70% warning, 100% flush, 50% eviction, recursive summary) accurately represented from [S1]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "MemGPT DMR 93.4% vs baseline 35.3%, explicit note that no separate consolidation cost reported; faithful to [S1]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "Letta sleep-time compute description (idle-time batch, sleep-time agent, configurable frequency) faithfully derived from [S3]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "Letta benchmark results (5x compute reduction, +13-18% accuracy, 2.5x cost reduction) precisely carried from [S2]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Zep/Graphiti design rationale and caveat about periodic refreshes faithfully represented from [S5]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Zep/Graphiti per-message ingestion pipeline described accurately from [S5]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Zep LongMemEval results (+15-18% accuracy, ~90% latency reduction, 115k→1.6k tokens) precisely carried from [S5]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Zep self-reported caveats (DMR within noise, decline on single-session-assistant) honestly represented from [S5]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Mem0 incremental consolidation pipeline (write-time + async summarization, ADD/UPDATE/DELETE/NOOP) faithfully carried from [S6]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Mem0 LOCOMO latency results (p50 0.708s/p95 1.440s, 91% reduction) precisely carried from [S6]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Mem0^g LLM-judge score (J~68.4, 26% relative improvement) faithfully carried from [S6]; no omission/corruption/fabrication detected",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "unverifiable: references source [S6] not present in canonical set; no canonical fact covers LOCOMO benchmarks or Zep/Mem0 comparisons",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "unverifiable: references source [S7] not present in canonical set; no canonical fact covers A-MEM architecture",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "unverifiable: references source [S7] not present in canonical set; no canonical fact covers A-MEM cost/performance metrics",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "unverifiable: claim spans sources [S1]-[S7] not present in canonical set; canonical facts contain only mini-agi run data and behavioral guidelines, not memory-system surveys",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "ephemeral: self-labeled as Opinion; also references [S5] not in canonical set",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "vague: self-labeled as Uncertain; also references [S3]-[S4] not in canonical set",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "unverifiable: claim about [S1]-[S7] sources not present in canonical set; stating absence of a study in those sources cannot be verified without the sources",
+      "verdict": "reject"
+    }
+  ]
 }

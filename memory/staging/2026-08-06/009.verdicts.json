@@ -1,4 +1,245 @@
 {
   "staged": "009.md",
-  "verdicts": []
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "Specific, verifiable claim about BM25's baseline role in IR; no conflict with canonical facts.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "Specific numbers sourced to DPR abstract (arXiv:2004.04906); verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "Specific numbers sourced to LongMemEval Table 9, Appendix E.2; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "Specific qualitative claim sourced to BEIR abstract; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "Ephemeral process detail about a failed extraction attempt, not a durable truth.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "Specific claim from a sourced preprint, honest about unverified/estimate status.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "CORRUPTION: DPR abstract claims a 9-19% improvement, not that dense retrieval is the 'single largest accuracy jump' — adds an unsupported absolute claim absent from the source.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "CORRUPTION: claims ~9-14 Recall@5 point range but cited data from [2] shows max delta 0.089 (Contriever), 0.086 (Stella); the upper bound of 14 is unsupported by the source.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "Specific numbers sourced to M3-Embedding Table 1; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "Specific figures sourced to LongMemEval Figure 3a; verifiable. Correctly notes limitations (commercial chatbots, not open retrieval-only).",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "Specific numbers sourced to LongMemEval Section 5.4/Table 4 and abstract; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "Specific numbers sourced to LoCoMo Table 2, Section 6; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "Specific numbers sourced to Zep Table 3; verifiable.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "Specific factual claim about MemoryBank's methodology, honest about qualitative-only evaluation and lack of quantitative comparison.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "Specific numbers from a sourced preprint, honest about unverified/estimate status and lack of independent corroboration.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "New durable truth: specific measured gains from a cited source (HippoRAG, arXiv:2405.14831, Tables 2-4) with exact numbers; no canonical fact covers graph retrieval benchmarks.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "New durable truth: direct abstract claim from HippoRAG (arXiv:2405.14831) about cost/speed vs IRCoT; no canonical fact covers retrieval efficiency comparisons.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "New durable truth: Zep numbers from arXiv:2501.13956, Tables 1-3, including self-reported caveat about vendor authorship and small DMR gap; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "New durable truth: GraphRAG (arXiv:2404.16130) qualitative-only global-sensemaking claim, honestly noted as having no numeric accuracy reported; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "New durable truth: Zep regression numbers cited from arXiv:2501.13956, Table 3; no canonical fact covers retrieval failure modes.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "New durable truth: M3-Embedding (arXiv:2402.03216, Tables 1,3,4) hybrid retrieval numbers with exact nDCG values; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "New durable truth: hybrid indexing recall gains from LongMemEval (arXiv:2410.10813v2, Section 5.3, Tables 3,10); no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 22,
+      "reason": "New durable truth: factual description of Zep's retrieval architecture (arXiv:2501.13956, Sections 3.1-3.2); no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 23,
+      "reason": "Ephemeral: this is a provenance/process note about what was not independently fetched, not a fact about the world. It carries no durable claim beyond 'the auditor did not verify RRF.'",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 24,
+      "reason": "New durable truth: LoCoMo (arXiv:2402.17753, Table 3 + Section 6.1) conversation granularity numbers; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 25,
+      "reason": "New durable truth: LoCoMo (arXiv:2402.17753, Tables 2-3 + Section 6) long-context vs human gap numbers; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 26,
+      "reason": "New durable truth: retrieval reading strategy effect from LongMemEval (arXiv:2410.10813v2, Section 5.5 + Figure 3b); no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 27,
+      "reason": "New durable truth: synthesis claim that techniques complement each other, cited to three distinct sources; representable as a cross-cutting insight, not a conflicting assertion.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 28,
+      "reason": "New durable truth: methodological caveat that cross-benchmark numbers are not comparable; a universal research-methods principle, not contradicted by any canonical fact.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 29,
+      "reason": "Explicitly states no finding ('not cleanly isolated... uncertain'). An absence of evidence is not a fact; it is a knowledge-gap marker, not a durable claim.",
+      "verdict": "reject"
+    },
+    {
+      "existing_id": null,
+      "index": 30,
+      "reason": "New substantive domain (agent-memory retrieval literature) with zero canonical overlap; specific, qualified claim about benchmarking gaps.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 31,
+      "reason": "Specific provenance caveat on vendor-reported numbers; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 32,
+      "reason": "Specific caveat on preprint reliability with implausibility flag; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 33,
+      "reason": "Specific data-quality caveat (rendering artifact, partial coverage); no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 34,
+      "reason": "High-confidence finding with concrete quantitative anchors (DPR, LongMemEval); no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 35,
+      "reason": "High-confidence finding with concrete quantitative anchors (LongMemEval); no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 36,
+      "reason": "High-confidence finding with concrete quantitative anchors (HippoRAG, Zep) and noted regression; no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 37,
+      "reason": "High-confidence finding with concrete quantitative anchors (M3-Embedding, LongMemEval); no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 38,
+      "reason": "High-confidence finding with concrete quantitative anchor (LoCoMo); no canonical conflict.",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 39,
+      "reason": "Specific factual claim about MemGPT paper and DMR benchmark provenance; no canonical conflict.",
+      "verdict": "promote"
+    }
+  ]
 }
