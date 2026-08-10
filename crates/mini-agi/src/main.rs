@@ -504,6 +504,11 @@ struct DreamArgs {
     /// Apply the latest staging manifest's verdicts into canonical.
     #[arg(long)]
     promote: bool,
+    /// Re-audit one staged batch: run the auditor on candidates still
+    /// missing a verdict and fill the manifest. `--dry-run` reports the
+    /// missing indexes without invoking the model.
+    #[arg(long)]
+    reaudit: Option<PathBuf>,
     /// Idle trigger (D2): when the machine is idle (load1 below
     /// `--idle-load`), distill the newest run's report into staging.
     #[arg(long)]
@@ -890,15 +895,21 @@ fn main() -> ExitCode {
             max_wall,
             idle,
             idle_load,
-        }) => cmd_dream(
-            source.as_deref(),
-            &distiller,
-            &auditor,
-            promote,
-            dry_run,
-            max_wall,
-            idle.then_some(idle_load),
-        ),
+            reaudit,
+        }) => {
+            if let Some(file) = reaudit.as_deref() {
+                return cmd_dream_reaudit(&root(), file, &auditor, dry_run, max_wall);
+            }
+            cmd_dream(
+                source.as_deref(),
+                &distiller,
+                &auditor,
+                promote,
+                dry_run,
+                max_wall,
+                idle.then_some(idle_load),
+            )
+        }
         Command::Codex(CodexArgs {
             spec,
             workdir,
@@ -3335,6 +3346,139 @@ fn cmd_dream_promote(root: &Path, dry_run: bool) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// Fill the verdict manifest of an existing staged batch: the strong
+/// auditor judges ONLY the candidates still missing a verdict, the new
+/// verdicts are merged with the recorded ones, and the manifest is
+/// written back only when the merged set reaches full coverage (same
+/// fail-closed rule as the original audit). A `--dry-run` reports the
+/// missing indexes and never invokes the model. The merge maps chunk-
+/// local verdict indexes back through the missing-index list, so sparse
+/// gaps (e.g. only candidate 2 uncleared) get honest original indexes.
+fn cmd_dream_reaudit(
+    root: &Path,
+    file: &Path,
+    auditor: &str,
+    dry_run: bool,
+    max_wall: Option<u64>,
+) -> ExitCode {
+    let rel = file
+        .to_string_lossy()
+        .strip_prefix(&root.to_string_lossy().into_owned())
+        .unwrap_or(&file.to_string_lossy())
+        .to_string();
+    let staged = match read_staged_facts(file) {
+        Ok(s) => s,
+        Err(e) => return fail(&e),
+    };
+    let manifest = file.with_extension("verdicts.json");
+    let existing = mini_agi_core::dream::read_verdicts(&manifest);
+    let have: std::collections::BTreeSet<usize> = existing.iter().map(|v| v.index).collect();
+    let missing: Vec<usize> = (0..staged.len()).filter(|i| !have.contains(i)).collect();
+    if missing.is_empty() {
+        println!("dream reaudit: {rel} already has full verdict coverage — nothing to do");
+        return ExitCode::SUCCESS;
+    }
+    let missing_list: Vec<String> = missing.iter().map(|i| format!("{i:03}")).collect();
+    println!(
+        "dream reaudit{}: {}/{} candidates lack verdicts — {}",
+        if dry_run { " (dry-run)" } else { "" },
+        missing.len(),
+        staged.len(),
+        missing_list.join(", ")
+    );
+    if dry_run {
+        return ExitCode::SUCCESS;
+    }
+    // Canonical index, budgeted exactly like the original audit (D3
+    // select_budgeted): enforced, linked, recent facts only.
+    let all = mini_agi_core::memory::read_facts(root);
+    let links = mini_agi_core::memory::fact_links(&all);
+    let enforced = mini_agi_core::memory::enforced_fact_ids(root);
+    let selected = mini_agi_core::memory::select_budgeted(&all, &links, &enforced, 6000);
+    let mut audit_lines: Vec<String> = selected
+        .iter()
+        .map(|(id, _, body)| format!("{id}: {body}"))
+        .collect();
+    audit_lines.sort();
+    let audit_material = audit_lines.join("\n");
+    let workdir = std::env::temp_dir().join(format!("mag-dream-wd-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&workdir);
+    let wall = max_wall.unwrap_or(300);
+    let audit_batch_size = 15usize;
+    let mut fresh: Vec<mini_agi_core::dream::AuditorVerdict> = Vec::new();
+    for (batch_idx, chunk_idx) in missing.chunks(audit_batch_size).enumerate() {
+        let chunk_facts: Vec<mini_agi_core::dream::StagedFact> =
+            chunk_idx.iter().map(|i| staged[*i].clone()).collect();
+        let batch_prompt = mini_agi_core::dream::auditor_prompt(&chunk_facts, &audit_material);
+        let aud =
+            match worker::run_opencode_worker(&workdir, auditor, &batch_prompt, Some(wall), None) {
+                Ok(w) => w,
+                Err(e) => return fail(&format!("dream reaudit: auditor not available: {e}")),
+            };
+        let mut batch_verdicts =
+            mini_agi_core::dream::parse_audit_verdicts(&aud.output, &chunk_facts);
+        if batch_verdicts.is_empty() && aud.status == Some(0) {
+            eprintln!(
+                "  [warn] reaudit batch {batch_idx} returned no parseable verdicts                  ({} bytes, rc {:?}) — retrying once with procedure feedback",
+                aud.output.len(),
+                aud.status
+            );
+            let retry_prompt = format!(
+                "{}\n\n{}",
+                batch_prompt,
+                mini_agi_core::dream::auditor_retry_feedback()
+            );
+            let retry =
+                worker::run_opencode_worker(&workdir, auditor, &retry_prompt, Some(wall), None);
+            if let Ok(aud) = retry {
+                batch_verdicts =
+                    mini_agi_core::dream::parse_audit_verdicts(&aud.output, &chunk_facts);
+            }
+        }
+        for v in &mut batch_verdicts {
+            if let Some(original) = chunk_idx.get(v.index) {
+                v.index = *original;
+            }
+        }
+        if batch_verdicts.is_empty() {
+            eprintln!("  [warn] reaudit batch {batch_idx} failed after retry — skipped");
+        }
+        fresh.extend(batch_verdicts);
+    }
+    let mut verdicts = existing;
+    let fresh_count = fresh.len();
+    verdicts.extend(fresh);
+    verdicts.sort_by_key(|v| v.index);
+    let have_after: std::collections::BTreeSet<usize> = verdicts.iter().map(|v| v.index).collect();
+    let still_missing: Vec<usize> = (0..staged.len())
+        .filter(|i| !have_after.contains(i))
+        .collect();
+    if !still_missing.is_empty() {
+        return fail(&format!(
+            "dream reaudit: {} of {} candidates still lack a verdict — manifest unchanged",
+            still_missing.len(),
+            staged.len()
+        ));
+    }
+    // Manifest written only when coverage is complete (never partial).
+    match mini_agi_core::dream::write_verdicts(file, &verdicts) {
+        Ok(m) => println!("  verdicts manifest: {}", m.display()),
+        Err(e) => {
+            return fail(&format!(
+                "dream reaudit: verdict manifest write failed: {e}"
+            ));
+        }
+    }
+    println!(
+        "dream reaudit: {} verdict(s) filled — {}/{} candidates covered at {}",
+        fresh_count,
+        verdicts.len(),
+        staged.len(),
+        rel
+    );
+    ExitCode::SUCCESS
+}
+
 /// Read staged `## S-NNN (domain)` blocks back from a staging file.
 fn read_staged_facts(path: &Path) -> Result<Vec<mini_agi_core::dream::StagedFact>, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
@@ -3758,6 +3902,44 @@ mod tests {
             .unwrap()
             .count();
         assert!(canonical > 0, "promoted facts land in canonical memory");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dream_reaudit_dry_run_reports_missing_verdicts_without_model() {
+        // Sparse coverage: candidate 2 lacks a verdict. The dry-run path
+        // must report the gap and never invoke the auditor worker.
+        let root = std::env::temp_dir().join(format!(
+            "mag-reaudit-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let dir = root.join("memory/staging/2026-08-06");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("001.md"),
+            "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nalpha\n\n## S-001 (general)\n\nbeta\n\n## S-002 (general)\n\ngamma\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("001.verdicts.json"),
+            r#"{"staged":"001.md","verdicts":[{"index":0,"verdict":"promote"},{"index":1,"verdict":"duplicate","existing_id":"abc"}]}"#,
+        )
+        .unwrap();
+        let file = dir.join("001.md");
+        assert_eq!(
+            cmd_dream_reaudit(&root, &file, "auditor-that-must-not-run", true, None),
+            ExitCode::SUCCESS
+        );
+        let after = mini_agi_core::dream::read_verdicts(&dir.join("001.verdicts.json"));
+        assert_eq!(after.len(), 2, "dry-run must not touch the manifest");
+        assert!(
+            after.iter().all(|v| v.index != 2),
+            "no verdict may appear for the missing candidate"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

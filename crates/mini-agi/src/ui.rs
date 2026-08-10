@@ -1195,6 +1195,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
           });
           html += "</div></details>";
           if (batch.command) html += commandHtml(batch.command, batch.execute_path, "Promotion applies recorded verdicts and can append canonical facts or human-queue entries. Review every candidate first. Continue?");
+          if (batch.reaudit_command) html += commandHtml(batch.reaudit_command, batch.reaudit_execute_path, "Runs the strong-model auditor on the candidates still missing verdicts and fills the manifest (model cost). Continue?");
           html += "</div>";
         });
         html += "</div>";
@@ -2078,6 +2079,7 @@ fn api_payload(root: &Path) -> ApiPayload {
             })
             .collect();
         if state == "receipt_mismatch" || state == "audit_incomplete" {
+            let reaudit_rel = relative(root, path);
             attention(
                 &mut attention_items,
                 format!("staging-incomplete-{day}-{name}"),
@@ -2090,9 +2092,11 @@ fn api_payload(root: &Path) -> ApiPayload {
                     "Not every candidate has exactly one auditor verdict. Promotion is disabled."
                 },
                 Some("brain"),
-                None,
-                None,
-                None,
+                (state != "receipt_mismatch").then(|| format!("mini-agi dream --reaudit {reaudit_rel}")),
+                (state != "receipt_mismatch").then(|| format!("/api/act/dream-reaudit?day={day}&file={name}")),
+                (state != "receipt_mismatch").then_some(
+                    "Runs the strong-model auditor on the candidates still missing a verdict and fills the manifest (model cost).",
+                ),
             );
         } else if actionable {
             attention(
@@ -2127,6 +2131,10 @@ fn api_payload(root: &Path) -> ApiPayload {
             "is_next_to_apply": is_next_to_apply,
             "command": actionable.then_some("mini-agi dream --promote"),
             "execute_path": actionable.then_some("/api/act/dream-promote"),
+            "reaudit_command": (state == "audit_incomplete")
+                .then(|| format!("mini-agi dream --reaudit {}", relative(root, path))),
+            "reaudit_execute_path": (state == "audit_incomplete")
+                .then(|| format!("/api/act/dream-reaudit?day={day}&file={name}")),
             "candidates_detail": details,
             "receipt": receipt,
         }));
@@ -2715,6 +2723,41 @@ fn act(root: &Path, path: &str) -> ActResult {
                 command,
             )
         }
+        "dream-reaudit" => {
+            let Some(file) = query_param(path, "file") else {
+                return ActResult {
+                    ok: false,
+                    output: "dream reaudit: missing file".to_string(),
+                };
+            };
+            let day = query_param(path, "day");
+            let day_ok = day.is_none() || crate::status::plain_path_segment(day.unwrap_or(""));
+            if !crate::status::plain_path_segment(file) || !day_ok {
+                return ActResult {
+                    ok: false,
+                    output: "dream reaudit: day/file must be plain path segments".to_string(),
+                };
+            }
+            let relative = day.map_or_else(
+                || Path::new("memory/staging").join(file),
+                |day| Path::new("memory/staging").join(day).join(file),
+            );
+            if !root.join(&relative).is_file() {
+                return ActResult {
+                    ok: false,
+                    output: format!("dream reaudit: batch not found: {}", relative.display()),
+                };
+            }
+            let command = format!("mini-agi dream --reaudit {}", relative.display());
+            (
+                vec![
+                    "dream".to_string(),
+                    "--reaudit".to_string(),
+                    relative.to_string_lossy().into_owned(),
+                ],
+                command,
+            )
+        }
         "loop-verify" => {
             let Some(case) = query_param(path, "case") else {
                 return ActResult {
@@ -3115,6 +3158,17 @@ mod tests {
         let r = act(&root, "/api/act/run-verify?case=nope");
         assert!(!r.ok, "missing run must fail");
         assert!(r.output.contains("run not found"));
+        // dream-reaudit: plain segments required, missing batch fails closed.
+        let r = act(&root, "/api/act/dream-reaudit");
+        assert!(!r.ok, "dream-reaudit without file must fail");
+        assert!(r.output.contains("missing file"));
+        let r = act(&root, "/api/act/dream-reaudit?file=../../etc/passwd");
+        assert!(!r.ok, "traversal file must be rejected");
+        let r = act(&root, "/api/act/dream-reaudit?day=..&file=001.md");
+        assert!(!r.ok, "traversal day must be rejected");
+        let r = act(&root, "/api/act/dream-reaudit?day=2026-08-06&file=nope.md");
+        assert!(!r.ok, "missing batch must fail");
+        assert!(r.output.contains("batch not found"));
         // loop-verify: plain-segment case required, missing run fails closed.
         let r = act(&root, "/api/act/loop-verify");
         assert!(!r.ok, "loop-verify without case must fail");
