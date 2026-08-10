@@ -21,6 +21,7 @@ pub mod loopcmd;
 pub mod memory;
 pub mod metrics;
 pub mod mismatch;
+pub mod redact;
 pub mod skills;
 pub mod store;
 pub mod ticket;

@@ -3,6 +3,7 @@
 //! built the same JSON in two places that drifted apart).
 
 use mini_agi_core::capture::CapturedStep;
+use mini_agi_core::redact;
 
 /// Build a truthful run.json draft from captured steps.
 ///
@@ -29,7 +30,7 @@ pub fn build_run_draft(
         .map(|(i, s)| {
             serde_json::json!({
                 "step": i + 1,
-                "action": s.action,
+                "action": redact::redact(&s.action),
                 "tool": s.tool,
                 "ok": s.ok,
                 "goal_aligned": null,
@@ -91,6 +92,28 @@ mod tests {
         assert_eq!(d["verify_target"], "workdir");
         assert_eq!(d["scope"][0], "src/");
         assert_eq!(d["trajectory"][0]["action"], "make verify");
+    }
+
+    #[test]
+    fn draft_redacts_credential_values_in_actions() {
+        // TICKET-007 (review v2-001 #5): run.json trajectories never
+        // carry credential material — deny-by-default redaction applies
+        // to every captured action string.
+        let d = build_run_draft(
+            "g",
+            &[],
+            &[step(
+                "exec",
+                "curl -H 'Authorization: Bearer secret' -p pw https://x",
+            )],
+            None,
+            None,
+            None,
+        );
+        let json = d.to_string();
+        assert!(!json.contains("Bearer secret"), "{json}");
+        assert!(!json.contains("-p pw"), "{json}");
+        assert!(json.contains("[REDACTED]"), "{json}");
     }
 
     #[test]
