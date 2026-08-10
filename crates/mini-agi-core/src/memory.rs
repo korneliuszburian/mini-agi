@@ -1301,6 +1301,203 @@ mod tests {
         root
     }
 
+    fn consolidate_opts(dry_run: bool) -> ConsolidateOptions {
+        ConsolidateOptions {
+            domain: "general".to_string(),
+            require_signoff: false,
+            dry_run,
+        }
+    }
+
+    #[test]
+    fn extract_candidates_enforces_boundaries() {
+        // TICKET-006 acceptance 4: FACT: lines (case/whitespace tolerant,
+        // empty skipped), bullet payload >= 8 chars, prose never extracted,
+        // CRLF does not leak '\r' into facts.
+        let input = "# Header line\nsome plain prose sentence here\n\nFACT: an alpha fact\n  fact: lower case marker works\nFACT:\n- sevench\n- eightchar\n* star bullet fact\n- 12345678\r\n";
+        let out = extract_candidates(input);
+        assert_eq!(
+            out,
+            vec![
+                "an alpha fact".to_string(),
+                "lower case marker works".to_string(),
+                "eightchar".to_string(),
+                "star bullet fact".to_string(),
+                "12345678".to_string(),
+            ]
+        );
+        for fact in &out {
+            assert!(
+                !fact.contains('\r'),
+                "CRLF must not leak into facts: {fact:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn consolidate_empty_buffer_is_an_error() {
+        let root = tmp_root("empty-buffer");
+        assert!(matches!(
+            consolidate(&root, "", "t", &consolidate_opts(false)),
+            Err(MemoryError::NoFacts)
+        ));
+        assert!(matches!(
+            consolidate(&root, "  \n\n  ", "t", &consolidate_opts(false)),
+            Err(MemoryError::NoFacts)
+        ));
+    }
+
+    #[test]
+    fn consolidate_skips_facts_known_from_earlier_entries() {
+        // TICKET-006 acceptance 1: dedup is repo-wide — a fact already in
+        // a PREVIOUS date's entry is skipped, newer facts still land.
+        let root = tmp_root("cross-date-dedup");
+        let old_body = "the widget handle is ergonomic";
+        let day = root.join(ENTRIES_REL).join("2026-07-31");
+        fs::create_dir_all(&day).unwrap();
+        fs::write(
+            day.join("2026-07-31-001.md"),
+            format!("# Canonical entry 2026-07-31-001 (consolidated from seed)\n\n## F-000 `{}`\n\n{old_body}\n", fact_id(old_body)),
+        )
+        .unwrap();
+        let buffer =
+            format!("FACT: {old_body}\n\nFACT: a freshly discovered fact about the motor\n");
+        let out = consolidate(&root, &buffer, "t6", &consolidate_opts(false)).unwrap();
+        assert_eq!(out.new_facts, 1, "only the new fact lands");
+        assert_eq!(
+            out.skipped, 1,
+            "the earlier-entry fact is skipped repo-wide"
+        );
+        let entry = out.entry.expect("a new entry is written");
+        let text = fs::read_to_string(&entry.path).unwrap();
+        assert!(text.contains("freshly discovered fact about the motor"));
+        assert!(
+            !text.contains(old_body),
+            "the duplicate must not be re-written"
+        );
+    }
+
+    #[test]
+    fn consolidate_numbers_per_day_continuously() {
+        // TICKET-006 acceptance 2: an empty today starts at -001 even with
+        // a previous-date history; subsequent entries continue the day's
+        // sequence.
+        let root = tmp_root("per-day-numbering");
+        let yesterday = root.join(ENTRIES_REL).join("2026-07-31");
+        fs::create_dir_all(&yesterday).unwrap();
+        fs::write(
+            yesterday.join("2026-07-31-001.md"),
+            "# seed one\n\n## F-000 `aaaaaaaaaaaaaaaa`\n\nx\n",
+        )
+        .unwrap();
+        fs::write(
+            yesterday.join("2026-07-31-002.md"),
+            "# seed two\n\n## F-000 `bbbbbbbbbbbbbbbb`\n\nx\n",
+        )
+        .unwrap();
+        let first = consolidate(
+            &root,
+            "FACT: first fact of the day",
+            "t6",
+            &consolidate_opts(false),
+        )
+        .unwrap()
+        .entry
+        .unwrap();
+        let today = utc_now_date();
+        assert_eq!(
+            first.seq, 1,
+            "previous-date history does not advance today's sequence"
+        );
+        assert_eq!(
+            first.path,
+            root.join(ENTRIES_REL)
+                .join(&today)
+                .join(format!("{today}-001.md"))
+        );
+        let second = consolidate(
+            &root,
+            "FACT: second fact of the day",
+            "t6",
+            &consolidate_opts(false),
+        )
+        .unwrap()
+        .entry
+        .unwrap();
+        assert_eq!(second.seq, 2, "N existing entries today -> 00N+1");
+    }
+
+    #[test]
+    fn consolidate_dry_run_plans_but_writes_nothing() {
+        // TICKET-006 acceptance 3: --dry-run reports the planned entry and
+        // counts, yet creates no entry file and no directories.
+        let root = tmp_root("dry-run");
+        let out = consolidate(
+            &root,
+            "FACT: planned fact one\n\nFACT: planned fact two",
+            "t6",
+            &consolidate_opts(true),
+        )
+        .unwrap();
+        assert_eq!(out.new_facts, 2);
+        assert_eq!(out.skipped, 0);
+        assert!(out.entry.is_some(), "dry-run reports the planned entry");
+        let entries_root = root.join(ENTRIES_REL);
+        if entries_root.exists() {
+            fn count_md(dir: &Path) -> usize {
+                std::fs::read_dir(dir)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
+                    .count()
+            }
+            assert_eq!(count_md(&entries_root), 0, "dry-run must not write entries");
+        }
+    }
+
+    #[test]
+    fn consolidate_signoff_routes_wording_variants_to_queue() {
+        // TICKET-008 D1 (ADR-0002): a candidate differing from a known
+        // fact only by wording (same first 40 chars) goes to
+        // memory/review/contested-<date>.md, never to canonical.
+        let root = tmp_root("signoff-queue");
+        let known = "deterministic verification gates run before any model judge";
+        let variant = "deterministic verification gates run before model judging";
+        assert_eq!(
+            &known[..40],
+            &variant[..40],
+            "fixture must share the first 40 chars"
+        );
+        consolidate(
+            &root,
+            &format!("FACT: {known}"),
+            "seed",
+            &consolidate_opts(false),
+        )
+        .unwrap();
+        let mut opts = consolidate_opts(false);
+        opts.require_signoff = true;
+        let out = consolidate(&root, &format!("FACT: {variant}"), "t6b", &opts).unwrap();
+        assert_eq!(
+            out.new_facts, 0,
+            "wording variant must not land in canonical"
+        );
+        assert_eq!(out.skipped, 1);
+        assert!(out.entry.is_none(), "no canonical entry for a queued fact");
+        let review_root = root.join("memory/review");
+        let queued: Vec<String> = std::fs::read_dir(&review_root)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|e| e.path().is_file())
+            .map(|e| fs::read_to_string(e.path()).unwrap_or_default())
+            .collect();
+        assert_eq!(queued.len(), 1, "one contested queue file written");
+        assert!(queued[0].contains(variant), "queue records the candidate");
+        assert!(queued[0].contains("t6b"), "queue records the source");
+    }
+
     #[test]
     fn supersede_writes_lineage_and_soft_deletes_from_views() {
         let root = tmp_root("supersede");
