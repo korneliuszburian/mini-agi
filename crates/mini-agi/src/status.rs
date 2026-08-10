@@ -75,6 +75,9 @@ pub struct RunVerification {
     pub command: Option<String>,
     /// Declared target repo (`verify_target`).
     pub target: Option<String>,
+    /// The declared target directory no longer exists, so the verifier
+    /// cannot run from disk (the claim can never gain proof).
+    pub target_missing: bool,
     /// SHA-256 of the current run.json bytes.
     pub run_sha256: String,
     /// Exact pasteable command the human can run.
@@ -180,6 +183,9 @@ fn run_verification(
     attribution: &[mini_agi_core::verifier::VerifyAttribution],
 ) -> RunVerification {
     let declared = command.is_some() && target.is_some();
+    let target_missing = target
+        .as_deref()
+        .is_some_and(|target_path| !Path::new(target_path).is_dir());
     let matching: Vec<&mini_agi_core::verifier::VerifyAttribution> = attribution
         .iter()
         .rev()
@@ -206,6 +212,11 @@ fn run_verification(
             "disagrees" => "disagrees",
             _ => "required",
         }
+    } else if target_missing {
+        // The verifier can never run — a claim that cannot gain proof is
+        // unverified, not a pending action. `required` (and its attention
+        // item) must mean "verification is expected of you".
+        "unverified"
     } else {
         "required"
     };
@@ -214,9 +225,10 @@ fn run_verification(
         declared,
         command,
         target,
+        target_missing,
         run_sha256: run_sha256.to_string(),
         command_text: format!("mini-agi run verify {run_file}"),
-        execute_path: (declared && plain_path_segment(case))
+        execute_path: (declared && !target_missing && plain_path_segment(case))
             .then(|| format!("/api/act/run-verify?case={case}")),
         evidence: exact.map(|row| evidence_view(row, true)),
         legacy_evidence: legacy.map(|row| evidence_view(row, false)),
@@ -795,6 +807,45 @@ pub fn repository_status(root: &Path) -> RepositoryStatus {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    fn run_verification_with(target_path: &std::path::Path) -> RunVerification {
+        run_verification(
+            "case-a",
+            "evals/cases/case-a/run.json",
+            "abc",
+            Some("make verify".to_string()),
+            Some(target_path.to_string_lossy().into_owned()),
+            &[],
+        )
+    }
+
+    #[test]
+    fn missing_target_is_unverified_not_required() {
+        let root = tmp_root("missing-target");
+        let gone = root.join("gone");
+        let v = run_verification_with(&gone);
+        assert_eq!(
+            v.state, "unverified",
+            "a claim that can never gain proof is unverified, not a pending action"
+        );
+        assert!(v.target_missing);
+        assert!(
+            v.execute_path.is_none(),
+            "no run-verify route for an unstunnable verifier"
+        );
+    }
+
+    #[test]
+    fn live_target_stays_required_until_attribution() {
+        let root = tmp_root("live-target");
+        let v = run_verification_with(&root);
+        assert_eq!(v.state, "required");
+        assert!(!v.target_missing);
+        assert_eq!(
+            v.execute_path.as_deref(),
+            Some("/api/act/run-verify?case=case-a")
+        );
+    }
 
     fn tmp_root(tag: &str) -> std::path::PathBuf {
         let root = std::env::temp_dir().join(format!("mag-status-{}-{}", tag, std::process::id()));
