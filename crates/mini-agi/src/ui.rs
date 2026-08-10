@@ -877,6 +877,10 @@ const INDEX_HTML: &str = r#"<!doctype html>
                 <div><p class="panel__eyebrow">Evidence</p><h2 id="heading-runs" class="panel__title">Runs &amp; Verification</h2></div>
                 <p id="summary-runs" class="panel__summary"></p>
               </div>
+              <div class="cluster" role="group" aria-label="Runs view options">
+                <button class="button button--small" type="button" id="runtogrp" data-group-runs>Group: status</button>
+                <button class="button button--small" type="button" id="runtsort" data-sort-runs>Sort: newest</button>
+              </div>
               <div id="runs"></div>
             </div>
 
@@ -975,6 +979,8 @@ const INDEX_HTML: &str = r#"<!doctype html>
     var firstResponse = false;
     var latest = null;
     var expandedRuns = false;
+      var runsGroup = "state";
+      var runsSort = "newest";
     var expandedTickets = false;
     var pendingRuns = {};
     var activeFilter = null;
@@ -1149,27 +1155,58 @@ const INDEX_HTML: &str = r#"<!doctype html>
     }
     function renderRuns(data) {
       var rows = (data.runs.rows || []);
-      var shown = expandedRuns ? rows : rows.slice(0, 12);
+      var ordered = rows.slice();
+      ordered.sort(runsSort === "composite"
+        ? function (a, b) { var sa = a.composite == null ? 0 : a.composite, sb = b.composite == null ? 0 : b.composite; return sb - sa; }
+        : function (a, b) { return b.modified_at_ms - a.modified_at_ms; });
+      var shown = expandedRuns ? ordered : ordered.slice(0, 12);
       setText("summary-runs", data.runs.verified_achieved_runs + " verified · " + data.runs.achieved_runs + " claimed" + (activeFilter ? " · filtered" : ""));
       if (!rows.length) { patch("runs", '<p class="empty">Idle · no indexed runs.</p>'); return; }
-      var html = '<div class="table-shell"><table><thead><tr><th>Run</th><th>Claim</th><th>Verification</th><th data-align="right">Composite</th><th data-align="right" data-optional>Cost</th><th data-optional>Freshness</th></tr></thead><tbody>';
+      byId("runtogrp").textContent = runsGroup === "state" ? "Group: status" : "Group: off";
+      byId("runtsort").textContent = runsSort === "composite" ? "Sort: score" : "Sort: newest";
+      var cols = "<thead><tr><th>Run</th><th>Claim</th><th>Verification</th><th data-align=\"right\">Composite</th><th data-align=\"right\" data-optional>Cost</th><th data-optional>Freshness</th></tr></thead>";
+      function emitRows(list) {
+        list.forEach(function (row) {
+          var critical = row.verification.state === "disagrees";
+          var warning = row.achieved && row.verification.state !== "verified";
+          var vMark = row.verification.state === "verified" || row.verification.state === "finished" ? "verified" : critical || warning ? "needs-review" : "pending";
+          var filterOk = !activeFilter ? true : activeFilter === "review" ? vMark === "needs-review" : activeFilter === "verified" ? vMark === "verified" : vMark === "pending";
+          if (!filterOk) return;
+          runShown += 1;
+          html += '<tr data-state="' + (critical ? "critical" : warning ? "warning" : "") + '" data-verification="' + vMark + '"><td><details data-detail-key="run-' + ESC(row.case) + '"><summary><span class="row-title data">' + ESC(row.case) + '</span></summary><div class="detail__body flow"><p>' + ESC(row.goal) + '</p><dl class="detail__meta"><dt>run file</dt><dd>' + ESC(row.run_file) + '</dd><dt>worker</dt><dd>' + ESC(row.worker || "unreported") + '</dd><dt>steps</dt><dd>' + number(row.n_steps) + '</dd><dt>tokens</dt><dd>' + number(row.tokens_total) + '</dd><dt>declared gate</dt><dd>' + ESC(row.verification.command || "none") + '</dd><dt>target</dt><dd>' + ESC(row.verification.target || "none") + '</dd><dt>run fingerprint</dt><dd>' + ESC(row.verification.run_sha256) + '</dd></dl>';
+          if (row.verification.evidence) html += '<p>Evidence: ' + ESC(row.verification.evidence.status) + ' · ' + ESC(row.verification.evidence.at) + ' · <span class="data">' + ESC(row.verification.evidence.log) + '</span></p>';
+          if (row.verification.legacy_evidence && !row.verification.evidence) html += '<p>Legacy check exists but is not bound to these run bytes; verification is still required.</p>';
+          html += commandHtml(row.verification.command_text, row.verification.execute_path, "This executes the run-declared verifier command in its declared target and writes attribution evidence. Continue?") + '</div></details></td>';
+          html += '<td>' + badge(row.achieved ? "warn" : "info", row.achieved ? "achieved claim" : "failed claim") + '</td><td>' + verificationBadge(row) + '</td>';
+          html += '<td data-align="right" class="score">' + score(row.composite) + '</td><td data-align="right" data-optional class="data">' + money(row.cost_usd, 5) + '</td><td data-optional>' + timeHtml(row.modified_at_ms, "unknown") + '</td></tr>';
+        });
+      }
+      var html = "";
       var runShown = 0;
-      shown.forEach(function (row) {
-        var critical = row.verification.state === "disagrees";
-        var warning = row.achieved && row.verification.state !== "verified";
-        var vMark = row.verification.state === "verified" || row.verification.state === "finished" ? "verified" : critical || warning ? "needs-review" : "pending";
-        var filterOk = !activeFilter ? true : activeFilter === "review" ? vMark === "needs-review" : activeFilter === "verified" ? vMark === "verified" : vMark === "pending";
-        if (!filterOk) return;
-        runShown += 1;
-        html += '<tr data-state="' + (critical ? "critical" : warning ? "warning" : "") + '" data-verification="' + vMark + '"><td><details data-detail-key="run-' + ESC(row.case) + '"><summary><span class="row-title data">' + ESC(row.case) + '</span></summary><div class="detail__body flow"><p>' + ESC(row.goal) + '</p><dl class="detail__meta"><dt>run file</dt><dd>' + ESC(row.run_file) + '</dd><dt>worker</dt><dd>' + ESC(row.worker || "unreported") + '</dd><dt>steps</dt><dd>' + number(row.n_steps) + '</dd><dt>tokens</dt><dd>' + number(row.tokens_total) + '</dd><dt>declared gate</dt><dd>' + ESC(row.verification.command || "none") + '</dd><dt>target</dt><dd>' + ESC(row.verification.target || "none") + '</dd><dt>run fingerprint</dt><dd>' + ESC(row.verification.run_sha256) + '</dd></dl>';
-        if (row.verification.evidence) html += '<p>Evidence: ' + ESC(row.verification.evidence.status) + ' · ' + ESC(row.verification.evidence.at) + ' · <span class="data">' + ESC(row.verification.evidence.log) + '</span></p>';
-        if (row.verification.legacy_evidence && !row.verification.evidence) html += '<p>Legacy check exists but is not bound to these run bytes; verification is still required.</p>';
-        html += commandHtml(row.verification.command_text, row.verification.execute_path, "This executes the run-declared verifier command in its declared target and writes attribution evidence. Continue?") + '</div></details></td>';
-        html += '<td>' + badge(row.achieved ? "warn" : "info", row.achieved ? "achieved claim" : "failed claim") + '</td><td>' + verificationBadge(row) + '</td>';
-        html += '<td data-align="right" class="score">' + score(row.composite) + '</td><td data-align="right" data-optional class="data">' + money(row.cost_usd, 5) + '</td><td data-optional>' + timeHtml(row.modified_at_ms, "unknown") + '</td></tr>';
-      });
-      html += "</tbody></table></div>";
-      if (runShown === 0) html += '<tr><td colspan="6"><p class="empty">Nothing here under the active filter.</p></td></tr>';
+      if (runsGroup === "state") {
+        var buckets = [["verified", "Verified", []], ["needs-review", "Needs review", []], ["pending", "Pending", []]];
+        shown.forEach(function (row) {
+          var critical = row.verification.state === "disagrees";
+          var vMark = row.verification.state === "verified" || row.verification.state === "finished" ? "verified" : critical || row.achieved ? "needs-review" : "pending";
+          var filterOk = !activeFilter ? true : activeFilter === "review" ? vMark === "needs-review" : activeFilter === "verified" ? vMark === "verified" : vMark === "pending";
+          if (!filterOk) return;
+          var b = vMark === "verified" ? buckets[0] : vMark === "needs-review" ? buckets[1] : buckets[2];
+          b[2].push(row);
+        });
+        buckets.forEach(function (g) {
+          if (!g[2].length) return;
+          var capped = expandedRuns ? g[2] : g[2].slice(0, 12);
+          html += '<div class="runs-group"><div class="repel panel__subtitle-row"><h4 class="panel__subtitle">' + g[1] + '</h4><span class="data">' + g[2].length + '</span></div><div class="table-shell"><table>' + cols + '<tbody>';
+          emitRows(capped);
+          html += '</tbody></table></div></div>';
+        });
+        if (runShown === 0) html += '<p class="empty">Nothing here under the active filter.</p>';
+      } else {
+        html += '<div class="table-shell"><table>' + cols + '<tbody>';
+        emitRows(shown);
+        html += '</tbody></table></div>';
+        if (runShown === 0) html += '<p class="empty">Nothing here under the active filter.</p>';
+      }
       if (rows.length > 12) html += '<p><button class="button" type="button" data-expand-runs data-focus-key="expand-runs">' + (expandedRuns ? "Show newest 12" : "Show all " + rows.length) + '</button></p>';
       patch("runs", html);
     }
@@ -1507,6 +1544,10 @@ const INDEX_HTML: &str = r#"<!doctype html>
         if (!confirmation || window.confirm(confirmation + "\n\n" + button.getAttribute("data-command"))) action(button.getAttribute("data-action"), button.getAttribute("data-command"), button);
       } else if (button.hasAttribute("data-scroll-panel")) {
         scrollToPanel(button.getAttribute("data-scroll-panel"));
+      } else if (button.hasAttribute("data-group-runs")) {
+        runsGroup = runsGroup === "state" ? "off" : "state"; if (latest) renderRuns(latest);
+      } else if (button.hasAttribute("data-sort-runs")) {
+        runsSort = runsSort === "composite" ? "newest" : "composite"; if (latest) renderRuns(latest);
       } else if (button.hasAttribute("data-expand-runs")) {
         expandedRuns = !expandedRuns; if (latest) renderRuns(latest);
       } else if (button.hasAttribute("data-expand-tickets")) {
