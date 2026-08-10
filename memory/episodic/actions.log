@@ -15,3 +15,5 @@
 2026-08-06T17:34:52Z human ui 2e016371299d5932 mem verify
 2026-08-07T07:17:14Z local loop-verify 9f01687e6925ecd3 codex-exp-003-rerun
 2026-08-10T09:19:43Z human ui 5021392d51fa04e2 mini-agi dream --idle
+2026-08-10T19:09:10Z kernel run-verify 080efb55ef4b8e14 afk-max-idle
+2026-08-10T19:09:11Z kernel run-verify b96f37f9bae6f8f5 verify-gate-full-output
