@@ -414,11 +414,15 @@ const INDEX_HTML: &str = r#"<!doctype html>
       font-weight: 450;
       font-variant-numeric: tabular-nums;
     }
-    .pill[data-state="review"] {
+    .pill[data-filter] { cursor: pointer; }
+    .pill[data-state="review"] { color: var(--review); }
+    .pill[data-active="true"] {
       background: var(--filter-selected-bg);
       border-color: transparent;
       color: var(--filter-selected-ink);
     }
+    .pill[data-active="true"][data-state="review"] { background: var(--review-bg); color: var(--review); }
+    .pill[data-active="true"][data-state="ok"] { background: var(--approved-bg); color: var(--approved); }
     .pill[data-state="ok"] { color: var(--approved); }
     .pill strong { font-weight: 650; }
 
@@ -776,12 +780,12 @@ const INDEX_HTML: &str = r#"<!doctype html>
 
         <div class="sidebar__group">
           <p class="sidebar__heading">Memory core</p>
-          <div class="nav-row" data-scroll="panel-gaps">
+          <div class="nav-row" data-scroll="panel-runs">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
             <span class="nav-row__label">All runs</span>
             <span class="nav-row__count" id="nav-entries">0</span>
           </div>
-          <div class="nav-row" data-scroll="panel-gaps">
+          <div class="nav-row" data-scroll="attention">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9a1.8 1.8 0 0 1 3.4 0l1.2 3.6a1.8 1.8 0 0 0 1.1 1.1l3.6 1.2a1.8 1.8 0 0 1 0 3.4l-3.6 1.2a1.8 1.8 0 0 0-1.1 1.1l-1.2 3.6a1.8 1.8 0 0 1-3.4 0l-1.2-3.6a1.8 1.8 0 0 0-1.1-1.1l-3.6-1.2a1.8 1.8 0 0 1 0-3.4l3.6-1.2a1.8 1.8 0 0 0 1.1-1.1z"/></svg>
             <span class="nav-row__label">Pending review</span>
             <span class="nav-row__count" id="nav-pending">0</span>
@@ -795,17 +799,17 @@ const INDEX_HTML: &str = r#"<!doctype html>
 
         <div class="sidebar__group">
           <p class="sidebar__heading">Sources</p>
-          <div class="nav-row">
+          <div class="nav-row" data-scroll="panel-repository">
             <span class="source-dot" id="dot-repo" data-state="off" aria-hidden="true"></span>
             <span class="nav-row__label">Repository</span>
             <span class="nav-row__count" id="nav-repo">—</span>
           </div>
-          <div class="nav-row">
+          <div class="nav-row" data-scroll="panel-workers">
             <span class="source-dot" id="dot-workers" data-state="off" aria-hidden="true"></span>
             <span class="nav-row__label">Workers</span>
             <span class="nav-row__count" id="nav-workers">—</span>
           </div>
-          <div class="nav-row">
+          <div class="nav-row" data-scroll="panel-runs">
             <span class="source-dot" id="dot-heartbeat" data-state="off" aria-hidden="true"></span>
             <span class="nav-row__label">Verifier heartbeat</span>
             <span class="nav-row__count" id="nav-heartbeat">—</span>
@@ -850,9 +854,9 @@ const INDEX_HTML: &str = r#"<!doctype html>
             </div>
           </div>
           <div class="page-head__filters cluster">
-            <span class="pill" data-state="review">Needs review (<strong id="pill-review">0</strong>)</span>
-            <span class="pill" data-state="ok">Verified (<strong id="pill-verified">0</strong>)</span>
-            <span class="pill">Pending (<strong id="pill-pending">0</strong>)</span>
+            <span class="pill" data-filter="review" data-state="review" title="Gaps, runs and tickets that need human attention" role="button" tabindex="0">Needs review (<strong id="pill-review">0</strong>)</span>
+            <span class="pill" data-filter="verified" data-state="ok" title="Runs the kernel verified deterministically" role="button" tabindex="0">Verified (<strong id="pill-verified">0</strong>)</span>
+            <span class="pill" data-filter="pending" title="Runs awaiting verification" role="button" tabindex="0">Pending (<strong id="pill-pending">0</strong>)</span>
           </div>
         </div>
 
@@ -894,7 +898,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
           </div>
 
           <div class="detail">
-            <div id="attention"></div>
+            <div id="panel-attention"><div id="attention"></div></div>
 
             <div id="panel-memory" class="panel" role="region" aria-labelledby="heading-memory">
               <div class="panel__head repel">
@@ -973,6 +977,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     var expandedRuns = false;
     var expandedTickets = false;
     var pendingRuns = {};
+    var activeFilter = null;
     var chatThread = null;
 
     function byId(id) { return document.getElementById(id); }
@@ -1116,20 +1121,25 @@ const INDEX_HTML: &str = r#"<!doctype html>
 
     function renderGaps(data) {
       var gaps = data.gaps || [];
-      setText("summary-gaps", gaps.length ? gaps.length + " open · target " + Number(data.target).toFixed(2) : "target " + Number(data.target).toFixed(2) + " · quiet");
+      setText("summary-gaps", gaps.length ? gaps.length + " open · target " + Number(data.target).toFixed(2) : "target " + Number(data.target).toFixed(2) + " · quiet" + (activeFilter ? " · filtered" : ""));
       if (!gaps.length) { patch("gaps", '<p class="empty">Idle · no open gaps.</p>'); return; }
       var html = '<div class="table-shell"><table><thead><tr><th>Case</th><th data-align="right">Best / target</th><th data-align="right">Distance</th><th>Attempts</th><th data-optional>Owner</th></tr></thead><tbody>';
+      var gapShown = 0;
       gaps.forEach(function (gap) {
         var best = gap.best_composite === null ? gap.composite : gap.best_composite;
         var ratio = data.target > 0 ? Math.max(0, Math.min(100, 100 * best / data.target)) : 0;
         var band = Math.round(ratio / 10);
         var rowState = gap.exhausted || gap.ticket_status === "CLOSED" ? "critical" : (!gap.ticket || !gap.claimant ? "warning" : "");
-        html += '<tr data-state="' + rowState + '"><td><div class="row-title">' + ESC(gap.case) + '</div><div class="cluster">' + (gap.ticket_status === "CLOSED" ? badge("bad", "closed ticket") : gap.exhausted ? badge("bad", "exhausted") : badge("info", gap.repair_signal || "gap")) + (gap.ticket ? '<button class="button" data-variant="quiet" type="button" data-scroll-panel="tickets">' + ESC(gap.ticket) + '</button>' : badge("warn", "no ticket")) + '</div></td>';
+        var filterOk = !activeFilter || activeFilter === "review" && rowState !== "";
+        if (!filterOk) return;
+        gapShown += 1;
+        html += '<tr data-state="' + rowState + '"><td><div class="row-title">' + ESC(gap.case) + '</div><div class="cluster">' + (gap.ticket_status === "CLOSED" ? badge("bad", "closed ticket") : gap.exhausted ? badge("bad", "exhausted") : badge("info", gap.repair_signal || "gap")) + (gap.ticket ? '<button class="button" data-variant="quiet" type="button" data-scroll-panel="tickets">' + ESC(gap.ticket) + '</button>' : badge("warn", "no ticket")) + '<button class="button" data-variant="quiet" type="button" data-action="/api/act/loop-verify?case=' + ESC(gap.case) + '" data-command="mini-agi loop verify ' + ESC(gap.case) + '" data-confirm="Executes the declared verifier for this case and closes the gap only on verifier pass. Continue?">Loop verify</button>' + '</div></td>';
         html += '<td data-align="right"><span class="score" data-state="' + (gap.delta > 0 ? "warn" : "ok") + '">' + score(best) + ' / ' + score(gap.target) + '</span><div class="progress-track" data-state="' + (gap.exhausted ? "bad" : "warn") + '" data-progress-band="' + band + '"><span class="progress-track__fill"></span></div></td>';
         html += '<td data-align="right" class="score" data-state="' + (gap.exhausted ? "bad" : "warn") + '">−' + score(gap.delta) + '</td>';
         html += '<td class="data">' + number(gap.attempts) + (gap.max_attempts === null ? "" : " / " + number(gap.max_attempts)) + '</td>';
         html += '<td data-optional>' + (gap.claimant ? '<div class="row-title">' + ESC(gap.claimant) + '</div><div class="row-subtitle">' + ESC(gap.ticket_status || "OPEN") + '</div>' : '<span class="row-subtitle">unclaimed</span>') + '</td></tr>';
       });
+      if (gapShown === 0) html += '<tr><td colspan="5"><p class="empty">Nothing here under the active filter.</p></td></tr>';
       patch("gaps", html + "</tbody></table></div>");
     }
 
@@ -1140,13 +1150,18 @@ const INDEX_HTML: &str = r#"<!doctype html>
     function renderRuns(data) {
       var rows = (data.runs.rows || []);
       var shown = expandedRuns ? rows : rows.slice(0, 12);
-      setText("summary-runs", data.runs.verified_achieved_runs + " verified · " + data.runs.achieved_runs + " claimed");
+      setText("summary-runs", data.runs.verified_achieved_runs + " verified · " + data.runs.achieved_runs + " claimed" + (activeFilter ? " · filtered" : ""));
       if (!rows.length) { patch("runs", '<p class="empty">Idle · no indexed runs.</p>'); return; }
       var html = '<div class="table-shell"><table><thead><tr><th>Run</th><th>Claim</th><th>Verification</th><th data-align="right">Composite</th><th data-align="right" data-optional>Cost</th><th data-optional>Freshness</th></tr></thead><tbody>';
+      var runShown = 0;
       shown.forEach(function (row) {
         var critical = row.verification.state === "disagrees";
         var warning = row.achieved && row.verification.state !== "verified";
-        html += '<tr data-state="' + (critical ? "critical" : warning ? "warning" : "") + '"><td><details data-detail-key="run-' + ESC(row.case) + '"><summary><span class="row-title data">' + ESC(row.case) + '</span></summary><div class="detail__body flow"><p>' + ESC(row.goal) + '</p><dl class="detail__meta"><dt>run file</dt><dd>' + ESC(row.run_file) + '</dd><dt>worker</dt><dd>' + ESC(row.worker || "unreported") + '</dd><dt>steps</dt><dd>' + number(row.n_steps) + '</dd><dt>tokens</dt><dd>' + number(row.tokens_total) + '</dd><dt>declared gate</dt><dd>' + ESC(row.verification.command || "none") + '</dd><dt>target</dt><dd>' + ESC(row.verification.target || "none") + '</dd><dt>run fingerprint</dt><dd>' + ESC(row.verification.run_sha256) + '</dd></dl>';
+        var vMark = row.verification.state === "verified" || row.verification.state === "finished" ? "verified" : critical || warning ? "needs-review" : "pending";
+        var filterOk = !activeFilter ? true : activeFilter === "review" ? vMark === "needs-review" : activeFilter === "verified" ? vMark === "verified" : vMark === "pending";
+        if (!filterOk) return;
+        runShown += 1;
+        html += '<tr data-state="' + (critical ? "critical" : warning ? "warning" : "") + '" data-verification="' + vMark + '"><td><details data-detail-key="run-' + ESC(row.case) + '"><summary><span class="row-title data">' + ESC(row.case) + '</span></summary><div class="detail__body flow"><p>' + ESC(row.goal) + '</p><dl class="detail__meta"><dt>run file</dt><dd>' + ESC(row.run_file) + '</dd><dt>worker</dt><dd>' + ESC(row.worker || "unreported") + '</dd><dt>steps</dt><dd>' + number(row.n_steps) + '</dd><dt>tokens</dt><dd>' + number(row.tokens_total) + '</dd><dt>declared gate</dt><dd>' + ESC(row.verification.command || "none") + '</dd><dt>target</dt><dd>' + ESC(row.verification.target || "none") + '</dd><dt>run fingerprint</dt><dd>' + ESC(row.verification.run_sha256) + '</dd></dl>';
         if (row.verification.evidence) html += '<p>Evidence: ' + ESC(row.verification.evidence.status) + ' · ' + ESC(row.verification.evidence.at) + ' · <span class="data">' + ESC(row.verification.evidence.log) + '</span></p>';
         if (row.verification.legacy_evidence && !row.verification.evidence) html += '<p>Legacy check exists but is not bound to these run bytes; verification is still required.</p>';
         html += commandHtml(row.verification.command_text, row.verification.execute_path, "This executes the run-declared verifier command in its declared target and writes attribution evidence. Continue?") + '</div></details></td>';
@@ -1154,6 +1169,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
         html += '<td data-align="right" class="score">' + score(row.composite) + '</td><td data-align="right" data-optional class="data">' + money(row.cost_usd, 5) + '</td><td data-optional>' + timeHtml(row.modified_at_ms, "unknown") + '</td></tr>';
       });
       html += "</tbody></table></div>";
+      if (runShown === 0) html += '<tr><td colspan="6"><p class="empty">Nothing here under the active filter.</p></td></tr>';
       if (rows.length > 12) html += '<p><button class="button" type="button" data-expand-runs data-focus-key="expand-runs">' + (expandedRuns ? "Show newest 12" : "Show all " + rows.length) + '</button></p>';
       patch("runs", html);
     }
@@ -1248,7 +1264,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     function renderTickets(data) {
       var tickets = data.tickets || [];
       var open = tickets.filter(function (ticket) { return ticket.status === "OPEN"; }).length;
-      setText("summary-tickets", open + " open · " + tickets.length + " total");
+      setText("summary-tickets", open + " open · " + tickets.length + " total" + (activeFilter ? " · filtered" : ""));
       var ordered = tickets.slice().sort(function (left, right) {
         if ((left.status === "OPEN") !== (right.status === "OPEN")) return left.status === "OPEN" ? -1 : 1;
         return left.id.localeCompare(right.id);
@@ -1256,10 +1272,15 @@ const INDEX_HTML: &str = r#"<!doctype html>
       var shown = expandedTickets ? ordered : ordered.filter(function (ticket) { return ticket.status === "OPEN"; }).slice(0, 12);
       if (!shown.length) { patch("tickets", '<p class="empty">Quiet · no open tickets.</p>'); return; }
       var html = '<div class="stack">';
+      var ticketShown = 0;
       shown.forEach(function (ticket) {
+        var ticketOk = !activeFilter ? true : activeFilter === "review" ? ticket.status === "OPEN" : activeFilter === "verified" ? ticket.status === "CLOSED" : ticket.status === "OPEN" && !ticket.claimant;
+        if (!ticketOk) return;
+        ticketShown += 1;
         html += '<div class="stack__item"><details data-detail-key="ticket-' + ESC(ticket.id) + '"><summary><span class="cluster">' + badge(ticket.status === "CLOSED" ? "ok" : "warn", ticket.status) + '<span class="row-title data">' + ESC(ticket.id) + '</span><span>' + ESC(ticket.title) + '</span></span></summary><div class="detail__body flow"><p>' + ESC(ticket.goal) + '</p><dl class="detail__meta"><dt>claimant</dt><dd>' + ESC(ticket.claimant || "unclaimed") + '</dd><dt>claimed since</dt><dd>' + ESC(ticket.claimed_since || "—") + '</dd><dt>blocked by</dt><dd>' + ESC((ticket.blocked_by || []).join(", ") || "none") + '</dd><dt>scope</dt><dd>' + ESC((ticket.scope || []).join(", ") || "unspecified") + '</dd></dl>' + commandHtml(ticket.command, null, null) + '</div></details></div>';
       });
       html += "</div>";
+      if (ticketShown === 0) html += '<p class="empty">Nothing here under the active filter.</p>';
       if (ordered.length > shown.length || expandedTickets) html += '<p><button class="button" type="button" data-expand-tickets data-focus-key="expand-tickets">' + (expandedTickets ? "Show open tickets" : "Show all " + ordered.length) + '</button></p>';
       patch("tickets", html);
     }
@@ -1454,6 +1475,16 @@ const INDEX_HTML: &str = r#"<!doctype html>
       }).then(function () { byId("chatsend").disabled = false; input.focus(); });
     }
 
+    function applyFilter(name) {
+      activeFilter = activeFilter === name ? null : name;
+      var pills = document.querySelectorAll("[data-filter]");
+      for (var i = 0; i < pills.length; i += 1) {
+        if (pills[i].getAttribute("data-filter") === activeFilter) pills[i].setAttribute("data-active", "true");
+        else pills[i].removeAttribute("data-active");
+      }
+      if (latest) render(latest);
+    }
+
     function scrollToPanel(name) {
       var panel = byId("panel-" + name);
       if (panel) { panel.scrollIntoView({ block: "start" }); panel.setAttribute("tabindex", "-1"); panel.focus(); }
@@ -1463,6 +1494,9 @@ const INDEX_HTML: &str = r#"<!doctype html>
       var scroller = event.target;
       while (scroller && scroller !== document && !scroller.hasAttribute("data-scroll")) scroller = scroller.parentNode;
       if (scroller && scroller !== document) { scrollToPanel(scroller.getAttribute("data-scroll")); return; }
+      var filterChip = event.target;
+      while (filterChip && filterChip !== document && !filterChip.hasAttribute("data-filter")) filterChip = filterChip.parentNode;
+      if (filterChip && filterChip !== document) { applyFilter(filterChip.getAttribute("data-filter")); return; }
       var button = closestButton(event.target);
       if (!button) return;
       if (button.hasAttribute("data-copy")) {
@@ -1485,6 +1519,18 @@ const INDEX_HTML: &str = r#"<!doctype html>
     byId("chatsend").addEventListener("click", chatSend);
     byId("chatinput").addEventListener("keydown", function (event) { if (event.key === "Enter") { event.preventDefault(); chatSend(); } });
     document.addEventListener("visibilitychange", function () { if (document.hidden) { if (timer !== null) window.clearTimeout(timer); timer = null; } else { poll(); } });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); return; }
+      var tag = document.activeElement ? document.activeElement.tagName : "";
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (document.activeElement && document.activeElement.hasAttribute && document.activeElement.hasAttribute("data-filter") && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        applyFilter(document.activeElement.getAttribute("data-filter"));
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); byId("chatinput").focus(); return; }
+      if (event.key === "/") { event.preventDefault(); byId("chatinput").focus(); }
+    });
 
     chatList();
     poll();
@@ -2669,6 +2715,32 @@ fn act(root: &Path, path: &str) -> ActResult {
                 command,
             )
         }
+        "loop-verify" => {
+            let Some(case) = query_param(path, "case") else {
+                return ActResult {
+                    ok: false,
+                    output: "loop verify: missing case".to_string(),
+                };
+            };
+            if !crate::status::plain_path_segment(case) {
+                return ActResult {
+                    ok: false,
+                    output: "loop verify: case must be a plain path segment".to_string(),
+                };
+            }
+            let relative = Path::new("evals/cases").join(case).join("run.json");
+            if !root.join(&relative).is_file() {
+                return ActResult {
+                    ok: false,
+                    output: format!("loop verify: run not found: {}", relative.display()),
+                };
+            }
+            let command = format!("mini-agi loop verify {case}");
+            (
+                vec!["loop".to_string(), "verify".to_string(), case.to_string()],
+                command,
+            )
+        }
         "signoff" => {
             let day = query_param(path, "day");
             let file = query_param(path, "file");
@@ -3042,6 +3114,16 @@ mod tests {
         assert!(!r.ok, "traversal case must be rejected");
         let r = act(&root, "/api/act/run-verify?case=nope");
         assert!(!r.ok, "missing run must fail");
+        assert!(r.output.contains("run not found"));
+        // loop-verify: plain-segment case required, missing run fails closed.
+        let r = act(&root, "/api/act/loop-verify");
+        assert!(!r.ok, "loop-verify without case must fail");
+        assert!(r.output.contains("missing case"));
+        let r = act(&root, "/api/act/loop-verify?case=../etc/passwd");
+        assert!(!r.ok, "traversal case must be rejected");
+        assert!(r.output.contains("plain path segment"));
+        let r = act(&root, "/api/act/loop-verify?case=nope");
+        assert!(!r.ok, "missing case run must fail");
         assert!(r.output.contains("run not found"));
     }
 
