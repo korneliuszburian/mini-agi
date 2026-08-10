@@ -831,3 +831,10 @@ research/what-are-the-most-notable-and-interesting-ai-agent-developme.md
 2026-08-09T07:40:39Z CHECKPOINT-ABORT nul-fix disallowed dirty paths: research/registry.json
 research/what-is-22-answer-briefly.md
 2026-08-09T08:14:40Z BEGIN ui-redesign -> 51737aa (clean)
+2026-08-09T12:31:42Z BEGIN skills-cap -> 2c7d30f
+2026-08-09T12:42:37Z STATUS skills-cap repo-wide verify.sh red on pre-existing supervisor/ui test failures (background session); my scope green: core 245/245, fmt+clippy clean on changed files
+2026-08-09T12:46:45Z BEGIN worker-reaper -> 0f50b59
+2026-08-09T13:19:38Z STATUS worker-reaper reverted — read-only scope violation; code changes undone
+2026-08-09T16:08:34Z VERIFY-FAIL ui-redesign @ 51737aa -> NO-ROLLBACK (crash-recovery repair: session died before verify; work completed and all 480 tests green in follow-up session 2026-08-09)
+2026-08-09T16:08:34Z VERIFY-FAIL skills-cap @ 11c7fae -> NO-ROLLBACK (crash-recovery repair: work landed 11c7fae; gate red on stale supervisor/cli tests, fixed 2026-08-09 follow-up)
+2026-08-09T16:08:34Z VERIFY-FAIL worker-reaper @ 0f50b59 -> NO-ROLLBACK (crash-recovery repair: session self-reverted, rev never committed)

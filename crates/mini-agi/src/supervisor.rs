@@ -676,7 +676,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let r = resolve(&ResolveInput {
-            goal_or_case: "make tests pass",
+            goal_or_case: "make-tests-pass",
             root: &root,
             workdir: &root,
             verify: None,
@@ -690,14 +690,14 @@ mod tests {
     fn ad_hoc_goal_with_verify_generates_a_spec() {
         let root = tmp_root("with-verify");
         let r = resolve(&ResolveInput {
-            goal_or_case: "make tests pass",
+            goal_or_case: "make-tests-pass",
             root: &root,
             workdir: &root,
             verify: Some("make verify"),
             target: Some(&root.join("target-dir")),
         })
         .unwrap();
-        assert_eq!(r.goal, "make tests pass");
+        assert_eq!(r.goal, "make-tests-pass");
         assert_eq!(r.verify_cmd, "make verify");
         assert_eq!(r.target, root.join("target-dir"));
         assert!(r.spec_text.contains("make verify"));

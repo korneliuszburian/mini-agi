@@ -2265,7 +2265,7 @@ fn cli_loop_parallel_fails_closed_without_verifier_and_on_bad_manifest() {
     // ids must error, not panic.
     let root = tmp_root("cpar");
     wipe(&root);
-    let no_verifier = run(&root, &["loop", "parallel", "some goal"]);
+    let no_verifier = run(&root, &["loop", "parallel", "some-goal"]);
     assert!(!no_verifier.status.success(), "{}", combined(&no_verifier));
     assert!(
         combined(&no_verifier).contains("--verify") || combined(&no_verifier).contains("P0-3"),
@@ -2980,7 +2980,7 @@ fn cli_loop_run_fails_fast_on_bad_args() {
         &[
             "loop",
             "run",
-            "some goal",
+            "some-goal",
             "--workdir",
             workdir.to_str().unwrap(),
             "--verify",
@@ -3000,7 +3000,7 @@ fn cli_loop_run_fails_fast_on_bad_args() {
         &[
             "loop",
             "run",
-            "some goal",
+            "some-goal",
             "--workdir",
             workdir.to_str().unwrap(),
             "--verify",

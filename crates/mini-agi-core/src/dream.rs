@@ -462,9 +462,8 @@ pub fn write_promotion_receipt(
 /// Whether a receipt still describes the CURRENT staged bytes.
 #[must_use]
 pub fn receipt_matches_staged(staged: &Path, receipt: &PromotionReceipt) -> bool {
-    std::fs::read(staged).is_ok_and(|bytes| {
-        crate::hash::source_sha256_bytes(&bytes) == receipt.staged_sha256
-    })
+    std::fs::read(staged)
+        .is_ok_and(|bytes| crate::hash::source_sha256_bytes(&bytes) == receipt.staged_sha256)
 }
 
 /// Apply auditor verdicts to staged facts (D2 promotion).

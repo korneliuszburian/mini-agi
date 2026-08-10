@@ -1440,9 +1440,9 @@ fn cmd_run_verify(run: &Path, dry_run: bool) -> ExitCode {
                         command: command.clone(),
                         target: target.clone(),
                         status: v.status.clone(),
-                        run_sha256: std::fs::read(run).ok().map(|bytes| {
-                            mini_agi_core::hash::source_sha256_bytes(&bytes)
-                        }),
+                        run_sha256: std::fs::read(run)
+                            .ok()
+                            .map(|bytes| mini_agi_core::hash::source_sha256_bytes(&bytes)),
                     },
                 )
             {
@@ -3287,17 +3287,17 @@ fn cmd_dream_promote(root: &Path, dry_run: bool) -> ExitCode {
     if !dry_run {
         // The application receipt is written LAST: a failure here is
         // loud and leaves the batch `pending`, never a false `applied`.
-        if let Err(e) = mini_agi_core::dream::write_promotion_receipt(
-            &latest,
-            promoted,
-            queued,
-            skipped,
-        ) {
+        if let Err(e) =
+            mini_agi_core::dream::write_promotion_receipt(&latest, promoted, queued, skipped)
+        {
             return fail(&format!(
                 "dream promote: verdicts were applied but the promotion receipt could not be written: {e}"
             ));
         }
-        println!("  promotion receipt: {}", latest.with_extension("promotion.json").display());
+        println!(
+            "  promotion receipt: {}",
+            latest.with_extension("promotion.json").display()
+        );
     }
     println!(
         "dream promote{}: {} promoted, {} queued (human), {} skipped — from {}",
@@ -3312,11 +3312,6 @@ fn cmd_dream_promote(root: &Path, dry_run: bool) -> ExitCode {
         latest.display()
     );
     ExitCode::SUCCESS
-}
-
-/// Candidate count in a staging file (ui.rs surface).
-pub(crate) fn read_staged_facts_count(path: &Path) -> usize {
-    read_staged_facts(path).map_or(0, |f| f.len())
 }
 
 /// Read staged `## S-NNN (domain)` blocks back from a staging file.

@@ -131,16 +131,18 @@ pub fn plain_path_segment(value: &str) -> bool {
         && value != "."
         && value != ".."
         && !value.starts_with('.')
-        && value.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
-        })
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
 
-/// SystemTime as epoch milliseconds (`0` before the Unix epoch).
+/// `SystemTime` as epoch milliseconds (`0` before the Unix epoch).
 #[must_use]
 pub fn system_time_ms(time: SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
-        .map_or(0, |duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 /// File mtime as epoch milliseconds, `None` when unreadable.
@@ -411,7 +413,7 @@ pub fn live_workers(root: &Path) -> Vec<WorkerStatus> {
         } else {
             "crashed"
         };
-        let stale = st.alive
+        let is_stale = st.alive
             && updated_at_ms.is_some_and(|updated| {
                 now_ms.saturating_sub(updated) > stale_after_seconds.saturating_mul(1000)
             });
@@ -431,7 +433,7 @@ pub fn live_workers(root: &Path) -> Vec<WorkerStatus> {
             report_ready: st.report_ready,
             alive: st.alive,
             state: state.to_string(),
-            stale,
+            stale: is_stale,
             stale_after_seconds,
             started_at_ms,
             updated_at_ms,
@@ -441,8 +443,8 @@ pub fn live_workers(root: &Path) -> Vec<WorkerStatus> {
     // Severity first (crashed > stale-working > working > finished),
     // freshness second: the human sees the broken before the rest.
     workers.sort_by(|left, right| {
-        fn rank(state: &str, stale: bool) -> u8 {
-            match (state, stale) {
+        fn rank(state: &str, is_stale: bool) -> u8 {
+            match (state, is_stale) {
                 ("crashed", _) => 0,
                 ("working", true) => 1,
                 ("working", false) => 2,
@@ -510,7 +512,12 @@ pub fn journal_snapshot(root: &Path, limit: usize) -> JournalSnapshot {
     let Ok(text) = std::fs::read_to_string(path) else {
         return JournalSnapshot {
             state: "absent".to_string(),
-            counts: JournalCounts { begin: 0, verify_pass: 0, verify_fail: 0, status: 0 },
+            counts: JournalCounts {
+                begin: 0,
+                verify_pass: 0,
+                verify_fail: 0,
+                status: 0,
+            },
             events: Vec::new(),
             anomalies: Vec::new(),
         };
@@ -522,7 +529,12 @@ pub fn journal_snapshot(root: &Path, limit: usize) -> JournalSnapshot {
         audit.historical.iter().map(|item| item.line_no).collect();
     let mut resolution: HashMap<usize, &str> = HashMap::new();
     let mut open: HashMap<String, usize> = HashMap::new();
-    let mut counts = JournalCounts { begin: 0, verify_pass: 0, verify_fail: 0, status: 0 };
+    let mut counts = JournalCounts {
+        begin: 0,
+        verify_pass: 0,
+        verify_fail: 0,
+        status: 0,
+    };
     for event in &parsed {
         match event.kind {
             JournalKind::Begin => {
@@ -604,11 +616,16 @@ pub fn journal_snapshot(root: &Path, limit: usize) -> JournalSnapshot {
     } else {
         "ok"
     };
-    JournalSnapshot { state: state.to_string(), counts, events, anomalies }
+    JournalSnapshot {
+        state: state.to_string(),
+        counts,
+        events,
+        anomalies,
+    }
 }
 
 /// Bounded in-process cache TTL for the read-only integrity scan.
-const MEMORY_SCAN_TTL: Duration = Duration::from_secs(60);
+const MEMORY_SCAN_TTL: Duration = Duration::from_mins(1);
 
 /// Live memory-integrity signal: the same deterministic findings
 /// `mem verify` reports, computed read-only with a short cache.
@@ -654,7 +671,10 @@ pub fn memory_health(root: &Path) -> MemoryHealth {
     let findings = if canonical.is_dir() {
         mini_agi_core::memory::integrity_findings(root)
     } else {
-        vec![format!("canonical entries directory is absent: {}", canonical.display())]
+        vec![format!(
+            "canonical entries directory is absent: {}",
+            canonical.display()
+        )]
     };
     let state = if !canonical.is_dir() {
         "unknown"
@@ -713,7 +733,12 @@ pub struct RepositoryStatus {
 pub fn repository_status(root: &Path) -> RepositoryStatus {
     let config = mini_agi_core::config::Config::load(root);
     let status = std::process::Command::new("git")
-        .args(["status", "--porcelain=v1", "--branch", "--untracked-files=normal"])
+        .args([
+            "status",
+            "--porcelain=v1",
+            "--branch",
+            "--untracked-files=normal",
+        ])
         .current_dir(root)
         .output();
     let revision = std::process::Command::new("git")
@@ -728,11 +753,18 @@ pub fn repository_status(root: &Path) -> RepositoryStatus {
         Ok(output) if output.status.success() => {
             let text = String::from_utf8_lossy(&output.stdout);
             let mut lines = text.lines();
-            let branch = lines.next().and_then(|line| line.strip_prefix("## ")).map(|line| {
-                line.split("...").next().unwrap_or(line)
-                    .split_whitespace().next().unwrap_or(line)
-                    .to_string()
-            });
+            let branch = lines
+                .next()
+                .and_then(|line| line.strip_prefix("## "))
+                .map(|line| {
+                    line.split("...")
+                        .next()
+                        .unwrap_or(line)
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or(line)
+                        .to_string()
+                });
             let changed = lines.filter(|line| !line.trim().is_empty()).count();
             (
                 if changed == 0 { "clean" } else { "dirty" }.to_string(),
