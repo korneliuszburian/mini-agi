@@ -1,4 +1,137 @@
 {
   "staged": "005.md",
-  "verdicts": []
+  "verdicts": [
+    {
+      "existing_id": null,
+      "index": 0,
+      "reason": "specific, verifiable claim about Generative Agents 2023 paper; no canonical fact addresses this domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 1,
+      "reason": "detailed TrueSkill evaluation with explicit numeric results; verifiable from published paper; no overlap with canonical facts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 2,
+      "reason": "specific architectural claim about MemGPT timed events; verifiable; no canonical fact covers this",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 3,
+      "reason": "detailed consolidation mechanics (70% warning, 100% flush, 50% eviction, recursive summary); verifiable; no canonical conflict",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 4,
+      "reason": "exact DMR accuracy numbers with model specification; verifiable; no canonical fact addresses this",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 5,
+      "reason": "specific description of Letta sleep-time compute as idle-time batch consolidation; verifiable; no canonical overlap",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 6,
+      "reason": "exact measured results (5x reduction, 13% GSM, 18% AIME, 2.5x cost); verifiable from published paper; no canonical conflict",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 7,
+      "reason": "detailed incremental ingestion pipeline steps with temporal extraction and edge invalidation; verifiable; new domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 8,
+      "reason": "design rationale with direct quote about dynamic community extension vs periodic refresh; verifiable; new domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 9,
+      "reason": "exact accuracy (+15.2%, +18.5%), latency (90% reduction), and token (115k→1.6k) numbers; verifiable; new domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 10,
+      "reason": "precise caveats with cross-benchmark scores including cross-vendor comparison; verifiable; new domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 11,
+      "reason": "specific consolidation pipeline (ADD/UPDATE/DELETE/NOOP, async summary module); verifiable; new domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 12,
+      "reason": "exact latency numbers (p50, p95) and token cost claims; verifiable; no canonical conflict",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 13,
+      "reason": "specific judge scores (J≈68.4, 26% improvement) with cross-vendor caveat (Zep 76.60 vs 72.93); verifiable; new domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 14,
+      "reason": "specific per-interaction pipeline (note construction, top-k links, memory evolution rewriting); verifiable; new domain",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 15,
+      "reason": "specific, quantitative A-MEM performance data sourced from S7; no canonical fact addresses external memory-system benchmarks — new durable domain knowledge",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 16,
+      "reason": "specific, quantitative A-MEM quality data on DialSim sourced from S7; canonical facts are silent on external agent memory evaluation",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 17,
+      "reason": "specific negative factual claim about the literature (no published head-to-head exists), sourced across S1-S7, and no canonical fact contradicts this gap",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 18,
+      "reason": "labeled opinion from a design source (Zep/S5) on the batch-vs-continuous trade-off; clearly marked as opinion and no canonical fact conflicts",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 19,
+      "reason": "terminology usage fact (nightly absent from sources, closest analogues cited) sourced from S3-S4; no canonical fact covers agent memory terminology",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 20,
+      "reason": "synthesized verdict from S1-S7 establishing two consolidation regimes exist, differences are real but within-system, and cost accounting is incomparable — specific, sourced, and no canonical fact overlaps",
+      "verdict": "promote"
+    },
+    {
+      "existing_id": null,
+      "index": 21,
+      "reason": "specific research-gap design claim (controlled ablation needed on staleness-sensitive benchmark) sourced from S1-S7; canonical facts are silent on agent memory research directions",
+      "verdict": "promote"
+    }
+  ]
 }
