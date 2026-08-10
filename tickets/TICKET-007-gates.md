@@ -129,3 +129,15 @@ ok: memory/derived/per-domain/AGENTS.codex-runtime.md
 PASS: 4 derived views in sync with canonical 1bc9b293dd0b21a3
 ```
 
+
+## v3 gate evidence (2026-08-10, goal session)
+
+- cargo test --workspace: 500 passed, 0 failed (incl. 7 redact tests +
+  clifmt trajectory-redaction regression).
+- cargo fmt --check: clean. cargo clippy --workspace --all-targets -D warnings: clean.
+- scripts/verify.sh on clean tree: provenance/derive/audit/eval-gate/budget/
+  checkpoint/coverage/skills/stats/insights ALL GREEN (dirty-tree gate
+  ["[warn] working tree: N uncommitted"] only, which cleared after commit).
+- Checkpoint journal: "green: ticket07-redaction @ 0c71a38", closed.
+
+verdict: ALL GREEN (v3 gate set)

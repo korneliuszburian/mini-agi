@@ -27,3 +27,45 @@
   - 4cf21e40f7f4e2d2 verification must be a deterministic gate, not a model declaration
   - 43a956cb72cedb67 append-only decision logs prevent semantic drift
 - blocker to START: none — make verify is GREEN (73 tests); T006 (126,907 tok) is the clean baseline this experiment must beat.
+
+## Closure evidence (2026-08-10, goal session)
+
+- v2 (PoC, Python) is superseded in v3 (Rust): the redactor now lives in
+  the kernel crate as `crates/mini-agi-core/src/redact.rs`, a zero-dependency
+  (std-only, no regex) deny-by-default scanner — the ACC requirements below
+  are met by v3 code, not by the removed Python path.
+- ACC-1 (known-pattern coverage): `redact()` replaces `-p <pw>`, `sshpass -p`,
+  `password=`, `passwd=`, `secret=`, `api_key`, `apikey`, `token=`,
+  `Cookie:` and `Authorization:` header values (plain `Cookie: x` /
+  `Authorization: Bearer y` and JSON `"Cookie": "x"` forms), and PEM
+  private-key blocks — in CLI command strings AND JSON payloads alike.
+- ACC-2 (leak-regression fixtures): 7 parametrized tests assert the secret
+  does NOT appear in the redacted output (plain + JSON forms) and existing
+  tests still pass — `redacts_sshpass_and_dash_p_flag_values`,
+  `redacts_known_key_equals_value_pairs`, `redacts_json_payload_values`,
+  `redacts_cookie_and_authorization_header_values`, `redacts_pem_private_key_blocks`,
+  plus plain-text/deny-by-default guards. `cargo test --workspace` = 500 green.
+- ACC-3 (deny-by-default): `is_credential_key`/`token_contains_key` bound a
+  credential word in ANY compound key (e.g. `--cred-stuff=`, `--auth-token=`,
+  `passphrase:`) and redact it even when the full key is unlisted; an UNSEEN
+  credential-ish key is covered by `redacts_unseen_credential_ish_keys`.
+  Mid-word false positives (`--mycredstuff`, JSON `tokens_total` count field)
+  are explicitly asserted as NOT redacted.
+- ACC-4 (trajectory budget): `clifmt::build_run_draft` now redacts every
+  captured action string before it is written into run.json `trajectory`
+  (`crates/mini-agi/src/clifmt.rs`), with regression test
+  `draft_redacts_credential_values_in_actions`.
+- ACC-5: `make verify` equivalent in v3 = `scripts/verify.sh` (single
+  deterministic gate; cargo fmt --check, clippy -D warnings, cargo test
+  --workspace 500, checkpoint journal, provenance, budget, derive, audit
+  ALL GREEN on the clean tree). Gate ledger: `tickets/TICKET-007-gates.md`.
+- ACC-6: deny-by-default is pinned by canonical facts 4cf21e40f7f4e2d2
+  (verification = deterministic gate) and 43a956cb72cedb67 (append-only logs).
+  Review tick v2-001 #5 (captured commands must not leak credential
+  material into run.json) is closed by the trajectory redaction.
+- Scope note: v3 has no Python capture script; the redactor lives in the
+  kernel (used by clifmt) and is dogfooded by the kernel's own memory rules.
+- Commits: `0c71a38` (redactor + clifmt wiring + lib.rs mod),
+  `4895d7b` (close checkpoint ticket07-redaction).
+
+Status: CLOSED (evidence above).
