@@ -858,3 +858,5 @@ research/what-is-22-answer-briefly.md
 2026-08-10T20:09:16Z VERIFY-PASS ticket14-report-shown @ c453420
 2026-08-10T20:14:10Z BEGIN ticket06-consolidate-tests -> 5d0952f (clean)
 2026-08-10T20:21:03Z VERIFY-PASS ticket06-consolidate-tests @ 0bf0cbe
+2026-08-10T20:22:28Z BEGIN ticket07-redaction -> 0db1334 (clean)
+2026-08-10T20:47:22Z VERIFY-PASS ticket07-redaction @ 0c71a38
