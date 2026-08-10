@@ -1,7 +1,6 @@
 # JUDGE CALIBRATION (derived — appended by run verify / loop verify, never hand-edit)
 {"at":"2026-08-04T05:50:33Z","case":"codex-exp-002","status":"unverified","claimed":false,"composite":0.0,"exit":null,"command":null,"target":null}
 {"at":"2026-08-04T05:50:33Z","case":"codex-exp-002-rerun","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"make verify","target":"/tmp/opencode/codex-exp2"}
-{"at":"2026-08-04T05:50:33Z","case":"codex-exp-003","status":"unverified","claimed":false,"composite":0.0,"exit":null,"command":null,"target":null}
 {"at":"2026-08-04T05:50:34Z","case":"flailing","status":"unverified","claimed":true,"composite":0.0,"exit":null,"command":null,"target":null}
 {"at":"2026-08-04T05:50:35Z","case":"flailing-rerun","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"npx tsc && node --test 'dist/tests/*.test.js'","target":"/tmp/opencode/rate-limit-2"}
 {"at":"2026-08-04T05:50:35Z","case":"harnessed","status":"unverified","claimed":true,"composite":0.0,"exit":null,"command":null,"target":null}
@@ -25,3 +24,4 @@
 {"at":"2026-08-04T09:35:29Z","case":"codex-exp-003-rerun","status":"verified","claimed":true,"composite":0.8989,"exit":0,"command":"make verify","target":"/tmp/opencode/exp003-work"}
 {"at":"2026-08-10T19:09:10Z","case":"afk-max-idle","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"cargo build -p mini-agi 2>&1 && ./target/debug/mini-agi loop run --help 2>&1 | grep -q -- '--max-idle' && cargo test --all 2>&1 | grep -q 'test result: ok'","target":"/mnt/storage/coding/krn/active/mini-agi"}
 {"at":"2026-08-10T19:09:11Z","case":"verify-gate-full-output","status":"verified","claimed":true,"composite":0.0,"exit":0,"command":"sh -c 'grep -q \"gate-lib\" scripts/verify.sh && . scripts/gate-lib.sh && out=\"$(step t sh -c \"seq 1 30; echo MARKER-99123; exit 1\" 2>&1 || true)\" && echo \"$out\" | grep -q MARKER-99123 && echo \"$out\" | grep -q line-30 && cargo build -p mini-agi 2>&1 && cargo test --all 2>&1 | grep -q \"test result: ok\"'","target":"/mnt/storage/coding/krn/active/mini-agi"}
+{"at":"2026-08-10T19:23:19Z","case":"codex-exp-003","status":"unverified","claimed":false,"composite":0.0,"exit":null,"command":null,"target":null}
