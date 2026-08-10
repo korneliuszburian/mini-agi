@@ -51,3 +51,12 @@ but is only used by the query path (`select_budgeted`), not by derive.
   `mini-agi budget` shows brief << canonical.
 - `scripts/verify.sh` ALL GREEN (derive determinism gate covers the
   new output).
+
+## Closure evidence (2026-08-10, goal session)
+
+- Implementation landed in master (commit `c204658` "dogfood: enforce the brief working-set cap (TICKET-13)"): `render_brief` ranks via `ranked_facts` (enforced>links>recency) and fills to `MAX_BRIEF_BYTES` with a notice reservation; `derive` returns (written, total, fragments); budget re-anchored on the cap.
+- Measured: derived brief = 7648 bytes <= 8192 cap; `budget` reports "canonical 448058B -> brief 7648B (x58.58)".
+- Determinism gate: second derive does not change the brief (verify.sh derive step covers it).
+- Tests: strict byte-cap assert + enforced-fact presence + determinism (memory.rs suite), cli derive string updated.
+
+Status: CLOSED (evidence above).

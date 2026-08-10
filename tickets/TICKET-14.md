@@ -32,3 +32,12 @@
 ## Follow-up (not in this ticket)
 
 Per-skill usage/evidence counters to rank by actual use (Voyager evidence-of-use, ADR-0015 §2c) — requires instrumentation of skill invocation.
+
+## Closure evidence (2026-08-10, goal session)
+
+- Implementation landed in master (commit `11c7fae` "dogfood: enforce the skills-list working-set cap (TICKET-14)"): `skills::budgeted_list` (ranked enabled/verify-hooked first, char-capped at `SKILLS_BUDGET_CHARS` with truncation notice), metrics and `skill_list` MCP surface the bounded list.
+- Delta shipped today (`ticket14-report-shown`): `BudgetReport.skills_shown` added; `mini-agi budget` now prints `N/M skills` truthfully and notes truncated skills outside the working set.
+- Measured: "Skills list: 7797 chars for 17/17 skills (97.5% of 2% budget)" — registry is currently fully within the cap; growth past the cap truncates with the notice.
+- Tests: cap respected (strict char assert), deterministic ordering, notice present when truncated, over-budget fixture (skills.rs suite).
+
+Status: CLOSED (evidence above).

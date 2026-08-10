@@ -1841,9 +1841,18 @@ fn cmd_budget() -> ExitCode {
         println!("  WARN: AGENTS chain exceeds 32KiB cap");
     }
     println!(
-        "  Skills list:     {} chars for {} skills ({}% of 2% budget)",
-        report.skills_list_bytes, report.skills_count, report.skills_pct_of_budget
+        "  Skills list:     {} chars for {}/{} skills ({}% of 2% budget)",
+        report.skills_list_bytes,
+        report.skills_shown,
+        report.skills_count,
+        report.skills_pct_of_budget
     );
+    if report.skills_shown < report.skills_count {
+        println!(
+            "    ... {} more skills in .agents/skills/ outside the working set",
+            report.skills_count - report.skills_shown
+        );
+    }
     if report.skills_over_budget {
         println!("  WARN: skills list exceeds 2% budget");
     }

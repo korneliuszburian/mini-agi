@@ -35,6 +35,9 @@ pub struct BudgetReport {
     pub chain_over_cap: bool,
     /// Number of skills in the registry.
     pub skills_count: usize,
+    /// Skills rendered into the bounded working-set list (registry
+    /// minus truncation).
+    pub skills_shown: usize,
     /// Char count of skill frontmatter blocks (what the skill list
     /// shows), counted in chars to match the 8000-char budget — byte
     /// counting would inflate non-ASCII descriptions.
@@ -156,6 +159,7 @@ pub fn budget(root: &Path) -> BudgetReport {
     // unbounded registry.
     let listed = crate::skills::budgeted_list(root, crate::skills::SKILLS_BUDGET_CHARS);
     let skills_count = listed.total;
+    let skills_shown = listed.shown;
     let list_bytes = listed.chars;
     let skills_pct = 100.0 * list_bytes as f64 / crate::skills::SKILLS_BUDGET_CHARS as f64;
     // Unreachable by construction (the list is capped, not just
@@ -175,6 +179,7 @@ pub fn budget(root: &Path) -> BudgetReport {
         chain_pct_of_32k: round1(pct),
         chain_over_cap,
         skills_count,
+        skills_shown,
         skills_list_bytes: list_bytes,
         skills_pct_of_budget: round1(skills_pct),
         skills_over_budget,
