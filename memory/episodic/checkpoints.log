@@ -838,3 +838,5 @@ research/what-is-22-answer-briefly.md
 2026-08-09T16:08:34Z VERIFY-FAIL ui-redesign @ 51737aa -> NO-ROLLBACK (crash-recovery repair: session died before verify; work completed and all 480 tests green in follow-up session 2026-08-09)
 2026-08-09T16:08:34Z VERIFY-FAIL skills-cap @ 11c7fae -> NO-ROLLBACK (crash-recovery repair: work landed 11c7fae; gate red on stale supervisor/cli tests, fixed 2026-08-09 follow-up)
 2026-08-09T16:08:34Z VERIFY-FAIL worker-reaper @ 0f50b59 -> NO-ROLLBACK (crash-recovery repair: session self-reverted, rev never committed)
+2026-08-10T05:07:58Z BEGIN ui-design-refine -> ec31c04
+2026-08-10T05:13:54Z VERIFY-PASS ui-design-refine @ 3c5dc7d
