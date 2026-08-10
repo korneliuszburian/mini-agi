@@ -3371,20 +3371,34 @@ fn cmd_dream_reaudit(
         Err(e) => return fail(&e),
     };
     let manifest = file.with_extension("verdicts.json");
-    let existing = mini_agi_core::dream::read_verdicts(&manifest);
+    let existing_full = mini_agi_core::dream::read_verdicts(&manifest);
+    let stray = existing_full
+        .iter()
+        .filter(|v| v.index >= staged.len())
+        .count();
+    let existing: Vec<mini_agi_core::dream::AuditorVerdict> = existing_full
+        .into_iter()
+        .filter(|v| v.index < staged.len())
+        .collect();
     let have: std::collections::BTreeSet<usize> = existing.iter().map(|v| v.index).collect();
     let missing: Vec<usize> = (0..staged.len()).filter(|i| !have.contains(i)).collect();
-    if missing.is_empty() {
+    if missing.is_empty() && stray == 0 {
         println!("dream reaudit: {rel} already has full verdict coverage — nothing to do");
         return ExitCode::SUCCESS;
     }
     let missing_list: Vec<String> = missing.iter().map(|i| format!("{i:03}")).collect();
+    let stray_note = if stray > 0 {
+        format!(" + {stray} stray index(es) out of range")
+    } else {
+        String::new()
+    };
     println!(
-        "dream reaudit{}: {}/{} candidates lack verdicts — {}",
+        "dream reaudit{}: {}/{} candidates lack verdicts — {}{}",
         if dry_run { " (dry-run)" } else { "" },
         missing.len(),
         staged.len(),
-        missing_list.join(", ")
+        missing_list.join(", "),
+        stray_note
     );
     if dry_run {
         return ExitCode::SUCCESS;
@@ -3453,7 +3467,7 @@ fn cmd_dream_reaudit(
     let still_missing: Vec<usize> = (0..staged.len())
         .filter(|i| !have_after.contains(i))
         .collect();
-    if !still_missing.is_empty() {
+    if verdicts.len() != staged.len() || !still_missing.is_empty() {
         return fail(&format!(
             "dream reaudit: {} of {} candidates still lack a verdict — manifest unchanged",
             still_missing.len(),
@@ -3470,8 +3484,9 @@ fn cmd_dream_reaudit(
         }
     }
     println!(
-        "dream reaudit: {} verdict(s) filled — {}/{} candidates covered at {}",
+        "dream reaudit: {} verdict(s) filled, {} stray index(es) dropped — {}/{} candidates covered at {}",
         fresh_count,
+        stray,
         verdicts.len(),
         staged.len(),
         rel
@@ -3940,6 +3955,45 @@ mod tests {
             after.iter().all(|v| v.index != 2),
             "no verdict may appear for the missing candidate"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dream_reaudit_repairs_stray_indexes_without_model() {
+        // A manifest with out-of-range verdict indexes blocks promotion
+        // (len != facts) even though every candidate is covered. reaudit
+        // drops the strays and rewrites the manifest — with zero missing
+        // candidates the auditor worker is never invoked.
+        let root = std::env::temp_dir().join(format!(
+            "mag-reaudit-stray-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let dir = root.join("memory/staging/2026-08-06");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("001.md"),
+            "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nalpha\n\n## S-001 (general)\n\nbeta\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("001.verdicts.json"),
+            r#"{"staged":"001.md","verdicts":[{"index":0,"verdict":"promote"},{"index":1,"verdict":"promote"},{"index":9,"verdict":"reject"}]}"#,
+        )
+        .unwrap();
+        let file = dir.join("001.md");
+        assert_eq!(
+            cmd_dream_reaudit(&root, &file, "auditor-that-must-not-run", false, None),
+            ExitCode::SUCCESS
+        );
+        let after = mini_agi_core::dream::read_verdicts(&dir.join("001.verdicts.json"));
+        assert_eq!(after.len(), 2, "stray verdict dropped");
+        assert!(after.iter().all(|v| v.index < 2));
+        let missing_before = dir.join("002.md");
+        assert!(!missing_before.exists(), "no second batch written");
         let _ = std::fs::remove_dir_all(&root);
     }
 
