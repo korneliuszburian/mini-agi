@@ -850,3 +850,5 @@ research/what-is-22-answer-briefly.md
 2026-08-10T18:10:30Z VERIFY-PASS ui-reaudit @ 5e16678
 2026-08-10T18:15:05Z BEGIN ui-reaudit-stray -> 56f53a2
 2026-08-10T18:18:56Z VERIFY-PASS ui-reaudit-stray @ 44e1c52
+2026-08-10T19:11:40Z BEGIN ui-runs-sortgrp -> fe9a6d2
+2026-08-10T19:18:34Z VERIFY-PASS ui-runs-sortgrp @ 87918c0
