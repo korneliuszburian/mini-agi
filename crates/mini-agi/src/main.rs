@@ -3227,16 +3227,16 @@ fn cmd_dream(
     ExitCode::SUCCESS
 }
 
-/// Apply the newest staging manifest (the latest `<date>/<seq>.md` +
-/// its auditor verdicts are re-derived from the manifest file's facts;
-/// the verdicts were recorded at audit time — for a truthful single
-/// pipeline the audit output is re-run here only when `--reaudit` is
-/// given; by default promotion applies verdicts recorded in the last
-/// `dream` run).
+/// Apply verdicts from EVERY staged batch that has no matching
+/// application receipt, oldest first. Each batch is promoted through the
+/// same per-batch path as before (`apply_verdicts` + receipt written last);
+/// a batch whose auditor verdicts do not cover all candidates (a shortfall
+/// recorded at audit time) is left pending with a warning instead of
+/// blocking the drain — a partial verdict set is still never promoted.
+/// Hard failures abort and name the failing batch.
 fn cmd_dream_promote(root: &Path, dry_run: bool) -> ExitCode {
-    // Locate the newest staging file.
     let staging_root = root.join(mini_agi_core::dream::STAGING_REL);
-    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    let mut unfinished: Vec<std::path::PathBuf> = Vec::new();
     let Ok(days) = std::fs::read_dir(&staging_root) else {
         return fail("dream promote: no staging dir yet — run dream --source first");
     };
@@ -3245,72 +3245,93 @@ fn cmd_dream_promote(root: &Path, dry_run: bool) -> ExitCode {
             continue;
         };
         for e in entries.flatten() {
-            if e.path().extension().is_some_and(|x| x == "md") {
-                files.push(e.path());
+            let path = e.path();
+            if path.extension().is_some_and(|x| x == "md")
+                && mini_agi_core::dream::read_promotion_receipt(&path).is_none_or(|receipt| {
+                    !mini_agi_core::dream::receipt_matches_staged(&path, &receipt)
+                })
+            {
+                unfinished.push(path);
             }
         }
     }
-    files.sort();
-    let Some(latest) = files
-        .iter()
-        .rev()
-        .find(|path| {
-            mini_agi_core::dream::read_promotion_receipt(path)
-                .is_none_or(|receipt| !mini_agi_core::dream::receipt_matches_staged(path, &receipt))
-        })
-        .cloned()
-    else {
+    unfinished.sort();
+    let mut total_promoted: usize = 0;
+    let mut total_queued: usize = 0;
+    let mut total_skipped: usize = 0;
+    let mut applied_batches: usize = 0;
+    let mut incomplete: Vec<std::path::PathBuf> = Vec::new();
+    for latest in &unfinished {
+        let staged = match read_staged_facts(latest) {
+            Ok(s) => s,
+            Err(e) => return fail(&e),
+        };
+        let verdicts = mini_agi_core::dream::read_verdicts(&latest.with_extension("verdicts.json"));
+        let covered = verdicts.len() == staged.len()
+            && (0..staged.len()).all(|i| verdicts.iter().any(|v| v.index == i));
+        if !covered {
+            incomplete.push(latest.clone());
+            continue;
+        }
+        let (promoted, queued, skipped) = match mini_agi_core::dream::apply_verdicts(
+            root,
+            &staged,
+            &verdicts,
+            &format!("dream promote ({})", latest.display()),
+            dry_run,
+        ) {
+            Ok(r) => r,
+            Err(e) => return fail(&format!("dream promote: {e}")),
+        };
+        if !dry_run {
+            // The application receipt is written LAST: a failure here is
+            // loud and leaves the batch `pending`, never a false `applied`.
+            if let Err(e) =
+                mini_agi_core::dream::write_promotion_receipt(latest, promoted, queued, skipped)
+            {
+                return fail(&format!(
+                    "dream promote: verdicts were applied but the promotion receipt could not be written: {e}"
+                ));
+            }
+        }
+        total_promoted += promoted;
+        total_queued += queued;
+        total_skipped += skipped;
+        applied_batches += 1;
+        println!("  promoted from {}", latest.display());
+    }
+    if applied_batches == 0 && incomplete.is_empty() {
         println!("dream promote: every staged batch has a matching application receipt");
         return ExitCode::SUCCESS;
-    };
-    let staged = match read_staged_facts(&latest) {
-        Ok(s) => s,
-        Err(e) => return fail(&e),
-    };
-    let verdicts = mini_agi_core::dream::read_verdicts(&latest.with_extension("verdicts.json"));
-    if verdicts.is_empty() {
+    }
+    if applied_batches == 0 {
+        let list: Vec<String> = incomplete
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect();
         return fail(&format!(
-            "dream promote: no verdicts manifest next to {} — run dream --source first",
-            latest.display()
+            "dream promote: nothing could be promoted — auditor verdict coverage incomplete for: {}",
+            list.join(", ")
         ));
     }
-    let (promoted, queued, skipped) = match mini_agi_core::dream::apply_verdicts(
-        root,
-        &staged,
-        &verdicts,
-        &format!("dream promote ({})", latest.display()),
-        dry_run,
-    ) {
-        Ok(r) => r,
-        Err(e) => return fail(&format!("dream promote: {e}")),
-    };
-    if !dry_run {
-        // The application receipt is written LAST: a failure here is
-        // loud and leaves the batch `pending`, never a false `applied`.
-        if let Err(e) =
-            mini_agi_core::dream::write_promotion_receipt(&latest, promoted, queued, skipped)
-        {
-            return fail(&format!(
-                "dream promote: verdicts were applied but the promotion receipt could not be written: {e}"
-            ));
-        }
-        println!(
-            "  promotion receipt: {}",
-            latest.with_extension("promotion.json").display()
-        );
-    }
     println!(
-        "dream promote{}: {} promoted, {} queued (human), {} skipped — from {}",
+        "dream promote{}: {} promoted, {} queued (human), {} skipped — {} complete batch(es) drained",
         if dry_run {
             " (dry-run — nothing written)"
         } else {
             ""
         },
-        promoted,
-        queued,
-        skipped,
-        latest.display()
+        total_promoted,
+        total_queued,
+        total_skipped,
+        applied_batches
     );
+    for path in &incomplete {
+        eprintln!(
+            "  [warn] dream promote: incomplete verdict coverage, left pending: {}",
+            path.display()
+        );
+    }
     ExitCode::SUCCESS
 }
 
@@ -3637,6 +3658,141 @@ mod tests {
             tickets: vec![],
         };
         render_parallel_dispatch_results(&dispatch, &manifest);
+    }
+
+    #[test]
+    fn dream_promote_drains_all_complete_batches_oldest_first() {
+        // B: promote used to touch only the newest unfinished batch, so
+        // older complete batches piled up forever. The drain applies every
+        // batch with full verdict coverage, oldest first; an incomplete
+        // audit is left pending and does not block the rest.
+        let root = std::env::temp_dir().join(format!(
+            "mag-drain-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let write_batch = |root: &std::path::Path,
+                           day: &str,
+                           seq: &str,
+                           bodies: &[(&str, &str)],
+                           verdicts: &[(&str, &str)]| {
+            let dir = root.join(format!("memory/staging/{day}"));
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut md = String::from(
+                "# Staged candidates (dream distiller)\n\n- date: 2026-01-01T00:00:00Z\n- source: fixture\n- extracted_by: test\n\n",
+            );
+            {
+                use std::fmt::Write as _;
+                for (index, (domain, body)) in bodies.iter().enumerate() {
+                    writeln!(md, "## S-{index:03} ({domain})\n\n{body}").unwrap();
+                }
+            }
+            std::fs::write(dir.join(format!("{seq}.md")), md).unwrap();
+            let vs: Vec<String> = verdicts
+                .iter()
+                .map(|(index, verdict)| format!("{{\"index\":{index},\"verdict\":\"{verdict}\"}}"))
+                .collect();
+            std::fs::write(
+                dir.join(format!("{seq}.verdicts.json")),
+                format!(
+                    "{{\"staged\":\"{seq}.md\",\"verdicts\":[{}]}}",
+                    vs.join(",")
+                ),
+            )
+            .unwrap();
+        };
+        let receipt = |root: &std::path::Path, day: &str, seq: &str| {
+            root.join(format!("memory/staging/{day}/{seq}.promotion.json"))
+        };
+        // Oldest: complete, 2 facts.
+        write_batch(
+            &root,
+            "2026-08-06",
+            "001",
+            &[("general", "alpha"), ("general", "beta")],
+            &[("0", "promote"), ("1", "promote")],
+        );
+        // Middle: audit incomplete (2 facts, 1 verdict) — must stay pending.
+        write_batch(
+            &root,
+            "2026-08-07",
+            "001",
+            &[("general", "gamma"), ("general", "delta")],
+            &[("0", "promote")],
+        );
+        // Newest: complete, 1 fact.
+        write_batch(
+            &root,
+            "2026-08-09",
+            "001",
+            &[("sql", "epsilon")],
+            &[("0", "promote")],
+        );
+        assert_eq!(cmd_dream_promote(&root, false), ExitCode::SUCCESS);
+        assert!(
+            receipt(&root, "2026-08-06", "001").is_file(),
+            "oldest drained"
+        );
+        assert!(
+            receipt(&root, "2026-08-09", "001").is_file(),
+            "newest drained"
+        );
+        assert!(
+            !receipt(&root, "2026-08-07", "001").exists(),
+            "incomplete audit must stay pending"
+        );
+        let oldest: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(receipt(&root, "2026-08-06", "001")).unwrap(),
+        )
+        .unwrap();
+        let newest: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(receipt(&root, "2026-08-09", "001")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(oldest["promoted"], 2);
+        assert_eq!(newest["promoted"], 1);
+        let canonical = std::fs::read_dir(root.join("memory/canonical"))
+            .unwrap()
+            .count();
+        assert!(canonical > 0, "promoted facts land in canonical memory");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dream_promote_dry_run_writes_nothing() {
+        let root = std::env::temp_dir().join(format!(
+            "mag-drain-dry-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let dir = root.join("memory/staging/2026-08-06");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("001.md"),
+            "# Staged candidates (dream distiller)\n\n## S-000 (general)\n\nalpha\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("001.verdicts.json"),
+            r#"{"staged":"001.md","verdicts":[{"index":0,"verdict":"promote"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(cmd_dream_promote(&root, true), ExitCode::SUCCESS);
+        assert!(
+            !dir.join("001.promotion.json").exists(),
+            "dry-run must not write receipts"
+        );
+        assert!(
+            !root.join("memory/canonical").exists(),
+            "dry-run must not touch canonical memory"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
