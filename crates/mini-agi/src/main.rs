@@ -4473,4 +4473,46 @@ mod tests {
         assert!(out.contains("next: mini-agi derive"), "{out}");
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn eval_gate_compare_path_regression_and_tolerance_boundary() {
+        let root = std::env::temp_dir().join(format!("mag-gate-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let write_run = |root: &std::path::Path, case: &str, body: &str| {
+            let run = root.join(format!("evals/cases/{case}/run.json"));
+            std::fs::create_dir_all(run.parent().unwrap()).unwrap();
+            std::fs::write(&run, body).unwrap();
+        };
+        write_run(
+            &root,
+            "good",
+            r#"{"goal":"g","scope":[],"outcome":{"achieved":true},"trajectory":[{"tool":"bash","action":"x","ok":true}]}"#,
+        );
+        write_run(
+            &root,
+            "bad",
+            r#"{"goal":"g","scope":[],"outcome":{"achieved":false},"trajectory":[{"tool":"bash","action":"x","ok":false}]}"#,
+        );
+        // Freeze the suite.
+        let out = eval_gate_text(&root, 0.1, 0, true).unwrap();
+        assert!(out.contains("baseline written: "), "{out}");
+        assert!(out.contains("(2 cases)"), "{out}");
+        // Identical corpus: green.
+        let out = eval_gate_text(&root, 0.1, 0, false).unwrap();
+        assert!(out.contains("PASS: 2 cases, 0 regressions"), "{out}");
+        // Regress the good case: the gate must fail with the case name.
+        write_run(
+            &root,
+            "good",
+            r#"{"goal":"g","scope":[],"outcome":{"achieved":false},"trajectory":[{"tool":"bash","action":"x","ok":false}]}"#,
+        );
+        let out = eval_gate_text(&root, 0.1, 0, false).unwrap_err();
+        assert!(out.contains("REGRESSION good"), "{out}");
+        assert!(out.contains("FAIL: 2 cases, 1 regressions"), "{out}");
+        // Tolerance boundary: a tolerance of 1.0 exactly admits the full
+        // drop (1.0 -> 0.0), anything below fails.
+        let out = eval_gate_text(&root, 1.0, 0, false).unwrap();
+        assert!(out.contains("PASS: 2 cases, 0 regressions"), "{out}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
