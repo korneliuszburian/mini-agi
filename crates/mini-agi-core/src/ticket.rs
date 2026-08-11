@@ -894,4 +894,26 @@ Status: CLOSED (evidence above).
         assert_eq!(claim.ticket, "TICKET-002");
         let _ = fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn release_errors_are_named_and_nobody_can_release_foreign_claims() {
+        let root = std::env::temp_dir().join(format!("mag-release-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::write(root.join("tickets/TICKET-001.md"), JSON_TICKET).unwrap();
+        // Releasing an unclaimed ticket names the condition.
+        let err = release_ticket(&root, "TICKET-001", "agent-a").unwrap_err();
+        assert!(err.to_string().contains("is not claimed"), "{err}");
+        // A foreign claimant cannot release someone else's claim.
+        claim_ticket(&root, "TICKET-001", "agent-a", false).unwrap();
+        let err = release_ticket(&root, "TICKET-001", "agent-b").unwrap_err();
+        assert!(err.to_string().contains("claimed by agent-a"), "{err}");
+        assert_eq!(read_claims(&root).unwrap().len(), 1, "claim survives");
+        // The claimant releases; a second release is then a named error.
+        release_ticket(&root, "TICKET-001", "agent-a").unwrap();
+        assert!(read_claims(&root).unwrap().is_empty());
+        let err = release_ticket(&root, "TICKET-001", "agent-a").unwrap_err();
+        assert!(err.to_string().contains("is not claimed"), "{err}");
+        let _ = fs::remove_dir_all(&root);
+    }
 }
