@@ -147,17 +147,25 @@ pub fn parse_transcript(text: &str) -> Vec<CapturedStep> {
             continue;
         }
         let lower = line.to_lowercase();
-        for prefix in ["wrote ", "created ", "updated ", "writes ", "creating "] {
-            if let Some(rest) = lower.strip_prefix(prefix) {
-                let path = line[line.len() - rest.len()..].trim();
-                steps.push(CapturedStep {
-                    line: idx + 1,
-                    tool: "write".into(),
-                    action: line.to_string(),
-                    paths: vec![path.trim_matches('`').trim().to_string()],
-                    ok: None,
-                });
-                break;
+        // Case-folding can EXPAND byte length (e.g. 'İ' -> "i̇"): the
+        // suffix math below slices the original line by the lowercased
+        // rest's length, which would go negative and panic on such a
+        // line (real defect found by falsifier — transcripts are
+        // untrusted input). Only length-preserving lines take the
+        // write-detection path.
+        if lower.len() == line.len() {
+            for prefix in ["wrote ", "created ", "updated ", "writes ", "creating "] {
+                if let Some(rest) = lower.strip_prefix(prefix) {
+                    let path = line[line.len() - rest.len()..].trim();
+                    steps.push(CapturedStep {
+                        line: idx + 1,
+                        tool: "write".into(),
+                        action: line.to_string(),
+                        paths: vec![path.trim_matches('`').trim().to_string()],
+                        ok: None,
+                    });
+                    break;
+                }
             }
         }
         if line.starts_with("read:") || lower.starts_with("reading ") {
@@ -386,5 +394,20 @@ no completion marker here
                 .any(|a| a.contains("make") || a.contains("bash -lc")),
             "make invocations must be captured: {execs:?}"
         );
+    }
+
+    #[test]
+    fn unicode_case_folding_lines_do_not_panic_the_parser() {
+        // 'İ' lowercases to "i̇" — two bytes from one. The old suffix
+        // math indexed the ORIGINAL line with the LOWERCASED rest's
+        // length and panicked on lines where the folding grew past the
+        // prefix. Transcripts are untrusted input: never crash.
+        let steps = parse_transcript("Wrote İİİİİİİ.txt\n");
+        assert!(steps.is_empty(), "unmappable line is skipped: {steps:?}");
+        // ASCII write lines still parse after the guard.
+        let steps = parse_transcript("wrote src/main.rs\n");
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0].tool, "write");
+        assert_eq!(steps[0].paths, vec!["src/main.rs"]);
     }
 }
