@@ -142,4 +142,56 @@ mod tests {
             ("second fact".to_string(), "2222222222222222".to_string())
         );
     }
+
+    #[test]
+    fn next_entry_ignores_non_sequence_files_and_handles_gaps() {
+        let tmp = std::env::temp_dir().join(format!("mag-store2-{}", std::process::id()));
+        let day = "2026-08-02";
+        let day_dir = tmp.join("memory/canonical/entries").join(day);
+        std::fs::create_dir_all(&day_dir).unwrap();
+        // Gap + junk files: only NNN.md names count, the sequence is
+        // max+1, so a deleted middle file does not get reused.
+        std::fs::write(day_dir.join(format!("{day}-001.md")), "a").unwrap();
+        std::fs::write(day_dir.join(format!("{day}-003.md")), "c").unwrap();
+        std::fs::write(day_dir.join(format!("{day}-00X.md")), "junk").unwrap();
+        std::fs::write(day_dir.join("001.md"), "wrong prefix").unwrap();
+        std::fs::write(day_dir.join("notes.md"), "junk").unwrap();
+        std::fs::write(day_dir.join("2026-07-31-009.md"), "other day").unwrap();
+        let e = next_entry(&tmp, day);
+        assert_eq!(e.seq, 4, "gap at 002 is not reused, junk is ignored");
+        assert_eq!(
+            e.path.file_name().unwrap(),
+            format!("{day}-004.md").as_str()
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn extract_fact_ids_only_accepts_first_16hex_per_line() {
+        let text = "line with `0123456789abcdef` and `2222222222222222`\n\
+                    `short` not an id\n\
+                    `gggggggggggggggg` not hex\n\
+                    no backticks here\n";
+        assert_eq!(
+            extract_fact_ids(text),
+            vec!["0123456789abcdef"],
+            "only the first well-formed id per line counts"
+        );
+    }
+
+    #[test]
+    fn parse_canonical_facts_skips_blocks_without_id() {
+        // A header without a backticked 16-hex id is not a fact block:
+        // its body is dropped entirely — no half-labeled facts leak
+        // into canonical.
+        let text = "## F-1 `0123456789abcdef`\n\nlabeled body\n\n\
+                    ## F-2 (id lost)\n\nunlabeled body\n\n\
+                    ## F-3 `ffffffffffffffff`\n\nsecond body\n";
+        let facts = parse_canonical_facts(text);
+        assert_eq!(facts.len(), 2);
+        assert_eq!(facts[0].1, "0123456789abcdef");
+        assert_eq!(facts[0].0, "labeled body");
+        assert_eq!(facts[1].1, "ffffffffffffffff");
+        assert_eq!(facts[1].0, "second body");
+    }
 }
