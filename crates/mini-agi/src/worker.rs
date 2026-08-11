@@ -952,10 +952,14 @@ fn build_worker_args(
 }
 
 /// Production-readiness D.2: does the spec declare a read-only sandbox?
+/// The flag is the EXACT value `read-only`; a prefixed variant
+/// (`read-only-more`) is a different declaration and must not match.
 fn is_read_only_spec(spec_text: &str) -> bool {
-    spec_text
-        .lines()
-        .any(|l| l.trim_start().starts_with("- sandbox: read-only"))
+    spec_text.lines().any(|l| {
+        l.trim_start()
+            .strip_prefix("- sandbox:")
+            .is_some_and(|rest| rest.trim() == "read-only")
+    })
 }
 
 pub fn run_worker_sandboxed(
@@ -1229,6 +1233,95 @@ mod tests {
                 "--skip-git-repo-check",
                 "do it"
             ])
+        );
+    }
+
+    #[test]
+    fn codex_resume_without_session_keeps_empty_arg_shape() {
+        // The resume contract is positional: a missing session id must
+        // stay a literal empty argument (never vanish, never reorder).
+        let s = |v: Vec<&str>| v.into_iter().map(str::to_string).collect::<Vec<_>>();
+        assert_eq!(
+            build_worker_args(&WorkerKind::Codex, true, None, "do it"),
+            s(vec!["exec", "resume", "", "--skip-git-repo-check", "do it"])
+        );
+        let resume = build_worker_args(&WorkerKind::Codex, true, None, "do it");
+        assert_eq!(resume[2], "", "the session slot stays positionally stable");
+    }
+
+    #[test]
+    fn write_draft_writes_pretty_json_to_default_and_custom_path() {
+        let root = std::env::temp_dir().join(format!("mag-wd-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let run = serde_json::json!({"goal": "g", "outcome": {"achieved": true}});
+        let code = write_draft(None, &root, &run);
+        assert_eq!(code, ExitCode::SUCCESS);
+        let text = std::fs::read_to_string(root.join("run.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(
+            parsed["outcome"]["achieved"], true,
+            "draft must be valid JSON"
+        );
+        assert!(
+            text.contains("\n  "),
+            "draft must be pretty-printed, not a single line"
+        );
+        let custom = root.join("deep/report.json");
+        std::fs::create_dir_all(custom.parent().unwrap()).unwrap();
+        let code = write_draft(Some(&custom), &root, &run);
+        assert_eq!(code, ExitCode::SUCCESS);
+        assert!(custom.is_file(), "custom run_out path must be honored");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn write_draft_fails_loudly_on_unwritable_target() {
+        let root = std::env::temp_dir().join(format!("mag-wd-fail-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let run = serde_json::json!({"goal": "g"});
+        let code = write_draft(Some(&root.join("run.json")), &root, &run);
+        assert_eq!(code, ExitCode::SUCCESS);
+        // A run_out whose parent is a FILE is unwritable: the default
+        // run.json now exists, so the write must fail loudly.
+        let blocked = root.join("blocked/run.json");
+        std::fs::write(root.join("blocked"), "not a dir").unwrap();
+        let code = write_draft(Some(&blocked), &root, &run);
+        assert_ne!(code, ExitCode::SUCCESS, "an unwritable target must fail");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn is_read_only_spec_edge_variants() {
+        assert!(
+            is_read_only_spec("  - sandbox: read-only\n"),
+            "indented flag lines must be detected"
+        );
+        assert!(
+            is_read_only_spec("- sandbox: read-only\r\n"),
+            "CRLF line endings must not hide the flag"
+        );
+        assert!(
+            !is_read_only_spec("- goal: use a sandbox: read-only habit\n"),
+            "a flag mention inside prose is not a declaration"
+        );
+        assert!(
+            !is_read_only_spec("- sandbox: read-only-more\n"),
+            "a prefixed variant is not the exact flag"
+        );
+    }
+
+    #[test]
+    fn bare_fail_prefix_must_not_produce_an_empty_case_name() {
+        // A malformed verifier line ("FAIL:" with no name) must not
+        // pollute the failure checklist with an empty entry.
+        let out = "FAIL:\nFAIL: test_zero (t.Test)\nOK\n";
+        let cases = extract_failing_cases(out);
+        assert_eq!(
+            cases,
+            vec!["test_zero"],
+            "empty names must be dropped, got {cases:?}"
         );
     }
 }

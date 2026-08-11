@@ -876,3 +876,4 @@ research/what-is-22-answer-briefly.md
 2026-08-11T09:59:21Z VERIFY-FAIL bg-falsifiers-cycle4 @ 517789b -> ROLLBACK to 84571cd
 2026-08-11T10:13:09Z BEGIN bg-falsifiers-cycle4b -> 2cf9509
 2026-08-11T10:15:41Z VERIFY-PASS bg-falsifiers-cycle4b @ f1db01c
+2026-08-11T10:21:45Z BEGIN worker-falsifiers-cycle5 -> c0c233f
