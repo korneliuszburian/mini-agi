@@ -133,10 +133,13 @@ fn fact_count(text: &str) -> usize {
 }
 
 /// Read the `- domain:` line (`PoC` `domain_for`); default `general`.
+/// An empty value falls back too — a blank domain must not produce an
+/// empty key in the per-domain counts (real defect found by falsifier).
 fn domain_for(text: &str) -> String {
     text.lines()
-        .find_map(|line| line.strip_prefix("- domain:"))
-        .map_or_else(|| "general".to_string(), |rest| rest.trim().to_string())
+        .find_map(|line| line.strip_prefix("- domain:").map(str::trim))
+        .filter(|domain| !domain.is_empty())
+        .map_or_else(|| "general".to_string(), str::to_string)
 }
 
 /// Compute the context budget report (`PoC` `budget.py`).
@@ -380,6 +383,46 @@ mod tests {
             b.skills_list_bytes,
             crate::skills::SKILLS_BUDGET_CHARS
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn fact_count_requires_exact_16hex_heading_ids() {
+        // A heading with a short, long, or non-hex id is not a fact.
+        let text = "## F-1 `0123456789abcdef`\n## F-2 `short`\n\
+                    ## F-3 `0123456789abcdef0123`\n## F-4 `gggggggggggggggg`\n\
+                    ## F-5 no id here\n";
+        assert_eq!(fact_count(text), 1, "only the exact 16-hex heading counts");
+        assert_eq!(fact_count("no headings at all"), 0);
+    }
+
+    #[test]
+    fn domain_for_defaults_and_trims() {
+        assert_eq!(domain_for("no domain line"), "general");
+        assert_eq!(domain_for("- domain: core\n\n## F-1 `x`"), "core");
+        assert_eq!(
+            domain_for("## F-1 `x`\n- domain:  eval  \n"),
+            "eval",
+            "leading/trailing spaces are trimmed"
+        );
+        assert_eq!(
+            domain_for("- domain:\n"),
+            "general",
+            "empty domain falls back"
+        );
+    }
+
+    #[test]
+    fn stats_survives_missing_entries_dir() {
+        // A fresh repo has no canonical entries yet: stats must be an
+        // empty report, never an io error.
+        let root = std::env::temp_dir().join(format!("mag-metrics-none-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let r = stats(&root).unwrap();
+        assert_eq!(r.entries, 0);
+        assert_eq!(r.facts, 0);
+        assert!(r.per_domain.is_empty());
         let _ = fs::remove_dir_all(&root);
     }
 }
