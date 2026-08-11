@@ -4227,4 +4227,98 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&bare);
     }
+
+    #[test]
+    fn signoff_text_maps_error_paths_and_success() {
+        let root = std::env::temp_dir().join(format!("mag-soff-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("memory/canonical/entries")).unwrap();
+        let queue = root.join("memory/staging/queue.md");
+        std::fs::create_dir_all(queue.parent().unwrap()).unwrap();
+        std::fs::write(
+            &queue,
+            "## C-`0123456789abcdef`\nThe kernel enforces memory.\n- source: fixture\n",
+        )
+        .unwrap();
+        // Missing queue and zero index are the same contract violation.
+        assert!(
+            signoff_text(&root.join("nope.md"), 1, "core", &root)
+                .unwrap_err()
+                .contains("existing queue file")
+        );
+        assert!(
+            signoff_text(&queue, 0, "core", &root)
+                .unwrap_err()
+                .contains("existing queue file")
+        );
+        // Index beyond the parsed blocks.
+        assert!(
+            signoff_text(&queue, 3, "core", &root)
+                .unwrap_err()
+                .contains("index not found")
+        );
+        // Success writes exactly one canonical entry (dated day-dir).
+        let out = signoff_text(&queue, 1, "core", &root).unwrap();
+        assert!(out.contains("signed off 1 fact"), "{out}");
+        let md_files = |root: &std::path::Path| -> Vec<std::path::PathBuf> {
+            let mut v = Vec::new();
+            for day in std::fs::read_dir(root).unwrap().flatten() {
+                for f in std::fs::read_dir(day.path()).unwrap().flatten() {
+                    if f.path().extension().is_some_and(|e| e == "md") {
+                        v.push(f.path());
+                    }
+                }
+            }
+            v
+        };
+        assert_eq!(
+            md_files(&root.join("memory/canonical/entries")).len(),
+            1,
+            "one canonical entry written"
+        );
+        // Re-signing the same fact is refused — no duplicate entries.
+        assert!(
+            signoff_text(&queue, 1, "core", &root)
+                .unwrap_err()
+                .contains("already known")
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn derive_text_reports_no_canonical_and_writes_brief() {
+        let root = std::env::temp_dir().join(format!("mag-dtxt-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("memory/canonical/entries")).unwrap();
+        // No canonical facts: a clear error, never a crash.
+        assert!(
+            derive_text(false, &root)
+                .unwrap_err()
+                .contains("no canonical facts yet")
+        );
+        // One entry, one fact: counts flow into the report and the brief
+        // is materialized on disk. (Canonical layout is day-directoried.)
+        let day = root.join("memory/canonical/entries/2026-08-11");
+        std::fs::create_dir_all(&day).unwrap();
+        std::fs::write(
+            day.join("fact.md"),
+            "# entry\n\n## F-001 `0123456789abcdef`\n\nThe kernel enforces memory.\n\n- domain: core\n",
+        )
+        .unwrap();
+        let out = derive_text(false, &root).unwrap();
+        assert!(out.contains("(1/1 facts)"), "{out}");
+        assert!(out.contains("per-domain fragments"), "{out}");
+        let brief = root.join("memory/derived/context-brief.md");
+        assert!(brief.is_file(), "brief materialized");
+        assert!(
+            std::fs::read_to_string(&brief)
+                .unwrap()
+                .contains("enforces memory"),
+            "fact body reached the brief"
+        );
+        // brief_only skips the per-domain fragments.
+        let out = derive_text(true, &root).unwrap();
+        assert!(out.contains("0 per-domain fragments"), "{out}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
