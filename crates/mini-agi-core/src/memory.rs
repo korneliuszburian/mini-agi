@@ -1388,6 +1388,10 @@ mod tests {
         let first = consolidate(&root, buffer, "compact-loop", &consolidate_opts(false)).unwrap();
         assert_eq!(first.new_facts, 2);
         let first_entry = first.entry.expect("first consolidate writes an entry");
+        assert!(
+            first_entry.path.exists(),
+            "first entry materializes on disk"
+        );
         let entries_after_first = canonical_entries(&root).len();
         assert_eq!(entries_after_first, 1);
 
