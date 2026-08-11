@@ -635,6 +635,59 @@ mod tests {
     }
 
     #[test]
+    fn extract_text_parts_joins_only_text_events() {
+        let out = r#"{"type":"step_start","part":{"type":"step-start"}}
+{"type":"text","part":{"type":"text","text":"first line"}}
+not json at all
+{"type":"text","part":{"type":"text","text":"second line"}}
+"#;
+        assert_eq!(
+            extract_text_parts(out),
+            "first line\nsecond line\n",
+            "only text events join, junk lines are ignored"
+        );
+        assert_eq!(extract_text_parts(""), "");
+        assert_eq!(
+            extract_text_parts(r#"{"type":"text","part":{"no_text":1}}"#),
+            "",
+            "text event without a text part is skipped"
+        );
+    }
+
+    #[test]
+    fn distiller_parse_survives_escaped_quotes_in_bodies() {
+        // A body containing escaped quotes must not break the balanced
+        // array scan — the string state machine handles backslash
+        // escapes.
+        let out = r#"[{"body": "the agent said \"trust me\" and moved on"}]"#;
+        let facts = parse_distilled_facts(out);
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].body, "the agent said \"trust me\" and moved on");
+    }
+
+    #[test]
+    fn promotion_receipt_detects_tampered_staging() {
+        let tmp = std::env::temp_dir().join(format!("mag-dream-rec-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let staged = tmp.join("staged.md");
+        std::fs::write(&staged, "fact: the kernel enforces memory\n").unwrap();
+        let path = write_promotion_receipt(&staged, 1, 0, 0).unwrap();
+        assert_eq!(path, promotion_receipt_path(&staged));
+        let receipt = read_promotion_receipt(&staged).expect("receipt reads back");
+        assert!(
+            receipt_matches_staged(&staged, &receipt),
+            "untouched staging matches its receipt"
+        );
+        std::fs::write(&staged, "fact: tampered after promotion\n").unwrap();
+        assert!(
+            !receipt_matches_staged(&staged, &receipt),
+            "tampered staging must not match the receipt"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
     fn auditor_verdicts_parse_and_filter() {
         let staged = vec![
             StagedFact {
