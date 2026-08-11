@@ -833,4 +833,93 @@ mod tests {
         assert_eq!(r2.target, root.join("override"));
         let _ = fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn parse_review_verdict_collects_only_the_findings_section() {
+        let v = parse_review_verdict(
+            "I reviewed the change carefully. It is mostly fine.\n\nVerdict: FIX-MINOR\nscore 5/8\nTop findings:\n1. Low — rename a var. [worker.rs:100]\n2. Info — add a test.\n",
+        );
+        assert_eq!(v.verdict, "FIX-MINOR");
+        assert!(v.findings.contains("rename a var"), "{}", v.findings);
+        assert!(v.findings.contains("add a test"), "{}", v.findings);
+        assert!(
+            !v.findings.contains("reviewed the change carefully"),
+            "the preamble must not leak into findings, got: {}",
+            v.findings
+        );
+        assert!(!v.findings.contains("Verdict:"), "{}", v.findings);
+    }
+
+    #[test]
+    fn parse_review_verdict_clamps_score_and_needs_exact_verdict_case() {
+        // A score beyond 8/8 is clamped, never trusted as-is.
+        let v = parse_review_verdict("Verdict: APPROVE\nscore 12/8\nTop findings:\n(none)\n");
+        assert_eq!(v.score, Some(8), "an out-of-range score must clamp to 8");
+        // The verdict keyword is case-sensitive by contract (the prompt
+        // demands UPPERCASE); a lowercase one is unparseable, never a
+        // silent approve.
+        let v = parse_review_verdict("verdict: approve\nscore 7/8\n");
+        assert_eq!(v.verdict, "UNPARSEABLE");
+        // "Findings:" (no Top) also starts the section.
+        let v = parse_review_verdict("Verdict: REWORK\nscore 2/8\nFindings:\n1. High — broken.\n");
+        assert!(
+            !v.findings.is_empty() && v.findings.contains("broken"),
+            "{}",
+            v.findings
+        );
+    }
+
+    #[test]
+    fn resolve_idle_cap_explicit_beats_config() {
+        let root = tmp_root("idle-cap");
+        fs::write(root.join(".miniagi.json"), r#"{"max_idle_seconds": 42}"#).unwrap();
+        assert_eq!(resolve_idle_cap(Some(7), &root), Some(7), "explicit wins");
+        assert_eq!(
+            resolve_idle_cap(None, &root),
+            Some(42),
+            "the config fallback is the workdir's max_idle_seconds"
+        );
+        let bare = tmp_root("idle-cap-bare");
+        assert_eq!(resolve_idle_cap(None, &bare), None, "no config -> no cap");
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&bare);
+    }
+
+    #[test]
+    fn resolve_verify_cmd_explicit_wins_and_empty_fails() {
+        assert_eq!(
+            resolve_verify_cmd(Some("make verify"), "make gate".to_string()).unwrap(),
+            "make verify"
+        );
+        assert_eq!(
+            resolve_verify_cmd(None, "make gate".to_string()).unwrap(),
+            "make gate"
+        );
+        let err = resolve_verify_cmd(None, String::new()).unwrap_err();
+        assert!(err.contains("cannot resolve"), "{err}");
+    }
+
+    #[test]
+    fn append_progress_appends_and_survives_missing_parent() {
+        let root = tmp_root("progress");
+        let file = root.join("progress.md");
+        append_progress(&file, "step one\n");
+        append_progress(&file, "step two\n");
+        let text = fs::read_to_string(&file).unwrap();
+        assert_eq!(text, "step one\nstep two\n", "appends must accumulate");
+        // A missing parent directory is a silent no-op, never a panic.
+        append_progress(&root.join("gone/out.md"), "x\n");
+        assert!(!root.join("gone/out.md").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verdict_cannot_resurrect_a_failed_iteration() {
+        let (passed, reason) = resolve_final_outcome(false, true, "APPROVE", Some("s"), None);
+        assert!(!passed, "APPROVE must not override a failed iteration");
+        assert_eq!(reason, "review approved");
+        let (passed, reason) = resolve_final_outcome(false, true, "UNPARSEABLE", None, None);
+        assert!(!passed);
+        assert_eq!(reason, "review unparseable — disposition recorded");
+    }
 }
