@@ -2315,13 +2315,23 @@ fn eval_gate_text(
             entries.len()
         ));
     }
-    if entries.is_empty() && std::fs::metadata(&baseline_path).is_err() {
-        // A repo without cases AND without a frozen suite has nothing to
-        // regress: the gate passes green so a fresh init'd repo works
-        // from the first commit. Once a baseline file exists it is
-        // authoritative — a vanished suite (drop detection) or a
-        // malformed file must still fail closed below.
-        return Ok("PASS: 0 cases, 0 regressions — no cases in evals/cases/".to_string());
+    if entries.is_empty() {
+        // A repo without cases passes green ONLY when there is truly no
+        // frozen suite (NotFound). Any other metadata error — permission
+        // denied, I/O failure — fails closed: an unreadable baseline
+        // must never look like an absent one (codex review REWORK).
+        match std::fs::metadata(&baseline_path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok("PASS: 0 cases, 0 regressions — no cases in evals/cases/".to_string());
+            }
+            Err(e) => {
+                return Err(format!(
+                    "baseline unreadable: {} ({e})",
+                    baseline_path.display()
+                ));
+            }
+            Ok(_) => {}
+        }
     }
     let text = std::fs::read_to_string(&baseline_path).map_err(|_| {
         "baseline missing: run `mini-agi eval gate --write-baseline` once — \
@@ -4513,6 +4523,26 @@ mod tests {
         // drop (1.0 -> 0.0), anything below fails.
         let out = eval_gate_text(&root, 1.0, 0, false).unwrap();
         assert!(out.contains("PASS: 2 cases, 0 regressions"), "{out}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn eval_gate_unreadable_baseline_fails_closed_with_empty_cases() {
+        // Codex review F2: only a truly absent baseline (NotFound)
+        // passes green on an empty corpus. A baseline that EXISTS but
+        // cannot be read must fail — an unreadable suite must never
+        // look like an absent one.
+        let root = std::env::temp_dir().join(format!("mag-gate2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("evals/results")).unwrap();
+        std::fs::create_dir_all(root.join("evals/cases")).unwrap();
+        // baseline.json as a DIRECTORY: metadata succeeds, read fails.
+        std::fs::create_dir_all(root.join("evals/results/baseline.json")).unwrap();
+        let err = eval_gate_text(&root, 0.1, 0, false).unwrap_err();
+        assert!(
+            err.contains("baseline"),
+            "unreadable baseline fails closed, got: {err}"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }

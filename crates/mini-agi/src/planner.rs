@@ -99,27 +99,39 @@ pub fn valid_verifier_shape(verify: &str) -> bool {
     // Tokenize on whitespace and shell quotes; every token that looks
     // like a path must be relative and safe.
     for raw in verify.split_whitespace() {
-        // The $HOME guard must run on the RAW token: the char-strip
-        // below removes a leading '$', which would turn "$HOME/x" into
-        // "HOME/x" and silently defeat the check (real defect found by
-        // falsifier — the guard was dead code).
-        if raw.starts_with("$HOME") {
+        // The $HOME guard must run on the RAW token AND its braced
+        // form (codex review REWORK finding F1). '$' is deliberately
+        // NOT in the trim set below: stripping it would turn
+        // "$HOME/x" (post-quote-trim) into "HOME/x" and defeat the
+        // guard a second time.
+        if raw.starts_with("$HOME") || raw.starts_with("${HOME") {
             return false;
         }
-        let raw = raw.trim_matches(['\'', '"', '(', ')', ';', '&', '|', '$', '`', '>', '<']);
-        // Normalize a leading "./" away BEFORE the checks: `sh
-        // ./scripts/verify.sh` is the same protected script as `sh
-        // scripts/verify.sh` — the dot-prefix must not defeat the
-        // allowlist (real defect found by falsifier).
-        let mut token = raw;
-        while let Some(rest) = token.strip_prefix("./") {
-            token = rest;
+        let raw = raw.trim_matches(['\'', '"', '(', ')', ';', '&', '|', '`', '>', '<']);
+        if raw.starts_with("$HOME") || raw.starts_with("${HOME") {
+            return false;
         }
+        // Absolute and home-relative shapes are refused on the RAW
+        // token — normalization below strips dot segments and would
+        // otherwise swallow the leading "/" of "/usr/bin/make".
+        if raw.starts_with('/') || raw.starts_with('~') {
+            return false;
+        }
+        // Normalize the path BEFORE the checks: `.` segments and
+        // doubled slashes must not defeat protected-path matching —
+        // `scripts/./verify.sh` and `scripts//verify.sh` name the same
+        // gate script as `scripts/verify.sh` (codex review F1).
+        let mut token = String::new();
+        for seg in raw.split('/') {
+            if seg.is_empty() || seg == "." {
+                continue;
+            }
+            token.push('/');
+            token.push_str(seg);
+        }
+        let token = token.trim_start_matches('/');
         if token.is_empty() {
             continue;
-        }
-        if token.starts_with('/') || token.starts_with('~') || token.starts_with("$HOME") {
-            return false;
         }
         if token.split('/').any(|seg| seg == "..") {
             return false;
@@ -1090,6 +1102,16 @@ mod tests {
             !valid_verifier_shape("sh ././scripts/verify.sh"),
             "repeated dot prefix must not defeat the check"
         );
+        // Codex review F1: mid-path dot segments and doubled slashes
+        // name the same script.
+        assert!(
+            !valid_verifier_shape("sh scripts/./verify.sh"),
+            "mid-path dot segment must be refused"
+        );
+        assert!(
+            !valid_verifier_shape("sh scripts//verify.sh"),
+            "doubled slash must be refused"
+        );
         // Legit relative paths and tools still pass.
         assert!(
             valid_verifier_shape("./cargo test"),
@@ -1099,6 +1121,15 @@ mod tests {
             valid_verifier_shape("sh -c 'python3 ./tests/run.py'"),
             "dot-prefixed relative script stays valid"
         );
+    }
+
+    #[test]
+    fn verifier_shape_refuses_quoted_and_braced_home_forms() {
+        // Codex review F1: the $HOME guard must survive quotes and the
+        // braced spelling.
+        assert!(!valid_verifier_shape(r#"sh "$HOME/bin/check.sh""#));
+        assert!(!valid_verifier_shape("sh '${HOME}/bin/check.sh'"));
+        assert!(!valid_verifier_shape("sh ${HOME}/bin/check.sh"));
     }
 
     #[test]
