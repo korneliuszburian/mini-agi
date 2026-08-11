@@ -886,3 +886,5 @@ research/what-is-22-answer-briefly.md
 2026-08-11T10:49:03Z VERIFY-FAIL research-falsifiers-cycle7b @ c775cba -> ROLLBACK to c775cba
 2026-08-11T11:26:58Z BEGIN bg-flake-fix-cycle8 -> 5263d0d (restored by rollback)
 2026-08-11T11:26:58Z VERIFY-FAIL bg-flake-fix-cycle8 @ 5263d0d -> ROLLBACK to 5263d0d
+2026-08-11T11:31:00Z BEGIN bg-flake-fix-cycle8b -> 93b8128 (clean)
+2026-08-11T11:32:02Z VERIFY-PASS bg-flake-fix-cycle8b @ 93b8128
