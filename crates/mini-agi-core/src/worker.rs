@@ -57,7 +57,10 @@ fn estimate_flash_cost(tokens_in: u64, tokens_out: u64) -> f64 {
 /// The final `step_finish` event carries `part.tokens{input,output}` and
 /// `part.cost` (USD). Defensive: scans JSON-lines, keeps the last
 /// well-formed event, falls back to the rate-card estimate when the
-/// worker reports no cost.
+/// worker reports no cost. A `step_finish` with partial token counts is
+/// still booked when it carries an explicit cost — the run spent the
+/// money even if the token split is truncated, and discarding it would
+/// under-report cost to the P0-1 caps (codex review F3b).
 #[must_use]
 pub fn parse_opencode_usage(output: &str) -> Option<WorkerUsage> {
     let mut usage: Option<WorkerUsage> = None;
@@ -74,16 +77,26 @@ pub fn parse_opencode_usage(output: &str) -> Option<WorkerUsage> {
         let Some(tokens) = part.get("tokens") else {
             continue;
         };
-        let (Some(tokens_in), Some(tokens_out)) = (
-            tokens.get("input").and_then(serde_json::Value::as_u64),
-            tokens.get("output").and_then(serde_json::Value::as_u64),
-        ) else {
+        let tokens_in = tokens.get("input").and_then(serde_json::Value::as_u64);
+        let tokens_out = tokens.get("output").and_then(serde_json::Value::as_u64);
+        let reported_cost = part.get("cost").and_then(serde_json::Value::as_f64);
+        let (Some(tokens_in), Some(tokens_out)) = (tokens_in, tokens_out) else {
+            // One-sided token counts: usable ONLY when the event
+            // reports a cost of its own. Missing tokens without a
+            // cost are nothing we can attribute — skip. Missing
+            // tokens WITH a cost must not be discarded: the explicit
+            // measurement survives the truncated telemetry.
+            let Some(cost_usd) = reported_cost else {
+                continue;
+            };
+            usage = Some(WorkerUsage {
+                tokens_in: tokens_in.unwrap_or(0),
+                tokens_out: tokens_out.unwrap_or(0),
+                cost_usd,
+            });
             continue;
         };
-        let cost_usd = part
-            .get("cost")
-            .and_then(serde_json::Value::as_f64)
-            .unwrap_or_else(|| estimate_flash_cost(tokens_in, tokens_out));
+        let cost_usd = reported_cost.unwrap_or_else(|| estimate_flash_cost(tokens_in, tokens_out));
         usage = Some(WorkerUsage {
             tokens_in,
             tokens_out,
@@ -357,15 +370,28 @@ mod tests {
     }
 
     #[test]
-    fn opencode_usage_skips_events_with_partial_token_counts() {
-        // One-sided token counts are malformed telemetry: the event is
-        // ignored, never half-parsed (defensive contract).
+    fn opencode_usage_books_reported_cost_with_partial_token_counts() {
+        // Codex review F3b: a reported cost is a measurement
+        // independent of the token split. A truncated (one-sided)
+        // step_finish that still reports cost must be booked — the
+        // run spent the money, and dropping it under-reports the
+        // P0-1 cost caps. Missing side counts as 0, cost survives.
         let one_sided = r#"{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":100},"cost":0.001}}
 "#;
-        assert!(
-            parse_opencode_usage(one_sided).is_none(),
-            "missing output tokens => event ignored"
-        );
+        let u = parse_opencode_usage(one_sided).expect("cost is booked");
+        assert_eq!(u.tokens_in, 100);
+        assert_eq!(u.tokens_out, 0, "missing side counts as 0, not dropped");
+        assert!((u.cost_usd - 0.001).abs() < 1e-9);
+    }
+
+    #[test]
+    fn opencode_usage_skips_events_with_partial_token_counts_and_no_cost() {
+        // One-sided token counts with NO reported cost stay ignored:
+        // there is nothing attributable to book, and the rate-card
+        // estimate needs both sides (defensive contract).
+        let one_sided = r#"{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":100}}}
+"#;
+        assert!(parse_opencode_usage(one_sided).is_none());
     }
 
     #[test]
