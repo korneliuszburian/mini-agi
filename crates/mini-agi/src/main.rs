@@ -4527,16 +4527,38 @@ mod tests {
     }
 
     #[test]
-    fn eval_gate_unreadable_baseline_fails_closed_with_empty_cases() {
-        // Codex review F2: only a truly absent baseline (NotFound)
-        // passes green on an empty corpus. A baseline that EXISTS but
-        // cannot be read must fail — an unreadable suite must never
-        // look like an absent one.
+    fn eval_gate_non_notfound_baseline_error_fails_closed_with_empty_cases() {
+        // Codex review F2 (re-review): the falsifier must DISCRIMINATE —
+        // the old fail-open `metadata().is_err()` also passed green for
+        // a directory baseline (metadata succeeds there, read fails
+        // later), so that test could not catch the original bug. A
+        // baseline whose PARENT is a regular file yields ENOTDIR from
+        // metadata(): a non-NotFound error. Old code: PASS (bug).
+        // New code: fails closed.
         let root = std::env::temp_dir().join(format!("mag-gate2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("evals")).unwrap();
+        // evals/results is a FILE: metadata(baseline.json) => ENOTDIR.
+        std::fs::write(root.join("evals/results"), "not a directory").unwrap();
+        std::fs::create_dir_all(root.join("evals/cases")).unwrap();
+        let err = eval_gate_text(&root, 0.1, 0, false).unwrap_err();
+        assert!(
+            err.contains("baseline unreadable"),
+            "non-NotFound metadata error fails closed, got: {err}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn eval_gate_existing_but_unreadable_baseline_fails_closed() {
+        // A baseline that EXISTS (metadata ok) but cannot be read must
+        // still fail: an unreadable suite never looks like an absent
+        // one. baseline.json as a DIRECTORY: metadata succeeds, the
+        // read below errors.
+        let root = std::env::temp_dir().join(format!("mag-gate3-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("evals/results")).unwrap();
         std::fs::create_dir_all(root.join("evals/cases")).unwrap();
-        // baseline.json as a DIRECTORY: metadata succeeds, read fails.
         std::fs::create_dir_all(root.join("evals/results/baseline.json")).unwrap();
         let err = eval_gate_text(&root, 0.1, 0, false).unwrap_err();
         assert!(
