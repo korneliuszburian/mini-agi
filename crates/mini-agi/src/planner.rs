@@ -1058,6 +1058,49 @@ mod tests {
     }
 
     #[test]
+    fn verify_target_defaults_to_dot_and_keeps_explicit() {
+        // A ticket without verify_target must default to "." (the whole
+        // worktree), not to an empty string that breaks the verify run.
+        let m = expect_ok(
+            r#"{"version":1,"tickets":[{"id":"t1","goal":"g","scope":["a.txt"],"verify":"test -f a.txt"}]}"#,
+        );
+        assert_eq!(m.tickets[0].verify_target, ".");
+        // An explicit target round-trips.
+        let m = expect_ok(
+            r#"{"version":1,"tickets":[{"id":"t1","goal":"g","scope":["a.txt"],"verify":"test -f a.txt","verify_target":"sub/dir"}]}"#,
+        );
+        assert_eq!(m.tickets[0].verify_target, "sub/dir");
+    }
+
+    #[test]
+    fn valid_relative_path_adversarial_edges() {
+        assert!(valid_relative_path("."), "the cwd is a valid target");
+        assert!(valid_relative_path("./x"), "dot-prefixed is still relative");
+        assert!(
+            valid_relative_path("a..b"),
+            "a segment merely containing .. is fine"
+        );
+        assert!(valid_relative_path(".hidden"), "dotfiles are fine");
+        assert!(valid_relative_path("a b/c"), "spaces in names are allowed");
+        assert!(
+            !valid_relative_path("a\\..\\b"),
+            "backslash traversal must fail"
+        );
+        assert!(!valid_relative_path("C:x"), "drive-letter colon must fail");
+        assert!(!valid_relative_path("//x"), "double slash is absolute");
+        // Degenerate but SAFE names are accepted: they are legal Linux
+        // filenames and cannot escape the worktree.
+        assert!(
+            valid_relative_path("..."),
+            "a dots-named dir is a safe relative name"
+        );
+        assert!(
+            valid_relative_path(" "),
+            "a space-named dir is safe, not traversal"
+        );
+    }
+
+    #[test]
     fn provision_creates_worktrees_and_preflights_verifiers() {
         // A real fixture repo: two files, two tickets with disjoint
         // scopes and non-vacuous verifiers (test -f passes in the
