@@ -98,8 +98,23 @@ pub fn valid_verifier_shape(verify: &str) -> bool {
     }
     // Tokenize on whitespace and shell quotes; every token that looks
     // like a path must be relative and safe.
-    for token in verify.split_whitespace() {
-        let token = token.trim_matches(['\'', '"', '(', ')', ';', '&', '|', '$', '`', '>', '<']);
+    for raw in verify.split_whitespace() {
+        // The $HOME guard must run on the RAW token: the char-strip
+        // below removes a leading '$', which would turn "$HOME/x" into
+        // "HOME/x" and silently defeat the check (real defect found by
+        // falsifier — the guard was dead code).
+        if raw.starts_with("$HOME") {
+            return false;
+        }
+        let raw = raw.trim_matches(['\'', '"', '(', ')', ';', '&', '|', '$', '`', '>', '<']);
+        // Normalize a leading "./" away BEFORE the checks: `sh
+        // ./scripts/verify.sh` is the same protected script as `sh
+        // scripts/verify.sh` — the dot-prefix must not defeat the
+        // allowlist (real defect found by falsifier).
+        let mut token = raw;
+        while let Some(rest) = token.strip_prefix("./") {
+            token = rest;
+        }
         if token.is_empty() {
             continue;
         }
@@ -1050,11 +1065,40 @@ mod tests {
         assert!(valid_verifier_shape("cargo test"));
         assert!(valid_verifier_shape("sh -c 'python3 tests/run.py'"));
         assert!(!valid_verifier_shape(""));
+        assert!(!valid_verifier_shape("sh $HOME/bin/check.sh"));
         assert!(!valid_verifier_shape("/usr/bin/make verify"));
         assert!(!valid_verifier_shape("make -C /abs verify"));
         assert!(!valid_verifier_shape("python3 ~/scripts/check.py"));
         assert!(!valid_verifier_shape("sh ../../evil.sh"));
         assert!(!valid_verifier_shape("sh scripts/verify.sh"));
+    }
+
+    #[test]
+    fn verifier_shape_dot_prefix_does_not_defeat_protected_paths() {
+        // Real defect: `./scripts/verify.sh` used to slip past the
+        // allowlist because the "./" prefix broke the protected-path
+        // comparison. The dot-prefixed form is the same script.
+        assert!(
+            !valid_verifier_shape("sh ./scripts/verify.sh"),
+            "dot-prefixed protected script must be refused"
+        );
+        assert!(
+            !valid_verifier_shape("./scripts/gate-lib.sh"),
+            "bare dot-prefixed protected path must be refused"
+        );
+        assert!(
+            !valid_verifier_shape("sh ././scripts/verify.sh"),
+            "repeated dot prefix must not defeat the check"
+        );
+        // Legit relative paths and tools still pass.
+        assert!(
+            valid_verifier_shape("./cargo test"),
+            "dot-prefixed tool stays valid"
+        );
+        assert!(
+            valid_verifier_shape("sh -c 'python3 ./tests/run.py'"),
+            "dot-prefixed relative script stays valid"
+        );
     }
 
     #[test]

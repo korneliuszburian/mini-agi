@@ -262,4 +262,25 @@ mod tests {
         assert!(apples < zebras, "rows persist sorted by slug");
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn reask_after_promotion_resets_status_keeps_first_date() {
+        let root = tmpdir("reask2");
+        std::fs::create_dir_all(root.join("research")).unwrap();
+        let first = record_asked(&root, "What is X?").unwrap();
+        advance_status(&root, "what-is-x", QuestionStatus::Promoted).unwrap();
+        assert_eq!(load_registry(&root)[0].status, QuestionStatus::Promoted);
+        // Asking the same question again AFTER promotion: lifecycle
+        // resets to Asked (the question is live again), but the
+        // first-ask date survives — freshness is not rewritten.
+        record_asked(&root, "What is X?").unwrap();
+        let rows = load_registry(&root);
+        assert_eq!(rows.len(), 1, "still one row");
+        assert_eq!(rows[0].status, QuestionStatus::Asked);
+        assert_eq!(
+            rows[0].updated, first.updated,
+            "re-ask keeps the first-ask date even after promotion"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
