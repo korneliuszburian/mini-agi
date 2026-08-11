@@ -4420,4 +4420,57 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn ingest_text_missing_run_and_cost_cap() {
+        let root = std::env::temp_dir().join(format!("mag-ing1-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("memory/canonical/entries")).unwrap();
+        // A missing run file maps to the score error, never a crash.
+        assert!(
+            ingest_text(&root, &root.join("evals/runs/none/run.json"), None)
+                .unwrap_err()
+                .contains("cannot score run")
+        );
+        // P0-1 cost cap: a self-reported cost above max_cost_usd is
+        // refused BEFORE scoring — fail-closed at ingest.
+        std::fs::write(root.join(".miniagi.json"), r#"{"max_cost_usd": 1.0}"#).unwrap();
+        let run = root.join("evals/runs/pricey/run.json");
+        std::fs::create_dir_all(run.parent().unwrap()).unwrap();
+        std::fs::write(
+            &run,
+            r#"{"goal":"g","scope":[],"outcome":{"achieved":false},"cost_usd":99.0,"trajectory":[{"tool":"bash","action":"x"}]}"#,
+        )
+        .unwrap();
+        assert!(
+            ingest_text(&root, &run, None)
+                .unwrap_err()
+                .contains("refusing to ingest"),
+            "cost cap must refuse the over-budget run"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ingest_text_success_path_reports_facts() {
+        let root = std::env::temp_dir().join(format!("mag-ing2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("memory/canonical/entries")).unwrap();
+        let run = root.join("evals/runs/mycase/run.json");
+        std::fs::create_dir_all(run.parent().unwrap()).unwrap();
+        std::fs::write(
+            &run,
+            r#"{"goal":"g","scope":[],"outcome":{"achieved":true},"tokens_total":120,"trajectory":[{"tool":"bash","action":"x","ok":true}]}"#,
+        )
+        .unwrap();
+        let out = ingest_text(&root, &run, None).unwrap();
+        assert!(out.starts_with("ingested: mycase ("), "{out}");
+        assert!(out.contains("120 tokens"), "{out}");
+        assert!(
+            out.contains("world model: 2 new facts, 0 known"),
+            "score line + strong-run flag both land as facts: {out}"
+        );
+        assert!(out.contains("next: mini-agi derive"), "{out}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
