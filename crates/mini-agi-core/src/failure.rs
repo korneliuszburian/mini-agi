@@ -298,6 +298,7 @@ mod tests {
 #[cfg(test)]
 mod normalization_tests {
     use super::*;
+    use crate::eval::{Outcome, Run, Step};
 
     #[test]
     fn absolute_paths_normalize_for_hashing() {
@@ -309,5 +310,104 @@ mod normalization_tests {
             fact_id(&format!("write|{}", normalize_action(b)))
         );
         assert_eq!(normalize_action("edit same line"), "edit same line");
+    }
+
+    #[test]
+    fn longest_absolute_prefix_wins_in_normalization() {
+        // "/tmp/opencode/" must win over "/tmp/" — the nested prefix is
+        // checked first, so a session dir does not degrade to
+        // "<abs>/opencode/...".
+        assert_eq!(
+            normalize_action("run: /tmp/opencode/session/a"),
+            "run: <abs>/session/a"
+        );
+        // Any /tmp path normalizes via the shorter prefix.
+        assert_eq!(normalize_action("run: /tmp/x"), "run: <abs>/x");
+        assert_eq!(
+            normalize_action("run: /tmp/opencode2/y"),
+            "run: <abs>/opencode2/y"
+        );
+        assert_eq!(
+            normalize_action("run: /home/krn/proj/src/main.rs"),
+            "run: <abs>/proj/src/main.rs"
+        );
+        assert_eq!(normalize_action("no abs paths"), "no abs paths");
+    }
+
+    #[test]
+    fn repeat_with_any_failure_signal_is_flagged() {
+        let mut run = Run {
+            goal: "g".into(),
+            scope: vec![],
+            outcome: Outcome {
+                achieved: true,
+                tests_pass: None,
+                typecheck_pass: None,
+                lint_pass: None,
+            },
+            tokens_total: 0,
+            cost_usd: 0.0,
+            golden: None,
+            verify_command: None,
+            verify_target: None,
+            reflection: None,
+            mast: None,
+            trajectory: vec![
+                Step {
+                    step: 1,
+                    action: "cargo test".into(),
+                    tool: "exec".into(),
+                    ok: Some(true),
+                    goal_aligned: None,
+                    tokens: 0,
+                    output_tokens: 0,
+                    reverted: false,
+                    note: String::new(),
+                    paths: vec![],
+                },
+                Step {
+                    step: 2,
+                    action: "cargo test".into(),
+                    tool: "exec".into(),
+                    ok: Some(false),
+                    goal_aligned: None,
+                    tokens: 0,
+                    output_tokens: 0,
+                    reverted: false,
+                    note: String::new(),
+                    paths: vec![],
+                },
+                Step {
+                    step: 3,
+                    action: "cargo test".into(),
+                    tool: "exec".into(),
+                    ok: Some(true),
+                    goal_aligned: None,
+                    tokens: 0,
+                    output_tokens: 0,
+                    reverted: false,
+                    note: String::new(),
+                    paths: vec![],
+                },
+            ],
+            kernel_version: None,
+            n_steps: None,
+            n_toolcalls: None,
+            mode: None,
+            latency_seconds: None,
+            extra: serde_json::Map::new(),
+        };
+        // Interleaved failing step: the repeat is flagged with the full
+        // count and every 1-based index, in order.
+        let found = repeated_failing_actions(&run);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].0, "exec");
+        assert_eq!(found[0].1, "cargo test");
+        assert_eq!(found[0].2, 3);
+        assert_eq!(found[0].3, vec![1, 2, 3]);
+        // One clean run of the same action is not a repeat at all.
+        run.trajectory.truncate(1);
+        run.trajectory[0].ok = Some(true);
+        assert!(repeated_failing_actions(&run).is_empty());
     }
 }
