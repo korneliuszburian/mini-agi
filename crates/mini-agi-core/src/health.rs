@@ -516,4 +516,37 @@ mod tests {
             assert!((0.0..=1.0).contains(&frac));
         }
     }
+
+    #[test]
+    fn classify_load_survives_zero_cores() {
+        // nproc=0 (a broken read) must not panic nor crash the health
+        // probe: the floor of 1 core applies, keeping the mult finite.
+        let t = HealthThresholds::default();
+        assert!(classify_load(0.1, 0, &t).is_none());
+        assert_eq!(
+            classify_load(40.0, 0, &t).unwrap().severity,
+            "critical",
+            "40x the floor of 1 core"
+        );
+    }
+
+    #[test]
+    fn parse_frac_guards_denominator_and_overflow() {
+        assert_eq!(parse_frac(1, 0), None, "zero denominator is not a ratio");
+        assert_eq!(parse_frac(0, 0), None);
+        assert_eq!(
+            parse_frac(u64::MAX, 2),
+            None,
+            "beyond-u32 counts are refused, not truncated"
+        );
+        assert_eq!(parse_frac(3, 2), Some(1.5), "plain ratios survive intact");
+    }
+
+    #[test]
+    fn exit_code_fails_closed_for_unknown_verdicts() {
+        // An unexpected verdict string is not silently OK: the default
+        // maps to the critical exit code.
+        assert_eq!(exit_code_for("UNKNOWN"), 2);
+        assert_eq!(exit_code_for(""), 2);
+    }
 }
