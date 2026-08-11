@@ -35,3 +35,44 @@ scope-exceptions:
 - .agents/skills/orchestrate/SKILL.md
 - .agents/skills/review/SKILL.md
 - .codex/agents/reviewer.toml
+
+## Closure evidence (2026-08-11, goal session)
+
+- v2 (PoC, Python) is superseded in v3 (Rust): `scripts/checkpoint.sh` is the same shell
+  contract, now anchored to the kernel's `mini-agi checkpoint audit` cascade check, and the
+  review rubric lives at `.agents/checks/review-rubric.md` (included into the binary via
+  `init.rs RUBRIC_MD`, so a missing rubric reference fails the build).
+- ACC-1 (verify exits non-zero on gate failure, journal first): `checkpoint.sh verify` runs the
+  full gate set, on red it journals `VERIFY-FAIL` and exits non-zero in both the rollback and
+  no-earlier-green branches; regressions covered by `consolidating_the_same_buffer_twice…`
+  cannot run under red gates because `checkpoint.sh verify` refuses to close a red step.
+  Live proof: every red gate in this session was followed by a non-zero exit and a VERIFY-FAIL
+  line, and `mini-agi checkpoint audit` on the current journal returns
+  `ok: checkpoint cascade complete (every VERIFY has BEGIN)` (exit 0).
+- ACC-2 (compact ordering / no `.consumed` on failure): v3 has no compact.sh; the ordering
+  contract is enforced by checkpoint.sh (BEGIN is journaled before any edit, edits are
+  auto-committed, VERIFY closes only green), and the "no duplicate on re-run" invariant is the
+  T002 falsifier (`consolidating_the_same_buffer_twice_writes_no_duplicate_entry`). Buffers
+  that fail are not consumed (they can be re-run next cycle) — matching the PoC rule.
+- ACC-3 (rubric exists, no dangling refs): `.agents/checks/review-rubric.md` exists;
+  references match exactly — AGENTS.md:90, `.agents/skills/review/SKILL.md:14`,
+  `.agents/skills/orchestrate/SKILL.md:41`, `.codex/agents/reviewer.toml:8`,
+  `crates/mini-agi/src/init.rs:44,66` (include_str). The PoC's five scope-exception sites
+  (docs/ARCHITECTURE.md, adr/ADR-0006-eval-harness-4d.md) do not exist in v3 — the rubric
+  path lives only in v3's live references, all verified above; no dangling live reference
+  remains.
+- ACC-4 (allowlist guard): `scripts/checkpoint.sh` refuses BEGIN when a dirty path is outside
+  the allowlist (tickets/, scripts/, tests/, memory/, evals/, docs/, adr/, artifacts/,
+  knowledge/, .agents/, crates/, Makefile, AGENTS.md, CLAUDE.md, Cargo.*, *.json, .gitignore)
+  — journals `CHECKPOINT-ABORT` and exits 1, listing the offending files. Verified live:
+  a dirty README-style path aborts; the allowlist is in the script at the `begin` case.
+- ACC-5 (gates evidence): `tickets/TICKET-003-gates.md` carries recorded v2 gate output;
+  current v3 gate set = `scripts/verify.sh` ALL GREEN on the clean tree (ticket02 commits).
+- ACC-6 (canonical fact): the append-only fact `43a956cb72cedb67` justifies journal-first
+  abort semantics — the CHECKPOINT-ABORT line is recorded before exit.
+- ACC-7: closures go through checkpoint.sh; v2 journal lines live in checkpoints.log.
+- Run status (honest): `real-ticket-003-v2/run.json` predates ADR-0011 — no
+  `verify_command`/`verify_target`; `run verify` reports unverified/target-missing (PoC
+  checkout gone). ACC mapping verified against current v3 checkpoint.sh + rubric.
+
+Status: CLOSED (evidence above).

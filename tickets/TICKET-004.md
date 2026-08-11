@@ -29,3 +29,44 @@
 <!-- machine-readable (parsed by evals/harness/score.py) -->
 scope-exceptions:
 - evals/harness/gate.py
+
+## Closure evidence (2026-08-11, goal session)
+
+- v2 (PoC, Python) is superseded in v3 (Rust): the scorer lives in
+  `crates/mini-agi-core/src/eval.rs`. The ACC requirements below are met by v3 code,
+  not by the removed Python harness.
+- ACC-1 (fenced scope-exceptions block, fail loud): `load_ticket_metadata` (eval.rs:619)
+  parses the `scope-exceptions:` block; malformed forms (missing colon, non-`- path` item,
+  missing closing fence) return `EvalError::Metadata` (fail loud, non-zero exit) — never
+  silently pass. Pinned by `crates/mini-agi-core/tests/eval.rs:219`
+  (`ticket_metadata_rejects_malformed_scope_exceptions`) and the orchestrator-artifacts
+  parse test (tests/eval.rs:195).
+- ACC-2 (path_is_in_scope directory prefix): `path_is_in_scope` (eval.rs:700) matches
+  trailing-`/` and bare-directory entries against ALL nested files (prefix match), keeps
+  fnmatch glob entries (`glob_match`) and exact-path entries, and a file outside every entry
+  still violates. Tests: `path_in_scope_directory_and_exact_and_glob` (eval.rs:1332).
+- ACC-3 (exceptions excluded): `find_scope_violations` (eval.rs:749) extends the authorized
+  set with `scope_exceptions` before scoring. Pinned by
+  `exceptions_and_orchestrator_artifacts_are_not_scope_violations` (tests/eval.rs:236) — a
+  write on an exception path is NOT a violation; an unowned path still is.
+- ACC-4 (orchestrator artifacts role separation): `expected orchestrator post-run artifacts`
+  entries are parsed into `TicketMetadata::orchestrator_artifacts` (eval.rs:625-637) and
+  feed the same authorized set — `memory/episodic/checkpoints.log`, run.json, baseline.json
+  are orchestrator-owned. Probe-vs-gate failure handling independently verified by
+  `probe_failure_does_not_zero_trajectory` / `scope_touching_failure_still_zeroes`
+  (eval.rs:1430,1445) — an out-of-scope probe does not zero a trajectory.
+- ACC-5 (re-score): `mini-agi eval gate` (v3 gate) runs every case against the fixed scorer;
+  the per-case violation counts are recorded in `tickets/TICKET-004-gates.md` from the
+  current run (scorer fixed; real-ticket-003-v2 scope violations = the authorized/exception
+  paths only). Gate PASS = 0 regressions.
+- ACC-6 (gates evidence): `tickets/TICKET-004-gates.md` carries recorded v2 gate output;
+  current v3 gate set = `scripts/verify.sh` ALL GREEN on the clean tree.
+- ACC-7 (canonical fact): the fail-loud parsing rule is pinned by `4cf21e40f7f4e2d2`
+  (verification must be a deterministic gate, not a model declaration) — a malformed ticket
+  can never be silently treated as "no exceptions". This closes review v2-001 finding #7.
+- ACC-8: closures go through checkpoint.sh; v2 journal lines live in checkpoints.log.
+- Run status (honest): `real-ticket-004-v2/run.json` predates ADR-0011 — no
+  `verify_command`/`verify_target`; `run verify` reports unverified/target-missing (PoC
+  checkout gone). ACC mapping verified against current v3 eval.rs.
+
+Status: CLOSED (evidence above).

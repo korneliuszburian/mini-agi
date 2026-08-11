@@ -1107,9 +1107,11 @@ fn cli_loop_dispatch_writes_spec_and_claim() {
     )
     .unwrap();
     std::fs::create_dir_all(root.join("tickets")).unwrap();
-    std::fs::copy(
-        repo.join("tickets/TICKET-001.md"),
+    // Hermetic fixture: dispatch must see an OPEN ticket for the case
+    // (a live CLOSED ticket is not dispatchable by design).
+    std::fs::write(
         root.join("tickets/TICKET-001.md"),
+        "# Ticket\n\n- id: TICKET-001-v2\n- title: wire gates for real-ticket-001-v2\n- goal: bring real-ticket-001-v2 above the loop target\n- scope: evals/cases\n- domain: eval\n",
     )
     .unwrap();
     let status = run(&root, &["loop", "status"]);

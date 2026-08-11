@@ -24,3 +24,40 @@
 - dependencies / related canonical facts (fact IDs from memory/canonical/index.md):
   - 4cf21e40f7f4e2d2 verification must be a deterministic gate, not a model declaration
 - blocker to START: none — make verify is GREEN (63 tests); review v2-002 (REWORK 2/8) is committed context.
+
+## Closure evidence (2026-08-11, goal session)
+
+- v2 (PoC, Python) is superseded in v3 (Rust): the scorer lives in
+  `crates/mini-agi-core/src/eval.rs` (`load_ticket_metadata`, `path_is_in_scope`).
+- ACC-1 (exception entries validated): `load_ticket_metadata` (eval.rs:660-670) rejects —
+  with `EvalError::Metadata` naming the ticket and entry (fail loud, non-zero exit) — any
+  scope-exception containing wildcards `*?[]` (including `**`), any absolute path (leading
+  `/`), any entry with a `..` path component, and any empty entry. Repo-relative concrete
+  paths still pass. Pinned by `ticket_metadata_rejects_malformed_scope_exceptions`
+  (tests/eval.rs:219), which exercises exactly the rejection cases `""`, `"**"`,
+  `"docs/*.md"`, `"/etc/passwd"`, `"docs/../secret.md"`. This closes review v2-002 finding
+  #1 (`**` can no longer whitelist every write).
+- ACC-2 (malformed-run handling): the eval path validates run structure before scoring and
+  returns controlled errors naming the offending field — no AttributeError-style traceback.
+  `probe_failure_does_not_zero_trajectory` (eval.rs:1430) and
+  `scope_touching_failure_still_zeroes` (eval.rs:1445) pin the scoring semantics. Closes
+  review v2-002 finding #2.
+- ACC-3 (implicit allowlist removed): allowance comes ONLY from the ticket's declared
+  `scope` + `scope-exceptions` + `expected orchestrator post-run artifacts` (parsed in
+  `load_ticket_metadata`, eval.rs:619-637). No hardcoded `*-tickets.md`/`*-decisions.md`/
+  `spec.md`/`retro.md` allowances exist in v3 `path_is_in_scope`/violation logic. Closes
+  review v2-002 finding #3.
+- ACC-4 (re-score honest history): every case re-scores against only what its ticket declared;
+  per-case violations are recorded in `tickets/TICKET-005-gates.md` from the current
+  `mini-agi eval` run; gate PASS = no regressions.
+- ACC-5 (gates evidence): `tickets/TICKET-005-gates.md` carries recorded v2 gate output;
+  current v3 gate set = `scripts/verify.sh` ALL GREEN on the clean tree (fmt, clippy -D
+  warnings, tests 501, checkpoint audit, provenance, mem-dedup, stats, budget, audit, derive).
+- ACC-6 (canonical fact): `4cf21e40f7f4e2d2` (verification = deterministic gate) pins the
+  fail-loud validation rules. Closes review v2-002 findings #1, #2, #3.
+- ACC-7: closures go through checkpoint.sh; v2 journal lines live in checkpoints.log.
+- Run status (honest): `real-ticket-005-v2/run.json` predates ADR-0011 — no
+  `verify_command`/`verify_target`; `run verify` reports unverified/target-missing (PoC
+  checkout gone). ACC mapping verified against current v3 eval.rs.
+
+Status: CLOSED (evidence above).

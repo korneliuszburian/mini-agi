@@ -1281,9 +1281,11 @@ mod tests {
         fs::create_dir_all(root.join("evals/results")).unwrap();
         fs::write(root.join("evals/results/baseline.json"), "[]").unwrap();
         fs::create_dir_all(root.join("tickets")).unwrap();
-        fs::copy(
-            repo.join("tickets/TICKET-008.md"),
+        // Hermetic fixture: dispatch needs an OPEN ticket for the case
+        // (a live CLOSED ticket is not dispatchable by design).
+        fs::write(
             root.join("tickets/TICKET-008.md"),
+            "# Ticket\n\n- id: TICKET-008-v2\n- title: wire gates for real-ticket-008-v2\n- goal: bring real-ticket-008-v2 above the loop target\n- scope: evals/cases\n- domain: eval\n",
         )
         .unwrap();
         root

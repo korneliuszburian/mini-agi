@@ -37,3 +37,41 @@
   - 43a956cb72cedb67 append-only decision logs prevent semantic drift
   - 4ff9a0feb3fc77cd subagents are context firewalls
 - blocker to START: none — make verify is GREEN (74 tests); T007 closed review v2-001 #5.
+
+## Closure evidence (2026-08-11, goal session)
+
+- v2 (PoC, Python) is superseded in v3 (Rust): all three deliverables are kernel/CLI
+  features. The ACC requirements below are met by current v3 code.
+- D1.1 (contested candidates -> review queue): `consolidate` with `require_signoff`
+  (flag wired at main.rs:664/758) routes wording-variants (same first 40 chars) to
+  `memory/review/contested-<date>.md` with source + reason + existing fact hash — never to
+  canonical. `consolidate_signoff_routes_wording_variants_to_queue` (memory.rs:1488) asserts
+  `new_facts == 0`, `skipped == 1`, `entry: None`, and one queue file containing variant +
+  source.
+- D1.2 (promote ONE with signoff provenance): `mini-agi mem signoff <queue> <index>
+  [--domain]` (`cmd_signoff`, main.rs:2424) promotes into canonical with `kind: signoff`;
+  re-promoting an already-known fact is refused (`mem: existing_fact_ids` guard at
+  main.rs:2439-2447 + `signoff`/`supersede` logic, memory.rs:906). Closes the ADR-0002
+  conflict gap.
+- D2 (journal audit): `mini-agi checkpoint audit` walks `memory/episodic/checkpoints.log`;
+  live run on the real journal -> `ok: checkpoint cascade complete (every VERIFY has BEGIN)`
+  (exit 0). Semantics = T008 amendments: BEGIN resolved by VERIFY-PASS or VERIFY-FAIL; an
+  unpaired BEGIN is an anomaly only if NOT the literal last line (verification in progress);
+  history warnings never fail. `scripts/verify.sh` runs the audit as a gate step
+  (`step "checkpoint" "$BIN" checkpoint audit`, verify.sh:81).
+- D3 (stats coverage): `mini-agi stats` (`cmd_stats`, main.rs:1814 ->
+  `metrics::stats`) counts canonical entries/facts, derived views, and gate status; it runs
+  as a verify.sh gate step (step "stats", verify.sh:84). Fixture-tree determinism is
+  exercised by the kernel metrics tests.
+- ACC-4 (gates evidence): `tickets/TICKET-008-gates.md` carries recorded v2 gate output;
+  current v3 gate set = `scripts/verify.sh` ALL GREEN on the clean tree — includes
+  `checkpoint`, `stats`, `audit` steps.
+- ACC-5 (canonical fact): the append-only fact `43a956cb72cedb67` justifies the contested
+  queue (never silently mutate canonical) — cited in D1.1's design. This ticket was the
+  cost-curve experiment run (batched memory-lifecycle deliverables).
+- ACC-6: closures go through checkpoint.sh; v2 journal lines live in checkpoints.log.
+- Run status (honest): `real-ticket-008-v2/run.json` predates ADR-0011 — no
+  `verify_command`/`verify_target`; `run verify` reports unverified/target-missing (PoC
+  checkout gone). ACC mapping verified against current v3 main.rs + memory.rs + verify.sh.
+
+Status: CLOSED (evidence above).

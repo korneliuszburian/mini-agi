@@ -24,3 +24,39 @@
 - dependencies / related canonical facts (fact IDs from memory/canonical/index.md):
   - 43a956cb72cedb67 append-only decision logs prevent semantic drift
 - blocker to START: none — make verify is GREEN (68 tests); REVIEW-003-v2 (APPROVE 8/8) is the last committed review.
+
+## Closure evidence (2026-08-11, goal session)
+
+- v2 (PoC, Python) is superseded in v3 (Rust): consolidation lives in
+  `crates/mini-agi-core/src/memory.rs` (`consolidate`, `extract_candidates`, canonical
+  entry writing). All ACC requirements below are locked by ported tests (same inputs as the
+  PoC expectations).
+- ACC-1 (cross-entry dedup): `consolidate_skips_facts_known_from_earlier_entries`
+  (memory.rs:1351) pre-seeds a PREVIOUS date's entry and asserts the same fact from a new
+  buffer is skipped repo-wide (`skipped == 1`, only the new fact lands; duplicate body
+  absent from the new entry).
+- ACC-2 (per-day numbering): `consolidate_numbers_per_day_continuously` (memory.rs:1409)
+  — with only previous-date entries, today starts at `-001`; with N entries today, the next
+  is `00N+1` (seq asserted for both transitions).
+- ACC-3 (dry-run): `consolidate_dry_run_plans_but_writes_nothing` (memory.rs:1459) —
+  reports planned entry + counts (new_facts/skipped) yet records zero `.md` files and
+  creates no directories.
+- ACC-4 (extraction strictness): `extract_candidates_enforces_boundaries` (memory.rs:1313)
+  — FACT:/bullet (empty skipped), bullet >= 8 chars (7 skipped, 8 kept), prose/headers never
+  extracted, CRLF does not leak `\r`.
+- ACC-5 (robustness): `consolidate_empty_buffer_is_an_error` (memory.rs:1338) — empty/blank
+  buffer -> `MemoryError::NoFacts` (CLI exit 1, clear message); missing buffer path handled
+  by CLI with a clear error; CRLF covered by ACC-4.
+- ACC-6 (gates evidence): `tickets/TICKET-006-gates.md` carries recorded v2 gate output;
+  current v3 gate set = `scripts/verify.sh` ALL GREEN on the clean tree (fmt, clippy -D
+  warnings, tests 501, checkpoint audit, provenance, mem-dedup, stats, budget, audit, derive).
+- ACC-7 (canonical fact): repo-wide dedup is justified by `43a956cb72cedb67` (append-only
+  decision logs prevent semantic drift) — dedup must be append-only + global, never
+  run-local mutation.
+- ACC-8: closures go through checkpoint.sh; v2 journal lines live in checkpoints.log.
+- Run status (honest): `real-ticket-006-v2/run.json` predates ADR-0011 — no
+  `verify_command`/`verify_target`; `run verify` reports unverified/target-missing (PoC
+  checkout gone). ACC mapping verified against current v3 memory.rs tests + `mini-agi`
+  docs (`mem consolidate`/`consolidating_the_same_buffer_twice…`).
+
+Status: CLOSED (evidence above).
