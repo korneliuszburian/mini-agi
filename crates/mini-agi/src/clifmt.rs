@@ -122,4 +122,69 @@ mod tests {
         assert!(d["verify_command"].is_null());
         assert!(d["trajectory"][0]["ok"].is_null());
     }
+
+    #[test]
+    fn tool_counts_split_exec_and_steps_are_ordered() {
+        let steps = [
+            CapturedStep {
+                line: 7,
+                tool: "exec".into(),
+                action: "cargo build".into(),
+                paths: vec!["src/x.rs".into()],
+                ok: Some(true),
+            },
+            CapturedStep {
+                line: 9,
+                tool: "read".into(),
+                action: "read file".into(),
+                paths: vec![],
+                ok: Some(true),
+            },
+            CapturedStep {
+                line: 14,
+                tool: "exec".into(),
+                action: "cargo test".into(),
+                paths: vec![],
+                ok: Some(true),
+            },
+        ];
+        let d = build_run_draft("g", &[], &steps, None, None, None);
+        assert_eq!(d["n_steps"], 3, "every captured step counts");
+        assert_eq!(d["n_toolcalls"], 2, "only exec tools count as toolcalls");
+        assert_eq!(d["trajectory"][0]["step"], 1, "1-based step numbering");
+        assert_eq!(d["trajectory"][2]["step"], 3);
+        assert_eq!(d["trajectory"][1]["tool"], "read");
+        assert_eq!(d["trajectory"][0]["paths"][0], "src/x.rs");
+        assert_eq!(
+            d["trajectory"][0]["note"],
+            "captured from codex transcript line 7"
+        );
+        assert!(
+            d["trajectory"][0]["goal_aligned"].is_null(),
+            "never asserted"
+        );
+        assert_eq!(d["trajectory"][0]["tokens"], 0, "cost fields stay zeroed");
+    }
+
+    #[test]
+    fn draft_preserves_a_failed_capture_truthfully() {
+        // A captured step that FAILED must stay failed in the draft — the
+        // draft is a truthful transcript, not a rosy summary.
+        let d = build_run_draft(
+            "g",
+            &[],
+            &[CapturedStep {
+                line: 3,
+                tool: "exec".into(),
+                action: "make verify".into(),
+                paths: vec![],
+                ok: Some(false),
+            }],
+            None,
+            None,
+            None,
+        );
+        assert_eq!(d["trajectory"][0]["ok"], false);
+        assert_eq!(d["outcome"]["achieved"], false);
+    }
 }

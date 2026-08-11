@@ -106,4 +106,26 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let _ = PathBuf::new();
     }
+
+    #[test]
+    fn allow_write_canonicalizes_aliases() {
+        let root = std::env::temp_dir().join(format!("mag-sandbox-canon-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        // A symlink alias of the same dir must dedup with the real path
+        // (both canonicalize to the same entry — the landlock rule then
+        // covers the subtree exactly once). NB: never chdir in tests —
+        // the cwd is process-global and breaks sibling tests.
+        let alias = root.join("alias");
+        std::os::unix::fs::symlink(root.join("sub"), &alias).unwrap();
+        let mut p = SandboxPolicy::new();
+        p.allow_write(&root.join("sub"));
+        p.allow_write(&alias);
+        assert_eq!(p.write_dirs.len(), 1, "symlink alias dedups to one rule");
+        assert!(
+            p.write_dirs[0].is_absolute(),
+            "stored paths are canonical/absolute"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = PathBuf::new();
+    }
 }
