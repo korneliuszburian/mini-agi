@@ -949,4 +949,62 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn is_alive_handles_garbage_and_empty_identity() {
+        let root = tmp_root("alive-edges");
+        let handle = handle_for(&root);
+        std::fs::create_dir_all(&handle).unwrap();
+        assert!(!is_alive(&handle), "no pid file means dead");
+        std::fs::write(handle.join("run.pid"), "not-a-pid").unwrap();
+        assert!(!is_alive(&handle), "an unparsable pid must report dead");
+        std::fs::write(handle.join("run.pid"), "0").unwrap();
+        assert!(!is_alive(&handle), "pid 0 must report dead");
+        std::fs::write(handle.join("run.pid"), std::process::id().to_string()).unwrap();
+        assert!(
+            !is_alive(&handle),
+            "a live pid with no recorded start-time must report dead"
+        );
+        let me = process_starttime(std::process::id()).to_string();
+        std::fs::write(handle.join("run.start"), me).unwrap();
+        assert!(
+            is_alive(&handle),
+            "a live identity with start-time is alive"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn process_live_requires_recorded_starttime() {
+        let pid = std::process::id();
+        assert!(
+            !process_live(pid, 0),
+            "recorded start 0 must never count as alive (pid-reuse guard)"
+        );
+        assert!(!process_live(0, 1), "pid 0 must never count as alive");
+        assert!(
+            !process_live(u32::MAX, 1),
+            "a nonexistent pid must never count as alive"
+        );
+        let start = process_starttime(pid);
+        assert!(
+            start > 0 && process_live(pid, start),
+            "our own identity must be live"
+        );
+    }
+
+    #[test]
+    fn proc_stat_unknown_pid_is_none() {
+        assert!(
+            proc_stat(u32::MAX).is_none(),
+            "a nonexistent pid must not produce a stat row"
+        );
+        let pid = std::process::id();
+        let (state, start) = proc_stat(pid).expect("our own pid has a stat row");
+        assert!(
+            matches!(state.as_str(), "R" | "S"),
+            "we are running or sleeping, got state {state}"
+        );
+        assert!(start > 0, "the start-time field must parse");
+    }
 }
