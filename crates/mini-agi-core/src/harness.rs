@@ -395,4 +395,26 @@ mod counterfactual_tests {
         );
         let _ = fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn unreadable_target_errors_instead_of_being_treated_as_absent() {
+        // A target that EXISTS but cannot be read as a file (a
+        // directory) must error with InvalidData — never be treated as
+        // absent, which would make restore() delete it on rejection.
+        let root = tmp_gate_root("unreadable", "#!/bin/sh\nexit 0\n");
+        let dir_target = root.join("target_dir");
+        fs::create_dir_all(&dir_target).unwrap();
+        let err = verify_candidate(&root, &dir_target, &root.join("scripts/verify.sh"), None)
+            .unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData, "{err}");
+        assert!(
+            err.to_string().contains("unreadable"),
+            "the error names the condition: {err}"
+        );
+        assert!(
+            dir_target.is_dir(),
+            "the unreadable target must survive untouched"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
 }
