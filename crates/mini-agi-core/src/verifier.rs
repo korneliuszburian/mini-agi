@@ -550,6 +550,29 @@ mod tests {
     }
 
     #[test]
+    fn verify_run_error_paths_are_named() {
+        let root = tmp_root("err");
+        // Missing run file: named, never a crash.
+        let missing = root.join("evals/cases/nope/run.json");
+        assert!(
+            verify_run(&root, &missing)
+                .unwrap_err()
+                .contains("cannot read"),
+        );
+        // Malformed run JSON maps to its error.
+        let dir = root.join("evals/cases/bad");
+        fs::create_dir_all(&dir).unwrap();
+        let bad = dir.join("run.json");
+        fs::write(&bad, "{not-json").unwrap();
+        assert!(
+            verify_run(&root, &bad)
+                .unwrap_err()
+                .contains("invalid run json"),
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn verifier_agrees_with_achieved_run() {
         let root = tmp_root("ok");
         let target = root.join("target");
