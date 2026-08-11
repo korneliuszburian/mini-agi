@@ -1516,4 +1516,145 @@ mod tests {
         assert!(resp["result"].is_object(), "{resp}");
         assert!(resp["result"].as_object().unwrap().is_empty(), "{resp}");
     }
+
+    #[test]
+    fn initialize_negotiates_unsupported_version_to_fallback() {
+        let mut initialized = false;
+        let bogus = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1999-01-01"}});
+        let resp = dispatch(&bogus, &mut initialized).unwrap();
+        assert_eq!(
+            resp["result"]["protocolVersion"], PROTOCOL_VERSION,
+            "an unsupported client version must fall back to our own"
+        );
+        let supported = json!({"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25"}});
+        let resp = dispatch(&supported, &mut initialized).unwrap();
+        assert_eq!(
+            resp["result"]["protocolVersion"], "2025-11-25",
+            "a supported client version must be echoed"
+        );
+    }
+
+    #[test]
+    fn memory_query_returns_facts_filtered_by_domain_and_keyword() {
+        let root = std::env::temp_dir().join(format!("mag-mcp-mq-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let args = serde_json::json!({});
+        let out = call_memory_tools("memory_query", &args, &root);
+        assert_eq!(out.as_deref(), Some("no facts match"));
+        let entry = root.join("memory/canonical/entries/2026-08-11/2026-08-11-001.md");
+        std::fs::create_dir_all(entry.parent().unwrap()).unwrap();
+        std::fs::write(
+            &entry,
+            "# 2026-08-11\n\n## F-001 `1111111111111111`\n- body: first bounded fact\n- domain: memory\n\n## F-002 `2222222222222222`\n- body: loop discipline fact\n- domain: memory\n",
+        )
+        .unwrap();
+        let loop_entry = root.join("memory/canonical/entries/2026-08-11/2026-08-11-002.md");
+        std::fs::write(
+            &loop_entry,
+            "# 2026-08-11\n\n## F-003 `3333333333333333`\n- body: a loop domain fact\n- domain: loop\n",
+        )
+        .unwrap();
+        let out = call_memory_tools("memory_query", &args, &root).unwrap();
+        assert!(out.contains("1111111111111111"), "{out}");
+        assert!(out.contains("2222222222222222"), "{out}");
+        let keyword = call_memory_tools(
+            "memory_query",
+            &serde_json::json!({"keyword": "bounded"}),
+            &root,
+        )
+        .unwrap();
+        assert!(keyword.contains("1111111111111111"), "{keyword}");
+        assert!(!keyword.contains("2222222222222222"), "{keyword}");
+        let domain = call_memory_tools(
+            "memory_query",
+            &serde_json::json!({"domain": "loop"}),
+            &root,
+        )
+        .unwrap();
+        assert!(domain.contains("3333333333333333"), "{domain}");
+        assert!(!domain.contains("1111111111111111"), "{domain}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn write_tools_refuse_without_approval_reason() {
+        let root = std::env::temp_dir().join(format!("mag-mcp-hitl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let cases: &[(&str, serde_json::Value)] = &[
+            (
+                "memory_consolidate",
+                serde_json::json!({"episodic": "none.md"}),
+            ),
+            (
+                "memory_signoff",
+                serde_json::json!({"queue": "q.md", "index": 1}),
+            ),
+            ("memory_derive", serde_json::json!({})),
+            ("loop_dispatch", serde_json::json!({"claimant": "t"})),
+            ("loop_objective", serde_json::json!({"claimant": "t"})),
+            ("run_ingest", serde_json::json!({"run": "run.json"})),
+        ];
+        for (name, args) in cases {
+            let out = call_tool(name, args, &root);
+            assert!(
+                out.contains("requires an approval reason"),
+                "{name} must refuse without approval, got: {out}"
+            );
+        }
+        let dry = call_tool(
+            "memory_consolidate",
+            &serde_json::json!({"dry_run": true}),
+            &root,
+        );
+        assert!(
+            !dry.contains("requires an approval reason"),
+            "dry_run is read-only and must not demand a write approval, got: {dry}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn run_verify_reports_unverified_for_no_declared_verifier() {
+        let root = std::env::temp_dir().join(format!("mag-mcp-rv-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let run = root.join("evals/cases/x/run.json");
+        std::fs::create_dir_all(run.parent().unwrap()).unwrap();
+        std::fs::write(
+            &run,
+            r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"trajectory":[]}"#,
+        )
+        .unwrap();
+        let out = call_run_tools(
+            "run_verify",
+            &serde_json::json!({"run": run.to_string_lossy()}),
+            &root,
+        )
+        .unwrap();
+        assert!(
+            out.contains("unverified") && out.contains("exit -"),
+            "a run without a declared verifier must be reported unverified, got: {out}"
+        );
+        let missing = call_run_tools(
+            "run_verify",
+            &serde_json::json!({"run": root.join("evals/cases/nope/run.json").to_string_lossy()}),
+            &root,
+        )
+        .unwrap();
+        assert!(missing.starts_with("error:"), "{missing}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn loop_status_reports_empty_root() {
+        let root = std::env::temp_dir().join(format!("mag-mcp-ls-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = call_loop_tools("loop_status", &serde_json::json!({}), &root)
+            .expect("loop_status must handle an empty root");
+        assert!(out.contains("0 runs"), "{out}");
+        assert!(out.contains("0 cases below target"), "{out}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
