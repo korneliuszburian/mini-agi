@@ -882,3 +882,5 @@ research/what-is-22-answer-briefly.md
 2026-08-11T10:34:23Z VERIFY-PASS supervisor-falsifiers-cycle6 @ 0e5efb3
 2026-08-11T10:41:55Z BEGIN research-falsifiers-cycle7 -> 9d1512f (restored by rollback)
 2026-08-11T10:41:55Z VERIFY-FAIL research-falsifiers-cycle7 @ 5d9e6d7 -> ROLLBACK to 9d1512f
+2026-08-11T10:49:03Z BEGIN research-falsifiers-cycle7b -> c775cba (restored by rollback)
+2026-08-11T10:49:03Z VERIFY-FAIL research-falsifiers-cycle7b @ c775cba -> ROLLBACK to c775cba
