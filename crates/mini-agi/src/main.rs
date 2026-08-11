@@ -4143,4 +4143,88 @@ mod tests {
         assert!(validate_doc_text("eval-run", &root.join("missing.json")).is_err());
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn checkpoint_audit_accepts_complete_cascade_and_historical_noise() {
+        let root = std::env::temp_dir().join(format!("mag-cpax-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("memory/episodic")).unwrap();
+        std::fs::write(
+            root.join("memory/episodic/checkpoints.log"),
+            "2026-08-01T10:00:00Z VERIFY-PASS pre-gate-run @ a1b2c3\n\
+             2026-08-11T08:00:00Z BEGIN step-a -> 1111111\n\
+             2026-08-11T09:00:00Z VERIFY-PASS step-a @ 1111111\n",
+        )
+        .unwrap();
+        let out = checkpoint_audit_text(&root).unwrap();
+        assert!(out.contains("cascade complete"), "{out}");
+        assert!(
+            out.contains("historical (pre-gate, not failing)"),
+            "pre-GATE_SINCE orphans are evidence, not failures: {out}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn checkpoint_audit_flags_orphan_verify_and_missing_journal() {
+        let root = std::env::temp_dir().join(format!("mag-cpax2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("memory/episodic")).unwrap();
+        // An orphan VERIFY-PASS after GATE_SINCE is a real anomaly.
+        std::fs::write(
+            root.join("memory/episodic/checkpoints.log"),
+            "2026-08-11T08:00:00Z VERIFY-PASS orphan-run @ 1111111\n",
+        )
+        .unwrap();
+        let err = checkpoint_audit_text(&root).unwrap_err();
+        assert!(err.contains("ANOMALY"), "{err}");
+        assert!(err.contains("cascade incomplete"), "{err}");
+        let _ = std::fs::remove_dir_all(&root);
+        // A missing journal fails loudly.
+        let bare = std::env::temp_dir().join(format!("mag-cpax3-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&bare);
+        std::fs::create_dir_all(&bare).unwrap();
+        let err = checkpoint_audit_text(&bare).unwrap_err();
+        assert!(err.contains("journal missing"), "{err}");
+        let _ = std::fs::remove_dir_all(&bare);
+    }
+
+    #[test]
+    fn git_head_reports_repo_and_non_repo() {
+        let root = std::env::temp_dir().join(format!("mag-githead-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&root)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        };
+        assert!(git(&["init", "-q", "-b", "master"]));
+        assert!(git(&[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "x"
+        ]));
+        let head = git_head(&root).unwrap();
+        assert_eq!(head.len(), 40, "full sha expected, got {head}");
+        assert!(head.chars().all(|c| c.is_ascii_hexdigit()));
+        // A non-repo directory is an error, never a panic.
+        let bare = std::env::temp_dir().join(format!("mag-githead2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&bare);
+        std::fs::create_dir_all(&bare).unwrap();
+        assert!(git_head(&bare).is_err());
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&bare);
+    }
 }

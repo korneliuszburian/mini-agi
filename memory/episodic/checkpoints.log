@@ -896,3 +896,4 @@ research/what-is-22-answer-briefly.md
 2026-08-11T11:52:16Z VERIFY-FAIL clifmt-sandbox-cycle11 @ 3c33cc2 -> ROLLBACK to 6e900e9
 2026-08-11T11:58:17Z BEGIN clifmt-sandbox-cycle11b -> 1a8e5c2 (clean)
 2026-08-11T11:59:18Z VERIFY-PASS clifmt-sandbox-cycle11b @ 1a8e5c2
+2026-08-11T11:59:40Z BEGIN main-cli-cycle12 -> df79710
