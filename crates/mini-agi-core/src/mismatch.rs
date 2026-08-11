@@ -187,4 +187,60 @@ mod tests {
         assert_eq!(read[1].step, 3);
         let _ = fs::remove_dir_all(&tmp);
     }
+
+    #[test]
+    fn analyze_run_error_paths_are_named() {
+        let tmp = env::temp_dir().join(format!("mag-mismatch-err-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        // Missing file: named, never a crash.
+        assert!(
+            analyze_run(&tmp.join("run.json"), &tmp.join("golden"), &tmp)
+                .unwrap_err()
+                .contains("cannot read"),
+        );
+        // Malformed JSON and empty-trajectory runs map to their errors.
+        let run = tmp.join("case1/run.json");
+        fs::create_dir_all(run.parent().unwrap()).unwrap();
+        fs::write(&run, "{not-json").unwrap();
+        assert!(
+            analyze_run(&run, &tmp.join("golden"), &tmp)
+                .unwrap_err()
+                .contains("invalid run json"),
+        );
+        fs::write(
+            &run,
+            r#"{"goal":"g","scope":[],"outcome":{"achieved":false},"trajectory":[]}"#,
+        )
+        .unwrap();
+        assert!(
+            analyze_run(&run, &tmp.join("golden"), &tmp)
+                .unwrap_err()
+                .contains("invalid run"),
+        );
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn read_register_tolerates_comments_and_junk_lines() {
+        let tmp = env::temp_dir().join(format!("mag-mismatch-junk-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(register_path(&tmp).parent().unwrap()).unwrap();
+        let e = MismatchEntry {
+            hash: fact_id("c|1|exec|write"),
+            case: "c".into(),
+            step: 1,
+            run_tool: "exec".into(),
+            golden_tool: "write".into(),
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        fs::write(
+            register_path(&tmp),
+            format!("# mismatch register\n\n{json}\n{{not-json}}\n"),
+        )
+        .unwrap();
+        let read = read_register(&tmp).unwrap();
+        assert_eq!(read.len(), 1, "comments and junk lines are tolerated");
+        assert_eq!(read[0].hash, e.hash);
+        let _ = fs::remove_dir_all(&tmp);
+    }
 }
