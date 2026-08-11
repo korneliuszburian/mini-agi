@@ -78,10 +78,18 @@ pub fn findings_path(root: &Path, question: &str) -> std::path::PathBuf {
 #[must_use]
 pub fn is_complete_deliverable(findings: &str) -> bool {
     let lower = findings.to_lowercase();
-    lower.contains("## findings")
-        && lower.contains("## sources")
+    let Some(fidx) = lower.find("## findings") else {
+        return false;
+    };
+    // The claim guard is scoped to the Findings section: a "fact"
+    // mention anywhere else (Sources, Verdict) must not satisfy it —
+    // an empty Findings section with a wordy Verdict would otherwise
+    // smuggle a narration-only document past the gate.
+    let rest = &lower[fidx..];
+    let section_len = rest.find("\n## ").unwrap_or(rest.len());
+    lower.contains("## sources")
         && lower.contains("## verdict")
-        && lower.contains("fact") // a Findings section without claims is empty
+        && rest[..section_len].contains("fact")
 }
 
 #[cfg(test)]
@@ -131,5 +139,59 @@ mod tests {
         assert!(p.contains("VERDICT"));
         assert!(p.contains("test question"));
         assert!(p.contains("unknown — not verifiable"));
+    }
+
+    #[test]
+    fn claim_guard_is_scoped_to_the_findings_section() {
+        // "fact" mentioned ONLY in Sources/Verdict must not satisfy the
+        // gate — the Findings section is empty, the doc is narration.
+        assert!(!is_complete_deliverable(
+            "## Findings\n\n## Sources\n- fact sheet at example.com\n## Verdict\n- fact: unknown"
+        ));
+        // A claim inside Findings satisfies the gate even when the other
+        // sections are terse.
+        assert!(is_complete_deliverable(
+            "## Findings\n- fact: x, source: y\n## Sources\n- y\n## Verdict\n- est."
+        ));
+    }
+
+    #[test]
+    fn deliverable_gate_header_shapes() {
+        // Uppercase headers are accepted (case-insensitive contract)...
+        assert!(is_complete_deliverable(
+            "## FINDINGS\n- fact: x\n## SOURCES\n- y\n## VERDICT\n- est."
+        ));
+        // ...but a single-# heading is not a section header.
+        assert!(!is_complete_deliverable(
+            "# Findings\n- fact: x\n# Sources\n- y\n# Verdict\n- est."
+        ));
+    }
+
+    #[test]
+    fn findings_path_matches_the_slugged_stem() {
+        let root = std::path::Path::new("/r");
+        assert_eq!(
+            findings_path(root, "What is the cost of deepseek flash?"),
+            std::path::PathBuf::from("/r/research/what-is-the-cost-of-deepseek-flash.md")
+        );
+        // A non-ASCII-only question cannot produce a file stem; the
+        // fallback stem keeps the write safe and the registry consistent.
+        assert_eq!(
+            findings_path(root, "żółć?").file_name().unwrap(),
+            "research.md"
+        );
+    }
+
+    #[test]
+    fn slugify_strips_trailing_separators_and_foreign_chars() {
+        assert_eq!(slugify("ABC  DEF "), "abc-def");
+        assert_eq!(slugify("a--"), "a", "trailing separator trimmed");
+        assert_eq!(
+            slugify("żółć hello"),
+            "hello",
+            "non-ascii dropped, no debris"
+        );
+        assert_eq!(slugify("x.y.z"), "xyz", "dots are dropped, not separators");
+        assert_eq!(slugify("  "), "research", "blank collapses to fallback");
     }
 }

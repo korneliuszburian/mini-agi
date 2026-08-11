@@ -66,8 +66,10 @@ fn save_registry(root: &Path, entries: &[RegistryEntry]) -> std::io::Result<()> 
     std::fs::write(registry_path(root), format!("{json}\n"))
 }
 
-/// Record a question as asked (upsert by slug; existing row keeps its
-/// question text but its status resets to `Asked`).
+/// Record a question as asked (upsert by slug; the row is re-worded to
+/// the latest question text and its status resets to `Asked`, while its
+/// `updated` date keeps the FIRST ask — freshness bumps happen at
+/// `advance_status`).
 pub fn record_asked(root: &Path, question: &str) -> std::io::Result<RegistryEntry> {
     let slug = slugify(question);
     let mut entries = load_registry(root);
@@ -193,5 +195,71 @@ mod tests {
         assert_eq!(&s[4..5], "-");
         assert_eq!(&s[7..8], "-");
         assert!(s.parse::<u64>().is_ok() || s.chars().all(|c| c.is_ascii_digit() || c == '-'));
+    }
+
+    #[test]
+    fn reask_with_different_wording_upserts_and_keeps_first_ask_date() {
+        let root = tmpdir("reask");
+        std::fs::create_dir_all(root.join("research")).unwrap();
+        let first = record_asked(&root, "What is X?").unwrap();
+        let second = record_asked(&root, "What is X!!!").unwrap();
+        let rows = load_registry(&root);
+        assert_eq!(rows.len(), 1, "same slug dedups to one row");
+        assert_eq!(rows[0].question, "What is X!!!", "latest wording wins");
+        assert_eq!(second.slug, "what-is-x");
+        assert_eq!(
+            rows[0].updated, first.updated,
+            "re-ask keeps the first-ask date"
+        );
+        assert_eq!(
+            rows[0].status,
+            QuestionStatus::Asked,
+            "status resets to Asked"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn advance_status_creates_row_for_unknown_slug() {
+        let root = tmpdir("unknown");
+        std::fs::create_dir_all(root.join("research")).unwrap();
+        advance_status(&root, "never-asked", QuestionStatus::Findings).unwrap();
+        let rows = load_registry(&root);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].slug, "never-asked");
+        assert_eq!(
+            rows[0].question, "never-asked",
+            "slug doubles as question text"
+        );
+        assert_eq!(rows[0].status, QuestionStatus::Findings);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn malformed_registry_file_loads_as_empty() {
+        let root = tmpdir("malformed");
+        std::fs::create_dir_all(root.join("research")).unwrap();
+        std::fs::write(root.join("research/registry.json"), "{not json!!").unwrap();
+        assert!(
+            load_registry(&root).is_empty(),
+            "malformed = empty, never panic"
+        );
+        // A corrupt registry must not block a fresh ask (rewrite path).
+        record_asked(&root, "What is Y?").unwrap();
+        assert_eq!(load_registry(&root).len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn saved_registry_is_sorted_by_slug() {
+        let root = tmpdir("sorted");
+        std::fs::create_dir_all(root.join("research")).unwrap();
+        record_asked(&root, "Zebra question?").unwrap();
+        record_asked(&root, "Apple question?").unwrap();
+        let text = std::fs::read_to_string(root.join("research/registry.json")).unwrap();
+        let apples = text.find("\"apple-question\"").unwrap();
+        let zebras = text.find("\"zebra-question\"").unwrap();
+        assert!(apples < zebras, "rows persist sorted by slug");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
