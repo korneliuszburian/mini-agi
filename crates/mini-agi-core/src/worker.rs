@@ -282,6 +282,9 @@ mod tests {
         // None caps are unlimited.
         let v = budget_violations(1000, 50.0, 99999, None, None, None);
         assert!(v.is_empty());
+        // Boundaries are strict: exactly-at-cap is NOT a violation.
+        let v = budget_violations(10, 1.0, 120, Some(10), Some(1.0), Some(120));
+        assert!(v.is_empty(), "at-cap is within budget: {v:?}");
     }
 
     #[test]
@@ -337,6 +340,48 @@ mod tests {
         let u = parse_opencode_usage(out).unwrap();
         assert_eq!(u.tokens_in, 20);
         assert!((u.cost_usd - 0.002).abs() < 1e-9);
+    }
+
+    #[test]
+    fn opencode_usage_explicit_zero_cost_beats_rate_card() {
+        // A reported cost of 0.0 is a measurement, not an absence: it
+        // must win over the rate-card estimate, or free runs would get
+        // an invented price.
+        let out = r#"{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":1000000,"output":1000000},"cost":0.0}}
+"#;
+        let u = parse_opencode_usage(out).unwrap();
+        assert!(
+            (u.cost_usd - 0.0).abs() < 1e-9,
+            "explicit zero cost wins over the estimate"
+        );
+    }
+
+    #[test]
+    fn opencode_usage_skips_events_with_partial_token_counts() {
+        // One-sided token counts are malformed telemetry: the event is
+        // ignored, never half-parsed (defensive contract).
+        let one_sided = r#"{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":100},"cost":0.001}}
+"#;
+        assert!(
+            parse_opencode_usage(one_sided).is_none(),
+            "missing output tokens => event ignored"
+        );
+    }
+
+    #[test]
+    fn opencode_usage_huge_token_counts_do_not_panic() {
+        // Token counts beyond u32 range saturate in the estimate guard
+        // instead of wrapping or panicking; the parse still succeeds
+        // with a finite cost.
+        let out = r#"{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":5000000000,"output":5000000000}}}
+"#;
+        let u = parse_opencode_usage(out).unwrap();
+        assert_eq!(u.tokens_in, 5_000_000_000);
+        assert!(
+            u.cost_usd.is_finite(),
+            "estimate stays finite: {}",
+            u.cost_usd
+        );
     }
 }
 
