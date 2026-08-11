@@ -4360,4 +4360,64 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn consolidate_text_maps_missing_file_and_no_facts() {
+        let root = std::env::temp_dir().join(format!("mag-cons-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("memory/canonical/entries")).unwrap();
+        // Missing buffer: a named error, never a crash.
+        let missing = root.join("buffer.md");
+        assert!(
+            consolidate_text(&missing, "core", false, false, &root)
+                .unwrap_err()
+                .contains("not found")
+        );
+        // A buffer without candidates (bullets too short to be facts).
+        let empty = root.join("empty.md");
+        std::fs::write(&empty, "- short\n").unwrap();
+        assert!(
+            consolidate_text(&empty, "core", false, false, &root)
+                .unwrap_err()
+                .contains("no facts found")
+        );
+        // A "fact:" line is a candidate and lands in canonical.
+        let buf = root.join("buf.md");
+        std::fs::write(&buf, "fact: the kernel enforces memory\n").unwrap();
+        let out = consolidate_text(&buf, "core", false, false, &root).unwrap();
+        assert!(out.contains("consolidated 1 new facts"), "{out}");
+        assert!(out.contains("next: mini-agi derive"), "{out}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn consolidate_text_dry_run_writes_nothing() {
+        let root = std::env::temp_dir().join(format!("mag-cons2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("memory/canonical/entries")).unwrap();
+        let buf = root.join("buf.md");
+        std::fs::write(&buf, "fact: dry runs never write\n").unwrap();
+        let out = consolidate_text(&buf, "core", false, true, &root).unwrap();
+        assert!(out.contains("dry-run: would write 1 new facts"), "{out}");
+        assert!(
+            !out.contains("next:"),
+            "dry-run has no next-step hint: {out}"
+        );
+        let md_files = |root: &std::path::Path| -> Vec<std::path::PathBuf> {
+            let mut v = Vec::new();
+            for day in std::fs::read_dir(root).unwrap().flatten() {
+                for f in std::fs::read_dir(day.path()).unwrap().flatten() {
+                    if f.path().extension().is_some_and(|e| e == "md") {
+                        v.push(f.path());
+                    }
+                }
+            }
+            v
+        };
+        assert!(
+            md_files(&root.join("memory/canonical/entries")).is_empty(),
+            "dry-run leaves canonical untouched"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

@@ -902,3 +902,5 @@ research/what-is-22-answer-briefly.md
 2026-08-11T12:14:07Z VERIFY-PASS main-helpers-cycle13 @ e0e3918
 2026-08-11T12:14:34Z BEGIN eval-gate-text-cycle14 -> 6827734
 2026-08-11T12:22:43Z VERIFY-PASS eval-gate-text-cycle14 @ 74e1640
+2026-08-11T12:26:43Z BEGIN consolidate-cycle15 -> aca7b6c (restored by rollback)
+2026-08-11T12:26:43Z VERIFY-FAIL consolidate-cycle15 @ 3fc4357 -> ROLLBACK to aca7b6c
