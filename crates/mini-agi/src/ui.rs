@@ -3409,4 +3409,201 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn attention_disagrees_run_is_critical_with_execute_path() {
+        let root = std::env::temp_dir().join(format!("mag-ui-disagrees-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let run = root.join("evals/cases/x/run.json");
+        std::fs::create_dir_all(run.parent().unwrap()).unwrap();
+        let run_text = format!(
+            r#"{{"goal":"g","scope":["x"],"outcome":{{"achieved":true}},"tokens_total":1,"cost_usd":0.01,"golden":null,"verify_command":"true","verify_target":"{}","trajectory":[{{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}}]}}"#,
+            root.to_string_lossy()
+        );
+        std::fs::write(&run, &run_text).unwrap();
+        let run_sha256 = mini_agi_core::hash::source_sha256_bytes(run_text.as_bytes());
+        let verify_log = root.join("memory/episodic/verify.log");
+        std::fs::create_dir_all(verify_log.parent().unwrap()).unwrap();
+        std::fs::write(
+            &verify_log,
+            format!(
+                r#"{{"at":"2026-08-11T00:00:00Z","case":"x","command":"true","target":"{}","status":"disagrees","run_sha256":"{}"}}{}"#,
+                root.to_string_lossy(),
+                run_sha256,
+                "\n"
+            ),
+        )
+        .unwrap();
+        let payload = api_payload(&root);
+        let item = payload
+            .attention
+            .iter()
+            .find(|item| item.id == "verification-disagrees-x")
+            .expect("disagrees run must surface an attention item");
+        assert_eq!(item.severity, "critical");
+        assert_eq!(item.kind, "verification_disagrees");
+        assert_eq!(item.target_panel.as_deref(), Some("runs"));
+        assert_eq!(
+            item.execute_path.as_deref(),
+            Some("/api/act/run-verify?case=x"),
+            "an actionable disagreement must expose the one-click route"
+        );
+        assert!(
+            item.command
+                .as_deref()
+                .is_some_and(|c| c.contains("run verify")),
+            "the attention item must carry the exact pasteable command"
+        );
+        assert_eq!(
+            payload.totals["verification_required"].as_u64(),
+            Some(0),
+            "a disagreement is not a pending verification"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn latest_achieved_without_verifier_is_critical() {
+        let root = std::env::temp_dir().join(format!("mag-ui-noverify-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let run = root.join("evals/cases/x/run.json");
+        std::fs::create_dir_all(run.parent().unwrap()).unwrap();
+        std::fs::write(
+            &run,
+            r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        let payload = api_payload(&root);
+        let item = payload
+            .attention
+            .iter()
+            .find(|item| item.id == "latest-run-untrusted-x")
+            .expect("an achieved run without a verifier must surface attention");
+        assert_eq!(item.severity, "critical");
+        assert_eq!(item.kind, "latest_run_untrusted");
+        assert!(
+            item.detail.contains("declares no deterministic verifier"),
+            "untrusted-without-verifier detail must state the reason, got: {}",
+            item.detail
+        );
+        assert!(
+            item.execute_path.is_none(),
+            "no verifier declared means no one-click verify route"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn command_result_maps_exit_status_and_errors() {
+        let ok = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("printf 'hello\\n'")
+            .output()
+            .unwrap();
+        let r = command_result("demo", Ok(ok));
+        assert!(r.ok);
+        assert_eq!(r.output, "hello");
+        let failed = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("exit 3")
+            .output()
+            .unwrap();
+        let r = command_result("demo", Ok(failed));
+        assert!(!r.ok, "non-zero exit must report failure");
+        assert_eq!(
+            r.output, "exit 3",
+            "empty output falls back to the exit code"
+        );
+        let r = command_result(
+            "demo",
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "no such file",
+            )),
+        );
+        assert!(!r.ok);
+        assert!(r.output.contains("cannot execute demo"), "{}", r.output);
+    }
+
+    #[test]
+    fn staging_files_ignores_non_md_and_sorts() {
+        let root = std::env::temp_dir().join(format!("mag-ui-stagefiles-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(
+            staging_files(&root).is_empty(),
+            "missing staging root must yield no files"
+        );
+        std::fs::create_dir_all(root.join("memory/staging/2026-08-10")).unwrap();
+        std::fs::create_dir_all(root.join("memory/staging/2026-08-09")).unwrap();
+        std::fs::write(root.join("memory/staging/2026-08-10/b.md"), "b").unwrap();
+        std::fs::write(root.join("memory/staging/2026-08-09/a.md"), "a").unwrap();
+        std::fs::write(root.join("memory/staging/2026-08-09/skip.txt"), "x").unwrap();
+        let files = staging_files(&root);
+        let names: Vec<String> = files
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names.len(), 2, "non-markdown files are not staging batches");
+        assert!(
+            names[0].ends_with("2026-08-09/a.md") && names[1].ends_with("2026-08-10/b.md"),
+            "batches must be sorted by day then name, got {names:?}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn queue_files_mixes_flat_and_day_layouts() {
+        let root = std::env::temp_dir().join(format!("mag-ui-queuefiles-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(
+            queue_files(&root).is_empty(),
+            "missing review root must yield no queues"
+        );
+        let review = root.join("memory/review");
+        std::fs::create_dir_all(review.join("2026-08-09")).unwrap();
+        std::fs::write(review.join("contested-2026-08-09.md"), "flat").unwrap();
+        std::fs::write(review.join("2026-08-09/facts.md"), "day").unwrap();
+        std::fs::write(review.join("notes.txt"), "x").unwrap();
+        let files = queue_files(&root);
+        assert_eq!(files.len(), 2, "non-markdown files are not queues");
+        let flat = files
+            .iter()
+            .find(|(day, _)| day.is_none())
+            .expect("flat queue");
+        assert!(
+            flat.1
+                .to_string_lossy()
+                .ends_with("contested-2026-08-09.md"),
+            "flat queues live directly under memory/review/"
+        );
+        let day = files
+            .iter()
+            .find(|(day, _)| day.as_deref() == Some("2026-08-09"))
+            .expect("day queue");
+        assert!(day.1.to_string_lossy().ends_with("2026-08-09/facts.md"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn path_modified_ms_and_relative_edge_cases() {
+        let root = std::env::temp_dir().join(format!("mag-ui-mtime-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        assert!(
+            path_modified_ms(&root.join("missing.md")).is_none(),
+            "an unreadable path must be None, not a timestamp"
+        );
+        let file = root.join("present.md");
+        std::fs::write(&file, "x").unwrap();
+        let stamp = path_modified_ms(&file).expect("existing file has an mtime");
+        assert!(stamp > 0, "mtime must be a positive epoch millis");
+        assert_eq!(relative(&root, &file), "present.md");
+        let outside = std::env::temp_dir().join("outside-root.md");
+        assert_eq!(
+            relative(&root, &outside),
+            outside.to_string_lossy(),
+            "paths outside the root stay absolute"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
