@@ -894,3 +894,5 @@ research/what-is-22-answer-briefly.md
 2026-08-11T11:47:40Z VERIFY-PASS init-falsifiers-cycle10 @ 41e68b9
 2026-08-11T11:52:16Z BEGIN clifmt-sandbox-cycle11 -> 6e900e9 (restored by rollback)
 2026-08-11T11:52:16Z VERIFY-FAIL clifmt-sandbox-cycle11 @ 3c33cc2 -> ROLLBACK to 6e900e9
+2026-08-11T11:58:17Z BEGIN clifmt-sandbox-cycle11b -> 1a8e5c2 (clean)
+2026-08-11T11:59:18Z VERIFY-PASS clifmt-sandbox-cycle11b @ 1a8e5c2
