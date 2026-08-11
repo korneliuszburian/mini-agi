@@ -1378,6 +1378,30 @@ mod tests {
     }
 
     #[test]
+    fn consolidating_the_same_buffer_twice_writes_no_duplicate_entry() {
+        // TICKET-002 acceptance 2 (.consumed guard): the compact loop must
+        // never re-consolidate the same buffer. In v3 this is the dedup
+        // invariant — a second run over the SAME buffer lands zero new
+        // facts and writes NO new entry (entry: None).
+        let root = tmp_root("reconsolidate-noop");
+        let buffer = "FACT: the first batch has one stable fact\nFACT: plus a second stable fact\n";
+        let first = consolidate(&root, buffer, "compact-loop", &consolidate_opts(false)).unwrap();
+        assert_eq!(first.new_facts, 2);
+        let first_entry = first.entry.expect("first consolidate writes an entry");
+        let entries_after_first = canonical_entries(&root).len();
+        assert_eq!(entries_after_first, 1);
+
+        let second = consolidate(&root, buffer, "compact-loop", &consolidate_opts(false)).unwrap();
+        assert_eq!(second.new_facts, 0, "no new facts on re-run");
+        assert!(second.entry.is_none(), "no duplicate entry on re-run");
+        assert_eq!(
+            canonical_entries(&root).len(),
+            entries_after_first,
+            "canonical content is unchanged"
+        );
+    }
+
+    #[test]
     fn consolidate_numbers_per_day_continuously() {
         // TICKET-006 acceptance 2: an empty today starts at -001 even with
         // a previous-date history; subsequent entries continue the day's
