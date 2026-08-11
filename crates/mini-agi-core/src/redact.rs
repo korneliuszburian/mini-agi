@@ -322,6 +322,13 @@ fn find_value_separator(after_key: &str) -> Option<(usize, usize, bool)> {
     let sep = after_key[i..].chars().next()?;
     let colon = sep == ':';
     if sep != '=' && sep != ':' {
+        // Flag-style keys (`--password hunter2`) take their value as
+        // the next whitespace-separated argument — the separator is
+        // implicit (real defect found by falsifier: space-separated
+        // flag values leaked).
+        if after_key.starts_with('-') && i > key_len {
+            return Some((key_len, i, false));
+        }
         return None;
     }
     i += sep.len_utf8();
@@ -353,6 +360,10 @@ fn split_pair_value(text: &str, colon_val: bool) -> Option<(usize, usize)> {
     let take = if colon_val {
         trimmed.find('\n').unwrap_or(trimmed.len())
     } else {
+        // A following flag is an argument, not a value — never eat it.
+        if trimmed.starts_with('-') {
+            return None;
+        }
         trimmed
             .find(|c: char| {
                 c.is_whitespace() || c == ',' || c == '&' || c == ';' || c == '"' || c == '\''
@@ -444,5 +455,26 @@ mod tests {
         assert_eq!(case("--auth-token=abc"), "--auth-token=[REDACTED]");
         // A prefix that merely resembles a key stays untouched.
         assert_eq!(case("--mycredstuff=hunter2"), "--mycredstuff=hunter2");
+    }
+
+    #[test]
+    fn redacts_space_separated_long_flag_values() {
+        // Real defect: `--password hunter2` (space form) leaked — only
+        // `-p` and `key=value` were covered.
+        let out = case("curl --password hunter2 https://x");
+        assert!(!out.contains("hunter2"), "{out}");
+        assert!(out.contains("--password [REDACTED]"), "{out}");
+        assert_eq!(
+            case("--secret abc --token xyz"),
+            "--secret [REDACTED] --token [REDACTED]"
+        );
+        // A following flag is an argument, not a value: never eaten.
+        assert_eq!(
+            case("--password --dry-run"),
+            "--password --dry-run",
+            "the next flag must not be redacted as a value"
+        );
+        // The equals form still redacts.
+        assert_eq!(case("--password=hunter2"), "--password=[REDACTED]");
     }
 }
