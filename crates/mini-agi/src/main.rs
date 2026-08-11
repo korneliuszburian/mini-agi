@@ -2315,6 +2315,14 @@ fn eval_gate_text(
             entries.len()
         ));
     }
+    if entries.is_empty() && std::fs::metadata(&baseline_path).is_err() {
+        // A repo without cases AND without a frozen suite has nothing to
+        // regress: the gate passes green so a fresh init'd repo works
+        // from the first commit. Once a baseline file exists it is
+        // authoritative — a vanished suite (drop detection) or a
+        // malformed file must still fail closed below.
+        return Ok("PASS: 0 cases, 0 regressions — no cases in evals/cases/".to_string());
+    }
     let text = std::fs::read_to_string(&baseline_path).map_err(|_| {
         "baseline missing: run `mini-agi eval gate --write-baseline` once — \
          the gate never re-baselines silently"
@@ -2322,11 +2330,6 @@ fn eval_gate_text(
     })?;
     let baseline: Vec<eval::GateEntry> =
         serde_json::from_str(&text).map_err(|_| "baseline malformed".to_string())?;
-    if entries.is_empty() && baseline.is_empty() {
-        // A fresh repo has nothing to regress: the gate passes trivially,
-        // so an init'd repo is gate-green from the first commit.
-        return Ok("PASS: 0 cases, 0 regressions — no cases in evals/cases/".to_string());
-    }
     let result = eval::run_gate(&entries, &baseline, tolerance, mismatch_tolerance);
     let mut lines = result.messages.clone();
     let verdict = if result.failures == 0 { "PASS" } else { "FAIL" };
@@ -4319,6 +4322,42 @@ mod tests {
         // brief_only skips the per-domain fragments.
         let out = derive_text(true, &root).unwrap();
         assert!(out.contains("0 per-domain fragments"), "{out}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn eval_gate_fresh_repo_is_green_and_never_rebaselines_silently() {
+        let root = std::env::temp_dir().join(format!("mag-egt-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("evals/cases")).unwrap();
+        // A fresh repo (no cases, no baseline): gate-green by contract —
+        // an init'd repo must pass from the first commit.
+        let out = eval_gate_text(&root, 1.0, 0, false).unwrap();
+        assert!(out.contains("PASS: 0 cases"), "{out}");
+        // Missing baseline is a loud error — the gate never re-baselines
+        // silently when cases exist... but with zero cases the empty
+        // baseline already passed above; a WRITTEN baseline must exist
+        // for the compare path, so simulate a case-less write first.
+        let out = eval_gate_text(&root, 1.0, 0, true).unwrap();
+        assert!(out.contains("baseline written"), "{out}");
+        assert!(root.join("evals/results/baseline.json").is_file());
+        // With zero cases a garbage baseline still fails closed — once a
+        // baseline file exists it is authoritative.
+        std::fs::write(root.join("evals/results/baseline.json"), "{not-json").unwrap();
+        assert!(
+            eval_gate_text(&root, 1.0, 0, false)
+                .unwrap_err()
+                .contains("baseline malformed")
+        );
+        // A written (empty) baseline restores the gate: green again.
+        let out = eval_gate_text(&root, 1.0, 0, true).unwrap();
+        assert!(out.contains("baseline written"), "{out}");
+        assert!(
+            eval_gate_text(&root, 1.0, 0, false)
+                .unwrap()
+                .contains("PASS"),
+            "empty baseline + empty cases is green"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }
