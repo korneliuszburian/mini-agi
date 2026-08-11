@@ -1001,10 +1001,11 @@ mod tests {
         );
         let pid = std::process::id();
         let (state, start) = proc_stat(pid).expect("our own pid has a stat row");
-        assert!(
-            matches!(state.as_str(), "R" | "S"),
-            "we are running or sleeping, got state {state}"
-        );
+        // The only safe predicate on our own state is "not a zombie":
+        // under load (instrumented test runs, heavy I/O) the process can
+        // legitimately be D (uninterruptible sleep) or T/t (stopped) —
+        // an R|S assertion is machine-load-dependent and flakes.
+        assert_ne!(state, "Z", "we are alive, not a zombie");
         assert!(start > 0, "the start-time field must parse");
     }
 }
