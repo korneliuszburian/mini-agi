@@ -979,4 +979,154 @@ mod tests {
         assert!(!workers[0].alive);
         assert!(workers[0].handle.ends_with(".supervisor"));
     }
+
+    #[test]
+    fn journal_snapshot_flags_unpaired_begin_as_anomaly() {
+        let root = tmp_root("journal-anomaly");
+        let log = root.join("memory/episodic/checkpoints.log");
+        std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+        // Two unpaired BEGINs: the first is an orphan anomaly, the last
+        // line is verification in progress (T008 semantics).
+        std::fs::write(
+            &log,
+            "2026-08-11T00:00:00Z BEGIN a\n2026-08-11T00:00:01Z BEGIN b\n",
+        )
+        .unwrap();
+        let snapshot = journal_snapshot(&root, 14);
+        assert_eq!(snapshot.state, "anomaly");
+        let bad: Vec<&JournalAnomalyView> = snapshot
+            .anomalies
+            .iter()
+            .filter(|anomaly| anomaly.severity == "bad")
+            .collect();
+        assert_eq!(bad.len(), 1, "exactly one orphan BEGIN anomaly");
+        assert_eq!(bad[0].line_no, 1);
+        let last = snapshot.events.last().unwrap();
+        assert_eq!(last.kind, "begin");
+        assert_eq!(last.state, "in_progress");
+        let first = snapshot.events.first().unwrap();
+        assert_eq!(first.state, "anomaly");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn journal_snapshot_counts_resolutions_and_states() {
+        let root = tmp_root("journal-counts");
+        let log = root.join("memory/episodic/checkpoints.log");
+        std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+        std::fs::write(
+            &log,
+            "2026-08-11T00:00:00Z BEGIN a\n2026-08-11T00:00:01Z VERIFY-PASS a\n2026-08-11T00:00:02Z BEGIN b\n2026-08-11T00:00:03Z VERIFY-FAIL b\n2026-08-11T00:00:04Z BEGIN c\n",
+        )
+        .unwrap();
+        let snapshot = journal_snapshot(&root, 14);
+        assert_eq!(snapshot.state, "in_progress");
+        assert!(snapshot.anomalies.is_empty(), "{:?}", snapshot.anomalies);
+        assert_eq!(snapshot.counts.begin, 3);
+        assert_eq!(snapshot.counts.verify_pass, 1);
+        assert_eq!(snapshot.counts.verify_fail, 1);
+        let states: Vec<&str> = snapshot
+            .events
+            .iter()
+            .map(|event| event.state.as_str())
+            .collect();
+        assert_eq!(
+            states,
+            vec![
+                "resolved_pass",
+                "event",
+                "resolved_fail",
+                "event",
+                "in_progress"
+            ],
+            "resolution rides the BEGIN line; VERIFY lines are plain events"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn exact_attribution_conferes_verified_legacy_stays_required() {
+        use mini_agi_core::verifier::VerifyAttribution;
+        let root = tmp_root("exact-attribution");
+        let row = |status: &str, run_sha256: Option<&str>| VerifyAttribution {
+            at: "2026-08-11T00:00:00Z".to_string(),
+            case: "case-a".to_string(),
+            command: "make verify".to_string(),
+            target: root.to_string_lossy().into_owned(),
+            status: status.to_string(),
+            run_sha256: run_sha256.map(str::to_owned),
+        };
+        let target = Some(root.to_string_lossy().into_owned());
+        let v = run_verification(
+            "case-a",
+            "evals/cases/case-a/run.json",
+            "abc",
+            Some("make verify".to_string()),
+            target.clone(),
+            &[row("verified", Some("abc"))],
+        );
+        assert_eq!(
+            v.state, "verified",
+            "fingerprint-bound evidence confers verified"
+        );
+        assert!(v.evidence.is_some(), "exact evidence must be attached");
+        assert!(v.legacy_evidence.is_none());
+        let v = run_verification(
+            "case-a",
+            "evals/cases/case-a/run.json",
+            "abc",
+            Some("make verify".to_string()),
+            target.clone(),
+            &[row("verified", Some("deadbeef"))],
+        );
+        assert_eq!(
+            v.state, "required",
+            "evidence for different run bytes is not proof for the current ones"
+        );
+        assert!(
+            v.legacy_evidence.is_some(),
+            "legacy evidence must be disclosed"
+        );
+        assert!(v.evidence.is_none());
+        let v = run_verification(
+            "case-a",
+            "evals/cases/case-a/run.json",
+            "abc",
+            Some("make verify".to_string()),
+            target,
+            &[row("disagrees", Some("abc"))],
+        );
+        assert_eq!(
+            v.state, "disagrees",
+            "a fingerprint-bound disagreement is binding"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn plain_path_segment_rejects_delimiters_and_dots() {
+        assert!(plain_path_segment("2026-08-09"));
+        assert!(plain_path_segment("a_b-c.d"));
+        assert!(!plain_path_segment(""));
+        assert!(!plain_path_segment("."));
+        assert!(!plain_path_segment(".."));
+        assert!(!plain_path_segment(".git"));
+        assert!(!plain_path_segment("a/b"));
+        assert!(!plain_path_segment("a%2Fb"));
+        assert!(!plain_path_segment("a?b"));
+        assert!(!plain_path_segment("a b"));
+    }
+
+    #[test]
+    fn system_time_ms_pre_epoch_is_zero() {
+        let before_epoch = std::time::SystemTime::UNIX_EPOCH - std::time::Duration::from_secs(1);
+        assert_eq!(system_time_ms(before_epoch), 0);
+        assert_eq!(
+            system_time_ms(std::time::SystemTime::UNIX_EPOCH),
+            0,
+            "the epoch itself is zero, not a negative wrap"
+        );
+        let one_sec = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1);
+        assert_eq!(system_time_ms(one_sec), 1000);
+    }
 }
