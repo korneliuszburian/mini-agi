@@ -536,3 +536,99 @@ pub fn verify(
     );
     Ok((lines.join("\n"), closed))
 }
+
+#[cfg(test)]
+mod loop_tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-loop-test-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("evals/cases")).unwrap();
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        root
+    }
+
+    fn write_run(root: &Path, case: &str, achieved: bool, gate: Option<(&str, &str)>) {
+        let dir = root.join("evals/cases").join(case);
+        fs::create_dir_all(&dir).unwrap();
+        let run = serde_json::json!({
+            "goal": case,
+            "scope": ["x"],
+            "outcome": { "achieved": achieved },
+            "trajectory": [],
+            "verify_command": gate.map(|(c, _)| c),
+            "verify_target": gate.map(|(_, t)| t),
+        });
+        fs::write(dir.join("run.json"), serde_json::to_string(&run).unwrap()).unwrap();
+    }
+
+    fn write_ticket(root: &Path, case: &str) -> String {
+        let id = format!("TICKET-{:04}", case.bytes().map(|b| b as u32).sum::<u32>() % 10000);
+        fs::write(
+            root.join("tickets").join(format!("{id}.md")),
+            format!("- id: {id}\n- title: {case} gap\n- goal: fix {case}\n- scope: evals/cases\n"),
+        )
+        .unwrap();
+        id
+    }
+
+    #[test]
+    fn verify_closes_only_when_gate_passes_and_run_achieved() {
+        let root = tmp_root("v-close");
+        write_run(&root, "gap-a-rerun", true, Some(("true", ".")));
+        let ticket = write_ticket(&root, "gap-a");
+        crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
+        let (text, closed) = verify(&root, "gap-a-rerun", "t", false).unwrap();
+        assert!(closed, "passing gate on an achieved run closes: {text}");
+        assert!(crate::ticket::read_claims(&root).unwrap().is_empty(), "lease released");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_stays_open_when_gate_fails() {
+        let root = tmp_root("v-fail");
+        write_run(&root, "gap-b-rerun", true, Some(("false", ".")));
+        let ticket = write_ticket(&root, "gap-b");
+        crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
+        let (text, closed) = verify(&root, "gap-b-rerun", "t", false).unwrap();
+        assert!(!closed, "a failing gate keeps the gap open: {text}");
+        assert!(
+            crate::ticket::read_claims(&root).unwrap().iter().any(|c| c.ticket == ticket),
+            "claim held on failure"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_open_without_declared_gate_and_no_allow() {
+        let root = tmp_root("v-nogate");
+        write_run(&root, "gap-c-rerun", true, None);
+        let (_, closed) = verify(&root, "gap-c-rerun", "t", false).unwrap();
+        assert!(!closed, "no gate + no allow-unverified stays open");
+        let (_, closed2) = verify(&root, "gap-c-rerun", "t", true).unwrap();
+        assert!(closed2, "allow-unverified closes on explicit trust");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_rejects_case_without_complete_gate() {
+        let root = tmp_root("d-gate");
+        write_run(&root, "gap-d", false, None);
+        let err = dispatch(&root, Some("gap-d"), 0.5, "t").unwrap_err();
+        assert!(err.contains("verify_command AND verify_target"), "{err}");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn status_lists_open_and_skips_achieved() {
+        let root = tmp_root("s-list");
+        write_run(&root, "open-a", false, None);
+        write_run(&root, "done-b", true, None);
+        let s = status(&root).unwrap();
+        assert_eq!(s.cases.len(), 1);
+        assert_eq!(s.cases[0].case, "open-a");
+        let _ = fs::remove_dir_all(&root);
+    }
+}

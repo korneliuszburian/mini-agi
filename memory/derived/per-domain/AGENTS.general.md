@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: f909c4748cc384b0
-# canonical_entries: 100
+# canonical_sha256: 7e558814d8517e96
+# canonical_entries: 101
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -974,3 +974,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `e3848882490bc5df` No vendor-side 'agent budget' exists: no primary Anthropic/OpenAI doc defines a per-agent budget object; agent-loop cost containment is model-level max_tokens plus loop-level budget checks, with per-call and per-org limits as the primitives.
 - `fbef626b31ecb631` cycle 1 (2026-08-12): MCP inputSchema emitted for all 14 tools (MUST-FIX 2), falsifier-first, 46 tests green
 - `bdb69628fad4a3f5` next cycle: delete fake compatibility fields (LoopRow.composite/repair_signal, composite_avg, RepairSignal, Run.golden/reflection/mast, regression_tolerance) and fix ripple
+- `bb0f48d8b657a5ee` cycle 2 (2026-08-12): fake compatibility fields deleted (MUST-FIX 4), 46 tests green
