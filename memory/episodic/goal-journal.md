@@ -8,3 +8,4 @@ the tail + the goal objective + canonical memory before working.
   codex-review MUST-FIX items (ledger lifecycle, MCP schemas, tests,
   fake-field deletion) in falsifier-first cycles.
 - 2026-08-12 c1: MCP tools/list now emits inputSchema (type+properties) for all 14 tools — codex/opencode can call them. 45->46 tests. Next: fake-field deletion (LoopRow.composite/repair_signal, composite_avg, RepairSignal, Run.golden/reflection/mast, regression_tolerance).
+- 2026-08-12 c1b: found+fixed CLI defect — `mem consolidate` passed the buffer PATH as content (no facts ever extracted); now reads the file. 2 facts consolidated to canonical. Next: fake-field deletion.

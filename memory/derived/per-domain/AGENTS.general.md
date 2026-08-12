@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 70f4683f99132649
-# canonical_entries: 99
+# canonical_sha256: f909c4748cc384b0
+# canonical_entries: 100
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -972,3 +972,5 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `0cf79597d474d6ca` Both vendors return 429 with Retry-After on rate-limit overrun and officially recommend exponential backoff; this handles throughput overruns but does not stop cost overruns.
 - `db009a7772f44457` Per-call cost cutoffs are application-level: OpenAI Responses API supports max_output_tokens and Anthropic Messages API has max_tokens, both truncating output to bound per-call cost.
 - `e3848882490bc5df` No vendor-side 'agent budget' exists: no primary Anthropic/OpenAI doc defines a per-agent budget object; agent-loop cost containment is model-level max_tokens plus loop-level budget checks, with per-call and per-org limits as the primitives.
+- `fbef626b31ecb631` cycle 1 (2026-08-12): MCP inputSchema emitted for all 14 tools (MUST-FIX 2), falsifier-first, 46 tests green
+- `bdb69628fad4a3f5` next cycle: delete fake compatibility fields (LoopRow.composite/repair_signal, composite_avg, RepairSignal, Run.golden/reflection/mast, regression_tolerance) and fix ripple

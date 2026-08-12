@@ -301,12 +301,16 @@ fn cmd_mem(args: MemArgs) -> ExitCode {
             if !dry_run && approve.is_none() {
                 return fail("mem consolidate requires --approve <reason> (HITL) unless --dry-run");
             }
+            let text = match std::fs::read_to_string(&buffer) {
+                Ok(t) => t,
+                Err(e) => return fail(&format!("consolidate: cannot read buffer: {e}")),
+            };
             let opts = mini_agi_core::memory::ConsolidateOptions {
                 domain: domain.unwrap_or_else(|| "general".into()),
                 require_signoff,
                 dry_run,
             };
-            match mini_agi_core::memory::consolidate(&root, &buffer, "cli", &opts) {
+            match mini_agi_core::memory::consolidate(&root, &text, &buffer, &opts) {
                 Ok(out) => {
                     println!(
                         "consolidated {} new facts, {} skipped",
