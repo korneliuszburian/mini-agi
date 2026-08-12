@@ -1011,3 +1011,4 @@ research/what-is-22-answer-briefly.md
 2026-08-12T19:50:40Z VERIFY-PASS gap-ledger-c4b @ eb077f1
 2026-08-12T19:54:43Z BEGIN security-seams-cycle -> 90c2132
 2026-08-12T19:55:00Z VERIFY-PASS security-seams-cycle @ b8b6f7d
+2026-08-12T19:57:19Z CHECKPOINT-ABORT codex-registry-cycle disallowed dirty paths: .codex/config.toml

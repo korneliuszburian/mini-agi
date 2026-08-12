@@ -1,88 +1,56 @@
 # mini-agi as a codex MCP server (AFK-SUPERVISOR S4).
 # The kernel is a first-class tool of every codex session in this repo:
 # enforcement-bound memory, verified-iteration loop, provenance-bound
-# results. Schema per the codex 0.146 manual (enabled_tools allow-list,
-# default_tools_approval_mode, per-tool approval_mode; the server's
-# contract text comes from the MCP initialize response `instructions`,
-# see crates/mini-agi/src/mcp.rs). See docs/CODEX-INTEGRATION.md.
+# results. See docs/CODEX-INTEGRATION.md.
 [mcp_servers.mini-agi]
-command = "cargo"
-args = ["run", "-q", "-p", "mini-agi", "--", "mcp"]
+command = "/mnt/storage/coding/krn/active/mini-agi/target/debug/mini-agi"
+args = ["mcp"]
 trusted = true
 default_tools_approval_mode = "auto"
 enabled_tools = [
-  "audit",
-  "backlog",
-  "budget",
-  "checkpoint_audit",
-  "eval_gate",
-  "eval_score",
-  "eval_steps",
-  "harness",
-  "health",
-  "insights",
-  "loop_dispatch",
-  "loop_objective",
-  "loop_run",
-  "loop_status",
-  "loop_verify",
   "memory_consolidate",
+  "memory_signoff",
   "memory_derive",
   "memory_query",
-  "memory_signoff",
   "provenance",
-  "resume",
-  "run_failures",
-  "run_ingest",
-  "run_report",
-  "run_status",
-  "run_verify",
-  "skill_add",
   "skill_list",
   "skill_show",
-  "skill_verify",
-  "stats",
-  "ticket_claim",
-  "ticket_claims",
-  "ticket_graph",
-  "ticket_list",
-  "ticket_release",
-  "ticket_show",
-  "ticket_validate",
-  "validate",
+  "skill_add",
+  "checkpoint_audit",
+  "loop_status",
+  "loop_dispatch",
+  "loop_objective",
+  "loop_verify",
+  "dream",
 ]
 
 # Writes require a prompt (HITL). memory_signoff stays human by design
 # (ADR-0010) — a session cannot silently merge its own memory.
-[mcp_servers.mini-agi.tools.harness]
-approval_mode = "prompt"
-
-[mcp_servers.mini-agi.tools.loop_dispatch]
-approval_mode = "prompt"
-
-[mcp_servers.mini-agi.tools.loop_run]
-approval_mode = "prompt"
-
-[mcp_servers.mini-agi.tools.loop_objective]
-approval_mode = "prompt"
 
 [mcp_servers.mini-agi.tools.memory_consolidate]
 approval_mode = "prompt"
 
-[mcp_servers.mini-agi.tools.memory_derive]
-approval_mode = "prompt"
 
 [mcp_servers.mini-agi.tools.memory_signoff]
 approval_mode = "prompt"
 
-[mcp_servers.mini-agi.tools.run_ingest]
+
+[mcp_servers.mini-agi.tools.memory_derive]
 approval_mode = "prompt"
+
 
 [mcp_servers.mini-agi.tools.skill_add]
 approval_mode = "prompt"
 
-[mcp_servers.mini-agi.tools.ticket_claim]
+
+[mcp_servers.mini-agi.tools.loop_dispatch]
 approval_mode = "prompt"
 
-[mcp_servers.mini-agi.tools.ticket_release]
+
+[mcp_servers.mini-agi.tools.loop_objective]
 approval_mode = "prompt"
+
+
+[mcp_servers.mini-agi.tools.dream]
+approval_mode = "prompt"
+

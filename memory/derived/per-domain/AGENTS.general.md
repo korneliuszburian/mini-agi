@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: ceb09d3ab93bf494
-# canonical_entries: 103
+# canonical_sha256: 1185eb89b526658f
+# canonical_entries: 104
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -977,3 +977,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `bb0f48d8b657a5ee` cycle 2 (2026-08-12): fake compatibility fields deleted (MUST-FIX 4), 46 tests green
 - `adbcf3477c1071e8` cycle 3 (2026-08-12): loop transition tests added (MUST-FIX 3 partial), 51 tests green; rollback incident recovered (verify.sh pipe exit trap)
 - `2ede266f2571c33c` cycle 4 (2026-08-12): authoritative gap ledger lifecycle — evals/ledger/<case>.json (Gap/GapState) written atomically (temp+rename) under the claims lock; dispatch marks state=dispatched (attempts/first_dispatched_at/last_attempted_at); terminal states (closed/exhausted/unverifiable) block redispatch in pick_target/objective/dispatch_no_work; loop verify closes BASE ledger row (closed_by=rerun dir, verified_at) + releases claim + sets ticket status CLOSED in ONE lock-held transaction with full rollback. 54 tests green.
+- `33076a4a109458e5` cycle 5 (2026-08-12): security seams (MUST-FIX 5) — loopcmd::resolve_target resolves verify_target vs root (canonicalize + lexical containment, symlink escape caught, reject outside unless config allow_outside_targets=true); loop verify runs gate via worker::run_capped (GATE_WALL_CAP_SECS=120) not bare Command::output; worker output truncated 8MiB. 61 tests green.

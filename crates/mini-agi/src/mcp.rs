@@ -14,6 +14,8 @@ struct ToolDef {
     description: &'static str,
     #[allow(dead_code)]
     params: &'static [(&'static str, &'static str)],
+    /// Write tool: the kernel refuses it without an approve reason (HITL).
+    requires_approval: bool,
 }
 
 /// The server's tool registry.
@@ -28,6 +30,7 @@ const TOOLS: &[ToolDef] = &[
             ("dry_run", "boolean"),
             ("approve", "string"),
         ],
+        requires_approval: true,
     },
     ToolDef {
         name: "memory_signoff",
@@ -38,46 +41,55 @@ const TOOLS: &[ToolDef] = &[
             ("domain", "string"),
             ("approve", "string"),
         ],
+        requires_approval: true,
     },
     ToolDef {
         name: "memory_derive",
         description: "Regenerate derived views from canonical. Requires an approval reason.",
         params: &[("brief_only", "boolean"), ("approve", "string")],
+        requires_approval: true,
     },
     ToolDef {
         name: "memory_query",
         description: "Retrieve canonical facts by keyword/domain.",
         params: &[("keyword", "string"), ("domain", "string")],
+        requires_approval: false,
     },
     ToolDef {
         name: "provenance",
         description: "Print the canonical fingerprint.",
         params: &[],
+        requires_approval: false,
     },
     ToolDef {
         name: "skill_list",
         description: "List discovered patterns/skills.",
         params: &[],
+        requires_approval: false,
     },
     ToolDef {
         name: "skill_show",
         description: "Show one pattern.",
         params: &[("name", "string")],
+        requires_approval: false,
     },
     ToolDef {
         name: "skill_add",
         description: "Install patterns from a git source. Requires an approval reason.",
         params: &[("source", "string"), ("approve", "string")],
+        requires_approval: true,
     },
     ToolDef {
         name: "checkpoint_audit",
         description: "Checkpoint journal audit.",
         params: &[],
+        requires_approval: false,
     },
     ToolDef {
         name: "loop_status",
         description: "Open gaps with tickets/claims.",
         params: &[],
+        requires_approval: false,
     },
     ToolDef {
         name: "loop_dispatch",
@@ -87,6 +99,7 @@ const TOOLS: &[ToolDef] = &[
             ("case", "string"),
             ("approve", "string"),
         ],
+        requires_approval: true,
     },
     ToolDef {
         name: "loop_objective",
@@ -96,18 +109,38 @@ const TOOLS: &[ToolDef] = &[
             ("claimant", "string"),
             ("approve", "string"),
         ],
+        requires_approval: true,
     },
     ToolDef {
         name: "loop_verify",
         description: "Verify a rerun; close when its gate passes.",
         params: &[("case", "string"), ("claimant", "string")],
+        requires_approval: false,
     },
     ToolDef {
         name: "dream",
         description: "Distill a research file into canonical facts.",
         params: &[("source", "string"), ("approve", "string")],
+        requires_approval: true,
     },
 ];
+
+/// All registry tool names (the single source for `.codex/config.toml`
+/// regeneration — MUST-FIX 2: init must not hardcode a stale list).
+#[must_use]
+pub fn tool_names() -> Vec<&'static str> {
+    TOOLS.iter().map(|t| t.name).collect()
+}
+
+/// The write tools that require an approval reason (HITL, ADR-0010).
+#[must_use]
+pub fn approval_tool_names() -> Vec<&'static str> {
+    TOOLS
+        .iter()
+        .filter(|t| t.requires_approval)
+        .map(|t| t.name)
+        .collect()
+}
 
 const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 

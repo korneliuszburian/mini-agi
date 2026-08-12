@@ -80,55 +80,15 @@ memory/derived/snapshots/\n";
 
 /// Codex onboarding: marking the repo trusted lets `codex exec` run
 /// without `--skip-git-repo-check` (verified in EXP-001).
-/// Full codex MCP registration (AFK-SUPERVISOR S4). Unlike the old
-/// two-line template this wires the server with the explicit tool
-/// allowlist and per-tool HITL approvals so a fresh init gets the same
-/// write-gating the docs describe. `exe` is quoted as a basic TOML
-/// string (backslashes escaped for Windows-style paths).
+/// Full codex MCP registration (AFK-SUPERVISOR S4). The tool allowlist
+/// and the per-tool HITL approvals are derived from the 14-tool MCP
+/// registry (`crate::mcp`) — init never hardcodes a stale list
+/// (MUST-FIX 2). `exe` is quoted as a basic TOML string (backslashes
+/// escaped for Windows-style paths).
 fn codex_config(exe: &Path) -> String {
     use std::fmt::Write as _;
     let exe = exe.to_string_lossy().replace('\\', "\\\\");
-    let tools = [
-        "audit",
-        "backlog",
-        "budget",
-        "checkpoint_audit",
-        "eval_gate",
-        "eval_score",
-        "eval_steps",
-        "harness",
-        "health",
-        "insights",
-        "loop_dispatch",
-        "loop_objective",
-        "loop_run",
-        "loop_status",
-        "loop_verify",
-        "memory_consolidate",
-        "memory_derive",
-        "memory_query",
-        "memory_signoff",
-        "provenance",
-        "resume",
-        "run_failures",
-        "run_ingest",
-        "run_report",
-        "run_status",
-        "run_verify",
-        "skill_add",
-        "skill_list",
-        "skill_show",
-        "skill_verify",
-        "stats",
-        "ticket_claim",
-        "ticket_claims",
-        "ticket_graph",
-        "ticket_list",
-        "ticket_release",
-        "ticket_show",
-        "ticket_validate",
-        "validate",
-    ];
+    let tools = crate::mcp::tool_names();
     let mut out = String::new();
     out.push_str(
         "# mini-agi as a codex MCP server (AFK-SUPERVISOR S4).\n\
@@ -141,7 +101,7 @@ fn codex_config(exe: &Path) -> String {
     out.push_str(&exe);
     out.push_str("\"\nargs = [\"mcp\"]\ntrusted = true\ndefault_tools_approval_mode = \"auto\"\n");
     out.push_str("enabled_tools = [\n");
-    for t in tools {
+    for t in &tools {
         let _ = writeln!(out, "  \"{t}\",");
     }
     out.push_str("]\n\n");
@@ -149,19 +109,7 @@ fn codex_config(exe: &Path) -> String {
         "# Writes require a prompt (HITL). memory_signoff stays human by design\n\
          # (ADR-0010) — a session cannot silently merge its own memory.\n",
     );
-    for t in [
-        "harness",
-        "loop_dispatch",
-        "loop_run",
-        "loop_objective",
-        "memory_consolidate",
-        "memory_derive",
-        "memory_signoff",
-        "run_ingest",
-        "skill_add",
-        "ticket_claim",
-        "ticket_release",
-    ] {
+    for t in crate::mcp::approval_tool_names() {
         let _ = writeln!(
             out,
             "\n[mcp_servers.mini-agi.tools.{t}]\napproval_mode = \"prompt\"\n"
@@ -323,4 +271,58 @@ fn make_executable(path: &Path) -> Result<(), io::Error> {
 #[cfg(not(unix))]
 fn make_executable(_path: &Path) -> Result<(), io::Error> {
     Ok(())
+}
+
+#[cfg(test)]
+mod init_tests {
+    use super::*;
+
+    #[test]
+    fn codex_config_tools_match_the_mcp_registry() {
+        let config = codex_config(Path::new("/tmp/mini-agi"));
+        // every registry tool is enabled
+        for name in crate::mcp::tool_names() {
+            assert!(
+                config.contains(&format!("  \"{name}\",")),
+                "registry tool {name} present in enabled_tools"
+            );
+        }
+        // exactly the registry set: no stale pre-condensation tool survives
+        for stale in [
+            "audit",
+            "backlog",
+            "budget",
+            "eval_gate",
+            "harness",
+            "health",
+            "insights",
+            "loop_run",
+            "resume",
+            "run_failures",
+            "run_ingest",
+            "run_verify",
+            "skill_verify",
+            "stats",
+            "ticket_claim",
+            "ticket_graph",
+            "ticket_list",
+            "ticket_show",
+            "ticket_validate",
+            "validate",
+        ] {
+            assert!(
+                !config.contains(&format!("  \"{stale}\",")),
+                "stale tool {stale} must not be regenerated"
+            );
+        }
+        // every approval-requiring registry tool gets prompt mode
+        for name in crate::mcp::approval_tool_names() {
+            assert!(
+                config.contains(&format!("[mcp_servers.mini-agi.tools.{name}]")),
+                "write tool {name} is HITL-gated"
+            );
+        }
+        assert_eq!(crate::mcp::tool_names().len(), 14, "14-tool registry");
+        assert_eq!(crate::mcp::approval_tool_names().len(), 7, "7 write tools");
+    }
 }
