@@ -590,9 +590,9 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
         })?;
         let vt = input.target.unwrap_or(input.workdir);
         let spec_text = format!(
-            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {}\n- scope: (none declared)\n- verify_command: {vc} in {vt}\n",
-            vt.display(),
-            vt = vt.display()
+            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {}\n- scope: (none declared)\n- verify_command: {vc} in {}\n",
+            input.goal_or_case,
+            vt.display()
         );
         Ok(ResolvedSpec {
             spec_text,
@@ -848,6 +848,44 @@ mod tests {
             v.findings
         );
         assert!(!v.findings.contains("Verdict:"), "{}", v.findings);
+    }
+
+    #[test]
+    fn ad_hoc_spec_goal_line_carries_the_goal_not_the_target_path() {
+        // The worker's instruction contract: the spec the worker reads
+        // must state the GOAL on its "goal:" line. The old format! put
+        // vt.display() in the positional slot — the goal line rendered
+        // the workdir PATH instead of the goal text, so a worker would
+        // be told "goal: /tmp/..." and never see what it was supposed
+        // to do.
+        let root = tmp_root("adhoc-goal");
+        let workdir = root.join("work");
+        fs::create_dir_all(&workdir).unwrap();
+        let r = resolve(&ResolveInput {
+            goal_or_case: "make-tests-pass",
+            root: &root,
+            workdir: &workdir,
+            verify: Some("make verify"),
+            target: None,
+        })
+        .unwrap();
+        assert_eq!(r.goal, "make-tests-pass");
+        assert!(
+            r.spec_text.contains("goal: make-tests-pass"),
+            "the spec goal line must carry the goal, got: {}",
+            r.spec_text
+        );
+        assert!(
+            !r.spec_text.contains("goal: /"),
+            "the goal line must not render a path: {}",
+            r.spec_text
+        );
+        assert!(
+            r.spec_text.contains("verify_command: make verify"),
+            "the verifier must still be declared: {}",
+            r.spec_text
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
