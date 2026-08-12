@@ -691,3 +691,44 @@ pre-registered BEFORE execution:
   standard registrations; the framing-mirror fix makes the server
   robust to both wire styles.
 
+## EXP-017 — GREENFIELD DOGFOOD: ekologus-3d built on the pipeline (PRE-REGISTERED 2026-08-12)
+
+Decision path (2026-08-12, back-and-forth with codex devil's advocate):
+NOT building the connector/trail/shared-memory/CI yet — the only measured
+kernel advantage (EXP-012/013, verified-iteration) is blind-worker-only, so
+value in the owner's daily codex flow is UNPROVEN. The cheapest evidence is
+a greenfield, deliberately-complex build run entirely through the pipeline.
+
+Subject: `ekologus-3d` (Three.js 0.185, TS7/vite8/vitest4) — an advanced
+faceted-glass interactive object; status "independent-cell reconstruction
+implemented; final runtime review and product acceptance remain open".
+Its own gate: `npm run check` (typecheck + vitest + vite build).
+
+Setup (baseline):
+- `mini-agi init` wired into the repo (AGENTIC_ROOT), kernel release binary.
+- MCP registration appended to the existing `.codex/config.toml` (init
+  skips an existing file — first dogfood finding: no merge).
+- Measurement journal: `.miniagi/usage-log.md`, one row per week.
+- The pipeline gate for THIS project = `npm run check` via the kernel's
+  verifier (`loop verify`/`run verify`), NOT the embedded `scripts/verify.sh`
+  (second dogfood finding: init embeds a Rust-specific cargo gate — the
+  embedded verify.sh/checkpoint.sh are not used in a TS project).
+
+Measured weekly (pre-registered):
+- W (wins): decisions recovered from canonical memory that a session would
+  re-derive; verifier-feedback fixes; repeated explanations avoided;
+  checkpoint rollbacks that saved real work.
+- C (costs): minutes on memory maintenance, drift fixing, operating the
+  tooling (checkpoint ceremony, gate runs).
+- B (bad memories): incorrect/irrelevant facts that influenced work.
+- Gate incidents: red `npm run check`, loop/verifier behavior.
+
+Success criteria (first month):
+- EXPAND: >= 2 attributable wins AND cost <= 30 min/week AND 0
+  bad-memory-caused rework.
+- PARTIAL: wins present but cost > 30 min/week -> cut ceremony before
+  expanding (this is where a connector/CI/trail would earn its keep).
+- STOP: 0-1 wins -> the kernel remains an own-repo tool; revisit only when
+  a workload drops below the solo bar (the blind-worker condition).
+
+Result: (open — measurement in progress)
