@@ -371,7 +371,12 @@ pub fn run_verified_iteration(
         // worker — the kernel's loop is the only feedback path.
         let hidden_away = if input.blind_worker {
             match input.hidden_dir {
-                Some(dir) if dir.exists() => hide_verifier(dir).unwrap_or(false),
+                // A hide failure is NOT silently swallowed: the
+                // blind-worker isolation claim would be false while the
+                // worker still sees the hidden suite (silent
+                // degradation of the experiment boundary).
+                Some(dir) if dir.exists() => hide_verifier(dir)
+                    .map_err(|e| format!("cannot isolate the hidden suite: {e}"))?,
                 Some(dir) => {
                     return Err(format!(
                         "refusing blind-worker mode: the hidden suite {} does not exist — \
@@ -746,13 +751,26 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     }
 }
 
+/// Move the hidden suite aside for a blind worker run.
+///
+/// A pre-existing `*.blind-hidden` dir is a CRASHED run's hidden suite
+/// (gitignored user data, often the only copy) — it must NEVER be
+/// deleted, and the isolation must not silently proceed without it: the
+/// stale state is an error the operator resolves.
 fn hide_verifier(hidden_dir: &Path) -> std::io::Result<bool> {
     if !hidden_dir.exists() {
         return Ok(false);
     }
     let away = hidden_dir.with_extension("blind-hidden");
     if away.exists() {
-        let _ = std::fs::remove_dir_all(&away);
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!(
+                "stale blind-hidden state at {} — a previous blind run crashed mid-hide; \
+                 resolve it (restore or remove) before re-running",
+                away.display()
+            ),
+        ));
     }
     std::fs::rename(hidden_dir, &away)?;
     Ok(true)
@@ -1045,15 +1063,19 @@ pub fn run_worker_sandboxed(
             wrapper.push(exe.to_string());
             wrapper.extend(worker_args.iter().map(|s| (*s).to_string()));
             let arg_refs: Vec<&str> = wrapper.iter().map(String::as_str).collect();
-            if let Ok(exe) = std::env::current_exe() {
-                return mini_agi_core::worker::run_capped_idle(
-                    &exe.to_string_lossy(),
-                    &arg_refs,
-                    workdir,
-                    wall_cap,
-                    idle_cap,
-                );
-            }
+            // A current_exe() failure must NOT silently fall through to
+            // an unsandboxed run — the ADR-0012 boundary would be gone
+            // without anyone noticing. It is an error.
+            let exe_path = std::env::current_exe().map_err(|e| {
+                std::io::Error::other(format!("exec-sandbox wrapper unavailable: {e}"))
+            })?;
+            return mini_agi_core::worker::run_capped_idle(
+                &exe_path.to_string_lossy(),
+                &arg_refs,
+                workdir,
+                wall_cap,
+                idle_cap,
+            );
         }
     }
     #[cfg(not(target_os = "linux"))]
@@ -1127,6 +1149,36 @@ pub fn cmd_exec_sandbox(allow_write: &[PathBuf], command: &[String]) -> ExitCode
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hide_verifier_preserves_a_stale_blind_hidden_state() {
+        // A pre-existing `*.blind-hidden` dir is a CRASHED run's hidden
+        // suite (gitignored, user data, the only copy). hide_verifier
+        // used to DELETE it — the next blind run destroyed the suite
+        // permanently. It must refuse instead: the operator resolves
+        // the stale state, the isolation never silently proceeds.
+        let root = std::env::temp_dir().join(format!("mag-hide-stale-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let hidden = root.join("hidden-suite");
+        std::fs::create_dir_all(&hidden).unwrap();
+        std::fs::write(hidden.join("cases.txt"), "precious").unwrap();
+        // Stale state from a crashed run: the away dir exists.
+        let away = root.join("hidden-suite.blind-hidden");
+        std::fs::create_dir_all(&away).unwrap();
+        std::fs::write(away.join("cases.txt"), "the-only-copy").unwrap();
+        let err = hide_verifier(&hidden).unwrap_err();
+        assert!(
+            err.to_string().contains("blind-hidden"),
+            "the stale state must be named, got {err}"
+        );
+        assert!(
+            std::fs::read_to_string(away.join("cases.txt")).unwrap() == "the-only-copy",
+            "the stale copy must survive untouched"
+        );
+        assert!(hidden.exists(), "the live suite is left in place");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn read_only_spec_is_detected() {
