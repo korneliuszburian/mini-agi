@@ -11,11 +11,144 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use crate::eval::Run;
 
 /// Composite a case must reach to leave the loop's open set (kept as a
 /// constant for API compatibility; the minimal model is achieved=true).
 pub const TARGET_COMPOSITE: f64 = 0.5;
+
+/// One case's gap lifecycle state (the authoritative ledger record).
+///
+/// `evals/ledger/<case>.json` is written by `loopcmd` ONLY (never
+/// hand-edited, never touched by ticket/worker code), atomically (temp +
+/// rename) under the claims lock. Terminal states (`closed`, `exhausted`,
+/// `unverifiable`) make a case permanently not dispatchable.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GapState {
+    /// Known gap, never dispatched.
+    Open,
+    /// Dispatched at least once; a claim is expected.
+    Dispatched,
+    /// Closed by a passing gate on an achieved run (atomic close).
+    Closed,
+    /// Retry bound exceeded with no achieved rerun.
+    Exhausted,
+    /// No verifiable gate exists; never dispatchable.
+    Unverifiable,
+}
+
+/// The authoritative gap lifecycle record at `evals/ledger/<case>.json`.
+///
+/// A base case owns its row; rerun dirs are attempt artifacts and never
+/// get their own row — closing a rerun strips `-rerun-N` and closes the
+/// BASE, recording the closing rerun dir in `closed_by`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Gap {
+    /// Base case (never a rerun dir name).
+    pub case: String,
+    /// Lifecycle state.
+    pub state: GapState,
+    /// Case that first opened the gap (the base run dir).
+    pub opened_by: String,
+    /// UTC stamp of the first dispatch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_dispatched_at: Option<String>,
+    /// Number of dispatches.
+    #[serde(default)]
+    pub attempts: usize,
+    /// UTC stamp of the most recent dispatch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_attempted_at: Option<String>,
+    /// Closing rerun dir (base case closes via its rerun).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub closed_by: Option<String>,
+    /// UTC stamp of the atomic close.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verified_at: Option<String>,
+    /// Ticket whose claim was released on close.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub closed_ticket: Option<String>,
+}
+
+impl Default for Gap {
+    fn default() -> Self {
+        Self {
+            case: String::new(),
+            state: GapState::Open,
+            opened_by: String::new(),
+            first_dispatched_at: None,
+            attempts: 0,
+            last_attempted_at: None,
+            closed_by: None,
+            verified_at: None,
+            closed_ticket: None,
+        }
+    }
+}
+
+/// Is the state terminal (never dispatchable again)?
+#[must_use]
+pub const fn gap_is_terminal(state: &GapState) -> bool {
+    matches!(
+        state,
+        GapState::Closed | GapState::Exhausted | GapState::Unverifiable
+    )
+}
+
+impl GapState {
+    /// The serialized state name (for messages).
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Dispatched => "dispatched",
+            Self::Closed => "closed",
+            Self::Exhausted => "exhausted",
+            Self::Unverifiable => "unverifiable",
+        }
+    }
+}
+
+impl Gap {
+    /// State name as a string (message helper).
+    #[must_use]
+    pub const fn state_name(&self) -> &'static str {
+        self.state.name()
+    }
+}
+
+/// Ledger file path for a base case.
+#[must_use]
+pub fn ledger_path(root: &Path, case: &str) -> PathBuf {
+    root.join("evals/ledger").join(format!("{case}.json"))
+}
+
+/// Read a case's ledger row (absent = gap not yet opened).
+#[must_use]
+pub fn read_ledger(root: &Path, case: &str) -> Option<Gap> {
+    let text = fs::read_to_string(ledger_path(root, case)).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// Atomically write a ledger row (temp file + rename). Callers MUST hold
+/// the claims lock so the row cannot be raced by another loop writer.
+///
+/// # Errors
+///
+/// Returns an io error when the ledger directory or temp file cannot be
+/// written.
+pub fn write_ledger_atomic(root: &Path, gap: &Gap) -> io::Result<()> {
+    let path = ledger_path(root, &gap.case);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, serde_json::to_string(gap).map_err(io::Error::other)?)?;
+    fs::rename(&tmp, &path)
+}
 
 /// One case's loop row.
 #[derive(Debug)]
@@ -250,7 +383,9 @@ pub fn dispatch_no_work(root: &Path, _below: f64) -> Option<String> {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            !is_rerun_case(&name) && read_run(d).is_none_or(|r| !r.achieved())
+            !is_rerun_case(&name)
+                && read_run(d).is_none_or(|r| !r.achieved())
+                && !read_ledger(root, &name).is_some_and(|g| gap_is_terminal(&g.state))
         })
         .collect();
     if candidates.is_empty() {
@@ -307,6 +442,14 @@ fn pick_target(root: &Path, case: Option<&str>) -> Result<String, String> {
                 ticket.id
             ));
         }
+        if let Some(gap) = read_ledger(root, case)
+            && gap_is_terminal(&gap.state)
+        {
+            return Err(format!(
+                "case '{case}' is already {} in the ledger (evals/ledger/{case}.json)",
+                gap.state_name()
+            ));
+        }
         return Ok(case.to_string());
     }
     for d in case_dirs(&cases_dir) {
@@ -315,6 +458,11 @@ fn pick_target(root: &Path, case: Option<&str>) -> Result<String, String> {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if is_rerun_case(&name) || read_run(&d).is_some_and(|r| r.achieved()) {
+            continue;
+        }
+        if let Some(gap) = read_ledger(root, &name)
+            && gap_is_terminal(&gap.state)
+        {
             continue;
         }
         if let Some(ticket) = ticket_for_case(root, &name)
@@ -360,6 +508,24 @@ pub fn dispatch(
     };
     crate::ticket::claim_ticket(root, &ticket_id, claimant, false)
         .map_err(|e| format!("cannot claim {ticket_id}: {e}"))?;
+    // The ledger is the authoritative gap lifecycle: mark dispatched
+    // atomically under the claims lock, then write the slice spec.
+    let lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
+    let now = crate::memory::utc_now_stamp();
+    let mut gap = read_ledger(root, &case).unwrap_or_else(|| Gap {
+        case: case.clone(),
+        state: GapState::Open,
+        opened_by: case.clone(),
+        ..Gap::default()
+    });
+    if gap.first_dispatched_at.is_none() {
+        gap.first_dispatched_at = Some(now.clone());
+    }
+    gap.attempts += 1;
+    gap.last_attempted_at = Some(now);
+    gap.state = GapState::Dispatched;
+    write_ledger_atomic(root, &gap).map_err(|e| e.to_string())?;
+    drop(lock);
     let spec = write_spec(root, &case, &ticket_id).map_err(|e| e.to_string())?;
     Ok(DispatchOutcome {
         case,
@@ -399,6 +565,9 @@ pub fn objective(
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if is_rerun_case(&name) || read_run(&d).is_some_and(|r| r.achieved()) {
+            continue;
+        }
+        if read_ledger(root, &name).is_some_and(|g| gap_is_terminal(&g.state)) {
             continue;
         }
         let Some(run) = read_run(&d) else {
@@ -516,17 +685,84 @@ pub fn verify(
 
     let closed = run.achieved() && passed;
     if closed {
-        if let Some(ticket) = ticket_for_case(root, base)
-            && claimant_for(root, &ticket.id).as_deref() == Some(claimant)
-        {
-            crate::ticket::release_ticket(root, &ticket.id, claimant)
-                .map_err(|e| format!("cannot release {}: {e}", ticket.id))?;
-            lines.push(format!(
-                "  gap closed: {base} released claim on {}",
-                ticket.id
-            ));
+        // Atomic close under the claims lock: ledger (state=closed,
+        // closed_by=<closing rerun dir>, verified_at) -> release the
+        // claim -> ticket file status: CLOSED. Any failure rolls every
+        // on-disk state back (the ledger is the single commit point).
+        let _lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
+        let prior_gap = read_ledger(root, base);
+        let prior_claims = crate::ticket::read_claims(root).unwrap_or_default();
+        let prior_ticket = ticket_for_case(root, base);
+        let now = crate::memory::utc_now_stamp();
+        let close_gap = Gap {
+            case: base.to_string(),
+            state: GapState::Closed,
+            opened_by: prior_gap
+                .as_ref()
+                .map_or_else(|| base.to_string(), |g| g.opened_by.clone()),
+            first_dispatched_at: prior_gap
+                .as_ref()
+                .and_then(|g| g.first_dispatched_at.clone()),
+            attempts: prior_gap.as_ref().map_or(1, |g| g.attempts.max(1)),
+            last_attempted_at: prior_gap.as_ref().and_then(|g| g.last_attempted_at.clone()),
+            closed_by: Some(case.to_string()),
+            verified_at: Some(now),
+            closed_ticket: prior_ticket.as_ref().map(|t| t.id.clone()),
+        };
+        let close_ticket = prior_ticket.as_ref().map(|t| t.id.clone());
+        let rollback = |root: &Path,
+                        prior_gap: Option<&Gap>,
+                        prior_claims: &[crate::ticket::Claim],
+                        close_ticket: &Option<String>,
+                        prior_status: &Option<String>| {
+            let _ = match prior_gap {
+                Some(g) => write_ledger_atomic(root, g),
+                None => fs::remove_file(ledger_path(root, close_gap.case.as_str())),
+            };
+            let _ = crate::ticket::write_claims_registry(root, prior_claims);
+            if let (Some(id), Some(status)) = (close_ticket, prior_status) {
+                let _ = crate::ticket::set_ticket_status(root, id, status);
+            }
+        };
+        let prior_status = prior_ticket.as_ref().map(|t| t.status.clone());
+        if let Err(e) = write_ledger_atomic(root, &close_gap) {
+            return Err(format!("cannot write ledger: {e}"));
         }
-        lines.push(format!("  gap closed: {base} (gate passed)"));
+        if let Some(id) = &close_ticket {
+            let mine = prior_claims
+                .iter()
+                .any(|c| c.ticket == *id && c.claimant == claimant);
+            if mine {
+                let remaining: Vec<_> = prior_claims
+                    .iter()
+                    .filter(|c| c.ticket != *id)
+                    .cloned()
+                    .collect();
+                if let Err(e) = crate::ticket::write_claims_registry(root, &remaining) {
+                    rollback(
+                        root,
+                        prior_gap.as_ref(),
+                        &prior_claims,
+                        &close_ticket,
+                        &prior_status,
+                    );
+                    return Err(format!("cannot release {id}: {e}"));
+                }
+            }
+            if let Err(e) = crate::ticket::set_ticket_status(root, id, "CLOSED") {
+                rollback(
+                    root,
+                    prior_gap.as_ref(),
+                    &prior_claims,
+                    &close_ticket,
+                    &prior_status,
+                );
+                return Err(format!("cannot mark {id} CLOSED: {e}"));
+            }
+        }
+        lines.push(format!(
+            "  gap closed: {base} (gate passed) ledger state=closed closed_by={case}"
+        ));
     } else {
         lines.push("  gap open: outcome not verified — keep working".into());
     }
@@ -638,6 +874,71 @@ mod loop_tests {
         let s = status(&root).unwrap();
         assert_eq!(s.cases.len(), 1);
         assert_eq!(s.cases[0].case, "open-a");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    fn write_ledger(root: &Path, case: &str, state: GapState) -> Gap {
+        let gap = Gap {
+            case: case.to_string(),
+            state,
+            opened_by: case.to_string(),
+            ..Gap::default()
+        };
+        write_ledger_atomic(root, &gap).unwrap();
+        gap
+    }
+
+    #[test]
+    fn dispatch_writes_a_ledger_row_and_terminal_state_blocks_redispatch() {
+        let root = tmp_root("l-dispatch");
+        write_run(&root, "gap-x", false, Some(("true", ".")));
+        let out = dispatch(&root, Some("gap-x"), 0.5, "t").unwrap();
+        assert_eq!(out.case, "gap-x");
+        let row = read_ledger(&root, "gap-x").expect("dispatch writes a ledger row");
+        assert_eq!(row.state, GapState::Dispatched);
+        assert!(row.first_dispatched_at.is_some(), "first dispatch stamped");
+        assert_eq!(row.attempts, 1);
+        write_ledger(&root, "gap-x", GapState::Closed);
+        let err = dispatch(&root, Some("gap-x"), 0.5, "t").unwrap_err();
+        assert!(
+            err.contains("closed"),
+            "a terminal ledger state blocks redispatch: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_skips_terminal_cases_in_auto_pick() {
+        let root = tmp_root("l-pick");
+        write_run(&root, "gap-z", false, Some(("true", ".")));
+        write_ledger(&root, "gap-z", GapState::Closed);
+        let err = dispatch(&root, None, 0.5, "t").unwrap_err();
+        assert!(
+            err.contains("no case"),
+            "auto-pick skips terminal-ledger cases: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_marks_the_base_ledger_closed_and_closes_the_ticket() {
+        let root = tmp_root("l-close");
+        write_run(&root, "gap-y-rerun", true, Some(("true", ".")));
+        let ticket = write_ticket(&root, "gap-y");
+        crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
+        let (text, closed) = verify(&root, "gap-y-rerun", "t", false).unwrap();
+        assert!(closed, "{text}");
+        let row = read_ledger(&root, "gap-y").expect("verify writes a closed ledger row");
+        assert_eq!(row.state, GapState::Closed);
+        assert_eq!(row.closed_by.as_deref(), Some("gap-y-rerun"));
+        assert!(row.verified_at.is_some(), "verified_at stamped on close");
+        assert_eq!(row.closed_ticket.as_deref(), Some(ticket.as_str()));
+        let t = crate::ticket::find_ticket(&root, &ticket).unwrap();
+        assert_eq!(t.status, "CLOSED", "ticket file carries status: CLOSED");
+        assert!(
+            crate::ticket::read_claims(&root).unwrap().is_empty(),
+            "lease released on close"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

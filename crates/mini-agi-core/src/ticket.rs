@@ -571,6 +571,71 @@ fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
     fs::write(&path, out)
 }
 
+/// Rewrite the claims registry with an explicit set.
+///
+/// Callers MUST already hold the claims lock — used by the loop's atomic
+/// close (one lock for ledger + claims + ticket status).
+///
+/// # Errors
+///
+/// Returns the underlying filesystem error on write failure.
+pub fn write_claims_registry(root: &Path, claims: &[Claim]) -> io::Result<()> {
+    write_claims(root, claims)
+}
+
+/// Set a ticket's lifecycle status (`OPEN`/`CLOSED`/...), rewriting the
+/// ticket file atomically (temp + rename).
+///
+/// Callers MUST already hold the claims lock so the status change is part
+/// of one atomic close transaction.
+///
+/// # Errors
+///
+/// Returns [`TicketError::Io`] on filesystem failure or
+/// [`TicketError::Parse`] when the ticket file cannot be read.
+pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), TicketError> {
+    let dir = tickets_dir(root);
+    let mut path = dir.join(format!("{id}.md"));
+    if !path.is_file() {
+        let found = dir
+            .read_dir()
+            .map_err(TicketError::Io)?
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| {
+                p.file_name().is_some_and(|n| {
+                    let n = n.to_string_lossy();
+                    n.starts_with(&format!("{id}-")) || n == format!("{id}.md")
+                })
+            });
+        path = found.ok_or_else(|| {
+            TicketError::Io(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("no ticket file for {id}"),
+            ))
+        })?;
+    }
+    let text = fs::read_to_string(&path).map_err(TicketError::Io)?;
+    let updated = if text.trim_start().starts_with('{') {
+        let mut value: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| TicketError::Parse(e.to_string()))?;
+        value["status"] = serde_json::Value::String(status.to_string());
+        serde_json::to_string_pretty(&value).map_err(|e| TicketError::Parse(e.to_string()))?
+    } else if let Some(pos) = text.lines().position(|l| {
+        let l = l.trim();
+        l.starts_with("- status:") || l.starts_with("status:")
+    }) {
+        let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+        lines[pos] = format!("- status: {status}");
+        lines.join("\n")
+    } else {
+        format!("{text}\n- status: {status}\n")
+    };
+    let tmp = path.with_extension("md.tmp");
+    fs::write(&tmp, updated).map_err(TicketError::Io)?;
+    fs::rename(&tmp, &path).map_err(TicketError::Io)
+}
+
 /// Resolve a `blocked_by` reference to a ticket id deterministically:
 /// exact `TICKET-<digits>` first, then the first `TICKET-<digits>-...`
 /// suffix in sorted order (`find_ticket` semantics; a bare prefix match
