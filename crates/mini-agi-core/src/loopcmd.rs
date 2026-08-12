@@ -565,7 +565,10 @@ mod loop_tests {
     }
 
     fn write_ticket(root: &Path, case: &str) -> String {
-        let id = format!("TICKET-{:04}", case.bytes().map(|b| b as u32).sum::<u32>() % 10000);
+        let id = format!(
+            "TICKET-{:04}",
+            case.bytes().map(u32::from).sum::<u32>() % 10000
+        );
         fs::write(
             root.join("tickets").join(format!("{id}.md")),
             format!("- id: {id}\n- title: {case} gap\n- goal: fix {case}\n- scope: evals/cases\n"),
@@ -582,7 +585,10 @@ mod loop_tests {
         crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
         let (text, closed) = verify(&root, "gap-a-rerun", "t", false).unwrap();
         assert!(closed, "passing gate on an achieved run closes: {text}");
-        assert!(crate::ticket::read_claims(&root).unwrap().is_empty(), "lease released");
+        assert!(
+            crate::ticket::read_claims(&root).unwrap().is_empty(),
+            "lease released"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -595,7 +601,10 @@ mod loop_tests {
         let (text, closed) = verify(&root, "gap-b-rerun", "t", false).unwrap();
         assert!(!closed, "a failing gate keeps the gap open: {text}");
         assert!(
-            crate::ticket::read_claims(&root).unwrap().iter().any(|c| c.ticket == ticket),
+            crate::ticket::read_claims(&root)
+                .unwrap()
+                .iter()
+                .any(|c| c.ticket == ticket),
             "claim held on failure"
         );
         let _ = fs::remove_dir_all(&root);
