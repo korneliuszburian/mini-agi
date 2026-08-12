@@ -957,3 +957,5 @@ research/what-is-22-answer-briefly.md
 2026-08-12T05:04:22Z VERIFY-PASS exp014-cycle6 @ e474d7b
 2026-08-12T05:09:48Z BEGIN exp015-cycle7 -> 5ab3298 (clean)
 2026-08-12T05:16:34Z VERIFY-PASS exp015-cycle7 @ 1301829
+2026-08-12T05:24:58Z BEGIN supervisor-cycle8 -> 99b9062 (clean)
+2026-08-12T05:28:45Z VERIFY-PASS supervisor-cycle8 @ d7a4fe8
