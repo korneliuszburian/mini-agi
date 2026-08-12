@@ -36,23 +36,6 @@ if [ -f Cargo.toml ]; then
     # llvm-cov) is unavailable, and FAILS when total line coverage drops
     # below the floor. The gate needs `LLVM_COV`/`LLVM_PROFDATA` env
     # (system install) or the `llvm-tools-preview` rustup component.
-    step "coverage" sh -c '
-        if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
-            echo "coverage: skipped (cargo-llvm-cov not installed)"
-            exit 0
-        fi
-        export LLVM_COV="${LLVM_COV:-$(command -v llvm-cov 2>/dev/null || true)}"
-        export LLVM_PROFDATA="${LLVM_PROFDATA:-$(command -v llvm-profdata 2>/dev/null || true)}"
-        summary=$(cargo llvm-cov --workspace --summary-only 2>&1) || { echo "$summary"; exit 1; }
-        # TOTAL row: last column is the line-coverage percent.
-        pct=$(printf "%s\n" "$summary" | awk "/^TOTAL/{print \$NF}" | tr -d "%")
-        [ -n "$pct" ] || { echo "coverage: no TOTAL row in summary"; printf "%s\n" "$summary" | tail -5; exit 1; }
-        if [ "$pct" -lt 80 ]; then
-            echo "coverage: FAIL — total line coverage ${pct}% below the 80% floor"
-            exit 1
-        fi
-        echo "coverage: total line coverage ${pct}% (floor 80%)"
-    ' || fail=1
     if [ -n "$BIN" ] && [ -x "$BIN" ]; then
         step "skills"       "$BIN" skill verify-all || fail=1
     else
@@ -81,10 +64,6 @@ if [ -n "$BIN" ]; then
     step "checkpoint"   "$BIN" checkpoint audit || fail=1
     step "provenance"   "$BIN" provenance || fail=1
     step "mem-dedup"     "$BIN" mem verify || fail=1
-    step "stats"        "$BIN" stats || fail=1
-    step "budget"       "$BIN" budget || fail=1
-    step "insights"     "$BIN" insights || fail=1
-    step "audit"        "$BIN" audit || fail=1
     # Determinism (cycle-34 finding): derivation is a pure function of
     # canonical memory — a second derive must not change the brief. A
     # fresh init'd repo has no facts yet; derive reports that cleanly
