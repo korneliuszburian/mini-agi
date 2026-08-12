@@ -989,3 +989,4 @@ research/what-is-22-answer-briefly.md
 2026-08-12T08:02:22Z VERIFY-PASS redact-cycle22 @ 3debb0d
 2026-08-12T08:03:28Z BEGIN capture-cycle23 -> 426b8ca (clean)
 2026-08-12T08:07:15Z VERIFY-PASS capture-cycle23 @ c225aed
+2026-08-12T08:19:16Z BEGIN exp017-dogfood -> baa3d45 (clean)
