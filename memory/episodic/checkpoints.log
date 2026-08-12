@@ -1007,3 +1007,4 @@ research/what-is-22-answer-briefly.md
 2026-08-12T19:45:09Z BEGIN gap-ledger-cycle -> ffea7c7 (restored by rollback)
 2026-08-12T19:45:09Z VERIFY-FAIL gap-ledger-cycle @ 32600f5 -> ROLLBACK to ffea7c7
 2026-08-12T19:47:15Z VERIFY-FAIL loopcmd-tests-cycle @ 9d2a1e8 -> NO-ROLLBACK (journal repair 2026-08-12: cycle-3 transition tests landed 9d2a1e8 and re-verified green; re-BEGIN blocked by checkpoint.sh closed-label guard after the 0cca6c1 incident — closing orphan per INCIDENTS.md row 7)
+2026-08-12T19:47:54Z BEGIN gap-ledger-c4b -> 2863722 (clean)
