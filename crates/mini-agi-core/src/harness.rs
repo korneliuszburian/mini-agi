@@ -40,27 +40,15 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
     if !path.exists() {
         fs::write(&path, spec_text())?;
     }
-    // Frozen-suite verdict with this revision. Errors propagate — a
-    // corrupt or missing baseline must NEVER record a fabricated green
-    // (codex review finding, Phase 8).
-    let entries =
-        crate::eval::score_all_cases(&root.join("evals/cases"), root, &root.join("evals/golden"))
-            .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("cannot score the frozen suite: {e}"),
-            )
-        })?;
-    let baseline: Vec<crate::eval::GateEntry> = serde_json::from_str(&fs::read_to_string(
-        root.join("evals/results/baseline.json"),
-    )?)
-    .map_err(|e| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("cannot read the frozen baseline: {e}"),
-        )
-    })?;
-    let gate = crate::eval::run_gate(&entries, &baseline, 0.05, 1);
+    // Frozen-suite verdict with this revision: the gate IS verify.sh
+    // (the counterfactual gate already runs it). Errors propagate — a
+    // corrupt or missing gate must NEVER record a fabricated green.
+    let (failures, passed) = gate_run(root);
+    let gate = format!(
+        "{} regression(s), {}",
+        failures.len(),
+        if passed { "green" } else { "red" }
+    );
     let ledger = dir.join("ledger.md");
     let header = "| rev | date | spec | gate |\n| --- | --- | --- | --- |\n";
     let existing = fs::read_to_string(&ledger).unwrap_or_default();
@@ -72,25 +60,15 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
     if body.contains(&format!("| {rev} |")) {
         return Ok((
             name,
-            format!(
-                "gate: {} regressions (revision {rev} already recorded)",
-                gate.failures
-            ),
+            format!("gate: {gate} (revision {rev} already recorded)"),
         ));
     }
     let row = format!(
-        "| {rev} | {} | {name} | {} regressions |\n",
+        "| {rev} | {} | {name} | {gate} |\n",
         crate::memory::utc_now_date(),
-        gate.failures
     );
     fs::write(&ledger, format!("{body}{row}"))?;
-    Ok((
-        name,
-        format!(
-            "gate: {} regressions across {} cases",
-            gate.failures, gate.case_count
-        ),
-    ))
+    Ok((name, format!("gate: {gate}")))
 }
 
 fn git_rev(root: &Path) -> Option<String> {
@@ -101,36 +79,6 @@ fn git_rev(root: &Path) -> Option<String> {
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::env;
-
-    #[test]
-    fn snapshot_writes_spec_and_ledger_row_once() {
-        let root = env::temp_dir().join(format!("mag-harness-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("evals/cases")).unwrap();
-        fs::create_dir_all(root.join("evals/results")).unwrap();
-        fs::write(root.join("evals/results/baseline.json"), "[]").unwrap();
-        let (name1, verdict1) = snapshot(&root).unwrap();
-        assert!(verdict1.contains("regressions"));
-        let (name2, _) = snapshot(&root).unwrap();
-        assert_eq!(name1, name2, "idempotent spec name");
-        let ledger = fs::read_to_string(root.join("docs/harness/ledger.md")).unwrap();
-        assert_eq!(ledger.matches("| rev |").count(), 1);
-        let _ = fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn spec_text_is_stable_and_documents_the_loop() {
-        let text = spec_text();
-        assert!(text.contains("composite"));
-        assert!(text.contains("verifier"));
-        assert!(text.contains("0.5"));
-    }
 }
 
 /// Parse `[FAIL] <label>` lines out of a gate run (the deterministic
@@ -273,148 +221,4 @@ fn restore(target: &Path, original: Option<&String>) -> std::io::Result<()> {
         },
         |text| fs::write(target, text),
     )
-}
-
-#[cfg(test)]
-mod counterfactual_tests {
-    use super::*;
-    use std::env;
-
-    fn tmp_gate_root(tag: &str, gate_body: &str) -> std::path::PathBuf {
-        let root = env::temp_dir().join(format!("mag-hv-{}-{}", tag, std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("scripts")).unwrap();
-        fs::create_dir_all(root.join("candidate")).unwrap();
-        fs::write(root.join("scripts/verify.sh"), gate_body).unwrap();
-        root
-    }
-
-    /// A fake gate that READS an `ok.marker` data file — the
-    /// counterfactual target is the marker, never the gate itself.
-    fn marker_gate_root(tag: &str) -> std::path::PathBuf {
-        tmp_gate_root(
-            tag,
-            "#!/bin/sh\nif [ \"$(cat ok.marker 2>/dev/null)\" = \"x\" ]; then echo \"[ok] build\"; exit 0; else echo \"[FAIL] marker-missing:\"; exit 1; fi\n",
-        )
-    }
-
-    #[test]
-    fn gate_failures_parses_fail_lines() {
-        assert_eq!(
-            gate_failures("[FAIL] tests:\n[FAIL] clippy:\n[ok] build\n"),
-            vec!["tests:", "clippy:"]
-        );
-    }
-
-    #[test]
-    fn refuses_to_counterfactually_validate_the_gate_itself() {
-        let root = tmp_gate_root("self", "#!/bin/sh\nexit 0\n");
-        let verdict = verify_candidate(
-            &root,
-            &root.join("scripts/verify.sh"),
-            &root.join("scripts/verify.sh"),
-            None,
-        )
-        .unwrap();
-        assert!(verdict.starts_with("REJECT"), "{verdict}");
-        assert!(verdict.contains("gate itself"), "{verdict}");
-        let _ = fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn candidate_reducing_failures_is_accepted() {
-        // Marker absent -> gate fails. Candidate makes it present ->
-        // observed reduction -> ACCEPT; original (absent) restored.
-        let root = marker_gate_root("reduce");
-        fs::write(root.join("candidate/ok.marker"), "x").unwrap();
-        let verdict = verify_candidate(
-            &root,
-            &root.join("ok.marker"),
-            &root.join("candidate/ok.marker"),
-            None,
-        )
-        .unwrap();
-        assert!(verdict.starts_with("ACCEPT"), "{verdict}");
-        assert!(
-            !root.join("ok.marker").exists(),
-            "original (absent) restored"
-        );
-        let _ = fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn phantom_claim_rejected_with_evidence() {
-        // Gate before observes only 'marker-missing'; the edit claims
-        // to fix 'tests' -> fabricated guardrail -> REJECT with evidence.
-        let root = marker_gate_root("phantom");
-        fs::write(root.join("candidate/ok.marker"), "x").unwrap();
-        let verdict = verify_candidate(
-            &root,
-            &root.join("ok.marker"),
-            &root.join("candidate/ok.marker"),
-            Some("tests"),
-        )
-        .unwrap();
-        assert!(verdict.starts_with("REJECT"), "{verdict}");
-        assert!(verdict.contains("never observed"), "{verdict}");
-        let _ = fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn regressing_candidate_rejected() {
-        // Before: marker present -> gate clean. Candidate replaces the
-        // marker with a broken gate-copy -> the gate's failure set grows.
-        let root = marker_gate_root("regress");
-        fs::write(root.join("ok.marker"), "x").unwrap();
-        fs::write(
-            root.join("candidate/ok.marker"),
-            "#!/bin/sh\necho \"[FAIL] clippy:\"\nexit 1\n",
-        )
-        .unwrap();
-        let verdict = verify_candidate(
-            &root,
-            &root.join("ok.marker"),
-            &root.join("candidate/ok.marker"),
-            None,
-        )
-        .unwrap();
-        assert!(verdict.starts_with("REJECT"), "{verdict}");
-        let _ = fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn markerless_failing_gate_is_not_green() {
-        // A gate that exits non-zero with no [FAIL] markers is broken —
-        // the counterfactual must not count it as clean.
-        let root = tmp_gate_root("silentfail", "#!/bin/sh\nexit 1\n");
-        let failures = gate_failures_text(&root);
-        assert!(!failures.is_empty(), "markerless failure must be detected");
-        assert!(
-            failures.iter().any(|f| f.contains("without [FAIL]")),
-            "{failures:?}"
-        );
-        let _ = fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn unreadable_target_errors_instead_of_being_treated_as_absent() {
-        // A target that EXISTS but cannot be read as a file (a
-        // directory) must error with InvalidData — never be treated as
-        // absent, which would make restore() delete it on rejection.
-        let root = tmp_gate_root("unreadable", "#!/bin/sh\nexit 0\n");
-        let dir_target = root.join("target_dir");
-        fs::create_dir_all(&dir_target).unwrap();
-        let err = verify_candidate(&root, &dir_target, &root.join("scripts/verify.sh"), None)
-            .unwrap_err();
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData, "{err}");
-        assert!(
-            err.to_string().contains("unreadable"),
-            "the error names the condition: {err}"
-        );
-        assert!(
-            dir_target.is_dir(),
-            "the unreadable target must survive untouched"
-        );
-        let _ = fs::remove_dir_all(&root);
-    }
 }

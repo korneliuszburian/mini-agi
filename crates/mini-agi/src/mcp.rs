@@ -1,28 +1,122 @@
-//! stdio MCP server (Model Context Protocol, JSON-RPC 2.0).
+#![allow(missing_docs)]
+//! stdio MCP server (condensed).
 //!
-//! Hand-rolled, zero dependencies: LSP-style `Content-Length` framing over
-//! stdio, protocol version `2025-03-26`. Exposes the kernel as tools so
-//! Codex, Claude, Cursor and opencode plug into the SAME verified brain
-//! through the standard protocol (PLAN, Phase 4).
+//! A small tool surface over the KNOWLEDGE core + the loop: agents
+//! query/feed the brain and drive the gap loop. Framing mirrors the
+//! client's transport (Content-Length vs newline — EXP-016).
 
+use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
-use mini_agi_core::{eval, insights, memory, skills, ticket};
-use serde_json::{Value, json};
+struct ToolDef {
+    name: &'static str,
+    description: &'static str,
+    #[allow(dead_code)]
+    params: &'static [(&'static str, &'static str)],
+}
 
-const PROTOCOL_VERSION: &str = "2025-03-26";
-const SERVER_NAME: &str = "mini-agi";
+/// The server's tool registry.
+const TOOLS: &[ToolDef] = &[
+    ToolDef {
+        name: "memory_consolidate",
+        description: "Consolidate an episodic buffer into canonical facts. Requires an approval reason unless dry_run.",
+        params: &[
+            ("episodic", "string"),
+            ("domain", "string"),
+            ("require_signoff", "boolean"),
+            ("dry_run", "boolean"),
+            ("approve", "string"),
+        ],
+    },
+    ToolDef {
+        name: "memory_signoff",
+        description: "Promote one contested fact from the review queue. Requires an approval reason.",
+        params: &[
+            ("queue", "string"),
+            ("index", "integer"),
+            ("domain", "string"),
+            ("approve", "string"),
+        ],
+    },
+    ToolDef {
+        name: "memory_derive",
+        description: "Regenerate derived views from canonical. Requires an approval reason.",
+        params: &[("brief_only", "boolean"), ("approve", "string")],
+    },
+    ToolDef {
+        name: "memory_query",
+        description: "Retrieve canonical facts by keyword/domain.",
+        params: &[("keyword", "string"), ("domain", "string")],
+    },
+    ToolDef {
+        name: "provenance",
+        description: "Print the canonical fingerprint.",
+        params: &[],
+    },
+    ToolDef {
+        name: "skill_list",
+        description: "List discovered patterns/skills.",
+        params: &[],
+    },
+    ToolDef {
+        name: "skill_show",
+        description: "Show one pattern.",
+        params: &[("name", "string")],
+    },
+    ToolDef {
+        name: "skill_add",
+        description: "Install patterns from a git source. Requires an approval reason.",
+        params: &[("source", "string"), ("approve", "string")],
+    },
+    ToolDef {
+        name: "checkpoint_audit",
+        description: "Checkpoint journal audit.",
+        params: &[],
+    },
+    ToolDef {
+        name: "loop_status",
+        description: "Open gaps with tickets/claims.",
+        params: &[],
+    },
+    ToolDef {
+        name: "loop_dispatch",
+        description: "Dispatch the worst open gap. Requires an approval reason.",
+        params: &[
+            ("claimant", "string"),
+            ("case", "string"),
+            ("approve", "string"),
+        ],
+    },
+    ToolDef {
+        name: "loop_objective",
+        description: "Batch-dispatch open gaps. Requires an approval reason.",
+        params: &[
+            ("max_cases", "integer"),
+            ("claimant", "string"),
+            ("approve", "string"),
+        ],
+    },
+    ToolDef {
+        name: "loop_verify",
+        description: "Verify a rerun; close when its gate passes.",
+        params: &[("case", "string"), ("claimant", "string")],
+    },
+    ToolDef {
+        name: "dream",
+        description: "Distill a research file into canonical facts.",
+        params: &[("source", "string"), ("approve", "string")],
+    },
+];
 
-/// Protocol versions this server actually speaks; anything else falls back
-/// to `PROTOCOL_VERSION` during negotiation.
-const SUPPORTED_VERSIONS: &[&str] = &["2025-03-26", "2025-06-18", "2025-11-25"];
+const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
-/// Run the stdio MCP server loop until EOF.
-///
-/// # Errors
-///
-/// Returns an error when stdin/stdout framing fails.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Framing {
+    ContentLength,
+    Newline,
+}
+
 pub fn run_stdio_server() -> Result<(), io::Error> {
     let stdin = io::stdin();
     let mut input = stdin.lock();
@@ -37,27 +131,10 @@ pub fn run_stdio_server() -> Result<(), io::Error> {
     Ok(())
 }
 
-/// Maximum accepted frame body (protects the allocator from an
-/// attacker-controlled `Content-Length`; MCP frames are tiny).
-const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
-
-/// The framing a request arrived in — the response mirrors it (EXP-016:
-/// opencode sends newline-delimited JSON and reads the same; a
-/// Content-Length-only responder stalls its client at initialize).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Framing {
-    /// HTTP-style `Content-Length: N` headers.
-    ContentLength,
-    /// One JSON message per line.
-    Newline,
-}
-
-/// Read one framed JSON message; `None` on clean EOF. Returns the
-/// framing the client used so the response can mirror it.
 fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io::Error> {
     let mut first = String::new();
     if input.read_line(&mut first)? == 0 {
-        return Ok(None); // EOF before any frame
+        return Ok(None);
     }
     let first = first.trim_end();
     if first.to_ascii_lowercase().starts_with("content-length:") {
@@ -69,7 +146,7 @@ fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io:
         if length > MAX_FRAME_BYTES {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("frame too large: {length} > {MAX_FRAME_BYTES}"),
+                "frame too large",
             ));
         }
         loop {
@@ -77,7 +154,7 @@ fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io:
             if input.read_line(&mut header)? == 0 {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
-                    "unexpected EOF in headers",
+                    "EOF in headers",
                 ));
             }
             if header.trim().is_empty() {
@@ -96,12 +173,11 @@ fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io:
     } else {
         Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("unrecognized MCP frame: {first:?}"),
+            "unrecognized frame",
         ))
     }
 }
 
-/// Write one JSON message, mirroring the client's framing.
 fn write_frame<W: Write>(
     output: &mut W,
     payload: &Value,
@@ -121,15 +197,26 @@ fn write_frame<W: Write>(
     output.flush()
 }
 
-/// Handle one JSON-RPC message; `None` = notification (no response).
+fn err_response(message: &str) -> Value {
+    json!({ "isError": true, "content": [{ "type": "text", "text": message }] })
+}
+
 fn dispatch(message: &Value, initialized: &mut bool) -> Option<Value> {
-    let id = message.get("id")?; // notification
+    let id = message.get("id")?;
     let method = message.get("method").and_then(Value::as_str).unwrap_or("");
     let params = message.get("params").cloned().unwrap_or(Value::Null);
     let result = match method {
-        "initialize" => handle_initialize(&params),
+        "initialize" => {
+            json!({ "protocolVersion": "2025-03-26", "capabilities": { "tools": {} }, "serverInfo": { "name": "mini-agi", "version": env!("CARGO_PKG_VERSION") } })
+        }
         "ping" => json!({}),
-        "tools/list" if *initialized => handle_tools_list(),
+        "tools/list" if *initialized => {
+            let tools: Vec<Value> = TOOLS
+                .iter()
+                .map(|t| json!({ "name": t.name, "description": t.description }))
+                .collect();
+            json!({ "tools": tools })
+        }
         "tools/call" if *initialized => handle_tools_call(&params),
         "tools/list" | "tools/call" => err_response("server not initialized"),
         other => err_response(&format!("unknown method '{other}'")),
@@ -137,1621 +224,209 @@ fn dispatch(message: &Value, initialized: &mut bool) -> Option<Value> {
     if method == "initialize" {
         *initialized = true;
     }
-    Some(json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": result,
-    }))
+    Some(json!({ "jsonrpc": "2.0", "id": id, "result": result }))
 }
 
-fn handle_initialize(params: &Value) -> Value {
-    // The server negotiates: echo the client's version only when it is one
-    // we actually support; otherwise offer our own (spec fallback).
-    let requested = params
-        .get("protocolVersion")
-        .and_then(Value::as_str)
-        .unwrap_or(PROTOCOL_VERSION);
-    let negotiated = if SUPPORTED_VERSIONS.contains(&requested) {
-        requested
-    } else {
-        PROTOCOL_VERSION
-    };
-    json!({
-        "protocolVersion": negotiated,
-        "capabilities": { "tools": {} },
-        "serverInfo": { "name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION") },
-        // Server instructions (MCP spec InitializeResult): shown to the
-        // model as server-wide guidance (codex manual: keep the first
-        // 512 chars self-contained). The discipline contract for every
-        // codex session using the kernel (AFK-SUPERVISOR S4).
-        "instructions": concat!(
-            "mini-agi kernel: enforcement-bound memory + verified-iteration. ",
-            "Use loop_status (open gaps), memory_query (facts), ",
-            "run_verify <path> (a run stays unverified until this passes), ",
-            "loop_verify <case> (close a gap), checkpoint_audit, eval_gate, ",
-            "provenance. Results are provenance-bound. NEVER claim success ",
-            "on an unverified run; outcome.achieved is only the run's own ",
-            "claim until run_verify passes. Write tools require a non-empty ",
-            "approve reason (HITL) — a write is refused without it."
-        ),
-    })
+fn arg<'a>(args: &'a Value, key: &str) -> &'a str {
+    args.get(key).and_then(Value::as_str).unwrap_or("")
 }
 
-fn handle_tools_list() -> Value {
-    json!({ "tools": tool_definitions() })
-}
-
-fn err_response(message: &str) -> Value {
-    json!({ "isError": true, "content": [{ "type": "text", "text": message }] })
-}
-
-pub(crate) struct ToolDef {
-    pub(crate) name: &'static str,
-    description: &'static str,
-    /// Declared params as (name, JSON type) — optional unless in `required`.
-    params: &'static [(&'static str, &'static str)],
-    required: &'static [&'static str],
-}
-
-/// The server's tool registry — the single source of truth for the tool
-/// NAMES (the codex allowlist in `init` is locked against this list by
-/// a test, so a tool added here without an allowlist update fails CI).
-pub(crate) const TOOLS: &[ToolDef] = &[
-    ToolDef {
-        name: "memory_consolidate",
-        description: "Consolidate an episodic buffer into canonical facts. Requires an approval reason unless dry_run is set (a write that appends facts to canonical memory).",
-        params: &[
-            ("episodic", "string"),
-            ("domain", "string"),
-            ("require_signoff", "boolean"),
-            ("dry_run", "boolean"),
-            ("approve", "string"),
-        ],
-        required: &["episodic"],
-    },
-    ToolDef {
-        name: "memory_signoff",
-        description: "Promote one contested fact from the review queue. Requires an approval reason (a write that promotes a fact into canonical memory).",
-        params: &[
-            ("queue", "string"),
-            ("index", "integer"),
-            ("domain", "string"),
-            ("approve", "string"),
-        ],
-        required: &["queue", "index", "approve"],
-    },
-    ToolDef {
-        name: "memory_derive",
-        description: "Regenerate derived views from canonical memory. Requires an approval reason (a write that regenerates derived views).",
-        params: &[("brief_only", "boolean"), ("approve", "string")],
-        required: &["approve"],
-    },
-    ToolDef {
-        name: "provenance",
-        description: "Print the canonical fingerprint for the provenance gate.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "eval_score",
-        description: "Score one run.json against the golden set.",
-        params: &[("run", "string")],
-        required: &["run"],
-    },
-    ToolDef {
-        name: "eval_gate",
-        description: "Regression gate over all cases vs the baseline.",
-        params: &[
-            ("tolerance", "number"),
-            ("mismatch_tolerance", "number"),
-            ("write_baseline", "boolean"),
-        ],
-        required: &[],
-    },
-    ToolDef {
-        name: "skill_list",
-        description: "List all discovered skills with verify hooks.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "skill_show",
-        description: "Show one skill's frontmatter summary.",
-        params: &[("name", "string")],
-        required: &["name"],
-    },
-    ToolDef {
-        name: "skill_verify",
-        description: "Run a skill's verify hook.",
-        params: &[("name", "string")],
-        required: &["name"],
-    },
-    ToolDef {
-        name: "skill_add",
-        description: "Install skills from a git source. Requires an approval reason (a write that installs code into the repo).",
-        params: &[("source", "string"), ("approve", "string")],
-        required: &["source", "approve"],
-    },
-    ToolDef {
-        name: "checkpoint_audit",
-        description: "Checkpoint journal completeness audit.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "validate",
-        description: "Validate a document against a pipeline contract.",
-        params: &[("contract", "string"), ("document", "string")],
-        required: &["contract", "document"],
-    },
-    ToolDef {
-        name: "stats",
-        description: "Canonical-memory inventory by domain.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "budget",
-        description: "Context budget report.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "ticket_list",
-        description: "List all tickets in tickets/.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "ticket_show",
-        description: "Show one ticket (TICKET-<n> or number).",
-        params: &[("id", "string")],
-        required: &["id"],
-    },
-    ToolDef {
-        name: "ticket_validate",
-        description: "Validate one ticket against the ADR-0007 contract.",
-        params: &[("id", "string")],
-        required: &["id"],
-    },
-    ToolDef {
-        name: "run_ingest",
-        description: "Ingest a scored run.json into canonical memory (ADR-0005). Requires an approval reason (a write that appends facts to canonical memory).",
-        params: &[
-            ("run", "string"),
-            ("retro", "string"),
-            ("approve", "string"),
-        ],
-        required: &["run", "approve"],
-    },
-    ToolDef {
-        name: "insights",
-        description: "Compounding report: runs, memory, tickets, gaps.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "backlog",
-        description: "Failure signal -> roadmap: gaps become tickets.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "resume",
-        description: "Resume block for a fresh session.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "loop_status",
-        description: "Proactive loop status: cases below target, tickets, claims, reruns.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "health",
-        description: "Runtime observability: load, memory, process zoo, journal, claims.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "audit",
-        description: "Repo invariants: provenance drift, baseline, tree, eval gate.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "ticket_claim",
-        description: "Claim a ticket (lease). Requires an approval reason (a write that acquires a lease).",
-        params: &[
-            ("id", "string"),
-            ("claimant", "string"),
-            ("approve", "string"),
-        ],
-        required: &["id", "claimant", "approve"],
-    },
-    ToolDef {
-        name: "ticket_release",
-        description: "Release a claim (holder only). Requires an approval reason (a write that releases a lease).",
-        params: &[
-            ("id", "string"),
-            ("claimant", "string"),
-            ("approve", "string"),
-        ],
-        required: &["id", "claimant", "approve"],
-    },
-    ToolDef {
-        name: "ticket_claims",
-        description: "List held claims.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "ticket_graph",
-        description: "Print the dependency graph.",
-        params: &[],
-        required: &[],
-    },
-    ToolDef {
-        name: "loop_dispatch",
-        description: "Dispatch the worst open case (claim + spec). Requires an approval reason (a write that creates a ticket and spec in the worker tree).",
-        params: &[
-            ("claimant", "string"),
-            ("case", "string"),
-            ("approve", "string"),
-        ],
-        required: &["claimant", "approve"],
-    },
-    ToolDef {
-        name: "loop_objective",
-        description: "Bounded batch dispatch of open gaps under a budget. Requires an approval reason (a write that creates tickets and specs in the worker tree).",
-        params: &[
-            ("max_cases", "integer"),
-            ("budget_cost", "string"),
-            ("claimant", "string"),
-            ("approve", "string"),
-        ],
-        required: &["claimant", "approve"],
-    },
-    ToolDef {
-        name: "memory_query",
-        description: "Domain/keyword retrieval over canonical facts.",
-        params: &[("keyword", "string"), ("domain", "string")],
-        required: &[],
-    },
-    ToolDef {
-        name: "loop_run",
-        description: "AFK supervisor: launch a verified-iteration run in the BACKGROUND (detached child) and return the run handle; poll with run_status, read the report with run_report. Requires an approval reason (a write that changes the worker tree).",
-        params: &[
-            ("goal_or_case", "string"),
-            ("workdir", "string"),
-            ("verify", "string"),
-            ("target", "string"),
-            ("iterate", "integer"),
-            ("max_wall", "integer"),
-            ("max_idle", "integer"),
-            ("blind_worker", "boolean"),
-            ("hidden_dir", "string"),
-            ("on_done", "string"),
-            ("report", "string"),
-            ("template", "string"),
-            ("no_resume", "boolean"),
-            ("no_sandbox", "boolean"),
-            ("approve", "string"),
-        ],
-        required: &["goal_or_case", "workdir", "approve"],
-    },
-    ToolDef {
-        name: "run_status",
-        description: "Poll a launched background run (handle from loop_run): alive, report ready, progress tail.",
-        params: &[("handle", "string")],
-        required: &["handle"],
-    },
-    ToolDef {
-        name: "run_report",
-        description: "Read the run report of a launched background run (handle from loop_run).",
-        params: &[("handle", "string")],
-        required: &["handle"],
-    },
-    ToolDef {
-        name: "loop_verify",
-        description: "Verify a rerun; close the gap at the target.",
-        params: &[("case", "string"), ("claimant", "string")],
-        required: &["case", "claimant"],
-    },
-    ToolDef {
-        name: "eval_steps",
-        description: "Process supervision: per-step verdicts.",
-        params: &[("run", "string")],
-        required: &["run"],
-    },
-    ToolDef {
-        name: "run_verify",
-        description: "Deterministic verification of a run's outcome.",
-        params: &[("run", "string")],
-        required: &["run"],
-    },
-    ToolDef {
-        name: "run_failures",
-        description: "Register repeated failing actions (Reflexion).",
-        params: &[("run", "string")],
-        required: &["run"],
-    },
-    ToolDef {
-        name: "harness",
-        description: "Versioned harness snapshot + gate ledger row. Requires an approval reason (a write that records a gate ledger row).",
-        params: &[("approve", "string")],
-        required: &["approve"],
-    },
-];
-
-fn tool_definitions() -> Vec<Value> {
-    TOOLS
-        .iter()
-        .map(|t| {
-            let mut properties = json!({});
-            for (name, ty) in t.params {
-                properties[name] = json!({ "type": ty });
-            }
-            json!({
-                "name": t.name,
-                "description": t.description,
-                "inputSchema": { "type": "object", "properties": properties, "required": t.required },
-            })
-        })
-        .collect()
+fn arg_bool(args: &Value, key: &str) -> bool {
+    args.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
 
 fn handle_tools_call(params: &Value) -> Value {
-    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    let name = arg(params, "name");
     let args = params
         .get("arguments")
         .cloned()
         .unwrap_or_else(|| json!({}));
     let root = super::root();
     let text = call_tool(name, &args, &root);
-    // MCP hosts treat a tool failure as the `isError` flag in the
-    // RESULT (codex/claude surface it as an error). The kernel's error
-    // convention is a text starting "error: " — without the flag a
-    // failing call looks like a success-shaped result (EXP-015).
     let is_error = text.starts_with("error:");
-    json!({
-        "isError": is_error,
-        "content": [{ "type": "text", "text": text }]
-    })
-}
-
-/// Dispatch the memory-family MCP tools (`memory_*`). Returns `None`
-/// when `name` is not a memory tool so the caller falls through to the
-/// other families.
-fn call_memory_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
-    macro_rules! arg {
-        ($key:literal) => {
-            args.get($key).and_then(Value::as_str).unwrap_or("")
-        };
-    }
-    match name {
-        "memory_consolidate" => {
-            let episodic = args.get("episodic").and_then(Value::as_str).unwrap_or("");
-            let dry_run = arg_bool(args, "dry_run");
-            if !dry_run {
-                let approve = arg!("approve");
-                if approve.is_empty() {
-                    return Some("error: memory_consolidate requires an approval reason (approve) unless dry_run — a write that appends facts to canonical memory".to_string());
-                }
-            }
-            let domain = arg!("domain").to_string();
-            let domain = if domain.is_empty() {
-                "general".to_string()
-            } else {
-                domain
-            };
-            let require_signoff = arg_bool(args, "require_signoff");
-            Some(
-                match super::consolidate_text(
-                    Path::new(episodic),
-                    &domain,
-                    require_signoff,
-                    dry_run,
-                    root,
-                ) {
-                    Ok(text) => text,
-                    Err(msg) => format!("error: {msg}"),
-                },
-            )
-        }
-        "memory_signoff" => {
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return Some("error: memory_signoff requires an approval reason (approve) — a write that promotes a fact into canonical memory".to_string());
-            }
-            let queue = arg!("queue");
-            let index = arg_u64(args, "index")
-                .and_then(|v| usize::try_from(v).ok())
-                .unwrap_or(1);
-            let domain = arg!("domain");
-            let domain = if domain.is_empty() {
-                "general".to_string()
-            } else {
-                domain.to_string()
-            };
-            Some(
-                match super::signoff_text(Path::new(queue), index, &domain, root) {
-                    Ok(text) => text,
-                    Err(msg) => format!("error: {msg}"),
-                },
-            )
-        }
-        "memory_derive" => {
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return Some("error: memory_derive requires an approval reason (approve) — a write that regenerates derived views".to_string());
-            }
-            let brief_only = arg_bool(args, "brief_only");
-            Some(match super::derive_text(brief_only, root) {
-                Ok(text) => text,
-                Err(msg) => format!("error: {msg}"),
-            })
-        }
-        "memory_query" => {
-            let keyword = arg!("keyword");
-            let domain = arg!("domain");
-            let keyword = (!keyword.is_empty()).then_some(keyword);
-            let domain = (!domain.is_empty()).then_some(domain);
-            let facts = mini_agi_core::memory::query_facts(root, domain, keyword);
-            Some(if facts.is_empty() {
-                "no facts match".to_string()
-            } else {
-                facts
-                    .iter()
-                    .map(|(id, d, body)| format!("- `{id}` ({d}) {body}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-        }
-        _ => None,
-    }
-}
-
-/// Dispatch the eval-family MCP tools (`eval_*`). Returns `None` when
-/// `name` is not an eval tool so the caller falls through.
-fn call_eval_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
-    macro_rules! arg {
-        ($key:literal) => {
-            args.get($key).and_then(Value::as_str).unwrap_or("")
-        };
-    }
-    match name {
-        "eval_score" => {
-            let run = arg!("run");
-            Some(
-                match eval::score_run(Path::new(run), root, &root.join("evals/golden")) {
-                    Ok(report) => serde_json::to_string_pretty(&report).unwrap_or_default(),
-                    Err(e) => format!("error: {e}"),
-                },
-            )
-        }
-        "eval_gate" => {
-            let cfg = mini_agi_core::config::Config::load(root);
-            let tolerance = arg_f64(args, "tolerance").unwrap_or(cfg.regression_tolerance);
-            let mismatch_tolerance =
-                usize::try_from(arg_u64(args, "mismatch_tolerance").unwrap_or(1)).unwrap_or(1);
-            let write_baseline = arg_bool(args, "write_baseline");
-            Some(
-                match super::eval_gate_text(root, tolerance, mismatch_tolerance, write_baseline) {
-                    Ok(text) => text,
-                    Err(msg) => format!("error: {msg}"),
-                },
-            )
-        }
-        "eval_steps" => {
-            let run = arg!("run");
-            Some(match std::fs::read_to_string(run) {
-                Ok(text) => match serde_json::from_str::<mini_agi_core::eval::Run>(&text) {
-                    Ok(run) => {
-                        let verdicts = mini_agi_core::eval::score_steps(&run);
-                        verdicts
-                            .iter()
-                            .map(|v| {
-                                format!(
-                                    "step {} [{}] score {:.2}{}",
-                                    v.step,
-                                    v.tool,
-                                    v.score,
-                                    if v.suspicious { "  <-- SUSPICIOUS" } else { "" }
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    }
-                    Err(e) => format!("error: invalid run json: {e}"),
-                },
-                Err(e) => format!("error: {e}"),
-            })
-        }
-        _ => None,
-    }
-}
-
-/// Dispatch the skill-family MCP tools (`skill_*`). Returns `None` when
-/// `name` is not a skill tool so the caller falls through.
-fn call_skill_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
-    macro_rules! arg {
-        ($key:literal) => {
-            args.get($key).and_then(Value::as_str).unwrap_or("")
-        };
-    }
-    match name {
-        "skill_list" => {
-            // TICKET-14: agents see the BOUNDED working set (ranked,
-            // capped at SKILLS_BUDGET_CHARS with a truncation notice),
-            // not the unbounded registry.
-            let listed = skills::budgeted_list(root, skills::SKILLS_BUDGET_CHARS);
-            Some(if listed.entries.is_empty() {
-                "(no skills found)".to_string()
-            } else {
-                listed.entries.join("\n")
-            })
-        }
-        "skill_show" => Some(match skills::find_skill(root, arg!("name")) {
-            Ok(skill) => format!(
-                "name: {}\ndescription: {}\nverify: {}\npath: {}",
-                skill.name,
-                skill.description,
-                skill.verify.as_deref().unwrap_or("(none - reference only)"),
-                skill.path.display()
-            ),
-            Err(e) => format!("error: {e}"),
-        }),
-        "skill_verify" => Some(
-            match skills::find_skill(root, arg!("name"))
-                .and_then(|s| skills::verify_skill(&s, root))
-            {
-                Ok(result) if result.passed => "PASS".to_string(),
-                Ok(result) => format!("FAIL (exit {:?})\n{}", result.exit_code, result.output),
-                Err(e) => format!("error: {e}"),
-            },
-        ),
-        "skill_add" => {
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return Some("error: skill_add requires an approval reason (approve) - a write that installs code into the repo".to_string());
-            }
-            Some(match skills::install_skills(root, arg!("source")) {
-                Ok(installed) => installed
-                    .iter()
-                    .map(|name| format!("installed: {name}"))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                Err(e) => format!("error: {e}"),
-            })
-        }
-        _ => None,
-    }
-}
-
-/// Dispatch the loop-family MCP tools (`loop_*`). Returns `None` when
-/// `name` is not a loop tool so the caller falls through.
-fn call_loop_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
-    macro_rules! arg {
-        ($key:literal) => {
-            args.get($key).and_then(Value::as_str).unwrap_or("")
-        };
-    }
-    match name {
-        "loop_status" => Some(match mini_agi_core::loopcmd::status(root) {
-            Ok(report) => {
-                let mut lines = vec![format!(
-                    "{} runs, composite avg {:.4}, {} cases below target",
-                    report.runs,
-                    report.composite_avg,
-                    report.cases.len()
-                )];
-                for row in &report.cases {
-                    lines.push(format!(
-                        "  {:.4}  {:<24} ticket={:?} lease={:?} rerun={:?}",
-                        row.composite, row.case, row.ticket, row.claimant, row.rerun_composite
-                    ));
-                }
-                lines.join("\n")
-            }
-            Err(e) => format!("error: {e}"),
-        }),
-        "loop_dispatch" => Some({
-            let claimant = arg!("claimant");
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return Some("error: loop_dispatch requires an approval reason (approve) — a write that claims a ticket and writes a spec".to_string());
-            }
-            let case = arg!("case");
-            let case = if case.is_empty() { None } else { Some(case) };
-            match mini_agi_core::loopcmd::dispatch(root, case, 0.5, claimant) {
-                Ok(outcome) => format!(
-                    "dispatched: {} -> {} (spec: {})",
-                    outcome.case,
-                    outcome.ticket,
-                    outcome.spec.display()
-                ),
-                Err(e) => format!("error: {e}"),
-            }
-        }),
-        "loop_objective" => Some({
-            let claimant = arg!("claimant");
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return Some("error: loop_objective requires an approval reason (approve) — a write that claims tickets and writes specs".to_string());
-            }
-            let max_cases = arg!("max_cases").parse::<usize>().unwrap_or(3);
-            let budget_cost = arg!("budget_cost");
-            let budget_cost = if budget_cost.is_empty() {
-                None
-            } else {
-                match budget_cost.parse::<f64>() {
-                    Ok(v) => Some(v),
-                    Err(e) => {
-                        return Some(format!(
-                            "error: budget_cost '{budget_cost}' is not a number ({e})"
-                        ));
-                    }
-                }
-            };
-            match mini_agi_core::loopcmd::objective(root, max_cases, claimant, budget_cost) {
-                Ok(plan) => format!(
-                    "dispatched {} case(s); budget ${:.2}{}",
-                    plan.dispatched.len(),
-                    plan.budget_spent,
-                    plan.budget_cost
-                        .map_or_else(String::new, |b| format!(" / ${b:.2}"))
-                ),
-                Err(e) => format!("error: {e}"),
-            }
-        }),
-        "loop_verify" => Some({
-            let case = arg!("case");
-            let claimant = arg!("claimant");
-            match mini_agi_core::loopcmd::verify(root, case, claimant, false) {
-                Ok((text, _)) => text,
-                Err(e) => format!("error: {e}"),
-            }
-        }),
-        _ => None,
-    }
-}
-
-/// Dispatch the run-family MCP tools (`run_*`). Returns `None` when
-/// `name` is not a run tool so the caller falls through.
-fn call_run_tools(name: &str, args: &Value, root: &Path) -> Option<String> {
-    macro_rules! arg {
-        ($key:literal) => {
-            args.get($key).and_then(Value::as_str).unwrap_or("")
-        };
-    }
-    match name {
-        "run_ingest" => Some({
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return Some("error: run_ingest requires an approval reason (approve) — a write that appends facts to canonical memory".to_string());
-            }
-            let run = arg!("run");
-            let retro = {
-                let r = arg!("retro");
-                if r.is_empty() {
-                    None
-                } else {
-                    Some(Path::new(r))
-                }
-            };
-            match super::ingest_text(root, Path::new(run), retro) {
-                Ok(text) => text,
-                Err(msg) => format!("error: {msg}"),
-            }
-        }),
-        "run_verify" => Some({
-            let run = arg!("run");
-            match mini_agi_core::verifier::verify_run(root, std::path::Path::new(run)) {
-                Ok(v) => format!(
-                    "verify {}: {} (exit {})",
-                    v.case,
-                    v.status,
-                    v.exit_code
-                        .map_or_else(|| "-".to_string(), |c| c.to_string())
-                ),
-                Err(e) => format!("error: {e}"),
-            }
-        }),
-        "run_failures" => Some({
-            let run = arg!("run");
-            match mini_agi_core::failure::analyze_run(std::path::Path::new(run), root) {
-                Ok((case, entries)) => {
-                    if entries.is_empty() {
-                        format!("no repeated failing actions in {case}")
-                    } else {
-                        match mini_agi_core::failure::update_register(root, &entries) {
-                            Ok(total) => format!(
-                                "recorded {} repeated failing actions in {case} (register total {total})",
-                                entries.len()
-                            ),
-                            Err(e) => format!("error: {e}"),
-                        }
-                    }
-                }
-                Err(e) => format!("error: {e}"),
-            }
-        }),
-        _ => None,
-    }
+    json!({ "isError": is_error, "content": [{ "type": "text", "text": text }] })
 }
 
 fn call_tool(name: &str, args: &Value, root: &Path) -> String {
-    macro_rules! arg {
-        ($key:literal) => {
-            args.get($key).and_then(Value::as_str).unwrap_or("")
-        };
-    }
-    macro_rules! opt_arg {
-        ($key:literal) => {
-            args.get($key).and_then(Value::as_str)
-        };
-    }
-    if let Some(r) = call_memory_tools(name, args, root) {
-        return r;
-    }
-    if let Some(r) = call_eval_tools(name, args, root) {
-        return r;
-    }
-    if let Some(r) = call_skill_tools(name, args, root) {
-        return r;
-    }
-    if let Some(r) = call_loop_tools(name, args, root) {
-        return r;
-    }
-    if let Some(r) = call_run_tools(name, args, root) {
-        return r;
-    }
     match name {
-        "provenance" => memory::canonical_fingerprint(root),
-        "checkpoint_audit" => match super::checkpoint_audit_text(root) {
-            Ok(text) => text,
-            Err(e) => format!("error: {e}"),
-        },
-        "validate" => {
-            let contract_name = arg!("contract");
-            let document = arg!("document");
-            match super::validate_doc_text(contract_name, Path::new(document)) {
-                Ok(text) => text,
-                Err(e) => format!("error: {e}"),
+        "memory_consolidate" => {
+            let dry_run = arg_bool(args, "dry_run");
+            if !dry_run && arg(args, "approve").is_empty() {
+                return "error: memory_consolidate requires an approval reason (approve) unless dry_run".into();
             }
-        }
-        "stats" => match mini_agi_core::metrics::stats(root) {
-            Ok(report) => format!(
-                "canonical entries: {}\ncanonical facts: {}\nderived views: {}\ngate: PASS",
-                report.entries, report.facts, report.derived_views
-            ),
-            Err(e) => format!("error: {e}"),
-        },
-        "budget" => {
-            let report = mini_agi_core::metrics::budget(root);
-            format!(
-                "AGENTS chain: {}B ({}% of 32KiB cap)\nSkills list: {} chars for {} skills ({}% of 2% budget)\nMemory leverage: canonical {}B -> brief {}B (x{})",
-                report.agents_chain_bytes,
-                report.chain_pct_of_32k,
-                report.skills_list_bytes,
-                report.skills_count,
-                report.skills_pct_of_budget,
-                report.canonical_bytes,
-                report.brief_bytes,
-                report.leverage_ratio
-            )
-        }
-        "ticket_list" => match ticket::list_tickets(root) {
-            Ok(tickets) => tickets
-                .iter()
-                .map(|t| format!("{}  {}  scope: {}", t.id, t.title, t.scope.join(", ")))
-                .collect::<Vec<_>>()
-                .join("\n"),
-            Err(e) => format!("error: {e}"),
-        },
-
-        "insights" => match insights::insights(root) {
-            Ok(report) => {
-                let mut lines = vec![format!(
-                    "runs: {} (composite avg {:.4}, {} tokens, {:.4} USD)",
-                    report.runs, report.composite_avg, report.tokens_total, report.cost_total
-                )];
-                for case in &report.cases {
-                    lines.push(format!("  {}: {:.4}", case.case, case.composite));
-                }
-                lines.push(format!(
-                    "memory: {} entries, {} facts",
-                    report.entries, report.facts
-                ));
-                lines.push(format!("tickets: {}", report.tickets));
-                lines.push(format!(
-                    "journal: {} begins, {} passes, {} fails, {} status",
-                    report.journal[0], report.journal[1], report.journal[2], report.journal[3]
-                ));
-                if report.gaps.is_empty() {
-                    lines.push("capability gaps: none".to_string());
-                } else {
-                    lines.push("capability gaps (roadmap, ADR-0005):".to_string());
-                    for gap in &report.gaps {
-                        lines.push(format!("  {gap}"));
-                    }
-                }
-                lines.join("\n")
-            }
-            Err(e) => format!("error: {e}"),
-        },
-        "backlog" => match insights::backlog(root) {
-            Ok(items) => {
-                if items.is_empty() {
-                    "no capability gaps — roadmap is clear".to_string()
-                } else {
-                    items
-                        .iter()
-                        .map(|i| {
-                            if i.created {
-                                format!("created: {} — gap: {}", i.id, i.case)
-                            } else {
-                                format!("exists: {} — gap: {}", i.id, i.case)
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                }
-            }
-            Err(e) => format!("error: {e}"),
-        },
-        "resume" => match insights::resume(root) {
-            Ok(block) => block,
-            Err(e) => format!("error: {e}"),
-        },
-        "health" => match mini_agi_core::health::health(root) {
-            Ok(report) => {
-                let mut lines = vec![format!("HEALTH CHECK — {}", report.verdict())];
-                if let Some(load1) = report.load1 {
-                    lines.push(format!("  load1: {load1:.2} on {} cores", report.nproc));
-                }
-                if report.findings.is_empty() {
-                    lines.push("  no findings".to_string());
-                }
-                for finding in &report.findings {
-                    lines.push(format!("  [{}] {}", finding.severity, finding.message));
-                }
-                lines.join("\n")
-            }
-            Err(e) => format!("error: {e}"),
-        },
-        "audit" => match mini_agi_core::audit::audit(root) {
-            Ok(report) => {
-                let mut lines = vec![format!("AUDIT CHECK — {}", report.verdict())];
-                for line in &report.passed {
-                    lines.push(format!("  [ok] {line}"));
-                }
-                for finding in &report.findings {
-                    lines.push(format!("  [{}] {}", finding.severity, finding.message));
-                }
-                lines.join("\n")
-            }
-            Err(e) => format!("error: {e}"),
-        },
-        "ticket_claim" => {
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return "error: ticket_claim requires an approval reason (approve) — a write that acquires a lease".to_string();
-            }
-            let id = arg!("id");
-            let claimant = arg!("claimant");
-            match ticket::claim_ticket(root, id, claimant, false) {
-                Ok(claim) => format!(
-                    "claimed: {} by {} since {}",
-                    claim.ticket, claim.claimant, claim.since
+            let domain = if arg(args, "domain").is_empty() {
+                "general".to_string()
+            } else {
+                arg(args, "domain").to_string()
+            };
+            let buffer = std::fs::read_to_string(arg(args, "episodic")).unwrap_or_default();
+            let opts = mini_agi_core::memory::ConsolidateOptions {
+                domain,
+                require_signoff: arg_bool(args, "require_signoff"),
+                dry_run,
+            };
+            match mini_agi_core::memory::consolidate(root, &buffer, "mcp", &opts) {
+                Ok(o) => format!(
+                    "consolidated {} new facts, {} skipped",
+                    o.new_facts, o.skipped
                 ),
                 Err(e) => format!("error: {e}"),
             }
         }
-        "ticket_release" => {
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return "error: ticket_release requires an approval reason (approve) — a write that releases a lease".to_string();
+        "memory_signoff" => {
+            if arg(args, "approve").is_empty() {
+                return "error: memory_signoff requires an approval reason (approve)".into();
             }
-            let id = arg!("id");
-            let claimant = arg!("claimant");
-            match ticket::release_ticket(root, id, claimant) {
-                Ok(()) => format!("released: {id}"),
+            let queue = arg(args, "queue");
+            let index = usize::try_from(args.get("index").and_then(Value::as_u64).unwrap_or(1))
+                .unwrap_or(1);
+            match mini_agi_core::memory::signoff(root, Path::new(queue), index, arg(args, "domain"))
+            {
+                Ok(e) => format!("promoted {}", e.path.display()),
                 Err(e) => format!("error: {e}"),
             }
         }
-        "ticket_claims" => match ticket::read_claims(root) {
-            Ok(claims) => {
-                if claims.is_empty() {
-                    "no claims held".to_string()
-                } else {
-                    claims
-                        .iter()
-                        .map(|c| {
-                            format!("{} claimed by {} since {}", c.ticket, c.claimant, c.since)
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                }
+        "memory_derive" => {
+            if arg(args, "approve").is_empty() {
+                return "error: memory_derive requires an approval reason (approve)".into();
             }
-            Err(e) => format!("error: {e}"),
-        },
-        "ticket_graph" => match ticket::list_tickets(root) {
-            Ok(tickets) => tickets
+            match mini_agi_core::memory::derive(root, arg_bool(args, "brief_only")) {
+                Ok((_, _, _)) => "derived: views regenerated".into(),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "memory_query" => {
+            let facts = mini_agi_core::memory::query_facts(
+                root,
+                Some(arg(args, "domain")).filter(|d| !d.is_empty()),
+                Some(arg(args, "keyword")).filter(|k| !k.is_empty()),
+            );
+            if facts.is_empty() {
+                "no matching facts".into()
+            } else {
+                facts
+                    .iter()
+                    .map(|(id, d, b)| format!("`{id}` [{d}] {b}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+        }
+        "provenance" => format!(
+            "canonical_sha256: {}",
+            mini_agi_core::memory::canonical_fingerprint(root)
+        ),
+        "skill_list" => match mini_agi_core::skills::discover_skills(root) {
+            Ok(skills) => skills
                 .iter()
-                .flat_map(|t| {
-                    t.blocked_by
-                        .iter()
-                        .map(move |dep| format!("{dep} -> {}", t.id))
+                .map(|s| {
+                    format!(
+                        "{}  [{}]  {}",
+                        s.name,
+                        if s.verify.is_some() { "verify" } else { "ref" },
+                        s.description
+                    )
                 })
                 .collect::<Vec<_>>()
                 .join("\n"),
             Err(e) => format!("error: {e}"),
         },
-
-        "loop_run" => {
-            let goal_or_case = arg!("goal_or_case");
-            let workdir = std::path::PathBuf::from(arg!("workdir"));
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return "error: loop_run requires an approval reason (approve) — a write that changes the worker tree".to_string();
+        "skill_show" => match mini_agi_core::skills::find_skill(root, arg(args, "name")) {
+            Ok(s) => format!("{}: {}", s.name, s.description),
+            Err(e) => format!("error: {e}"),
+        },
+        "skill_add" => {
+            if arg(args, "approve").is_empty() {
+                return "error: skill_add requires an approval reason (approve)".into();
             }
-            // Parent-side validation mirrors the CLI (resolution +
-            // template pairing) so the child starts clean.
-            let resolved = match crate::supervisor::resolve(&crate::supervisor::ResolveInput {
-                goal_or_case,
+            match mini_agi_core::skills::install_skills(root, arg(args, "source")) {
+                Ok(v) => format!("installed: {}", v.join(", ")),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "checkpoint_audit" => {
+            let path = root.join("memory/episodic/checkpoints.log");
+            let Ok(text) = std::fs::read_to_string(path) else {
+                return "checkpoint: absent".into();
+            };
+            let events = mini_agi_core::journal::parse_journal(&text);
+            let audit = mini_agi_core::journal::audit_journal(&events);
+            format!("{} events, {} bad", events.len(), audit.bad.len())
+        }
+        "loop_status" => match mini_agi_core::loopcmd::status(root) {
+            Ok(s) => s
+                .cases
+                .iter()
+                .map(|r| format!("{} attempts={} {:?}", r.case, r.attempts, r.status))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            Err(e) => format!("error: {e}"),
+        },
+        "loop_dispatch" => {
+            if arg(args, "approve").is_empty() {
+                return "error: loop_dispatch requires an approval reason (approve)".into();
+            }
+            let case = if arg(args, "case").is_empty() {
+                None
+            } else {
+                Some(arg(args, "case"))
+            };
+            match mini_agi_core::loopcmd::dispatch(root, case, 0.5, arg(args, "claimant")) {
+                Ok(o) => format!(
+                    "dispatched {} -> {} — {}",
+                    o.case,
+                    o.ticket,
+                    o.spec.display()
+                ),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "loop_objective" => {
+            if arg(args, "approve").is_empty() {
+                return "error: loop_objective requires an approval reason (approve)".into();
+            }
+            let max = usize::try_from(args.get("max_cases").and_then(Value::as_u64).unwrap_or(1))
+                .unwrap_or(1);
+            match mini_agi_core::loopcmd::objective(root, max, arg(args, "claimant"), None) {
+                Ok(o) => format!("dispatched {} case(s)", o.dispatched.len()),
+                Err(e) => format!("error: {e}"),
+            }
+        }
+        "loop_verify" => {
+            match mini_agi_core::loopcmd::verify(
                 root,
-                workdir: &workdir,
-                verify: opt_arg!("verify"),
-                target: opt_arg!("target").map(std::path::PathBuf::from).as_deref(),
-            }) {
-                Ok(r) => r,
-                Err(e) => return format!("error: {e}"),
-            };
-            if opt_arg!("blind_worker").is_some_and(|b| b == "true")
-                && opt_arg!("hidden_dir").is_none()
-            {
-                return "error: blind_worker requires hidden_dir".to_string();
-            }
-            let template = opt_arg!("template");
-            if let Some(t) = template
-                && t != "sequential-reviewer"
-            {
-                return format!("error: unknown template '{t}' (supported: sequential-reviewer)");
-            }
-            let verify_cmd = match crate::supervisor::resolve_verify_cmd(
-                opt_arg!("verify"),
-                resolved.verify_cmd.clone(),
+                arg(args, "case"),
+                arg(args, "claimant"),
+                false,
             ) {
-                Ok(v) => v,
-                Err(e) => return format!("error: {e}"),
-            };
-            let target = resolved.target;
-            let report = opt_arg!("report")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|| workdir.join("REPORT.md"));
-            match crate::bg::spawn_detached(
-                goal_or_case,
-                &workdir,
-                &verify_cmd,
-                &target,
-                opt_arg!("iterate")
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(3),
-                opt_arg!("max_wall").and_then(|s| s.parse().ok()),
-                opt_arg!("max_idle").and_then(|s| s.parse().ok()),
-                opt_arg!("blind_worker").is_some_and(|b| b == "true"),
-                opt_arg!("hidden_dir")
-                    .map(std::path::PathBuf::from)
-                    .as_deref(),
-                opt_arg!("on_done"),
-                &report,
-                template,
-                opt_arg!("no_resume").is_some_and(|b| b == "true"),
-                opt_arg!("no_sandbox").is_some_and(|b| b == "true"),
-            ) {
-                Ok(handle) => format!(
-                    "launched: handle={} pid={} (approved: {approve})",
-                    handle.display(),
-                    std::fs::read_to_string(handle.join("run.pid"))
-                        .ok()
-                        .map_or_else(|| "?".to_string(), |p| p.trim().to_string())
-                ),
-                Err(e) => format!("error: cannot launch detached run: {e}"),
-            }
-        }
-        "run_status" => {
-            let handle = std::path::PathBuf::from(arg!("handle"));
-            let st = crate::bg::run_status(&handle);
-            serde_json::json!({
-                "alive": st.alive,
-                "workdir": st.workdir,
-                "report": st.report,
-                "report_ready": st.report_ready,
-                "progress_tail": st.progress_tail,
-            })
-            .to_string()
-        }
-        "run_report" => {
-            let handle = std::path::PathBuf::from(arg!("handle"));
-            crate::bg::run_report_text(&handle).map_or_else(
-                || "error: report not ready or handle missing".to_string(),
-                |text| serde_json::json!({ "report": text }).to_string(),
-            )
-        }
-
-        "harness" => {
-            let approve = arg!("approve");
-            if approve.is_empty() {
-                return "error: harness requires an approval reason (approve) — a write that records a gate ledger row".to_string();
-            }
-            match mini_agi_core::harness::snapshot(root) {
-                Ok((name, verdict)) => format!("harness snapshot: {name}\n  {verdict}"),
+                Ok((text, closed)) => format!("{text} (closed: {closed})"),
                 Err(e) => format!("error: {e}"),
             }
         }
-        "ticket_show" | "ticket_validate" => {
-            let id = arg!("id");
-            match ticket::find_ticket(root, id) {
-                Ok(t) if name == "ticket_show" => format!(
-                    "id: {}\ntitle: {}\ngoal: {}\nscope: {}",
-                    t.id,
-                    t.title,
-                    t.goal,
-                    t.scope.join(", ")
-                ),
-                Ok(t) => format!(
-                    "ok: {} ({}) validates against the ticket contract",
-                    t.id, t.title
-                ),
+        "dream" => {
+            if arg(args, "approve").is_empty() {
+                return "error: dream requires an approval reason (approve)".into();
+            }
+            let source = arg(args, "source");
+            let text = match std::fs::read_to_string(source) {
+                Ok(t) => t,
+                Err(e) => return format!("error: {e}"),
+            };
+            let staged = mini_agi_core::dream::parse_distilled_facts(&text);
+            let mut buffer = String::new();
+            for f in &staged {
+                use std::fmt::Write as _;
+                let _ = writeln!(buffer, "- {}", f.body);
+            }
+            let opts = mini_agi_core::memory::ConsolidateOptions {
+                domain: "knowledge".into(),
+                require_signoff: false,
+                dry_run: false,
+            };
+            match mini_agi_core::memory::consolidate(root, &buffer, source, &opts) {
+                Ok(o) => format!("dream: {} facts distilled", o.new_facts),
                 Err(e) => format!("error: {e}"),
             }
         }
-        other => format!("error: unknown tool '{other}'"),
-    }
-}
-
-/// Parse an argument as u64, accepting a JSON number or a numeric string.
-fn arg_u64(args: &Value, key: &str) -> Option<u64> {
-    args.get(key)
-        .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()))
-}
-
-/// Parse an argument as bool, accepting a JSON bool or "true"/"false".
-fn arg_bool(args: &Value, key: &str) -> bool {
-    args.get(key)
-        .and_then(|v| {
-            v.as_bool()
-                .or_else(|| v.as_str().map(|s| s == "true" || s == "1"))
-        })
-        .unwrap_or(false)
-}
-
-/// Parse an argument as f64, accepting a JSON number or numeric string.
-fn arg_f64(args: &Value, key: &str) -> Option<f64> {
-    args.get(key)
-        .and_then(|v| v.as_f64().or_else(|| v.as_str()?.parse().ok()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn arg_parsers_accept_numbers_and_strings() {
-        let args = json!({
-            "index": "2",
-            "flag": "true",
-            "rate": "0.5",
-            "num": 3,
-            "bool": true,
-        });
-        assert_eq!(arg_u64(&args, "index"), Some(2));
-        assert_eq!(arg_u64(&args, "num"), Some(3));
-        assert_eq!(arg_u64(&args, "missing"), None);
-        assert!(arg_bool(&args, "flag"));
-        assert!(arg_bool(&args, "bool"));
-        assert!(!arg_bool(&args, "missing"));
-        assert_eq!(arg_f64(&args, "rate"), Some(0.5));
-        assert_eq!(arg_f64(&args, "missing"), None);
-    }
-
-    #[test]
-    fn supervisor_tools_are_declared_with_required_params() {
-        let tools = tool_definitions();
-        let run = tools
-            .iter()
-            .find(|t| t["name"] == "loop_run")
-            .unwrap_or_else(|| panic!("loop_run must be declared"));
-        let props = &run["inputSchema"]["properties"];
-        for key in [
-            "goal_or_case",
-            "workdir",
-            "verify",
-            "target",
-            "iterate",
-            "template",
-            "approve",
-        ] {
-            assert!(
-                props.get(key).is_some(),
-                "loop_run must declare param {key}"
-            );
-        }
-        assert_eq!(
-            props["iterate"]["type"], "integer",
-            "iterate must be typed integer"
-        );
-        let req = run["inputSchema"]["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect::<Vec<_>>();
-        assert!(req.contains(&"goal_or_case"));
-        assert!(req.contains(&"workdir"));
-        assert!(req.contains(&"approve"), "HITL approval reason required");
-        let status = tools.iter().find(|t| t["name"] == "run_status").unwrap();
-        assert!(status["inputSchema"]["properties"].get("handle").is_some());
-        let report = tools.iter().find(|t| t["name"] == "run_report").unwrap();
-        assert!(report["inputSchema"]["properties"].get("handle").is_some());
-    }
-
-    #[test]
-    fn loop_run_without_approval_reason_is_refused() {
-        // The HITL gate: a write that changes the worker tree requires
-        // an approval reason; missing -> error, no child spawned.
-        let root = std::env::temp_dir().join(format!("mag-mcp-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let args = serde_json::json!({
-            "goal_or_case": "some case",
-            "workdir": root.to_string_lossy(),
-        });
-        let out = call_tool("loop_run", &args, &root);
-        assert!(
-            out.starts_with("error: loop_run requires an approval reason"),
-            "{out}"
-        );
-        assert!(
-            !root.join(".supervisor").exists(),
-            "no detached child must be spawned without approval"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn loop_dispatch_without_approval_is_refused() {
-        // HITL gate parity: loop_dispatch claims a ticket and writes a
-        // spec (worker-tree write) — it must require an approval reason
-        // like loop_run does (AGENTS.md: writes require HITL).
-        let root = std::env::temp_dir().join(format!("mag-mcp-disp-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let out = call_tool("loop_dispatch", &serde_json::json!({}), &root);
-        assert!(
-            out.starts_with("error: loop_dispatch requires an approval reason"),
-            "{out}"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn loop_objective_without_approval_is_refused() {
-        let root = std::env::temp_dir().join(format!("mag-mcp-obj-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let out = call_tool("loop_objective", &serde_json::json!({}), &root);
-        assert!(
-            out.starts_with("error: loop_objective requires an approval reason"),
-            "{out}"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn loop_objective_bad_budget_cost_is_an_error() {
-        // A malformed budget_cost must surface as an error, not be
-        // silently dropped (the caller would believe the budget applies).
-        let root = std::env::temp_dir().join(format!("mag-mcp-ob-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let out = call_tool(
-            "loop_objective",
-            &serde_json::json!({"claimant": "t", "approve": "r", "budget_cost": "abc"}),
-            &root,
-        );
-        assert!(out.starts_with("error: budget_cost"), "{out}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn dispatch_tools_declare_approve_required() {
-        // AGENTS.md: "Writes (loop_dispatch, memory_signoff/consolidate/
-        // derive, run_ingest, ticket_claim/release, skill_add, harness)
-        // require a prompt (HITL)". Every such MCP tool must declare
-        // approve; all but memory_consolidate (which may dry_run) must
-        // require it in the schema.
-        let tools = tool_definitions();
-        let require_approve = [
-            "loop_dispatch",
-            "loop_objective",
-            "memory_signoff",
-            "memory_derive",
-            "run_ingest",
-            "ticket_claim",
-            "ticket_release",
-            "skill_add",
-            "harness",
-        ];
-        for name in require_approve {
-            let tool = tools.iter().find(|t| t["name"] == name).unwrap();
-            let required = tool["inputSchema"]["required"]
-                .as_array()
-                .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
-                .unwrap_or_default();
-            assert!(
-                required.contains(&"approve"),
-                "{name} must require approve: {required:?}"
-            );
-            assert!(
-                tool["inputSchema"]["properties"].get("approve").is_some(),
-                "{name} must declare the approve param"
-            );
-        }
-        // memory_consolidate may dry_run (read-only) so approve is
-        // optional in the schema, but it must still be declared.
-        let consolidate = tools
-            .iter()
-            .find(|t| t["name"] == "memory_consolidate")
-            .unwrap();
-        assert!(
-            consolidate["inputSchema"]["properties"]
-                .get("approve")
-                .is_some(),
-            "memory_consolidate must declare the approve param"
-        );
-    }
-    #[test]
-    fn memory_consolidate_dry_run_skips_approval_but_write_requires_it() {
-        let root = std::env::temp_dir().join(format!("mag-mcp-con-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        // Without dry_run, a write: approve is required.
-        let out = call_tool("memory_consolidate", &serde_json::json!({}), &root);
-        assert!(
-            out.starts_with("error: memory_consolidate requires an approval reason"),
-            "{out}"
-        );
-        // With dry_run, it is read-only: no approve needed (the tool may
-        // still run — here it errors on missing episodic, not on HITL).
-        let out = call_tool(
-            "memory_consolidate",
-            &serde_json::json!({"dry_run": true}),
-            &root,
-        );
-        assert!(
-            !out.starts_with("error: memory_consolidate requires an approval reason"),
-            "{out}"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn tool_schemas_declare_real_types() {
-        let tools = tool_definitions();
-        let signoff = tools
-            .iter()
-            .find(|t| t["name"] == "memory_signoff")
-            .unwrap();
-        assert_eq!(
-            signoff["inputSchema"]["properties"]["index"]["type"],
-            "integer"
-        );
-        assert_eq!(
-            signoff["inputSchema"]["properties"]["queue"]["type"],
-            "string"
-        );
-        let gate = tools.iter().find(|t| t["name"] == "eval_gate").unwrap();
-        assert_eq!(
-            gate["inputSchema"]["properties"]["tolerance"]["type"],
-            "number"
-        );
-        let derive = tools.iter().find(|t| t["name"] == "memory_derive").unwrap();
-        assert_eq!(
-            derive["inputSchema"]["properties"]["brief_only"]["type"],
-            "boolean"
-        );
-    }
-
-    #[test]
-    fn every_declared_tool_has_a_call_handler() {
-        // A tool declared in tool_definitions but missing a `call_tool`
-        // arm would silently answer "unknown tool". This guards the
-        // 1:1 coverage: every declared name must route to a handler (an
-        // empty tmp root exercises the dispatch path without needing
-        // real repo state; some tools legitimately error on empty input,
-        // which is fine — only the "unknown tool" fallthrough is a bug).
-        let root = std::env::temp_dir().join(format!("mag-mcp-coverage-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&root);
-        for t in tool_definitions() {
-            let name = t["name"].as_str().unwrap_or("").to_string();
-            let out = call_tool(&name, &json!({}), &root);
-            assert!(
-                !out.contains("unknown tool"),
-                "tool '{name}' has no call handler: {out}"
-            );
-        }
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn dispatch_rejects_tools_before_initialize() {
-        let mut initialized = false;
-        let msg = json!({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}});
-        let resp = dispatch(&msg, &mut initialized).unwrap();
-        assert_eq!(resp["result"]["isError"], true);
-        let init = json!({"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}});
-        assert!(dispatch(&init, &mut initialized).is_some());
-        let msg2 = json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}});
-        let resp2 = dispatch(&msg2, &mut initialized).unwrap();
-        assert!(resp2["result"]["tools"].is_array());
-    }
-
-    #[test]
-    fn notifications_get_no_response() {
-        let mut initialized = true;
-        let note = json!({"jsonrpc":"2.0","method":"notifications/initialized"});
-        assert!(dispatch(&note, &mut initialized).is_none());
-    }
-
-    #[test]
-    fn initialize_instructions_carry_the_hitl_write_contract() {
-        // The server instructions are shown to the model on initialize;
-        // they must teach the HITL write rule (a write is refused without
-        // an approve reason) alongside the verified-iteration contract.
-        let init = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26"}});
-        let mut initialized = false;
-        let resp = dispatch(&init, &mut initialized).unwrap();
-        let text = resp["result"]["instructions"].as_str().unwrap_or("");
-        assert!(text.contains("approve reason"), "{text}");
-        assert!(text.contains("NEVER claim success"), "{text}");
-    }
-
-    #[test]
-    fn unknown_method_is_a_clean_error_response() {
-        let mut initialized = true;
-        let msg = json!({"jsonrpc":"2.0","id":9,"method":"bogus/method","params":{}});
-        let resp = dispatch(&msg, &mut initialized).unwrap();
-        assert!(
-            resp["result"]["isError"].as_bool().unwrap_or(false),
-            "{resp}"
-        );
-        let text = resp["result"]["content"][0]["text"].as_str().unwrap_or("");
-        assert!(text.contains("unknown method"), "{text}");
-    }
-
-    #[test]
-    fn unknown_tool_call_is_a_clean_error() {
-        let root = std::env::temp_dir().join(format!("mag-mcp-ut-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let out = call_tool("no-such-tool", &serde_json::json!({}), &root);
-        assert!(out.starts_with("error: unknown tool"), "{out}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn responses_mirror_the_request_framing() {
-        // EXP-016: opencode sends newline-delimited JSON and reads the
-        // same; a Content-Length-only responder stalled its client at
-        // initialize (30s timeout, "server unavailable"). The server
-        // must mirror the client's framing in both directions.
-        let newline_req = br#"{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}"#;
-        let mut input = std::io::Cursor::new(newline_req.to_vec());
-        let (msg, framing) = read_frame(&mut input).unwrap().expect("newline frame");
-        assert_eq!(framing, Framing::Newline);
-        let mut out = Vec::new();
-        write_frame(&mut out, &msg, framing).unwrap();
-        let text = String::from_utf8(out).unwrap();
-        assert!(
-            text.starts_with('{') && !text.contains("Content-Length"),
-            "newline request -> newline response, got {text:?}"
-        );
-        // The framed response must round-trip through the reader.
-        let mut roundtrip = std::io::Cursor::new(text.into_bytes());
-        let (back, _) = read_frame(&mut roundtrip).unwrap().expect("round-trip");
-        assert_eq!(back["id"], 1);
-
-        // Content-Length clients still get Content-Length responses.
-        let body = br#"{"jsonrpc":"2.0","id":2,"method":"ping","params":{}}"#;
-        let mut cl_req = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
-        cl_req.extend_from_slice(body);
-        let mut input2 = std::io::Cursor::new(cl_req);
-        let (_, framing2) = read_frame(&mut input2).unwrap().expect("CL frame");
-        assert_eq!(framing2, Framing::ContentLength);
-        let mut out2 = Vec::new();
-        write_frame(&mut out2, &msg, framing2).unwrap();
-        let text2 = String::from_utf8(out2).unwrap();
-        assert!(
-            text2.starts_with("Content-Length:"),
-            "CL request -> CL response, got {text2:?}"
-        );
-    }
-
-    #[test]
-    fn unknown_tool_call_is_flagged_as_error_in_the_result() {
-        // EXP-015: MCP hosts treat a tool failure as the `isError` flag
-        // in the tools/call RESULT — a text-only "error:" string inside
-        // a success-shaped result is invisible to the client (the call
-        // looks like it succeeded). Every failing tool call must carry
-        // `isError: true` so codex/claude/any host surfaces the failure.
-        let mut initialized = true;
-        let params = json!({"name": "no-such-tool", "arguments": {}});
-        let msg = json!({"jsonrpc":"2.0","id":11,"method":"tools/call","params":params});
-        let resp = dispatch(&msg, &mut initialized).unwrap();
-        let result = resp.get("result").expect("result present");
-        assert!(
-            result
-                .get("isError")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            "unknown tool must be flagged isError, got {resp}"
-        );
-        let text = result["content"][0]["text"].as_str().unwrap_or("");
-        assert!(text.contains("unknown tool"), "{text}");
-    }
-
-    #[test]
-    fn ping_returns_an_empty_result() {
-        let mut initialized = true;
-        let msg = json!({"jsonrpc":"2.0","id":7,"method":"ping","params":{}});
-        let resp = dispatch(&msg, &mut initialized).unwrap();
-        assert_eq!(resp["id"], 7);
-        assert!(resp["result"].is_object(), "{resp}");
-        assert!(resp["result"].as_object().unwrap().is_empty(), "{resp}");
-    }
-
-    #[test]
-    fn initialize_negotiates_unsupported_version_to_fallback() {
-        let mut initialized = false;
-        let bogus = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1999-01-01"}});
-        let resp = dispatch(&bogus, &mut initialized).unwrap();
-        assert_eq!(
-            resp["result"]["protocolVersion"], PROTOCOL_VERSION,
-            "an unsupported client version must fall back to our own"
-        );
-        let supported = json!({"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25"}});
-        let resp = dispatch(&supported, &mut initialized).unwrap();
-        assert_eq!(
-            resp["result"]["protocolVersion"], "2025-11-25",
-            "a supported client version must be echoed"
-        );
-    }
-
-    #[test]
-    fn memory_query_returns_facts_filtered_by_domain_and_keyword() {
-        let root = std::env::temp_dir().join(format!("mag-mcp-mq-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let args = serde_json::json!({});
-        let out = call_memory_tools("memory_query", &args, &root);
-        assert_eq!(out.as_deref(), Some("no facts match"));
-        let entry = root.join("memory/canonical/entries/2026-08-11/2026-08-11-001.md");
-        std::fs::create_dir_all(entry.parent().unwrap()).unwrap();
-        std::fs::write(
-            &entry,
-            "# 2026-08-11\n\n## F-001 `1111111111111111`\n- body: first bounded fact\n- domain: memory\n\n## F-002 `2222222222222222`\n- body: loop discipline fact\n- domain: memory\n",
-        )
-        .unwrap();
-        let loop_entry = root.join("memory/canonical/entries/2026-08-11/2026-08-11-002.md");
-        std::fs::write(
-            &loop_entry,
-            "# 2026-08-11\n\n## F-003 `3333333333333333`\n- body: a loop domain fact\n- domain: loop\n",
-        )
-        .unwrap();
-        let out = call_memory_tools("memory_query", &args, &root).unwrap();
-        assert!(out.contains("1111111111111111"), "{out}");
-        assert!(out.contains("2222222222222222"), "{out}");
-        let keyword = call_memory_tools(
-            "memory_query",
-            &serde_json::json!({"keyword": "bounded"}),
-            &root,
-        )
-        .unwrap();
-        assert!(keyword.contains("1111111111111111"), "{keyword}");
-        assert!(!keyword.contains("2222222222222222"), "{keyword}");
-        let domain = call_memory_tools(
-            "memory_query",
-            &serde_json::json!({"domain": "loop"}),
-            &root,
-        )
-        .unwrap();
-        assert!(domain.contains("3333333333333333"), "{domain}");
-        assert!(!domain.contains("1111111111111111"), "{domain}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn write_tools_refuse_without_approval_reason() {
-        let root = std::env::temp_dir().join(format!("mag-mcp-hitl-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let cases: &[(&str, serde_json::Value)] = &[
-            (
-                "memory_consolidate",
-                serde_json::json!({"episodic": "none.md"}),
-            ),
-            (
-                "memory_signoff",
-                serde_json::json!({"queue": "q.md", "index": 1}),
-            ),
-            ("memory_derive", serde_json::json!({})),
-            ("loop_dispatch", serde_json::json!({"claimant": "t"})),
-            ("loop_objective", serde_json::json!({"claimant": "t"})),
-            ("run_ingest", serde_json::json!({"run": "run.json"})),
-        ];
-        for (name, args) in cases {
-            let out = call_tool(name, args, &root);
-            assert!(
-                out.contains("requires an approval reason"),
-                "{name} must refuse without approval, got: {out}"
-            );
-        }
-        let dry = call_tool(
-            "memory_consolidate",
-            &serde_json::json!({"dry_run": true}),
-            &root,
-        );
-        assert!(
-            !dry.contains("requires an approval reason"),
-            "dry_run is read-only and must not demand a write approval, got: {dry}"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn run_verify_reports_unverified_for_no_declared_verifier() {
-        let root = std::env::temp_dir().join(format!("mag-mcp-rv-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        let run = root.join("evals/cases/x/run.json");
-        std::fs::create_dir_all(run.parent().unwrap()).unwrap();
-        std::fs::write(
-            &run,
-            r#"{"goal":"g","scope":["x"],"outcome":{"achieved":true},"tokens_total":1,"cost_usd":0.01,"golden":null,"trajectory":[]}"#,
-        )
-        .unwrap();
-        let out = call_run_tools(
-            "run_verify",
-            &serde_json::json!({"run": run.to_string_lossy()}),
-            &root,
-        )
-        .unwrap();
-        assert!(
-            out.contains("unverified") && out.contains("exit -"),
-            "a run without a declared verifier must be reported unverified, got: {out}"
-        );
-        let missing = call_run_tools(
-            "run_verify",
-            &serde_json::json!({"run": root.join("evals/cases/nope/run.json").to_string_lossy()}),
-            &root,
-        )
-        .unwrap();
-        assert!(missing.starts_with("error:"), "{missing}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn loop_status_reports_empty_root() {
-        let root = std::env::temp_dir().join(format!("mag-mcp-ls-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let out = call_loop_tools("loop_status", &serde_json::json!({}), &root)
-            .expect("loop_status must handle an empty root");
-        assert!(out.contains("0 runs"), "{out}");
-        assert!(out.contains("0 cases below target"), "{out}");
-        let _ = std::fs::remove_dir_all(&root);
+        _ => format!("error: unknown tool '{name}'"),
     }
 }

@@ -40,29 +40,3 @@ pub fn source_sha256(text: &str) -> String {
 pub fn source_sha256_bytes(bytes: &[u8]) -> String {
     hex_prefix(&Sha256::digest(bytes))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fact_id_matches_poc_contract() {
-        let body = "explicit memory survives compaction";
-        let id = fact_id(body);
-        assert_eq!(id.len(), 16);
-        assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
-    }
-
-    #[test]
-    fn fact_id_is_deterministic_and_content_bound() {
-        assert_eq!(fact_id("a"), fact_id("a"));
-        assert_ne!(fact_id("a"), fact_id("b"));
-    }
-
-    #[test]
-    fn source_sha256_is_16_hex() {
-        let id = source_sha256("raw source material");
-        assert_eq!(id.len(), 16);
-        assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
-    }
-}

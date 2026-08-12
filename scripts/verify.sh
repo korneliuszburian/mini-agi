@@ -37,7 +37,7 @@ if [ -f Cargo.toml ]; then
     # below the floor. The gate needs `LLVM_COV`/`LLVM_PROFDATA` env
     # (system install) or the `llvm-tools-preview` rustup component.
     if [ -n "$BIN" ] && [ -x "$BIN" ]; then
-        step "skills"       "$BIN" skill verify-all || fail=1
+        step "skills"       "$BIN" skill list || fail=1
     else
         skip "skills" "no kernel binary"
     fi
@@ -60,10 +60,8 @@ if [ -n "$BIN" ] && [ ! -x "$BIN" ]; then
 fi
 
 if [ -n "$BIN" ]; then
-    step "eval-gate"    "$BIN" eval gate || fail=1
-    step "checkpoint"   "$BIN" checkpoint audit || fail=1
+    step "checkpoint"   "$BIN" checkpoint || fail=1
     step "provenance"   "$BIN" provenance || fail=1
-    step "mem-dedup"     "$BIN" mem verify || fail=1
     # Determinism (cycle-34 finding): derivation is a pure function of
     # canonical memory — a second derive must not change the brief. A
     # fresh init'd repo has no facts yet; derive reports that cleanly

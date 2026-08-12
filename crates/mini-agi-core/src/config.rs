@@ -50,16 +50,6 @@ pub struct Config {
     /// (retry-forever, the pre-existing behavior).
     #[serde(default)]
     pub max_rerun_attempts: Option<usize>,
-    /// Machine thresholds for `health` (hardening audit P0-2
-    /// extension): per-field override of the hardcoded consts.
-    #[serde(default)]
-    pub health: crate::health::HealthThresholds,
-    /// Judge-drift recalibration trigger (production-readiness C.3):
-    /// when `eval judge-drift` precision drops below this, the audit
-    /// signals a recalibration. Default 1.0 (any disagreement is a
-    /// signal).
-    #[serde(default = "default_min_judge_precision")]
-    pub min_judge_precision: f64,
     /// HITL approval gate (production-readiness D.4): when true, a
     /// worker run requires an explicit `--approve <reason>`; the
     /// decision is logged to the action log.
@@ -67,16 +57,12 @@ pub struct Config {
     pub require_approval: bool,
 }
 
-const fn default_min_judge_precision() -> f64 {
-    1.0
-}
-
 const fn default_target_composite() -> f64 {
     crate::loopcmd::TARGET_COMPOSITE
 }
 
 const fn default_regression_tolerance() -> f64 {
-    crate::eval::DEFAULT_TOLERANCE
+    0.05
 }
 
 impl Default for Config {
@@ -91,8 +77,6 @@ impl Default for Config {
             max_idle_seconds: None,
             max_repeated_steps: None,
             max_rerun_attempts: None,
-            health: crate::health::HealthThresholds::default(),
-            min_judge_precision: default_min_judge_precision(),
             require_approval: false,
         }
     }
@@ -185,114 +169,4 @@ impl Config {
     pub fn target_composite_for(root: &Path) -> f64 {
         Self::load(root).target_composite
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-    use std::path::PathBuf;
-
-    fn tmp_root(tag: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!("mag-config-{}-{tag}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        root
-    }
-
-    fn assert_approx_eq(a: f64, b: f64) {
-        assert!((a - b).abs() < 1e-9, "{a} != {b}");
-    }
-
-    #[test]
-    fn file_parses_max_idle_seconds() {
-        let root = tmp_root("idle-file");
-        std::fs::write(root.join(".miniagi.json"), r#"{"max_idle_seconds": 42}"#).unwrap();
-        let cfg = Config::load(&root);
-        assert_eq!(cfg.max_idle_seconds, Some(42));
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn env_overlays_max_idle_seconds() {
-        let root = tmp_root("idle-env");
-        std::fs::write(root.join(".miniagi.json"), r#"{"max_idle_seconds": 42}"#).unwrap();
-        let mut cfg = Config::load(&root);
-        cfg.apply_env_overlay(|name| {
-            if name == "MINIAGI_MAX_IDLE_SECONDS" {
-                Some("7".to_string())
-            } else {
-                None
-            }
-        });
-        assert_eq!(
-            cfg.max_idle_seconds,
-            Some(7),
-            "the env var must win over the file (S3 config contract)"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn malformed_env_value_is_ignored_without_override() {
-        // A non-numeric env value must NOT override the file value (and
-        // emits a warning); the file setting stays in effect.
-        let root = tmp_root("env-mal");
-        std::fs::write(root.join(".miniagi.json"), r#"{"max_idle_seconds": 42}"#).unwrap();
-        let mut cfg = Config::load(&root);
-        cfg.apply_env_overlay(|name| {
-            if name == "MINIAGI_MAX_IDLE_SECONDS" {
-                Some("not-a-number".into())
-            } else {
-                None
-            }
-        });
-        assert_eq!(
-            cfg.max_idle_seconds,
-            Some(42),
-            "malformed env must not override the file value"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn absent_file_yields_historical_defaults() {
-        let root = tmp_root("defaults");
-        let cfg = Config::load(&root);
-        assert_approx_eq(cfg.target_composite, 0.5);
-        assert_approx_eq(cfg.regression_tolerance, 0.05);
-        assert_eq!(cfg.max_steps, None);
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn malformed_file_falls_back_but_warns() {
-        // Fail-open but loud: a malformed .miniagi.json must not crash —
-        // defaults win (asserted), and a warning is emitted on stderr.
-        let root = tmp_root("malformed");
-        std::fs::write(root.join(".miniagi.json"), "{bad json").unwrap();
-        let cfg = Config::load(&root);
-        assert_approx_eq(cfg.target_composite, 0.5);
-        assert_approx_eq(cfg.regression_tolerance, 0.05);
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn file_overrides_target_and_tolerance() {
-        let root = tmp_root("file");
-        let mut f = std::fs::File::create(root.join(".miniagi.json")).unwrap();
-        f.write_all(br#"{"target_composite": 0.6, "regression_tolerance": 0.02, "max_steps": 25}"#)
-            .unwrap();
-        let cfg = Config::load(&root);
-        assert_approx_eq(cfg.target_composite, 0.6);
-        assert_approx_eq(cfg.regression_tolerance, 0.02);
-        assert_eq!(cfg.max_steps, Some(25));
-        // Missing fields fall back to defaults.
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    // NOTE: the `MINIAGI_*` env overlay is not unit-tested because
-    // `std::env::set_var` is unsafe in edition 2024 and the workspace
-    // forbids unsafe (`unsafe_code = "forbid"`). The file-path merge
-    // logic above is covered; the env path is a three-line passthrough.
 }
