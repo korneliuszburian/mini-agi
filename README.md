@@ -15,7 +15,9 @@ skills registry, orchestration** — exposed as CLI + MCP server so ANY agent
 ## Status
 
 All phases 0-11 complete (memory, eval, skills, journal, MCP, loop, verifier,
-harness evolution, Rust quality gates), 450 tests green, gate ALL GREEN, v0.3.0:
+harness evolution, Rust quality gates), 600 tests green, gate ALL GREEN, v0.3.0.
+Charter-gap audit (criterion status, the 7 paradoxes with metrics, gap plan):
+[`docs/CHARTER-GAP.md`](docs/CHARTER-GAP.md).
 
 | Phase | Deliverable |
 | --- | --- |
@@ -47,6 +49,32 @@ scripts/verify.sh    # build, fmt, clippy -D warnings, tests, eval gate,
 A silent target is a failing target. `checkpoint.sh begin/verify` wraps
 every edit step; the journal is audited by the gate (every VERIFY needs an
 earlier BEGIN).
+
+## Onboarding a new project (5 minutes)
+
+The kernel is repo-root-agnostic: it operates on the current directory
+(override with `AGENTIC_ROOT`). To give any repo a verified brain:
+
+```sh
+mini-agi init                    # scaffold memory/ + evals/ + tickets/ + scripts/
+mini-agi derive                  # derive brief/AGENTS fragments from canonical
+scripts/verify.sh                # the deterministic gate is green on an empty repo
+```
+
+Then let an agent work through the kernel (EXP-002-proven flow):
+
+1. `mini-agi loop dispatch <case> --claimant <you>` — pick the worst open
+   gap, ensure its ticket, claim it (lease), write the slice spec.
+2. Run the worker (`codex exec` on the spec, or `mini-agi codex <spec>
+   <workdir> --verify ... --target ...` for a captured, verifiable run).
+3. `mini-agi run ingest <run.json>` then `mini-agi loop verify <case>-rerun`
+   — close ONLY at composite >= target with a passing deterministic
+   verifier (ADR-0011); `--allow-unverified` only with explicit trust.
+
+Other agents (Codex, Claude, Cursor, opencode) plug into the same brain
+via the MCP server (`mini-agi mcp`; repo config `.codex/config.toml`,
+details in `docs/CODEX-INTEGRATION.md`) — knowledge given once is queried,
+never re-asked.
 
 ## Verified iteration — the breakthrough pattern
 
