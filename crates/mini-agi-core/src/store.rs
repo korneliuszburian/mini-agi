@@ -27,10 +27,16 @@ pub struct EntryFile {
 ///
 /// Scans existing `NNN.md` files in the day directory; an empty day starts
 /// at sequence 1. The day directory is NOT created.
+///
+/// The sequence is computed in `u64`: a day dir containing the maximum
+/// `u32` sequence must neither panic (debug overflow) nor wrap to a name
+/// that already exists (release: the caller's write would overwrite a
+/// canonical entry, breaking the append-only contract). The returned
+/// path is guaranteed not to exist.
 #[must_use]
 pub fn next_entry(root: &Path, today: &str) -> EntryFile {
     let day_dir = root.join(ENTRIES_REL).join(today);
-    let mut max: u32 = 0;
+    let mut max: u64 = 0;
     if day_dir.is_dir() {
         for dir_entry in std::fs::read_dir(&day_dir).ok().into_iter().flatten() {
             let Ok(de) = dir_entry else { continue };
@@ -38,16 +44,17 @@ pub fn next_entry(root: &Path, today: &str) -> EntryFile {
             if let Some(seq) = name
                 .strip_prefix(&format!("{today}-"))
                 .and_then(|rest| rest.strip_suffix(".md"))
-                .and_then(|s| s.parse::<u32>().ok())
+                .and_then(|s| s.parse::<u64>().ok())
             {
                 max = max.max(seq);
             }
         }
     }
+    let next = max + 1;
     EntryFile {
-        path: day_dir.join(format!("{today}-{:03}.md", max + 1)),
+        path: day_dir.join(format!("{today}-{next:03}.md")),
         date: today.to_string(),
-        seq: max + 1,
+        seq: u32::try_from(next).unwrap_or(u32::MAX),
     }
 }
 
@@ -193,5 +200,33 @@ mod tests {
         assert_eq!(facts[0].0, "labeled body");
         assert_eq!(facts[1].1, "ffffffffffffffff");
         assert_eq!(facts[1].0, "second body");
+    }
+
+    #[test]
+    fn next_entry_never_returns_an_existing_path_on_sequence_overflow() {
+        // Append-only (ADR-0002): next_entry must never hand out a path
+        // that already exists. A day dir containing the maximum u32
+        // sequence used to wrap to 0 (debug build: panic; release: the
+        // 000 file returned again — the caller's write would overwrite
+        // a canonical entry). The sequence must stay monotonic in u64.
+        let tmp = std::env::temp_dir().join(format!("mag-store-of-{}", std::process::id()));
+        let day = "2026-08-02";
+        let day_dir = tmp.join("memory/canonical/entries").join(day);
+        std::fs::create_dir_all(&day_dir).unwrap();
+        std::fs::write(day_dir.join(format!("{day}-4294967295.md")), "max").unwrap();
+        std::fs::write(day_dir.join(format!("{day}-000.md")), "zero").unwrap();
+        let e = next_entry(&tmp, day);
+        assert!(
+            !e.path.exists(),
+            "next_entry returned an existing path {} — append-only would be violated",
+            e.path.display()
+        );
+        assert!(e.seq > 0, "sequence must stay monotonic, got {}", e.seq);
+        // Once the returned entry is written, the next call advances
+        // (the name is never reused).
+        std::fs::write(&e.path, "# written\n").unwrap();
+        let e2 = next_entry(&tmp, day);
+        assert_ne!(e2.path, e.path, "the next entry must advance the name");
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
