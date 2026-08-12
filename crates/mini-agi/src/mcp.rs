@@ -213,7 +213,17 @@ fn dispatch(message: &Value, initialized: &mut bool) -> Option<Value> {
         "tools/list" if *initialized => {
             let tools: Vec<Value> = TOOLS
                 .iter()
-                .map(|t| json!({ "name": t.name, "description": t.description }))
+                .map(|t| {
+                    let mut properties = json!({});
+                    for (name, ty) in t.params {
+                        properties[name] = json!({ "type": ty });
+                    }
+                    json!({
+                        "name": t.name,
+                        "description": t.description,
+                        "inputSchema": { "type": "object", "properties": properties },
+                    })
+                })
                 .collect();
             json!({ "tools": tools })
         }
@@ -428,5 +438,39 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             }
         }
         _ => format!("error: unknown tool '{name}'"),
+    }
+}
+
+#[cfg(test)]
+mod schema_tests {
+    use super::*;
+
+    #[test]
+    fn every_tool_exposes_an_input_schema() {
+        // MCP agents read inputSchema to know a tool's arguments; a tool
+        // without one is un-callable by real hosts. tools/list must emit
+        // inputSchema (with properties) for every registered tool.
+        let mut initialized = false;
+        let init_msg = json!({"jsonrpc":"2.0","id":0,"method":"initialize","params":{}});
+        dispatch(&init_msg, &mut initialized).unwrap();
+        let msg = json!({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}});
+        let resp = dispatch(&msg, &mut initialized).unwrap();
+        let tools = resp["result"]["tools"].as_array().expect("tools array");
+        assert!(!tools.is_empty());
+        for tool in tools {
+            let schema = tool
+                .get("inputSchema")
+                .unwrap_or_else(|| panic!("{}: no inputSchema", tool["name"]));
+            assert!(
+                schema.get("type").is_some(),
+                "{}: inputSchema needs a type",
+                tool["name"]
+            );
+            assert!(
+                schema.get("properties").is_some(),
+                "{}: inputSchema needs properties",
+                tool["name"]
+            );
+        }
     }
 }
