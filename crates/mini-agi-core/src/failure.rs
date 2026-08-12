@@ -38,13 +38,41 @@ pub const MAST_MODES: &[(&str, &str)] = &[
 /// Normalize machine-specific absolute path prefixes in an action text
 /// so fact ids are stable across hosts (Phase 9 slice 1). The stored
 /// action keeps the original text for display.
+///
+/// The explicit machine prefixes cover this host's tree; ANY user's
+/// home (`/home/<user>/`) normalizes too — a fact id must be stable
+/// across hosts, not just across this machine's own paths.
 #[must_use]
 pub fn normalize_action(action: &str) -> String {
     let mut out = action.to_string();
-    for prefix in ["/home/krn/", "/mnt/storage/", "/tmp/opencode/", "/tmp/"] {
+    for prefix in ["/mnt/storage/", "/tmp/opencode/", "/tmp/"] {
         out = out.replace(prefix, "<abs>/");
     }
-    out
+    normalize_any_home(&out)
+}
+
+/// `/home/<user>/...` -> `<abs>/...` for ANY user segment (a host's
+/// username is machine-specific; two hosts recording the same failure
+/// under different homes must hash identically).
+fn normalize_any_home(s: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    loop {
+        let Some(pos) = rest.find("/home/") else {
+            out.push_str(rest);
+            return out;
+        };
+        out.push_str(&rest[..pos]);
+        let after = &rest[pos + "/home/".len()..];
+        let (user, tail) = after.split_once('/').unwrap_or((after, ""));
+        if user.is_empty() {
+            out.push_str("/home/");
+            rest = tail;
+            continue;
+        }
+        out.push_str("<abs>/");
+        rest = tail;
+    }
 }
 
 /// One recorded repeated failing action.
@@ -332,6 +360,31 @@ mod normalization_tests {
             "run: <abs>/proj/src/main.rs"
         );
         assert_eq!(normalize_action("no abs paths"), "no abs paths");
+    }
+
+    #[test]
+    fn any_users_home_normalizes_for_hashing() {
+        // The register's contract: fact ids are stable ACROSS HOSTS. A
+        // hardcoded prefix list normalizes THIS machine's /home/krn/,
+        // but another user's home (/home/alice/) stayed raw — the same
+        // failure recorded on two hosts produced two different hashes
+        // and the cross-host dedup silently failed.
+        let a = "write: const patch = \"/home/alice/proj/src/main.rs\"";
+        let b = "write: const patch = \"/home/krn/proj/src/main.rs\"";
+        assert_eq!(normalize_action(a), normalize_action(b));
+        assert_eq!(
+            fact_id(&format!("write|{}", normalize_action(a))),
+            fact_id(&format!("write|{}", normalize_action(b)))
+        );
+        // The explicit machine prefixes keep working.
+        assert_eq!(
+            normalize_action("run: /home/alice/proj/src/main.rs"),
+            "run: <abs>/proj/src/main.rs"
+        );
+        assert_eq!(
+            normalize_action("run: /home/krn/proj/src/main.rs"),
+            "run: <abs>/proj/src/main.rs"
+        );
     }
 
     #[test]
