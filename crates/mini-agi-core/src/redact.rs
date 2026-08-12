@@ -223,7 +223,7 @@ fn redact_key_value_pairs(text: &str) -> String {
         if rest[pos..].is_empty() {
             break;
         }
-        let Some((key_len, sep_after, is_colon)) = find_value_separator(&rest[pos..]) else {
+        let Some((key_len, sep_after, sep)) = find_value_separator(&rest[pos..]) else {
             let token_len = token_len_at(&rest[pos..]);
             if token_len == 0 {
                 out.push_str(rest);
@@ -234,7 +234,7 @@ fn redact_key_value_pairs(text: &str) -> String {
             continue;
         };
         let key_text = &rest[pos..pos + key_len];
-        let Some((skip, take)) = split_pair_value(&rest[pos + sep_after..], is_colon) else {
+        let Some((skip, take)) = split_pair_value(&rest[pos + sep_after..], sep) else {
             out.push_str(&rest[..pos + sep_after]);
             rest = &rest[pos + sep_after..];
             continue;
@@ -299,10 +299,11 @@ fn starts_word_here(text: &str, pos: usize) -> bool {
 }
 
 /// Given `after_key` starting at the key token, return `(token_len,
-/// sep_after, colon_sep)`: the bare key-token length and the index just
-/// past the `=`/`:` separator (skipping surrounding whitespace) where the
-/// value begins. Supports both `key=value` and JSON `"key": "value"`.
-fn find_value_separator(after_key: &str) -> Option<(usize, usize, bool)> {
+/// sep_after, sep)`: the bare key-token length, the index just past the
+/// separator (skipping surrounding whitespace) where the value begins,
+/// and the separator byte (`=`/`:`/`0` for the implicit space form).
+/// Supports both `key=value` and JSON `"key": "value"`.
+fn find_value_separator(after_key: &str) -> Option<(usize, usize, u8)> {
     let key_len = token_len_at(after_key);
     if key_len == 0 {
         return None;
@@ -320,14 +321,13 @@ fn find_value_separator(after_key: &str) -> Option<(usize, usize, bool)> {
         i += after_key[i..].chars().next().unwrap().len_utf8();
     }
     let sep = after_key[i..].chars().next()?;
-    let colon = sep == ':';
     if sep != '=' && sep != ':' {
         // Flag-style keys (`--password hunter2`) take their value as
         // the next whitespace-separated argument — the separator is
         // implicit (real defect found by falsifier: space-separated
         // flag values leaked).
         if after_key.starts_with('-') && i > key_len {
-            return Some((key_len, i, false));
+            return Some((key_len, i, 0));
         }
         return None;
     }
@@ -339,29 +339,36 @@ fn find_value_separator(after_key: &str) -> Option<(usize, usize, bool)> {
     {
         i += after_key[i..].chars().next().unwrap().len_utf8();
     }
-    Some((key_len, i, colon))
+    Some((key_len, i, sep as u8))
 }
 
 /// Given `text` starting right after the separator, return `(skip,
 /// take)` describing the value to redact: `skip` leading whitespace,
 /// `take` chars of the value itself (both quotes of a JSON string
-/// included). `colon_val` marks `:` records (branch secrets) — those
-/// redact to the end of the line; `=` records redact one field.
-fn split_pair_value(text: &str, colon_val: bool) -> Option<(usize, usize)> {
+/// included). `sep` is the separator byte (`=`/`:`/`0` for the implicit
+/// space form): `:` records (branch secrets) redact to the end of the
+/// line; `0` (space-separated flag) refuses a leading dash (a following
+/// flag is not a value); `=` records redact one field even when the
+/// value itself starts with a dash.
+fn split_pair_value(text: &str, sep: u8) -> Option<(usize, usize)> {
     let trimmed = text.trim_start();
     if trimmed.is_empty() {
         return None;
     }
     let skip = text.len() - trimmed.len();
     if let Some(inner) = trimmed.strip_prefix('"') {
-        let end = inner.find('"')?;
-        return Some((skip, end + 2));
+        // Closed JSON string: both quotes included. UNCLOSED (a killed
+        // worker's truncated transcript): redact everything to the end
+        // of the line — an unterminated string must not leak.
+        let take = inner.find('"').map_or(inner.len() + 1, |end| end + 2);
+        return Some((skip, take.min(trimmed.len())));
     }
-    let take = if colon_val {
+    let take = if sep == b':' {
         trimmed.find('\n').unwrap_or(trimmed.len())
     } else {
-        // A following flag is an argument, not a value — never eat it.
-        if trimmed.starts_with('-') {
+        // The implicit space form: a following flag is an argument, not
+        // a value — never eat it. The `=` form has no such ambiguity.
+        if sep == 0 && trimmed.starts_with('-') {
             return None;
         }
         trimmed
@@ -379,6 +386,30 @@ mod tests {
 
     fn case(text: &str) -> String {
         redact(text)
+    }
+
+    #[test]
+    fn redacts_unclosed_and_dash_prefixed_equals_values() {
+        // A killed worker's transcript is TRUNCATED — an unclosed JSON
+        // string is exactly what the redactor must protect, and a
+        // leading-dash '=' value is still a VALUE, not a flag.
+        // Unclosed JSON string: the value must redact to the end of line.
+        let out = case(r#"{"password": "abc123"#);
+        assert!(
+            !out.contains("abc123"),
+            "an unclosed JSON string must redact: {out}"
+        );
+        // Leading-dash '=' value: '-hunter2' is the password, not a flag.
+        let out2 = case("curl -d password=-hunter2");
+        assert!(
+            !out2.contains("-hunter2"),
+            "a dash-prefixed = value must redact: {out2}"
+        );
+        assert!(out2.contains("password=[REDACTED]"), "{out2}");
+        // The flag-style refusal stays: "--password -x" is a following
+        // flag, not a value.
+        let out3 = case("--password -x run");
+        assert_eq!(out3, "--password -x run", "a following flag is not a value");
     }
 
     #[test]
