@@ -53,7 +53,10 @@ fn bash_exit(trimmed: &str) -> Option<i32> {
             .next()
             .and_then(|n| n.trim_end_matches(':').parse().ok());
     }
-    if t.starts_with("succeeded") {
+    // The tool-result form is "succeeded in <duration>:" — a prose line
+    // merely STARTING with "succeeded" (the model narrating) is not
+    // exit-0 evidence; ok must never be invented (honest capture).
+    if t.starts_with("succeeded in ") && t.ends_with(':') {
         return Some(0);
     }
     if t.starts_with("(exit") {
@@ -243,6 +246,24 @@ verify: ALL GREEN
 <result>{"files": ["src/auth.py"], "tests": 5}</result>
 no completion marker here
 "#;
+
+    #[test]
+    fn prose_succeeded_is_not_exit_evidence() {
+        // The honest-capture contract: ok is NEVER invented. A prose
+        // line starting "succeeded..." (the model narrating) following
+        // a command is not a tool-result header — only the timed form
+        // "succeeded in <dur>:" is exit-0 evidence.
+        let text = "/usr/bin/bash -lc \"build\" in /tmp/w\nsucceeded in fixing the bug\n";
+        let steps = parse_transcript(text);
+        assert_eq!(
+            steps[0].ok, None,
+            "prose 'succeeded...' must not fabricate success: {steps:?}"
+        );
+        // The real timed header still binds exit 0.
+        let real = "/usr/bin/bash -lc \"build\" in /tmp/w\nsucceeded in 0ms:\n";
+        let steps = parse_transcript(real);
+        assert_eq!(steps[0].ok, Some(true));
+    }
 
     #[test]
     fn parses_commands_writes_and_reads_in_order() {
