@@ -494,7 +494,13 @@ fn cmd_loop(args: LoopArgs) -> ExitCode {
             claimant,
             budget_cost,
         } => {
-            let budget = budget_cost.and_then(|c| c.parse::<f64>().ok());
+            let budget = match budget_cost.as_deref() {
+                None => None,
+                Some(c) => match c.parse::<f64>() {
+                    Ok(v) if v >= 0.0 => Some(v),
+                    _ => return fail(&format!("loop objective: invalid --budget-cost '{c}'")),
+                },
+            };
             match mini_agi_core::loopcmd::objective(&root, max_cases, &claimant, budget) {
                 Ok(out) => {
                     println!(

@@ -353,6 +353,13 @@ pub fn dispatch(
 ) -> Result<DispatchOutcome, String> {
     let _ = below;
     let case = pick_target(root, case)?;
+    let run = read_run(&root.join("evals/cases").join(&case))
+        .ok_or_else(|| format!("run unreadable for case '{case}'"))?;
+    if run.verify_command.is_none() || run.verify_target.is_none() {
+        return Err(format!(
+            "case '{case}' declares no complete gate (verify_command AND verify_target) — refusing dispatch"
+        ));
+    }
     let existing = ticket_for_case(root, &case);
     let (ticket_id, ticket_created) = if let Some(t) = existing {
         (t.id, false)
@@ -528,19 +535,7 @@ pub fn verify(
                 ticket.id
             ));
         }
-        lines.push(format!(
-            "FACT: gap {base} closed by rerun {case} — gate passed."
-        ));
-        let _ = crate::memory::consolidate(
-            root,
-            &format!("FACT: gap {base} closed by rerun {case} — gate passed."),
-            &format!("loop-verify-{case}"),
-            &crate::memory::ConsolidateOptions {
-                domain: "eval".into(),
-                require_signoff: false,
-                dry_run: false,
-            },
-        );
+        lines.push(format!("  gap closed: {base} (gate passed)"));
     } else {
         lines.push("  gap open: outcome not verified — keep working".into());
     }
