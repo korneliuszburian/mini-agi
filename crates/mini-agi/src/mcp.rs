@@ -482,7 +482,15 @@ fn handle_tools_call(params: &Value) -> Value {
         .unwrap_or_else(|| json!({}));
     let root = super::root();
     let text = call_tool(name, &args, &root);
-    json!({ "content": [{ "type": "text", "text": text }] })
+    // MCP hosts treat a tool failure as the `isError` flag in the
+    // RESULT (codex/claude surface it as an error). The kernel's error
+    // convention is a text starting "error: " — without the flag a
+    // failing call looks like a success-shaped result (EXP-015).
+    let is_error = text.starts_with("error:");
+    json!({
+        "isError": is_error,
+        "content": [{ "type": "text", "text": text }]
+    })
 }
 
 /// Dispatch the memory-family MCP tools (`memory_*`). Returns `None`
@@ -1505,6 +1513,29 @@ mod tests {
         let out = call_tool("no-such-tool", &serde_json::json!({}), &root);
         assert!(out.starts_with("error: unknown tool"), "{out}");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn unknown_tool_call_is_flagged_as_error_in_the_result() {
+        // EXP-015: MCP hosts treat a tool failure as the `isError` flag
+        // in the tools/call RESULT — a text-only "error:" string inside
+        // a success-shaped result is invisible to the client (the call
+        // looks like it succeeded). Every failing tool call must carry
+        // `isError: true` so codex/claude/any host surfaces the failure.
+        let mut initialized = true;
+        let params = json!({"name": "no-such-tool", "arguments": {}});
+        let msg = json!({"jsonrpc":"2.0","id":11,"method":"tools/call","params":params});
+        let resp = dispatch(&msg, &mut initialized).unwrap();
+        let result = resp.get("result").expect("result present");
+        assert!(
+            result
+                .get("isError")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            "unknown tool must be flagged isError, got {resp}"
+        );
+        let text = result["content"][0]["text"].as_str().unwrap_or("");
+        assert!(text.contains("unknown tool"), "{text}");
     }
 
     #[test]
