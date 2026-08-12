@@ -66,11 +66,33 @@ fn save_registry(root: &Path, entries: &[RegistryEntry]) -> std::io::Result<()> 
     std::fs::write(registry_path(root), format!("{json}\n"))
 }
 
+/// Before the registry is rewritten, a malformed existing file must be
+/// preserved aside — the registry is the dedup layer, and silent
+/// overwrite would destroy every recorded question (a duplicate
+/// research wave follows). The corrupt bytes survive as
+/// `registry.json.corrupt-<stamp>`; a missing or empty file is nothing
+/// to preserve.
+fn preserve_corrupt_registry(root: &Path) {
+    let path = registry_path(root);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    if text.trim().is_empty() || serde_json::from_str::<Vec<RegistryEntry>>(&text).is_ok() {
+        return;
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let backup = path.with_file_name(format!("registry.json.corrupt-{stamp}"));
+    let _ = std::fs::rename(&path, &backup);
+}
+
 /// Record a question as asked (upsert by slug; the row is re-worded to
 /// the latest question text and its status resets to `Asked`, while its
 /// `updated` date keeps the FIRST ask — freshness bumps happen at
 /// `advance_status`).
 pub fn record_asked(root: &Path, question: &str) -> std::io::Result<RegistryEntry> {
+    preserve_corrupt_registry(root);
     let slug = slugify(question);
     let mut entries = load_registry(root);
     let entry = match find_entry(&entries, &slug) {
@@ -100,6 +122,7 @@ pub fn record_asked(root: &Path, question: &str) -> std::io::Result<RegistryEntr
 /// Advance a question's lifecycle state (idempotent upsert; `updated`
 /// changes only when the status actually changes).
 pub fn advance_status(root: &Path, slug: &str, status: QuestionStatus) -> std::io::Result<()> {
+    preserve_corrupt_registry(root);
     let mut entries = load_registry(root);
     match find_entry(&entries, slug) {
         Some(existing) if existing.status == status => Ok(()),
@@ -247,6 +270,37 @@ mod tests {
         // A corrupt registry must not block a fresh ask (rewrite path).
         record_asked(&root, "What is Y?").unwrap();
         assert_eq!(load_registry(&root).len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn corrupt_registry_is_preserved_aside_never_destroyed() {
+        // The registry is the dedup layer: silently overwriting a
+        // malformed file destroys every recorded question (and the
+        // next ask spawns a duplicate research wave). Corruption must
+        // preserve the original aside, like install backups.
+        let root = tmpdir("corrupt-preserve");
+        std::fs::create_dir_all(root.join("research")).unwrap();
+        std::fs::write(root.join("research/registry.json"), "{not json!!").unwrap();
+        record_asked(&root, "What is Y?").unwrap();
+        // The registry is usable again (malformed = empty, never panic).
+        assert_eq!(load_registry(&root).len(), 1);
+        // ...but the corrupt original was preserved, not destroyed.
+        let preserved: Vec<_> = std::fs::read_dir(root.join("research"))
+            .unwrap()
+            .flatten()
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .contains("registry.json.corrupt-")
+            })
+            .collect();
+        assert!(
+            !preserved.is_empty(),
+            "corrupt registry must be preserved aside"
+        );
+        let kept = std::fs::read_to_string(preserved[0].path()).unwrap();
+        assert!(kept.contains("{not json!!"), "original corrupt bytes kept");
         let _ = std::fs::remove_dir_all(&root);
     }
 
