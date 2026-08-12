@@ -145,8 +145,19 @@ fn pattern_matches(pattern: &str, s: &str) -> bool {
             None => return false,
         }
     }
-    // Unanchored fallback: plain substring (PoC `re.search`).
-    s.contains(pattern)
+    // Anchors are honored for every pattern, not just the ticket fast
+    // path: a `^abc` schema must match "abc" but not "xabc" (a bare
+    // substring fallback silently rejected every document).
+    let anchored_start = pattern.starts_with('^');
+    let anchored_end = pattern.ends_with('$');
+    let core = pattern.trim_start_matches('^').trim_end_matches('$');
+    match s.find(core) {
+        Some(i) if anchored_start && anchored_end => i == 0 && i + core.len() == s.len(),
+        Some(i) if anchored_start => i == 0,
+        Some(i) if anchored_end => i + core.len() == s.len(),
+        Some(_) => true, // unanchored: substring (PoC `re.search`)
+        None => false,
+    }
 }
 
 /// Load a schema document from JSON text.
@@ -397,6 +408,35 @@ mod tests {
         });
         let err = err.unwrap_err();
         assert!(err.message.contains("enum"));
+    }
+
+    #[test]
+    fn pattern_supports_anchors_beyond_the_ticket_fast_path() {
+        // The module contract promises `^`/`$` anchor support; the
+        // fallback did a bare substring match, so an anchored pattern
+        // like "^abc" silently rejected the valid string "abc" (and
+        // "^abc$" rejected it too — a false negative on every document).
+        let schema = Schema::new(doc(r#"{"type":"string","pattern":"^abc"}"#));
+        assert!(
+            schema.validate(&doc(r#""abc""#)).is_none(),
+            "a start-anchored pattern must match at the start"
+        );
+        assert!(
+            schema.validate(&doc(r#""xabc""#)).is_some(),
+            "a start-anchored pattern must NOT match mid-string"
+        );
+        let anchored_both = Schema::new(doc(r#"{"type":"string","pattern":"^abc$"}"#));
+        assert!(
+            anchored_both.validate(&doc(r#""abc""#)).is_none(),
+            "a fully anchored pattern must match the whole string"
+        );
+        assert!(
+            anchored_both.validate(&doc(r#""abcx""#)).is_some(),
+            "a fully anchored pattern must reject trailing content"
+        );
+        // Unanchored stays a substring match (PoC re.search semantics).
+        let plain = Schema::new(doc(r#"{"type":"string","pattern":"bc"}"#));
+        assert!(plain.validate(&doc(r#""abcd""#)).is_none());
     }
 
     #[test]
