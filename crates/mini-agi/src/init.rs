@@ -255,7 +255,10 @@ pub fn init(root: &Path) -> Result<Vec<String>, io::Error> {
     }
 
     let claude_path = root.join("CLAUDE.md");
-    if !claude_path.exists() {
+    // symlink_metadata: a BROKEN CLAUDE.md symlink still "exists" — do
+    // not clobber it nor die on EEXIST trying to re-link (the same rule
+    // the files loop uses).
+    if fs::symlink_metadata(&claude_path).is_err() {
         std::os::unix::fs::symlink("AGENTS.md", &claude_path)?;
         created.push("CLAUDE.md".to_string());
     }
@@ -425,6 +428,45 @@ mod tests {
             "second init must not re-scaffold: {new_files:?}"
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn init_survives_a_broken_claude_symlink() {
+        // A broken CLAUDE.md symlink must not abort init: the files
+        // loop treats broken symlinks as existing-and-untouched
+        // (symlink_metadata), but the CLAUDE.md branch used exists() —
+        // which FOLLOWS the symlink, sees nothing, tries to symlink
+        // again and dies with EEXIST.
+        let root = tmpdir("broken-claude");
+        std::os::unix::fs::symlink("nonexistent-target", root.join("CLAUDE.md")).unwrap();
+        let created = init(&root).unwrap();
+        let meta = fs::symlink_metadata(root.join("CLAUDE.md")).unwrap();
+        assert!(
+            meta.file_type().is_symlink(),
+            "the broken symlink must not be clobbered"
+        );
+        assert!(
+            !created.iter().any(|e| e == "CLAUDE.md"),
+            "CLAUDE.md must not be listed as created: {created:?}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn codex_allowlist_covers_every_mcp_tool() {
+        // The initialized repo's codex config allowlists the server's
+        // tools by NAME — a tool added/renamed in mcp.rs without an
+        // allowlist update would silently lose it for codex sessions
+        // (or break the registration). The server's TOOLS list is the
+        // single source of truth; the allowlist must cover every one.
+        let cfg = codex_config(std::path::Path::new("/opt/mini-agi"));
+        for def in crate::mcp::TOOLS {
+            assert!(
+                cfg.contains(&format!("\"{}\",", def.name)),
+                "codex allowlist misses MCP tool '{}'",
+                def.name
+            );
+        }
     }
 
     #[test]

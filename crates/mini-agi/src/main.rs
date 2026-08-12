@@ -29,7 +29,7 @@ use mini_agi_core::skills;
 use mini_agi_core::ticket;
 
 mod init;
-mod mcp;
+pub mod mcp;
 
 /// Repository root: `AGENTIC_ROOT` env var, else current directory.
 fn root() -> PathBuf {
