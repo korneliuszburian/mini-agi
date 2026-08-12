@@ -111,15 +111,3 @@ impl Run {
         self.outcome.achieved
     }
 }
-
-/// Failure-mode classification used by the harness counterfactual gate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RepairSignal {
-    /// A gate/goal/revert failure on a step — a corrected retry helps.
-    Mechanical,
-    /// Clean steps but the outcome is unachieved — change approach.
-    Semantic,
-    /// The trajectory repeats the same (tool, action) — break the loop.
-    Spinning,
-}

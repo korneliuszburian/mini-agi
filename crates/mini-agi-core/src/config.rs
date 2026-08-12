@@ -17,8 +17,6 @@ pub struct Config {
     #[serde(default = "default_target_composite")]
     pub target_composite: f64,
     /// Regression-gate composite tolerance (default `eval::DEFAULT_TOLERANCE`).
-    #[serde(default = "default_regression_tolerance")]
-    pub regression_tolerance: f64,
     /// Worker hard caps (`None` = unlimited). Enforced in `worker.rs`
     /// around the codex/hitl worker (P0-1).
     #[serde(default)]
@@ -61,15 +59,10 @@ const fn default_target_composite() -> f64 {
     crate::loopcmd::TARGET_COMPOSITE
 }
 
-const fn default_regression_tolerance() -> f64 {
-    0.05
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
             target_composite: default_target_composite(),
-            regression_tolerance: default_regression_tolerance(),
             max_steps: None,
             max_cost_usd: None,
             max_tokens: None,
@@ -124,10 +117,7 @@ impl Config {
             }
         };
         set_f64("MINIAGI_TARGET_COMPOSITE", &mut self.target_composite);
-        set_f64(
-            "MINIAGI_REGRESSION_TOLERANCE",
-            &mut self.regression_tolerance,
-        );
+
         let set_usize = |name: &str, slot: &mut Option<usize>| {
             if let Some(raw) = get(name) {
                 match raw.parse::<usize>() {

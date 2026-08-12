@@ -466,10 +466,7 @@ fn cmd_loop(args: LoopArgs) -> ExitCode {
         LoopAction::Status => match mini_agi_core::loopcmd::status(&root) {
             Ok(s) => {
                 for r in s.cases {
-                    println!(
-                        "{} composite={:.2} attempts={} {:?}",
-                        r.case, r.composite, r.attempts, r.status
-                    );
+                    println!("{} attempts={} {:?}", r.case, r.attempts, r.status);
                 }
                 ExitCode::SUCCESS
             }

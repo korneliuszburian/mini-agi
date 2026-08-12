@@ -22,16 +22,12 @@ pub const TARGET_COMPOSITE: f64 = 0.5;
 pub struct LoopRow {
     /// Case dispatched.
     pub case: String,
-    /// 0.0 while open (measurement removed).
-    pub composite: f64,
     /// 1.0 when a rerun achieved, else None.
     pub rerun_composite: Option<f64>,
     /// Best achieved across original + reruns.
     pub best_composite: Option<f64>,
     /// Original run + rerun attempts.
     pub attempts: usize,
-    /// Failure classification (kept for API shape; None).
-    pub repair_signal: Option<crate::eval::RepairSignal>,
     /// Retry bound exceeded with no achieved rerun.
     pub exhausted: bool,
     /// Mapped ticket id.
@@ -47,8 +43,6 @@ pub struct LoopRow {
 pub struct LoopStatus {
     /// Rows below the target.
     pub cases: Vec<LoopRow>,
-    /// Kept for API shape.
-    pub composite_avg: f64,
     /// Case count.
     pub runs: usize,
 }
@@ -217,11 +211,9 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
         let max_reruns = crate::config::Config::load(root).max_rerun_attempts;
         rows.push(LoopRow {
             case: case.clone(),
-            composite: 0.0,
             rerun_composite: rerun_achieved.then_some(1.0),
             best_composite: Some(if rerun_achieved { 1.0 } else { 0.0 }),
             attempts,
-            repair_signal: None,
             exhausted: max_reruns.is_some_and(|m| attempts > m) && !rerun_achieved,
             ticket: ticket_id,
             status: status_,
@@ -231,7 +223,6 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
     rows.sort_by(|a, b| a.case.cmp(&b.case));
     Ok(LoopStatus {
         cases: rows,
-        composite_avg: 0.0,
         runs: case_dirs(&cases_dir).len(),
     })
 }
