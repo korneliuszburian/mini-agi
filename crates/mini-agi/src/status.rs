@@ -769,12 +769,17 @@ pub fn repository_status(root: &Path) -> RepositoryStatus {
                 .next()
                 .and_then(|line| line.strip_prefix("## "))
                 .map(|line| {
-                    line.split("...")
+                    // Unborn repo: "## No commits yet on master" — the
+                    // branch name follows the notice; the notice itself
+                    // is not a branch.
+                    let after = line.strip_prefix("No commits yet on ").unwrap_or(line);
+                    after
+                        .split("...")
                         .next()
-                        .unwrap_or(line)
+                        .unwrap_or(after)
                         .split_whitespace()
                         .next()
-                        .unwrap_or(line)
+                        .unwrap_or(after)
                         .to_string()
                 });
             let changed = lines.filter(|line| !line.trim().is_empty()).count();
@@ -1099,6 +1104,35 @@ mod tests {
         assert_eq!(
             v.state, "disagrees",
             "a fingerprint-bound disagreement is binding"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn repository_status_parses_the_unborn_branch_name() {
+        // "## No commits yet on master" — the unborn-branch form — used
+        // to parse as branch "No" (the first word of the notice). The
+        // actual branch name must survive.
+        let root = tmp_root("unborn");
+        let init = std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(&root)
+            .output();
+        if !init.is_ok_and(|o| o.status.success()) {
+            return; // no git in this environment: nothing to assert
+        }
+        let st = repository_status(&root);
+        assert!(
+            st.branch.as_deref().is_some_and(|b| b != "No"),
+            "the unborn branch must be its real name, got {:?}",
+            st.branch
+        );
+        assert!(
+            st.branch
+                .as_deref()
+                .is_some_and(|b| b == "master" || b == "main" || b == "trunk"),
+            "unborn branch is a plain name, got {:?}",
+            st.branch
         );
         let _ = std::fs::remove_dir_all(&root);
     }
