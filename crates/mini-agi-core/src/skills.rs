@@ -237,7 +237,9 @@ pub fn agents_dir(root: &Path) -> PathBuf {
 /// # Errors
 ///
 /// Returns [`SkillError::Io`] on filesystem failure or
-/// [`SkillError::Parse`] when a `SKILL.md` is malformed.
+/// [`SkillError::Parse`] when a `SKILL.md` is malformed or its
+/// frontmatter `name` does not match the directory name (the same
+/// contract [`install_skills`] enforces at install).
 pub fn discover_skills(root: &Path) -> Result<Vec<Skill>, SkillError> {
     let dir = agents_dir(root);
     let entries = fs::read_dir(&dir).map_err(SkillError::Io)?;
@@ -261,10 +263,19 @@ pub fn discover_skills(root: &Path) -> Result<Vec<Skill>, SkillError> {
         let content = fs::read_to_string(&skill_md).map_err(SkillError::Io)?;
         match parse_skill_md(&content) {
             Ok(mut skill) => {
-                if skill.name == entry.file_name().to_string_lossy() {
-                    skill.path = skill_md;
-                    skills.push(skill);
+                // The frontmatter name must match the directory name
+                // (same contract install_one enforces): a mismatched
+                // registration is malformed, not silently droppable —
+                // the registry gate must see the violation.
+                let dir_name = entry.file_name().to_string_lossy().into_owned();
+                if skill.name != dir_name {
+                    return Err(SkillError::Parse(format!(
+                        "name '{name}' does not match directory '{dir_name}'",
+                        name = skill.name
+                    )));
                 }
+                skill.path = skill_md;
+                skills.push(skill);
             }
             Err(e) => return Err(SkillError::Parse(format!("{}: {e}", dir_path.display()))),
         }
@@ -550,6 +561,11 @@ pub fn dual_registration_drift_with(root: &Path, global: &Path) -> DriftReport {
 /// reported in `no_hook` and FAILS the caller's gate (mode skills are
 /// exempt); version/lint/drift violations are also reported.
 ///
+/// DISABLED skills (P2-14) are QUARANTINED: they are skipped entirely.
+/// The disable is the gate's own remedy for a failing hook — re-running
+/// a disabled skill's hook (or linting it) would keep the gate red
+/// forever and the remedy could never clear it.
+///
 /// # Errors
 ///
 /// Returns when the skill registry cannot be discovered.
@@ -557,6 +573,9 @@ pub fn verify_all_skills(root: &Path) -> Result<VerifyAllReport, SkillError> {
     let registry = discover_skills(root)?;
     let mut report = VerifyAllReport::default();
     for skill in &registry {
+        if skill.disabled {
+            continue;
+        }
         if skill.version.is_none() || skill.source.is_none() {
             report.no_version.push(skill.name.clone());
         }
@@ -628,16 +647,28 @@ fn lint_skill(skill: &Skill) -> bool {
     let mut section_depth = 2usize;
     for line in content.lines() {
         let l = line.to_lowercase();
-        let is_heading = line.starts_with('#');
+        // A Markdown heading is a `#` run followed by whitespace or
+        // EOL — `#define` (code) is NOT one. The same rule drives the
+        // marker detection and the section-termination boundary.
+        let hash_count = line.bytes().take_while(|&c| c == b'#').count();
+        let is_heading = hash_count > 0
+            && (hash_count == line.len() || line.as_bytes()[hash_count].is_ascii_whitespace());
         if is_heading && (l.contains("done when") || l.contains("completion criteria")) {
             in_criteria = true;
-            section_depth = line.chars().take_while(|&c| c == '#').count().max(1);
+            section_depth = hash_count.max(1);
             continue;
         }
         if in_criteria {
-            let hash_count = line.chars().take_while(|&c| c == '#').count();
-            if hash_count >= section_depth {
-                break;
+            // Only a HEADING line can terminate the section — a plain
+            // content line has hash_count 0 and must never break it.
+            if is_heading {
+                // The section stops at the next SAME-OR-HIGHER heading
+                // (depth <= section_depth). A DEEPER heading (### under
+                // ##) is still part of the section — the doc contract
+                // above says "same-or-higher", not "same-or-deeper".
+                if hash_count <= section_depth {
+                    break;
+                }
             }
             if l.trim_start().starts_with("- [ ]") {
                 has_checkbox = true;
@@ -685,20 +716,33 @@ pub fn set_disabled(root: &Path, name: &str, disabled: bool) -> Result<(), Skill
     let skill = find_skill(root, name)?;
     let text = fs::read_to_string(&skill.path).map_err(SkillError::Io)?;
     let marker = "disabled: true";
+    // Strip every existing `disabled:` line first — on BOTH paths. The
+    // disable path must not leave a stale `disabled: false` later in
+    // the frontmatter (the parse takes the LAST duplicate key, so an
+    // insert-at-top `disabled: true` would silently lose). The line
+    // filter joins without a trailing newline; restore it so enable/
+    // disable round-trips byte-stably.
+    let stripped = text
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("disabled:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let stripped = if text.ends_with('\n') && !stripped.ends_with('\n') {
+        format!("{stripped}\n")
+    } else {
+        stripped
+    };
     let updated = if disabled {
         // Insert the marker right after the frontmatter opening line.
-        let insert_at = text
+        let insert_at = stripped
             .find("---\n")
             .map(|i| i + "---\n".len())
             .ok_or_else(|| SkillError::Parse("no frontmatter".into()))?;
-        let mut t = text;
+        let mut t = stripped;
         t.insert_str(insert_at, &format!("{marker}\n"));
         t
     } else {
-        text.lines()
-            .filter(|l| !l.trim_start().starts_with("disabled:"))
-            .collect::<Vec<_>>()
-            .join("\n")
+        stripped
     };
     fs::write(&skill.path, updated).map_err(SkillError::Io)?;
     Ok(())
@@ -1220,6 +1264,169 @@ description: >
             !lint_skill(&skill),
             "an H1 anchor under a later H1 must not count"
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn lint_does_not_treat_hash_code_lines_as_headings() {
+        // `#define` (code, no space after the #) is NOT a markdown
+        // heading: it must neither terminate the criteria section nor
+        // move the boundary. Real skills embed code snippets inside the
+        // criteria section.
+        let root = tempfile_dir("lint-hashcode");
+        let sk = root.join(".agents/skills/x");
+        fs::create_dir_all(&sk).unwrap();
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: x\ndescription: d\nversion: 1.0.0\nsource: s\n---\n## Completion criteria\n- [ ] snippet:\n      #define FOO 1\n- [ ] verified at the closed path\n",
+        )
+        .unwrap();
+        let skill = find_skill(&root, "x").unwrap();
+        assert!(
+            lint_skill(&skill),
+            "#define inside the section must not stop the criteria scan"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn lint_keeps_deeper_subheadings_inside_the_criteria_section() {
+        // The lint contract: the criteria section runs from the
+        // "Done when"/"Completion criteria" heading DOWN, stopping at
+        // the next SAME-OR-HIGHER heading. A DEEPER heading (### under
+        // ##) is still inside the section — anchors under it count.
+        let root = tempfile_dir("lint-sub");
+        let sk = root.join(".agents/skills/x");
+        fs::create_dir_all(&sk).unwrap();
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: x\ndescription: d\nversion: 1.0.0\nsource: s\n---\n## Completion criteria\n- [ ] top-level task\n### Sub-step\n- [ ] subtask, artifact recorded at the closed path\n",
+        )
+        .unwrap();
+        let skill = find_skill(&root, "x").unwrap();
+        assert!(
+            lint_skill(&skill),
+            "a deeper sub-heading must NOT terminate the criteria section"
+        );
+        // And a same-or-higher heading still does (### then ##).
+        fs::write(
+            sk.join("SKILL.md"),
+            "---\nname: x\ndescription: d\nversion: 1.0.0\nsource: s\n---\n### Completion criteria\n- [ ] self report\n## Later section\nsee the path here\n",
+        )
+        .unwrap();
+        let skill = find_skill(&root, "x").unwrap();
+        assert!(
+            !lint_skill(&skill),
+            "a same-depth heading after the section must stop it"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn set_disabled_re_disable_with_explicit_false_works() {
+        // A skill that already carries `disabled: false` must still be
+        // disableable: the disable path inserts `disabled: true` at the
+        // TOP of the frontmatter, but the parse takes the LAST duplicate
+        // key — a stale `disabled: false` later would win and the skill
+        // would silently stay enabled.
+        let dir = tempfile_dir("re-disable");
+        let skill_dir = dir.join(".agents/skills/volatile");
+        fs::create_dir_all(&skill_dir).unwrap();
+        let path = skill_dir.join("SKILL.md");
+        fs::write(
+            &path,
+            "---\ndisabled: false\nname: volatile\ndescription: fickle\n---\n# V\n",
+        )
+        .unwrap();
+        set_disabled(&dir, "volatile", true).unwrap();
+        let after = parse_skill_md(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(after.disabled, "re-disable must win over the stale false");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn set_disabled_enable_preserves_trailing_newline() {
+        // Enabling must not corrupt the file shape: the line-filter +
+        // join drops the final newline, which would break byte
+        // round-tripping (disable -> enable -> disable).
+        let dir = tempfile_dir("enable-newline");
+        let skill_dir = dir.join(".agents/skills/toggle");
+        fs::create_dir_all(&skill_dir).unwrap();
+        let path = skill_dir.join("SKILL.md");
+        fs::write(
+            &path,
+            "---\ndisabled: true\nname: toggle\ndescription: t\n---\n# T\n",
+        )
+        .unwrap();
+        set_disabled(&dir, "toggle", false).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(
+            text.ends_with('\n'),
+            "enable must preserve the trailing newline, got: {text:?}"
+        );
+        // Re-disable still parses as disabled (no duplicate-key hazard).
+        set_disabled(&dir, "toggle", true).unwrap();
+        let re = parse_skill_md(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(re.disabled);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn discover_skills_rejects_name_mismatched_skill() {
+        // install_one REJECTS a frontmatter name that differs from the
+        // directory name ("name must match the directory name, otherwise
+        // installation fails"). Discover must not silently DROP such a
+        // skill: the registry gate (verify_all_skills) would never see
+        // it, and a contract-violating skill would pass unnoticed.
+        let root = tempfile_dir("discover-mismatch");
+        fs::create_dir_all(root.join(".agents/skills/mismatch")).unwrap();
+        fs::write(
+            root.join(".agents/skills/mismatch/SKILL.md"),
+            "---\nname: other-name\ndescription: d\n---\n# M\n",
+        )
+        .unwrap();
+        let err = discover_skills(&root).unwrap_err();
+        assert!(
+            matches!(err, SkillError::Parse(_)),
+            "a name-mismatched SKILL.md must be a parse error, got {err:?}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_all_skips_disabled_skills() {
+        // P2-14: a failing hook marks the skill disabled — the gate's
+        // own remedy. Re-running the disabled skill's hook in
+        // verify-all would keep the gate red FOREVER (the sanctioned
+        // remedy could never clear it). A disabled skill is
+        // quarantined from the gate report entirely: no hook run, no
+        // no_hook, no lint verdict.
+        let root = tempfile_dir("va-disabled");
+        // Disabled skill with a FAILING hook: must not be re-run.
+        fs::create_dir_all(root.join(".agents/skills/broken")).unwrap();
+        fs::write(
+            root.join(".agents/skills/broken/SKILL.md"),
+            "---\nname: broken\ndescription: b\nversion: 1.0.0\nsource: s\ndisabled: true\nverify: exit 1\n---\n## Done when\n- [ ] something at the closed path\n",
+        )
+        .unwrap();
+        // Disabled procedural skill with NO hook: must not fail no_hook.
+        fs::create_dir_all(root.join(".agents/skills/dormant")).unwrap();
+        fs::write(
+            root.join(".agents/skills/dormant/SKILL.md"),
+            "---\nname: dormant\ndescription: d\nversion: 1.0.0\nsource: s\ndisabled: true\n---\n## Done when\n- [ ] something at the closed path\n",
+        )
+        .unwrap();
+        let report = verify_all_skills(&root).unwrap();
+        assert!(
+            report.failed.iter().all(|(n, _)| n != "broken"),
+            "a disabled skill's hook must not run: {:?}",
+            report.failed
+        );
+        assert!(
+            !report.no_hook.iter().any(|n| n == "dormant"),
+            "a disabled hook-less skill must not fail no_hook"
+        );
+        assert!(!report.passed.iter().any(|n| n == "broken"));
         let _ = fs::remove_dir_all(&root);
     }
 
