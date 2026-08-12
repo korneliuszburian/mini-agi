@@ -429,6 +429,23 @@ pub struct BacklogTicket {
     pub created: bool,
 }
 
+/// Does a ticket's goal/title reference `case` as a BOUNDED token? The
+/// gap "foo" must not dedup onto a ticket for "foobar" via raw substring
+/// (the boundary class fixed in `loopcmd`'s `id_matches_case`).
+fn goal_mentions_case(text: &str, case: &str) -> bool {
+    text.match_indices(case).any(|(pos, _)| {
+        let before_ok = text[..pos]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric());
+        let after_ok = text[pos + case.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !c.is_alphanumeric());
+        before_ok && after_ok
+    })
+}
+
 /// Turn capability gaps into tickets — the Sequoia failure-signal loop:
 /// a failing run IS a roadmap item. Idempotent: a gap already referenced
 /// by an existing ticket is skipped.
@@ -454,7 +471,7 @@ pub fn backlog(root: &Path) -> Result<Vec<BacklogTicket>, io::Error> {
         let case = gap.split(" (composite").next().unwrap_or(gap).to_string();
         let existing_match = existing
             .iter()
-            .find(|t| t.goal.contains(&case) || t.title.contains(&case));
+            .find(|t| goal_mentions_case(&t.goal, &case) || goal_mentions_case(&t.title, &case));
         if let Some(matched) = existing_match {
             created.push(BacklogTicket {
                 id: matched.id.clone(),
@@ -608,6 +625,36 @@ mod backlog_tests {
         );
         let text = fs::read_to_string(root.join("tickets/TICKET-1.md")).unwrap();
         assert!(text.contains("reactive-loop"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn backlog_dedup_requires_a_real_case_match() {
+        // A ticket for "foobar" must not swallow the "foo" gap via raw
+        // substring — the dedup needs a bounded-token match (the same
+        // boundary class fixed in loopcmd's id_matches_case).
+        let root = tmp_root("prefix");
+        fs::write(
+            root.join("tickets/TICKET-3.md"),
+            "- id: TICKET-3\n- title: Fix capability gap: foobar scores below gate\n- goal: Bring foobar composite above the gate tolerance by fixing the failing run.\n- scope: evals/cases\n- domain: eval\n",
+        )
+        .unwrap();
+        let dir = root.join("evals/cases/foo");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("run.json"),
+            r#"{"goal":"foo","scope":["x"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.0,"golden":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        let created = backlog(&root).unwrap();
+        assert!(
+            created.iter().any(|t| t.created && t.case == "foo"),
+            "the foo gap must get its OWN ticket, got {created:?}"
+        );
+        assert!(
+            !created.iter().any(|t| !t.created && t.case == "foo"),
+            "foo must not dedup onto the foobar ticket: {created:?}"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
