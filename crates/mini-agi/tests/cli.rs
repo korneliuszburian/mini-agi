@@ -750,16 +750,45 @@ fn cli_mcp_handshake_and_tool_call() {
     drop(stdin);
     let out = child.wait_with_output().unwrap();
     assert!(out.status.success());
-    let text = String::from_utf8_lossy(&out.stdout).into_owned();
-    let mut frames = Vec::new();
-    for part in text.split("Content-Length: ").skip(1) {
-        let Some((len, body)) = part.split_once("\r\n\r\n") else {
-            continue;
-        };
-        let n: usize = len.trim().parse().unwrap();
-        frames.push(serde_json::from_slice::<serde_json::Value>(&body.as_bytes()[..n]).unwrap());
+    let bytes = out.stdout;
+    // The server MIRRORS the client's framing (EXP-016): the
+    // Content-Length initialize gets a CL response; the newline
+    // tools/list + tools/call get newline responses. Parse the stream
+    // byte-wise: a "Content-Length: N" line starts a length-framed
+    // frame; any other line starting '{' is a newline-delimited JSON
+    // response.
+    let mut responses: std::collections::BTreeMap<u64, serde_json::Value> =
+        std::collections::BTreeMap::new();
+    let mut pos = 0usize;
+    while pos < bytes.len() {
+        let line_end = bytes[pos..]
+            .iter()
+            .position(|&b| b == b'\n')
+            .map_or(bytes.len() - pos, |i| i);
+        let line = &bytes[pos..pos + line_end];
+        pos += line_end + 1; // skip the newline
+        let trimmed = String::from_utf8_lossy(line).trim().to_string();
+        if let Some(len_str) = trimmed.strip_prefix("Content-Length:") {
+            let n: usize = len_str.trim().parse().unwrap();
+            // Skip the blank separator line ("\r\n" after the header).
+            if bytes[pos..].starts_with(b"\r\n") {
+                pos += 2;
+            }
+            let body = &bytes[pos..pos + n];
+            pos += n;
+            let v: serde_json::Value = serde_json::from_slice(body).unwrap();
+            if let Some(id) = v["id"].as_u64() {
+                responses.insert(id, v);
+            }
+        } else if trimmed.starts_with('{') {
+            let v: serde_json::Value = serde_json::from_str(&trimmed).unwrap();
+            if let Some(id) = v["id"].as_u64() {
+                responses.insert(id, v);
+            }
+        }
     }
-    assert_eq!(frames.len(), 3);
+    assert_eq!(responses.len(), 3);
+    let frames: Vec<&serde_json::Value> = responses.values().collect();
     assert_eq!(frames[0]["result"]["serverInfo"]["name"], "mini-agi");
     let tools = frames[1]["result"]["tools"].as_array().unwrap();
     assert!(tools.iter().any(|t| t["name"] == "stats"));

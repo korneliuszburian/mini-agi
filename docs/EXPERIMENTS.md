@@ -638,3 +638,56 @@ pre-registered BEFORE execution:
   5's "patterns portable beyond Codex" is satisfied by the standard
   contract + import-shim docs, with the exec-mode caveat recorded.
 
+## EXP-016 — portability Part C: a SECOND agent consumes the brain (PRE-REGISTERED 2026-08-12)
+
+Charter criterion 5's remaining claim: the patterns work under an agent
+that is NOT codex. Two other agents are installed: opencode 1.18.11
+(the repo's own opencode.json registers the kernel as an MCP server) and
+Claude Code 2.1.179 (the repo's CLAUDE.md import-shim). Protocol
+pre-registered BEFORE execution:
+
+- C-1 (opencode as worker): `opencode run` in this repo with the prompt:
+  "Use the mini-agi MCP server from opencode.json: call memory_query
+  (keyword: charter) and report the 16-hex fact ids verbatim; if no MCP
+  tools are available, say NO-TOOLS." Assertion: the transcript contains
+  at least one REAL 16-hex id that exists in canonical. Prerequisite:
+  `target/release/mini-agi` rebuilt (the registration points at it; the
+  committed binary was stale, predating the EXP-015 fixes).
+- C-2 (Claude Code): `claude -p` in this repo, prompt: "Read CLAUDE.md
+  and say what brain this repo runs on; then say whether you have any
+  MCP tools configured (list their names) or NO-TOOLS." Assertion: the
+  import-shim (CLAUDE.md symlink) loads; the MCP answer is recorded as
+  a finding either way (no .mcp.json is expected — the scaffold only
+  wires codex + opencode today).
+- Falsifier: any broken piece of the scaffold (registration that cannot
+  start the server, missing config surface for an installed agent) is a
+  real gap -> fixed with a red-first test.
+
+### Result (2026-08-12)
+
+- **C-1: PASS — opencode (a second agent) consumed the brain through
+  its own registration.** `opencode run` called `mini-agi_memory_query
+  {keyword: charter}` and returned the REAL canonical fact id
+  `b4ee49de2637dd9e` (verified: `## F-012` in
+  memory/canonical/entries/2026-08-08/2026-08-08-001.md).
+- **DEFECT FOUND and FIXED along the way**: opencode's client sends
+  newline-delimited JSON and reads the same; the server always answered
+  Content-Length-framed, so opencode stalled at initialize (30s
+  timeout, "server unavailable"). The control (server-everything)
+  passed, isolating the defect to our server. Fix: the server now
+  MIRRORS the client's framing per request (Content-Length in ->
+  Content-Length out; newline in -> newline out). Unit test locks the
+  mirror contract; the CLI handshake test parses the mixed-framing
+  stream byte-wise. Wire test (EXP-015) still ALL GREEN on the release
+  binary.
+- **C-2: BLOCKED (environment)** — `claude -p` refused with HTTP 429
+  (insufficient balance on the account), so Claude Code could not run.
+  The import-shim is verified at the filesystem level (`CLAUDE.md ->
+  AGENTS.md` symlink present; the agent would load it on a funded
+  account). A .mcp.json scaffold for Claude Code remains open backlog
+  (the init currently wires codex + opencode).
+- **Verdict**: charter criterion 5 is now demonstrated with TWO agents
+  (codex interactive + opencode) consuming the same brain through
+  standard registrations; the framing-mirror fix makes the server
+  robust to both wire styles.
+

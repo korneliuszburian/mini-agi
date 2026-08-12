@@ -29,9 +29,9 @@ pub fn run_stdio_server() -> Result<(), io::Error> {
     let stdout = io::stdout();
     let mut output = stdout.lock();
     let mut initialized = false;
-    while let Some(message) = read_frame(&mut input)? {
+    while let Some((message, framing)) = read_frame(&mut input)? {
         if let Some(payload) = dispatch(&message, &mut initialized) {
-            write_frame(&mut output, &payload)?;
+            write_frame(&mut output, &payload, framing)?;
         }
     }
     Ok(())
@@ -41,8 +41,20 @@ pub fn run_stdio_server() -> Result<(), io::Error> {
 /// attacker-controlled `Content-Length`; MCP frames are tiny).
 const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
-/// Read one `Content-Length` framed JSON message; `None` on clean EOF.
-fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<Value>, io::Error> {
+/// The framing a request arrived in — the response mirrors it (EXP-016:
+/// opencode sends newline-delimited JSON and reads the same; a
+/// Content-Length-only responder stalls its client at initialize).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Framing {
+    /// HTTP-style `Content-Length: N` headers.
+    ContentLength,
+    /// One JSON message per line.
+    Newline,
+}
+
+/// Read one framed JSON message; `None` on clean EOF. Returns the
+/// framing the client used so the response can mirror it.
+fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io::Error> {
     let mut first = String::new();
     if input.read_line(&mut first)? == 0 {
         return Ok(None); // EOF before any frame
@@ -75,11 +87,11 @@ fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<Value>, io::Error> {
         let mut body = vec![0u8; length];
         input.read_exact(&mut body)?;
         serde_json::from_slice(&body)
-            .map(Some)
+            .map(|v| Some((v, Framing::ContentLength)))
             .map_err(io::Error::other)
     } else if first.starts_with('{') || first.starts_with('[') {
         serde_json::from_str(first)
-            .map(Some)
+            .map(|v| Some((v, Framing::Newline)))
             .map_err(io::Error::other)
     } else {
         Err(io::Error::new(
@@ -89,11 +101,23 @@ fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<Value>, io::Error> {
     }
 }
 
-/// Write one framed JSON message.
-fn write_frame<W: Write>(output: &mut W, payload: &Value) -> Result<(), io::Error> {
+/// Write one JSON message, mirroring the client's framing.
+fn write_frame<W: Write>(
+    output: &mut W,
+    payload: &Value,
+    framing: Framing,
+) -> Result<(), io::Error> {
     let body = serde_json::to_vec(payload).map_err(io::Error::other)?;
-    write!(output, "Content-Length: {}\r\n\r\n", body.len())?;
-    output.write_all(&body)?;
+    match framing {
+        Framing::ContentLength => {
+            write!(output, "Content-Length: {}\r\n\r\n", body.len())?;
+            output.write_all(&body)?;
+        }
+        Framing::Newline => {
+            output.write_all(&body)?;
+            output.write_all(b"\n")?;
+        }
+    }
     output.flush()
 }
 
@@ -1517,6 +1541,44 @@ mod tests {
         let out = call_tool("no-such-tool", &serde_json::json!({}), &root);
         assert!(out.starts_with("error: unknown tool"), "{out}");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn responses_mirror_the_request_framing() {
+        // EXP-016: opencode sends newline-delimited JSON and reads the
+        // same; a Content-Length-only responder stalled its client at
+        // initialize (30s timeout, "server unavailable"). The server
+        // must mirror the client's framing in both directions.
+        let newline_req = br#"{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}"#;
+        let mut input = std::io::Cursor::new(newline_req.to_vec());
+        let (msg, framing) = read_frame(&mut input).unwrap().expect("newline frame");
+        assert_eq!(framing, Framing::Newline);
+        let mut out = Vec::new();
+        write_frame(&mut out, &msg, framing).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(
+            text.starts_with('{') && !text.contains("Content-Length"),
+            "newline request -> newline response, got {text:?}"
+        );
+        // The framed response must round-trip through the reader.
+        let mut roundtrip = std::io::Cursor::new(text.into_bytes());
+        let (back, _) = read_frame(&mut roundtrip).unwrap().expect("round-trip");
+        assert_eq!(back["id"], 1);
+
+        // Content-Length clients still get Content-Length responses.
+        let body = br#"{"jsonrpc":"2.0","id":2,"method":"ping","params":{}}"#;
+        let mut cl_req = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
+        cl_req.extend_from_slice(body);
+        let mut input2 = std::io::Cursor::new(cl_req);
+        let (_, framing2) = read_frame(&mut input2).unwrap().expect("CL frame");
+        assert_eq!(framing2, Framing::ContentLength);
+        let mut out2 = Vec::new();
+        write_frame(&mut out2, &msg, framing2).unwrap();
+        let text2 = String::from_utf8(out2).unwrap();
+        assert!(
+            text2.starts_with("Content-Length:"),
+            "CL request -> CL response, got {text2:?}"
+        );
     }
 
     #[test]
