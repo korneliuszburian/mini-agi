@@ -3106,10 +3106,14 @@ fn cli_loop_dispatch_no_case_stops_cleanly() {
     );
     assert!(rel.status.success(), "{}", combined(&rel));
     let out3 = run(&root, &["loop", "dispatch", "--claimant", "t"]);
-    assert_eq!(out3.status.code(), Some(1), "{}", combined(&out3));
+    // A blocked case is not dispatchable work — like a leased one it is
+    // a clean STOP (exit 0), not a broken dispatch (exit 1): the no-work
+    // signal must surface the blocked classification, or the loop
+    // consumer would keep retrying a case that can never dispatch.
+    assert_eq!(out3.status.code(), Some(0), "{}", combined(&out3));
     assert!(
-        combined(&out3).contains("blocked by TICKET-0"),
-        "blocked case must be refused: {}",
+        combined(&out3).contains("blocked"),
+        "blocked case is a stop, not an error: {}",
         combined(&out3)
     );
     wipe(&root);

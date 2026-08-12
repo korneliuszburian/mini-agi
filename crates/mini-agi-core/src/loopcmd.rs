@@ -73,8 +73,11 @@ pub fn ticket_for_case(root: &Path, case: &str) -> Option<Ticket> {
         })
 }
 
-/// Id-to-case match with a digit boundary: `ticket-001` must not match a
-/// case containing `ticket-0012`.
+/// Id-to-case match with a boundary at BOTH ends: `ticket-001` must not
+/// match a case containing `ticket-0012` (tail digit boundary) and the
+/// id token must not be glued onto a word (`footicket-001` — head
+/// boundary); `real-ticket-001-v2` is a legit match (prefix separated by
+/// `-`).
 fn id_matches_case(id: &str, case_lower: &str) -> bool {
     let id_lower = id.to_lowercase();
     let Some(rest) = id_lower.strip_prefix("ticket-") else {
@@ -82,10 +85,15 @@ fn id_matches_case(id: &str, case_lower: &str) -> bool {
     };
     let needle = format!("ticket-{rest}");
     case_lower.match_indices(&needle).any(|(pos, _)| {
-        case_lower[pos + needle.len()..]
+        let head_ok = case_lower[..pos]
             .chars()
-            .next()
-            .is_none_or(|c| !c.is_ascii_digit())
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric());
+        head_ok
+            && case_lower[pos + needle.len()..]
+                .chars()
+                .next()
+                .is_none_or(|c| !c.is_ascii_digit())
     })
 }
 
@@ -333,7 +341,9 @@ fn is_rerun_attempt_dir(name: &str, case: &str) -> bool {
 }
 
 /// The dispatch target: the lowest-composite case below `below` that has
-/// no CLOSED ticket and no active claim (lease semantics, ADR-0008).
+/// no CLOSED ticket, no active claim (lease semantics, ADR-0008) and is
+/// not blocked by an open dependency (ADR-0008 work graph — same rule
+/// `objective` enforces).
 fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, String> {
     if let Some(case) = case {
         let run = root.join("evals/cases").join(case).join("run.json");
@@ -345,6 +355,14 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
         {
             return Err(format!(
                 "case '{case}' is already closed by ticket {}",
+                ticket.id
+            ));
+        }
+        if let Some(ticket) = ticket_for_case(root, case)
+            && ticket_is_blocked_by_open(root, &ticket)
+        {
+            return Err(format!(
+                "case '{case}' is blocked by open ticket {}",
                 ticket.id
             ));
         }
@@ -414,7 +432,10 @@ fn pick_target(root: &Path, case: Option<&str>, below: f64) -> Result<String, St
         let Some(ticket) = ticket_for_case(root, &candidate.case) else {
             return Ok(candidate.case.clone());
         };
-        if ticket.status == "CLOSED" || claimant_for(root, &ticket.id).is_some() {
+        if ticket.status == "CLOSED"
+            || claimant_for(root, &ticket.id).is_some()
+            || ticket_is_blocked_by_open(root, &ticket)
+        {
             continue;
         }
         return Ok(candidate.case.clone());
@@ -456,7 +477,9 @@ pub fn dispatch_no_work(root: &Path, below: f64) -> Option<String> {
         } else if cfg.max_rerun_attempts.is_some_and(|limit| attempts > limit) {
             exhausted += 1;
         } else if let Some(ticket) = ticket_for_case(root, &c.case)
-            && (ticket.status == "CLOSED" || claimant_for(root, &ticket.id).is_some())
+            && (ticket.status == "CLOSED"
+                || claimant_for(root, &ticket.id).is_some()
+                || ticket_is_blocked_by_open(root, &ticket))
         {
             leased += 1;
         }
@@ -473,7 +496,7 @@ pub fn dispatch_no_work(root: &Path, below: f64) -> Option<String> {
         parts.push(format!("{exhausted} past the retry bound (need a human)"));
     }
     if leased > 0 {
-        parts.push(format!("{leased} leased/claimed"));
+        parts.push(format!("{leased} leased/claimed/blocked"));
     }
     Some(format!(
         "{} case(s) below target, none dispatchable — {}; STOP, or review with `loop status` / `backlog --knowledge`",
@@ -1896,6 +1919,66 @@ mod tests {
             picked, "b-mech-case",
             "repair-aware dispatch must prefer the mechanical case over semantic"
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn pick_target_skips_case_blocked_by_open_ticket() {
+        // ADR-0008 work graph: a case whose ticket depends on an OPEN
+        // ticket is blocked — objective() honors it (skipped_blocked),
+        // but pick_target must not dispatch it either: the two dispatch
+        // paths must agree on the work graph.
+        let root = tmp_case_root("pick-blocked");
+        // Only the blocked case may be dispatchable: close the fixture
+        // case so it is not a candidate (mirrors pick_target_reports_
+        // nothing_left_when_all_closed).
+        let run_path = root.join("evals/cases/real-ticket-008-v2/run.json");
+        let mut run: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&run_path).unwrap()).unwrap();
+        run["outcome"]["achieved"] = serde_json::json!(true);
+        fs::write(&run_path, serde_json::to_string_pretty(&run).unwrap()).unwrap();
+        // A low case mapped to a ticket that depends on the OPEN
+        // TICKET-008-v2.
+        let blocked = root.join("evals/cases/blocked-case");
+        fs::create_dir_all(&blocked).unwrap();
+        fs::write(
+            blocked.join("run.json"),
+            r#"{"goal":"blocked-case","scope":["x"],"outcome":{"achieved":false},"tokens_total":1,"cost_usd":0.01,"golden":null,"trajectory":[{"step":1,"tool":"read","ok":true,"goal_aligned":true,"tokens":1,"output_tokens":1}]}"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("tickets/TICKET-100.md"),
+            "- id: TICKET-100\n- title: blocked-case gap\n- goal: fix blocked-case\n- scope: evals/cases\n- blocked_by: TICKET-008-v2\n",
+        )
+        .unwrap();
+        let target = crate::config::Config::target_composite_for(&root);
+        let err = pick_target(&root, None, target)
+            .expect_err("a case blocked by an open ticket must not be dispatched");
+        assert!(
+            err.contains("no case below the target is dispatchable"),
+            "{err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ticket_for_case_requires_head_boundary_on_id_match() {
+        // "real-ticket-008-v2" maps to TICKET-008-v2 (doc example: the
+        // id token separated from the case prefix by '-'), but a case
+        // that merely CONTAINS the id glued onto another word
+        // ("footicket-008-v2") must NOT map — the head needs the same
+        // boundary the tail has. Without it, a wrong case claims the
+        // real ticket and blocks its dispatch.
+        let root = tmp_case_root("head-boundary");
+        let glued = ticket_for_case(&root, "footicket-008-v2");
+        assert!(
+            glued.is_none(),
+            "id glued to a word must not match: {glued:?}"
+        );
+        let separated = ticket_for_case(&root, "real-ticket-008-v2");
+        assert_eq!(separated.map(|t| t.id), Some("TICKET-008-v2".to_string()));
+        let bare = ticket_for_case(&root, "ticket-008-v2");
+        assert_eq!(bare.map(|t| t.id), Some("TICKET-008-v2".to_string()));
         let _ = fs::remove_dir_all(&root);
     }
 }
