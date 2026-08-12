@@ -77,14 +77,21 @@ fn audit_memory_load(root: &Path, report: &mut AuditReport) {
 
 /// Action-log validation (production-readiness D.1): an append-only,
 /// timestamped, principal + content-hash record of every kernel action.
-/// Rows are validated for shape; a malformed line is a finding (tampering
-/// or a bug must not go silent).
+/// Rows are validated for shape AND content-hash integrity (the hash is
+/// recomputed from the row's fields — a tampered row whose detail was
+/// changed must not pass on a plausible hash alone); a malformed or
+/// inconsistent line is a finding (tampering or a bug must not go
+/// silent).
 fn audit_action_log(root: &Path, report: &mut AuditReport) {
     let actions_path = root.join(ACTIONS_LOG_REL);
     match fs::read_to_string(&actions_path) {
         Ok(text) => {
             let rows: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
             let malformed = rows.iter().filter(|l| !is_valid_action_row(l)).count();
+            let tampered = rows
+                .iter()
+                .filter(|l| is_valid_action_row(l) && !verify_action_row_hash(l))
+                .count();
             report.passed.push(format!(
                 "action log: {} action(s) recorded ({} malformed)",
                 rows.len(),
@@ -95,6 +102,15 @@ fn audit_action_log(root: &Path, report: &mut AuditReport) {
                     severity: "warn".into(),
                     message: format!(
                         "{malformed} malformed action-log row(s) in {ACTIONS_LOG_REL}"
+                    ),
+                });
+            }
+            if tampered > 0 {
+                report.findings.push(Finding {
+                    severity: "fail".into(),
+                    message: format!(
+                        "{tampered} action-log row(s) FAIL content-hash verification — the \
+                         log was tampered (detail changed after append) in {ACTIONS_LOG_REL}"
                     ),
                 });
             }
@@ -531,6 +547,25 @@ fn is_valid_action_row(row: &str) -> bool {
         && detail.is_some_and(|d| !d.is_empty())
 }
 
+/// Recompute a row's content hash from its own fields
+/// (`stamp|action|principal|detail`) and compare with the recorded one.
+/// The detail is everything after the hash — the row may contain spaces.
+fn verify_action_row_hash(row: &str) -> bool {
+    let mut fields = row.splitn(5, char::is_whitespace);
+    let (Some(stamp), Some(principal), Some(action), Some(hash), Some(detail)) = (
+        fields.next(),
+        fields.next(),
+        fields.next(),
+        fields.next(),
+        fields.next(),
+    ) else {
+        return false;
+    };
+    hash.len() == 16
+        && hash.chars().all(|c| c.is_ascii_hexdigit())
+        && crate::hash::source_sha256(&format!("{stamp}|{action}|{principal}|{detail}")) == hash
+}
+
 fn walk_md(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
     let Ok(entries) = fs::read_dir(dir) else {
@@ -864,6 +899,47 @@ mod judge_drift_trigger_tests {
             "the calibration trigger note must be appended"
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn tampered_action_row_is_detected_by_hash() {
+        // The action log is an append-only tamper-evident trail (the
+        // row's content hash binds it to its inputs). Shape-only
+        // validation let a tampered row (detail changed, any plausible
+        // 16-hex hash) through silently — the doc says tampering must
+        // not go silent. The hash must be recomputed and mismatches
+        // flagged.
+        let root = tmp_root("tamper");
+        let log = root.join(ACTIONS_LOG_REL);
+        std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+        append_action(&root, "mem-consolidate", "alice", "wrote 3 facts").unwrap();
+        // Tamper the detail, keep the shape (still a 16-hex hash).
+        let tampered = std::fs::read_to_string(&log)
+            .unwrap()
+            .replace("wrote 3 facts", "wrote 3000 facts");
+        std::fs::write(&log, tampered).unwrap();
+        let mut report = AuditReport::default();
+        audit_action_log(&root, &mut report);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.message.contains("hash") || f.message.contains("tamper")),
+            "a tampered row must not go silent: {:?}",
+            report.findings
+        );
+        // An UNtampered row stays clean.
+        let root2 = tmp_root("untampered");
+        append_action(&root2, "mem-consolidate", "alice", "wrote 3 facts").unwrap();
+        let mut report2 = AuditReport::default();
+        audit_action_log(&root2, &mut report2);
+        assert!(
+            report2.findings.is_empty(),
+            "an untouched row is not a finding: {:?}",
+            report2.findings
+        );
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&root2);
     }
 
     #[test]
