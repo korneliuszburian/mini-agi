@@ -506,4 +506,73 @@ mod schema_tests {
             );
         }
     }
+
+    #[test]
+    fn tools_list_matches_the_registry_exactly() {
+        let mut initialized = false;
+        let init = json!({"jsonrpc":"2.0","id":0,"method":"initialize","params":{}});
+        dispatch(&init, &mut initialized).unwrap();
+        let msg = json!({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}});
+        let resp = dispatch(&msg, &mut initialized).unwrap();
+        let tools = resp["result"]["tools"].as_array().unwrap();
+        let names: Vec<String> = tools
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(names.len(), 14, "14-tool registry, got {names:?}");
+        for name in tool_names() {
+            assert!(names.contains(&name.to_string()), "{name} advertised");
+        }
+    }
+
+    #[test]
+    fn tools_list_and_call_require_the_initialize_handshake() {
+        let mut initialized = false;
+        let list = json!({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}});
+        let resp = dispatch(&list, &mut initialized).unwrap();
+        assert!(resp["result"]["isError"].as_bool().unwrap());
+        assert!(
+            resp["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("not initialized")
+        );
+        let call =
+            json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"memory_query"}});
+        let resp = dispatch(&call, &mut initialized).unwrap();
+        assert!(resp["result"]["isError"].as_bool().unwrap());
+    }
+
+    #[test]
+    fn dispatch_rejects_unknown_methods_and_tools() {
+        let mut initialized = false;
+        let init = json!({"jsonrpc":"2.0","id":0,"method":"initialize","params":{}});
+        dispatch(&init, &mut initialized).unwrap();
+        let msg = json!({"jsonrpc":"2.0","id":1,"method":"bogus/method","params":{}});
+        let resp = dispatch(&msg, &mut initialized).unwrap();
+        assert!(
+            resp["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("unknown method")
+        );
+        let root = std::env::temp_dir();
+        assert!(call_tool("bogus_tool", &json!({}), &root).contains("unknown tool"));
+    }
+
+    #[test]
+    fn write_tools_refuse_without_an_approval_reason() {
+        let root = std::env::temp_dir();
+        for (tool, args) in [
+            ("loop_dispatch", json!({"claimant": "t"})),
+            ("loop_objective", json!({"claimant": "t", "max_cases": 1})),
+            ("skill_add", json!({"source": "https://example.invalid/r"})),
+        ] {
+            let text = call_tool(tool, &args, &root);
+            assert!(
+                text.contains("requires an approval reason"),
+                "{tool}: {text}"
+            );
+        }
+    }
 }
