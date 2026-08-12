@@ -994,3 +994,4 @@ research/what-is-22-answer-briefly.md
 2026-08-12T09:33:01Z BEGIN init-claudeshim-cycle24 -> 211a81b (clean)
 2026-08-12T09:34:07Z VERIFY-PASS init-claudeshim-cycle24 @ 211a81b
 2026-08-12T09:49:55Z BEGIN exp017-delivery-record -> 473713d (clean)
+2026-08-12T09:51:05Z VERIFY-PASS exp017-delivery-record @ a198330
