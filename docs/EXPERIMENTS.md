@@ -545,3 +545,45 @@ expected/got details): 5 e6 runs with the escalated feedback -> 0/5
 (ALL exhausted 5 attempts). The escalation did NOT move the multi-
 function boundary — an honest negative, recorded here per the codex
 second-opinion disposition (this result was previously unrecorded).
+
+## EXP-014 — overflow-loss probe: the compact→consolidate→derive pipeline loses nothing (PRE-REGISTERED 2026-08-12)
+
+Charter criterion 2: "przy przepełnieniu kontekstu żadna decyzja/informacja
+nie ginie". The kernel's mechanism: episodic buffer → `mem consolidate`
+→ canonical → `derive` (views) → provenance gate. Deterministic, no model
+in the loop. Protocol pre-registered BEFORE execution:
+
+- Corpus (one buffer, `fact:` lines, ~9 facts) covering adversarial shapes:
+  E1 plain prose; E2 body with backticks; **E3 body QUOTING a fact-block
+  header line ("## F-007 `aabbccddeeff0011` style headers mark fact
+  blocks")**; E4 unicode; E5 long (>300 chars); E6 byte-identical duplicate
+  of E1 (dedup must keep ONE fact, id present); E7+E7b same-first-40-chars
+  pair (contested wording, no signoff → BOTH must land); E8 bullet form.
+- Pipeline: `mini-agi mem consolidate <buffer>` → `canonical_facts` →
+  `mini-agi derive` → `mini-agi provenance` (exit 0).
+- Zero-loss assertion: every non-duplicate input fact's
+  `sha256(body)[..16]` id must be present in canonical WITH ITS FULL BODY;
+  no phantom id may appear (an id that was only QUOTED, never written);
+  derived brief carries the same canonical sha (provenance gate green).
+- Falsifier: kernel test consolidating the corpus and asserting the
+  zero-loss property. A failed falsifier = real pipeline defect, fixed
+  with the falsifier red first.
+- Excluded (by design, not loss): byte-identical dedup (E6), 64-bit hash
+  collision (unreachable), human-queue routing (contested with signoff).
+
+### Result (2026-08-12) — defect FOUND and FIXED
+
+- E3 exposed a REAL loss: `parse_canonical_facts` treated ANY line
+  starting `## F-` as a new block header. A body quoting a header
+  ("## F-007 `aabbccddeeff0011` style headers...") was read back
+  TRUNCATED (empty body) and spawned a PHANTOM fact with the quoted id
+  (`aabbccddeeff0011`) — derived views would carry the truncated body.
+- Fix (falsifier red → green): the header rule now requires `## F-<digits>`
+  plus either a backticked 16-hex id with NOTHING after it, or no backtick
+  pair at all (id-less block contract). A quoted reference with trailing
+  content is body, not a header. Live corpus safe (0 id-less/0 trailing-
+  content `## F-` lines; 1210 headers all well-formed).
+- Re-run after fix: zero loss on the full corpus; E6 deduped to one fact
+  (id present); E7/E7b both landed; provenance gate green. E1–E8 bodies
+  byte-identical on read-back.
+

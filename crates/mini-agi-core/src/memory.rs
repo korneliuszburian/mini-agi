@@ -1348,6 +1348,45 @@ mod tests {
     }
 
     #[test]
+    fn consolidate_roundtrip_preserves_header_shaped_bodies() {
+        // EXP-014 (charter criterion 2): a fact whose body QUOTES a fact
+        // block header ("## F-007 `id` style") must survive the
+        // consolidate -> canonical -> read-back round trip with its full
+        // body. The old reader treated any "## F-" line as a new block:
+        // the fact came back TRUNCATED and a phantom fact with the quoted
+        // id appeared — real information loss in the memory pipeline.
+        let root = tmp_root("header-body");
+        let probe = "## F-007 `aabbccddeeff0011` style headers mark fact blocks";
+        let buffer = format!(
+            "fact: {probe}\nfact: plain fact survives too\nfact: another ## F-012 `1234567890abcdef` reference with prose\n"
+        );
+        let out = consolidate(&root, &buffer, "exp014", &consolidate_opts(false)).unwrap();
+        assert_eq!(out.new_facts, 3);
+        let facts = canonical_facts(&root);
+        let by_id = |id: &str| facts.iter().find(|(_, i)| i == id);
+        let probe_id = fact_id(probe);
+        let entry = by_id(&probe_id).expect("probe fact must be in canonical");
+        assert_eq!(
+            entry.0, probe,
+            "body must round-trip intact, got {:?}",
+            entry.0
+        );
+        let phantom = "aabbccddeeff0011";
+        assert!(
+            !facts.iter().any(|(_, id)| id == phantom),
+            "the quoted id must not materialize as a phantom fact: {facts:?}"
+        );
+        assert!(
+            by_id(&fact_id(
+                "another ## F-012 `1234567890abcdef` reference with prose"
+            ))
+            .is_some(),
+            "the second quoted reference must survive too"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn consolidate_skips_facts_known_from_earlier_entries() {
         // TICKET-006 acceptance 1: dedup is repo-wide — a fact already in
         // a PREVIOUS date's entry is skipped, newer facts still land.

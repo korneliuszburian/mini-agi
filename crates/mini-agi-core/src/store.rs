@@ -76,6 +76,39 @@ pub fn extract_fact_ids(text: &str) -> Vec<String> {
     ids
 }
 
+/// A fact header is `## F-<digits>` followed by either a backticked
+/// 16-hex id with NOTHING (trimmed) after the closing backtick, or no
+/// backtick pair at all (the id-less block contract: its body is
+/// dropped, no half-labeled facts leak). A body line that merely QUOTES
+/// a header ("## F-007 `id` style headers...") carries trailing content
+/// and is BODY, not a header — otherwise the reference truncates the
+/// enclosing fact and spawns a phantom fact with the quoted id
+/// (EXP-014: real information loss in the memory pipeline).
+fn is_fact_header(line: &str) -> bool {
+    let l = line.trim_start();
+    let Some(rest) = l.strip_prefix("## F-") else {
+        return false;
+    };
+    let digits: usize = rest.bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 {
+        return false;
+    }
+    let after = &rest[digits..];
+    let Some(open) = after.find('`') else {
+        // Id-less header: `## F-2 (id lost)` — still a header whose
+        // body is dropped (frozen contract).
+        return true;
+    };
+    let close_rest = &after[open + 1..];
+    let Some(close) = close_rest.find('`') else {
+        return false;
+    };
+    let cand = &close_rest[..close];
+    cand.len() == 16
+        && cand.chars().all(|c| c.is_ascii_hexdigit())
+        && close_rest[close + 1..].trim().is_empty()
+}
+
 /// Parse `(fact_body, fact_id)` pairs from an entry file — blocks headed by
 /// `## F-NNN` plus a backticked 16-hex id.
 ///
@@ -88,7 +121,7 @@ pub fn parse_canonical_facts(text: &str) -> Vec<(String, String)> {
     let mut current_body: Vec<String> = Vec::new();
 
     for line in text.lines() {
-        let is_fact = line.trim_start().starts_with("## F-");
+        let is_fact = is_fact_header(line);
         if is_fact {
             let id = extract_fact_ids(line).into_iter().next();
             if let Some(prev) = current_id.take() {
@@ -200,6 +233,29 @@ mod tests {
         assert_eq!(facts[0].0, "labeled body");
         assert_eq!(facts[1].1, "ffffffffffffffff");
         assert_eq!(facts[1].0, "second body");
+    }
+
+    #[test]
+    fn parse_canonical_facts_keeps_header_shaped_body_lines() {
+        // EXP-014: a body line that QUOTES a fact header ("## F-007 `id`
+        // style headers...") must stay body content — treating it as a
+        // new block truncated the enclosing fact and spawned a phantom
+        // fact with the quoted id (information loss in the pipeline).
+        let text = "## F-000 `1111111111111111`\n\n## F-007 `aabbccddeeff0011` style headers mark fact blocks\n";
+        let facts = parse_canonical_facts(text);
+        assert_eq!(facts.len(), 1, "no phantom fact may appear: {facts:?}");
+        assert_eq!(facts[0].1, "1111111111111111");
+        assert_eq!(
+            facts[0].0, "## F-007 `aabbccddeeff0011` style headers mark fact blocks",
+            "the quoted reference must survive verbatim"
+        );
+        // The id-less header contract is unchanged: "## F-2 (id lost)"
+        // is still a header whose body is dropped.
+        let text2 =
+            "## F-1 `0123456789abcdef`\n\nlabeled body\n\n## F-2 (id lost)\n\nunlabeled body\n";
+        let facts2 = parse_canonical_facts(text2);
+        assert_eq!(facts2.len(), 1);
+        assert_eq!(facts2[0].0, "labeled body");
     }
 
     #[test]
