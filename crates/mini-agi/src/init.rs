@@ -213,7 +213,17 @@ pub fn bootstrap(root: &Path) -> Result<Vec<String>, io::Error> {
     Ok(created)
 }
 
-pub fn init(root: &Path) -> Result<Vec<String>, io::Error> {
+/// Scaffold a repo at `root`.
+///
+/// `claude_shim` controls the CLAUDE.md import-shim (symlink to
+/// AGENTS.md): opt-in, because it exists for Claude Code — a project
+/// that never uses Claude does not need the file (dogfood EXP-017
+/// finding). An EXISTING CLAUDE.md is always preserved.
+///
+/// # Errors
+///
+/// Returns [`io::Error`] when a directory or file cannot be written.
+pub fn init(root: &Path, claude_shim: bool) -> Result<Vec<String>, io::Error> {
     let mut created = Vec::new();
     for dir in DIRS {
         fs::create_dir_all(root.join(dir))?;
@@ -255,10 +265,11 @@ pub fn init(root: &Path) -> Result<Vec<String>, io::Error> {
     }
 
     let claude_path = root.join("CLAUDE.md");
-    // symlink_metadata: a BROKEN CLAUDE.md symlink still "exists" — do
-    // not clobber it nor die on EEXIST trying to re-link (the same rule
-    // the files loop uses).
-    if fs::symlink_metadata(&claude_path).is_err() {
+    // The import-shim is OPT-IN (dogfood EXP-017 finding: an unused
+    // agent's file is ceremony). An EXISTING CLAUDE.md is always
+    // preserved — symlink_metadata so a broken symlink is not clobbered
+    // nor dies on EEXIST trying to re-link (the rule the files loop uses).
+    if claude_shim && fs::symlink_metadata(&claude_path).is_err() {
         std::os::unix::fs::symlink("AGENTS.md", &claude_path)?;
         created.push("CLAUDE.md".to_string());
     }
@@ -382,7 +393,7 @@ mod tests {
     #[test]
     fn init_scaffolds_and_is_idempotent() {
         let root = tmpdir("init");
-        let created = init(&root).unwrap();
+        let created = init(&root, false).unwrap();
         let file_entries = created
             .iter()
             .filter(|e| !e.starts_with("directories") && !e.starts_with("ready:"));
@@ -405,7 +416,15 @@ mod tests {
                 .mode();
             assert_ne!(mode & 0o111, 0, "verify.sh must be executable");
         }
-        // CLAUDE.md is a symlink to AGENTS.md, never a copy.
+        // The import-shim is OPT-IN: the default init must NOT create
+        // CLAUDE.md (dogfood EXP-017 finding — an unused agent's file).
+        assert!(
+            !root.join("CLAUDE.md").exists(),
+            "CLAUDE.md must be opt-in (--claude-shim)"
+        );
+        // With the flag it is a symlink to AGENTS.md, never a copy.
+        let shim = init(&root, true).unwrap();
+        assert!(shim.iter().any(|e| e == "CLAUDE.md"), "{shim:?}");
         let meta = fs::symlink_metadata(root.join("CLAUDE.md")).unwrap();
         assert!(meta.file_type().is_symlink());
         // opencode.json is valid JSON wiring this binary as the MCP server.
@@ -417,8 +436,8 @@ mod tests {
         // The last entry is the ready line.
         assert!(created.last().unwrap().starts_with("ready:"));
 
-        // Idempotent: second init scaffolds nothing new.
-        let again = init(&root).unwrap();
+        // Idempotent: second default init scaffolds nothing new.
+        let again = init(&root, false).unwrap();
         let new_files: Vec<&String> = again
             .iter()
             .filter(|e| !e.starts_with("directories") && !e.starts_with("ready:"))
@@ -439,7 +458,7 @@ mod tests {
         // again and dies with EEXIST.
         let root = tmpdir("broken-claude");
         std::os::unix::fs::symlink("nonexistent-target", root.join("CLAUDE.md")).unwrap();
-        let created = init(&root).unwrap();
+        let created = init(&root, true).unwrap();
         let meta = fs::symlink_metadata(root.join("CLAUDE.md")).unwrap();
         assert!(
             meta.file_type().is_symlink(),
@@ -476,7 +495,7 @@ mod tests {
         fs::write(root.join("AGENTS.md"), "user-owned").unwrap();
         // A broken symlink still "exists" — init must not replace it.
         std::os::unix::fs::symlink("nonexistent-target", root.join("scripts/verify.sh")).unwrap();
-        let created = init(&root).unwrap();
+        let created = init(&root, false).unwrap();
         assert_eq!(
             fs::read_to_string(root.join("AGENTS.md")).unwrap(),
             "user-owned",

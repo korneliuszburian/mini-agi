@@ -79,7 +79,7 @@ enum Command {
     /// stdio MCP server (tools over JSON-RPC 2.0).
     Mcp,
     /// Scaffold a repo: layout, gate scripts, AGENTS.md, MCP config.
-    Init,
+    Init(InitArgs),
     /// Ticket lifecycle: list, show, validate (ADR-0007 contracts).
     Ticket(TicketArgs),
     /// Runs compound into the world model (ADR-0005).
@@ -239,6 +239,15 @@ enum RunAction {
         /// Path to the run file (evals/cases/<case>/run.json).
         run: PathBuf,
     },
+}
+
+#[derive(Args, Debug)]
+struct InitArgs {
+    /// Create the CLAUDE.md import-shim (symlink to AGENTS.md) for
+    /// Claude Code. Opt-in: a project that never uses Claude does not
+    /// need the file (dogfood EXP-017 finding).
+    #[arg(long)]
+    claude_shim: bool,
 }
 
 #[derive(Args, Debug)]
@@ -838,7 +847,7 @@ fn main() -> ExitCode {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => fail(&format!("mcp server error: {e}")),
         },
-        Command::Init => cmd_init(),
+        Command::Init(args) => cmd_init(&args),
         Command::Ticket(TicketArgs { action }) => match action {
             TicketAction::List => cmd_ticket_list(),
             TicketAction::Show { id } => cmd_ticket_show(&id),
@@ -1796,9 +1805,9 @@ fn cmd_ticket_claims() -> ExitCode {
     }
 }
 
-fn cmd_init() -> ExitCode {
+fn cmd_init(args: &InitArgs) -> ExitCode {
     let root = root();
-    match init::init(&root) {
+    match init::init(&root, args.claude_shim) {
         Ok(created) => {
             println!("initialized: {}", root.display());
             for item in &created {

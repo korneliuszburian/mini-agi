@@ -1683,15 +1683,21 @@ fn init_creates_the_data_dir_layout_in_an_empty_dir() {
     }
     assert!(root.join("AGENTS.md").is_file());
     assert!(root.join("scripts/verify.sh").is_file());
-    // CLAUDE.md is a symlink to AGENTS.md — one canonical agent
-    // instructions file; legacy tooling still finds CLAUDE.md.
+    // The import-shim is OPT-IN (dogfood EXP-017): the default init must
+    // NOT create CLAUDE.md; --claude-shim creates a symlink to AGENTS.md.
+    assert!(
+        !root.join("CLAUDE.md").exists(),
+        "CLAUDE.md must be opt-in, not default (dogfood EXP-017 finding)"
+    );
+    let shim = run(&root, &["init", "--claude-shim"]);
+    assert!(shim.status.success(), "{}", combined(&shim));
     let claude_md = root.join("CLAUDE.md");
     assert!(
         std::fs::symlink_metadata(&claude_md)
             .unwrap()
             .file_type()
             .is_symlink(),
-        "CLAUDE.md must be a symlink to AGENTS.md"
+        "CLAUDE.md must be a symlink to AGENTS.md with --claude-shim"
     );
     assert_eq!(
         std::fs::read_link(&claude_md).unwrap().to_str().unwrap(),
