@@ -731,4 +731,38 @@ Success criteria (first month):
 - STOP: 0-1 wins -> the kernel remains an own-repo tool; revisit only when
   a workload drops below the solo bar (the blind-worker condition).
 
-Result: (open — measurement in progress)
+### Delivery record (2026-08-12)
+
+Wired and pushed: ekologus-3d repo created (private, main), `mini-agi
+init` + MCP registration, `.miniagi/usage-log.md` (baseline + weekly
+W/C/B). Five slices delivered, all gates green:
+
+1. Transfer budget — deterministic gzip gate (155 kB entry, budget 170
+   kB) wired into `npm run check`; `chunkSizeWarningLimit` justified.
+2. Runtime QA — `?qa=1` self-test + `qa-runtime.mjs` (raw CDP, zero
+   deps): ready/lifecycle/benchmark/context/teardown, PASS.
+3. Visual acceptance evidence — `visual-capture.mjs`: front/oblique/
+   reverse at 1440x900 DPR1 rotated by REAL OrbitControls pointer drags
+   (CDP Input); `visual-qa/` side-by-side with the reference.
+4. Multi-scenario QA — keyboard (real Enter via CDP, `text:"\r"` for
+   native activation), reduced-motion, resize, no-WebGL fallback (6
+   semantic buttons still select), 5/5 PASS, 0 console errors.
+5. Hardware benchmark harness — `benchmark.mjs`: snapshots frame/GPU
+   timing to `benchmarks/`, prints a budget proposal (p95 CPU <= 16ms,
+   transfer <= 170 kB gzip enforced, drawing buffer <= 3.2 MP enforced);
+   SwiftShader validation recorded (GPU unsupported as designed).
+
+Kernel finding from the dogfood (fixed, 616 tests): `mini-agi init`
+created a CLAUDE.md import-shim for an agent the owner does not use —
+now OPT-IN via `--claude-shim`; an existing CLAUDE.md is preserved.
+
+Project memory: 10 canonical facts (slice decisions + outcomes), derived
+views regenerated. Usage-log W: memory reuse across sessions, two
+stale "follow-ups" closed with deterministic gates, DoD-6 interaction/
+fallback paths automated. C so far: ~4 h total setup+harness debugging.
+B: none. Gate incidents: none.
+
+Remaining (owner-gated): visual acceptance, product decisions
+(services/copy/URLs/integration), named hardware + approved budgets
+(`npm run benchmark` on a real GPU). The EXPAND/PARTIAL/STOP verdict
+lands after a month of daily use per the protocol.
