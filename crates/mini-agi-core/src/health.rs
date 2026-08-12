@@ -210,15 +210,31 @@ fn parse_frac(numerator: u64, denominator: u64) -> Option<f64> {
 
 /// Read `/proc/meminfo` fields (kB).
 fn meminfo() -> Option<(u64, u64, u64)> {
-    let text = fs::read_to_string("/proc/meminfo").ok()?;
+    meminfo_from(&fs::read_to_string("/proc/meminfo").ok()?)
+}
+
+/// Parse meminfo text into `(total, available, swap_used)`. One
+/// malformed line must NOT abort the probe: the monitor is the
+/// incident-class watchdog, and a single junk line dropping every
+/// memory/swap finding would be a silent blind spot exactly when the
+/// box is unhealthy. Unparseable lines are skipped; the fields that
+/// parse survive. An input with NO parseable field is no probe result.
+fn meminfo_from(text: &str) -> Option<(u64, u64, u64)> {
     let mut total = 0u64;
     let mut available = 0u64;
     let mut swap_total = 0u64;
     let mut swap_free = 0u64;
+    let mut any = false;
     for line in text.lines() {
         let mut parts = line.split_whitespace();
-        let key = parts.next()?.trim_end_matches(':');
-        let value = parts.next()?.parse::<u64>().ok()?;
+        let Some(key) = parts.next() else {
+            continue;
+        };
+        let key = key.trim_end_matches(':');
+        let Some(value) = parts.next().and_then(|v| v.parse::<u64>().ok()) else {
+            continue;
+        };
+        any = true;
         match key {
             "MemTotal" => total = value,
             "MemAvailable" => available = value,
@@ -227,7 +243,7 @@ fn meminfo() -> Option<(u64, u64, u64)> {
             _ => {}
         }
     }
-    Some((total, available, swap_total.saturating_sub(swap_free)))
+    any.then_some((total, available, swap_total.saturating_sub(swap_free)))
 }
 
 /// Largest count of processes sharing one command (from /proc scan).
@@ -335,10 +351,15 @@ pub fn health(root: &Path) -> Result<HealthReport, std::io::Error> {
         let unpaired = begins.saturating_sub(resolved);
         let last_is_begin = text.lines().last().is_some_and(|l| l.contains("BEGIN"));
         if unpaired > 1 || (unpaired == 1 && !last_is_begin) {
+            let last_state = if last_is_begin {
+                "last line is a BEGIN (verification in progress)"
+            } else {
+                "last line not a BEGIN"
+            };
             report.findings.push(Finding {
                 severity: "warn".into(),
                 message: format!(
-                    "checkpoint journal: {begins} BEGIN vs {resolved} resolved ({unpaired} unpaired, last line not a BEGIN)"
+                    "checkpoint journal: {begins} BEGIN vs {resolved} resolved ({unpaired} unpaired, {last_state})"
                 ),
             });
         }
@@ -388,6 +409,8 @@ fn total_swap() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+    use std::path::Path;
 
     #[test]
     fn load_classification_boundaries() {
@@ -548,5 +571,56 @@ mod tests {
         // maps to the critical exit code.
         assert_eq!(exit_code_for("UNKNOWN"), 2);
         assert_eq!(exit_code_for(""), 2);
+    }
+
+    #[test]
+    fn meminfo_survives_a_junk_line() {
+        // The probe is the incident-class watchdog: one malformed line
+        // in /proc/meminfo must not silently disable ALL memory/swap
+        // findings (a blind spot exactly when the box is unhealthy).
+        let text = "MemTotal:       100 kB\njunk line with no colon\nMemAvailable:    40 kB\nSwapTotal:     50 kB\nSwapFree:      10 kB\n";
+        let parsed = meminfo_from(text);
+        assert_eq!(
+            parsed,
+            Some((100, 40, 40)),
+            "parseable fields must survive a junk line, got {parsed:?}"
+        );
+        assert_eq!(meminfo_from(""), None, "empty input is no probe result");
+        assert_eq!(meminfo_from("no fields here\n"), None);
+    }
+
+    #[test]
+    fn journal_finding_names_the_true_last_line_state() {
+        // Two unresolved BEGINs with the last line being a BEGIN is a
+        // genuine anomaly (verification in progress only excuses the
+        // LAST begin) — but the message must not claim "last line not a
+        // BEGIN" when the last line IS a BEGIN.
+        let root = env::temp_dir().join(format!("mag-health-jnl-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("memory/episodic")).unwrap();
+        fs::write(
+            root.join("memory/episodic/checkpoints.log"),
+            "2026-08-11T10:00:00Z BEGIN stale-one -> aaa\n2026-08-11T10:01:00Z BEGIN stale-two -> bbb\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        let report = health(&root).unwrap();
+        let journal_finding = report
+            .findings
+            .iter()
+            .find(|f| f.message.contains("checkpoint journal"));
+        let finding = journal_finding.expect("two unpaired BEGINs must be flagged");
+        assert_eq!(finding.severity, "warn");
+        assert!(
+            !finding.message.contains("last line not a BEGIN"),
+            "message lies about the last line: {}",
+            finding.message
+        );
+        assert!(
+            finding.message.contains("last line is a BEGIN"),
+            "message must state the true last-line state: {}",
+            finding.message
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 }
