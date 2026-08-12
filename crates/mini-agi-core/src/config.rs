@@ -53,6 +53,12 @@ pub struct Config {
     /// decision is logged to the action log.
     #[serde(default)]
     pub require_approval: bool,
+    /// Allow `loop verify` gates to run in a target OUTSIDE the repo
+    /// root (ARCHITECTURE-CONDENSED 5.1). Default `false`: a declared
+    /// `verify_target` that escapes the root after canonicalization is
+    /// rejected. Outside targets are opt-in and explicit, never implicit.
+    #[serde(default)]
+    pub allow_outside_targets: bool,
 }
 
 const fn default_target_composite() -> f64 {
@@ -71,6 +77,7 @@ impl Default for Config {
             max_repeated_steps: None,
             max_rerun_attempts: None,
             require_approval: false,
+            allow_outside_targets: false,
         }
     }
 }

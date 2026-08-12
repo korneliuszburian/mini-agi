@@ -43,6 +43,10 @@ pub struct WorkerUsage {
 
 /// deepseek-v4-flash rate card (USD per 1M tokens, Aug 2026, track-3.md).
 const FLASH_IN_PER_1M: f64 = 0.14;
+
+/// Captured worker output cap in bytes (ARCHITECTURE-CONDENSED 5.2): a
+/// runaway command cannot flood the caller.
+const MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 const FLASH_OUT_PER_1M: f64 = 0.28;
 
 /// Rate-card estimate for a token volume (fractional M-tokens).
@@ -199,13 +203,20 @@ pub fn run_capped_idle(
         }
     }
     let status = child.wait().ok().and_then(|s| s.code());
-    let output = match (
+    let mut output = match (
         fs::read_to_string(&stdout_path),
         fs::read_to_string(&stderr_path),
     ) {
         (Ok(out), Ok(err)) => format!("{out}{err}"),
         _ => String::new(),
     };
+    if output.len() > MAX_OUTPUT_BYTES {
+        let mut end = MAX_OUTPUT_BYTES;
+        while !output.is_char_boundary(end) {
+            end -= 1;
+        }
+        output.truncate(end);
+    }
     let _ = fs::remove_file(&stdout_path);
     let _ = fs::remove_file(&stderr_path);
     Ok(WorkerResult {

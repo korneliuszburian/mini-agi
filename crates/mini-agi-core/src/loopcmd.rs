@@ -224,6 +224,56 @@ fn is_rerun_case(case: &str) -> bool {
             .is_some_and(|s| s.parse::<usize>().is_ok())
 }
 
+/// Hard wall cap (seconds) for one `loop verify` gate run
+/// (ARCHITECTURE-CONDENSED 5.2 — every gate executes through
+/// `worker::run_capped` with this cap).
+pub const GATE_WALL_CAP_SECS: u64 = 120;
+
+/// Resolve a declared `verify_target` into the directory the gate runs in.
+///
+/// Relative paths resolve against the repo root, the result is
+/// canonicalized, and MUST stay inside the canonical root unless
+/// `.miniagi.json` sets `allow_outside_targets: true` (default false →
+/// rejected). The target must exist and be a directory.
+///
+/// # Errors
+///
+/// Returns a message when the declaration is empty, does not resolve, is
+/// not a directory, or escapes the root without the explicit opt-in.
+pub fn resolve_target(root: &Path, declared: &str) -> Result<PathBuf, String> {
+    let declared = declared.trim();
+    if declared.is_empty() {
+        return Err("no verify_target declared".into());
+    }
+    let raw = Path::new(declared);
+    let candidate = if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        root.join(declared)
+    };
+    let canonical = candidate.canonicalize().map_err(|e| {
+        format!("verify_target '{declared}' does not resolve to an existing directory ({e})")
+    })?;
+    if !canonical.is_dir() {
+        return Err(format!(
+            "verify_target '{declared}' resolves to {}, which is not a directory",
+            canonical.display()
+        ));
+    }
+    let root_canon = root
+        .canonicalize()
+        .map_err(|e| format!("repo root {} cannot be canonicalized ({e})", root.display()))?;
+    let allow_outside = crate::config::Config::load(root).allow_outside_targets;
+    if !allow_outside && !canonical.starts_with(&root_canon) {
+        return Err(format!(
+            "verify_target '{declared}' resolves to {}, outside the repo root {} — rejected (set allow_outside_targets: true to allow)",
+            canonical.display(),
+            root_canon.display()
+        ));
+    }
+    Ok(canonical)
+}
+
 /// The cases dirs carrying a run.json.
 fn case_dirs(cases_dir: &Path) -> Vec<PathBuf> {
     let Ok(entries) = fs::read_dir(cases_dir) else {
@@ -659,18 +709,26 @@ pub fn verify(
 
     let mut passed = false;
     if let (Some(cmd), Some(target)) = (&run.verify_command, &run.verify_target) {
-        let output = std::process::Command::new("sh")
-            .args(["-c", cmd])
-            .current_dir(Path::new(target))
-            .output()
-            .map_err(|e| format!("gate unavailable: {e}"))?;
-        if output.status.success() {
+        // The declared target is UNTRUSTED run data: resolve it against
+        // the repo root and refuse to run the gate anywhere that escapes
+        // it (ARCHITECTURE-CONDENSED 5.1), then execute through the
+        // capped runner (5.2): hard wall cap + truncated output, never a
+        // bare `Command::output()`.
+        let target_dir = resolve_target(root, target)?;
+        let res =
+            crate::worker::run_capped("sh", &["-c", cmd], &target_dir, Some(GATE_WALL_CAP_SECS))
+                .map_err(|e| format!("gate unavailable: {e}"))?;
+        if res.aborted {
+            lines.push(format!(
+                "  gate: FAIL ({cmd} aborted after {GATE_WALL_CAP_SECS}s wall cap)"
+            ));
+        } else if res.status == Some(0) {
             passed = true;
             lines.push(format!("  gate: PASS ({cmd})"));
         } else {
             lines.push(format!(
                 "  gate: FAIL ({cmd} exit {})",
-                output.status.code().unwrap_or(-1)
+                res.status.unwrap_or(-1)
             ));
         }
     } else if allow_unverified {
@@ -938,6 +996,88 @@ mod loop_tests {
         assert!(
             crate::ticket::read_claims(&root).unwrap().is_empty(),
             "lease released on close"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolve_target_requires_a_declaration() {
+        let root = tmp_root("rt-empty");
+        assert!(resolve_target(&root, "").is_err(), "empty target rejected");
+        assert!(
+            resolve_target(&root, "   ").is_err(),
+            "blank target rejected"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolve_target_rejects_outside_absolute_paths() {
+        let root = tmp_root("rt-abs");
+        let err = resolve_target(&root, "/etc").unwrap_err();
+        assert!(
+            err.contains("outside"),
+            "absolute outside target rejected: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolve_target_rejects_symlink_escape() {
+        let root = tmp_root("rt-sym");
+        fs::create_dir_all(root.join("cases")).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("/etc", root.join("cases/escape")).unwrap();
+        let err = resolve_target(&root, "cases/escape").unwrap_err();
+        assert!(
+            err.contains("outside"),
+            "a symlink planted inside the root that escapes is rejected: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolve_target_resolves_relative_inside_root() {
+        let root = tmp_root("rt-in");
+        fs::create_dir_all(root.join("evals/cases")).unwrap();
+        let t = resolve_target(&root, "evals/cases").unwrap();
+        assert!(t.is_absolute(), "{t:?}");
+        assert!(t.starts_with(&root), "{t:?}");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolve_target_requires_an_existing_directory() {
+        let root = tmp_root("rt-dir");
+        let err = resolve_target(&root, "does-not-exist").unwrap_err();
+        assert!(
+            err.contains("directory") || err.contains("no such"),
+            "{err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolve_target_allows_outside_when_opted_in() {
+        let root = tmp_root("rt-opt");
+        fs::write(
+            root.join(".miniagi.json"),
+            r#"{"allow_outside_targets": true}"#,
+        )
+        .unwrap();
+        let t = resolve_target(&root, "/etc").unwrap();
+        assert_eq!(t, fs::canonicalize("/etc").unwrap());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_rejects_a_gate_target_outside_the_root() {
+        let root = tmp_root("v-out");
+        write_run(&root, "gap-o-rerun", true, Some(("true", "/etc")));
+        let err = verify(&root, "gap-o-rerun", "t", false).unwrap_err();
+        assert!(
+            err.contains("outside"),
+            "verify refuses to run a gate in an outside target: {err}"
         );
         let _ = fs::remove_dir_all(&root);
     }
