@@ -987,3 +987,5 @@ research/what-is-22-answer-briefly.md
 2026-08-12T07:53:37Z VERIFY-PASS contract-cycle21 @ ae01500
 2026-08-12T07:54:59Z BEGIN redact-cycle22 -> 94d0bc3 (clean)
 2026-08-12T08:02:22Z VERIFY-PASS redact-cycle22 @ 3debb0d
+2026-08-12T08:03:28Z BEGIN capture-cycle23 -> 426b8ca (clean)
+2026-08-12T08:07:15Z VERIFY-PASS capture-cycle23 @ c225aed
