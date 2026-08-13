@@ -44,10 +44,9 @@ pub fn build_run_draft(
     serde_json::json!({
         "goal": goal,
         "scope": scope,
-        "outcome": {"achieved": false, "tests": false, "typecheck": false},
+        "outcome": {"achieved": false},
         "tokens_total": 0,
         "cost_usd": 0.0,
-        "golden": null,
         "verify_command": verify_command,
         "verify_target": verify_target,
         "kernel_version": env!("CARGO_PKG_VERSION"),

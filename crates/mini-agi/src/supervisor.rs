@@ -571,13 +571,18 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
         // CONDENSED 5.1): when no explicit --target overrides it, resolve
         // it against the repo root and REJECT a target that escapes it —
         // the supervisor's verifier runs the gate in this directory.
-        // The operator's explicit --target stays trusted as-is.
+        // The operator's explicit --target stays trusted as-is. A MISSING
+        // target is a hard error (parity with dispatch's P0-3 refusal),
+        // not a silent workdir default.
         let vt = if let Some(t) = input.target {
             t.to_string_lossy().into_owned()
         } else {
-            let declared = run
-                .verify_target
-                .unwrap_or_else(|| input.workdir.to_string_lossy().into_owned());
+            let declared = run.verify_target.ok_or_else(|| {
+                format!(
+                    "case {} declares no verify_target (P0-3)",
+                    input.goal_or_case
+                )
+            })?;
             mini_agi_core::loopcmd::resolve_target(input.root, &declared)?
                 .to_string_lossy()
                 .into_owned()

@@ -140,30 +140,62 @@ fn redact_header_values(text: &str, key: &str) -> String {
             }
         }
         // Plain form: value ends at the arg's closing quote or a newline
-        // (keep the rest of the command line).
-        let skip = rest.len() - rest.trim_start().len();
-        let end = value_end(rest);
-        if end == skip {
+        // (keep the rest of the command line). A quote-delimited value
+        // (`Bearer "secret"`) runs through its CLOSING quote — stopping
+        // at the opening quote leaked the credential.
+        let trimmed = rest.trim_start();
+        let skip = rest.len() - trimmed.len();
+        if trimmed.is_empty() {
             // Nothing after the header (e.g. `Cookie:` alone) — keep.
             out.push_str(rest);
             break;
         }
+        let take = header_value_len(trimmed);
         out.push_str(&rest[..skip]);
         out.push_str(REDACTED);
-        rest = &rest[skip + end..];
+        rest = &rest[skip + take..];
     }
     out
 }
 
-/// End of a header value: at the next closing quote (`"`/`'`) or newline.
-/// Deliberately ignores spaces — a `Bearer t0ken` value must redact as a
-/// whole, and an unquoted multi-arg line over-redacts safely.
-fn value_end(rest: &str) -> usize {
-    rest.char_indices()
+/// Length of the whole header value: a quoted section inside the value
+/// (`Authorization: Bearer "secret"`) is consumed THROUGH its closing
+/// quote so the quoted credential cannot leak past the first `"`; an
+/// unclosed quote redacts to the end of the line; otherwise the value
+/// runs to the next quote/newline or the end.
+fn header_value_len(trimmed: &str) -> usize {
+    let Some((qpos, quote)) = trimmed
+        .char_indices()
         .find(|&(_, c)| c == '"' || c == '\'' || c == '\n')
-        .map_or(rest.len(), |(q, _)| {
-            q.saturating_sub(rest.len() - rest.trim_start().len())
-        })
+    else {
+        return trimmed.len();
+    };
+    if quote == '\n' {
+        return qpos;
+    }
+    let after = &trimmed[qpos + quote.len_utf8()..];
+    after.find(quote).map_or(trimmed.len(), |closing| {
+        qpos + quote.len_utf8() + closing + quote.len_utf8()
+    })
+}
+
+/// Length of a quote-delimited value at the start of `text`, THROUGH the
+/// closing quote (to end-of-line when unclosed). Returns None when `text`
+/// does not start with a quote. Without this, `Bearer "secret"` /
+/// `-p 'two words'` redacted only the part before the opening quote and
+/// leaked the quoted credential (deny-by-default violation).
+fn quoted_value_len(text: &str) -> Option<usize> {
+    let quote = text.chars().next()?;
+    if quote != '"' && quote != '\'' {
+        return None;
+    }
+    let ql = quote.len_utf8();
+    let inner = &text[ql..];
+    Some(
+        inner
+            .find(quote)
+            .map_or(inner.len() + ql, |end| end + 2 * ql),
+    )
 }
 
 /// Redact the value of `-p <value>` / `sshpass -p <value>` flags.
@@ -204,9 +236,11 @@ fn redact_flag_values(text: &str) -> String {
             let eq_trimmed = eq.trim_start();
             (eq_trimmed, 1 + eq.len() - eq_trimmed.len())
         });
-        let take = value
-            .find(|c: char| c.is_whitespace() || c == ',' || c == '&' || c == ';' || c == '"')
-            .unwrap_or(value.len());
+        let take = quoted_value_len(value).unwrap_or_else(|| {
+            value
+                .find(|c: char| c.is_whitespace() || c == ',' || c == '&' || c == ';' || c == '"')
+                .unwrap_or(value.len())
+        });
         out.push_str(REDACTED);
         rest = &rest[skip + eq_extra + take..];
     }
@@ -378,4 +412,41 @@ fn split_pair_value(text: &str, sep: u8) -> Option<(usize, usize)> {
             .unwrap_or(trimmed.len())
     };
     Some((skip, take))
+}
+
+#[cfg(test)]
+mod redact_tests {
+    use super::*;
+
+    #[test]
+    fn quoted_header_values_are_redacted_whole() {
+        let out = redact(r#"Authorization: Bearer "abc123secret""#);
+        assert!(out.contains(REDACTED), "{out}");
+        assert!(!out.contains("abc123secret"), "quoted bearer leaked: {out}");
+        let out = redact("Authorization: Bearer 'abc123secret'");
+        assert!(
+            !out.contains("abc123secret"),
+            "single-quoted bearer leaked: {out}"
+        );
+    }
+
+    #[test]
+    fn quoted_flag_values_are_redacted_whole() {
+        for cmd in [
+            "sshpass -p 'hunter two words' ssh host",
+            "sshpass -p \"hunter two\" ssh host",
+        ] {
+            let out = redact(cmd);
+            assert!(!out.contains("hunter"), "quoted -p value leaked: {out}");
+            assert!(out.contains(REDACTED), "{out}");
+        }
+    }
+
+    #[test]
+    fn unquoted_credentials_still_redact() {
+        let out = redact("curl -H 'Authorization: Bearer abcd1234' https://x");
+        assert!(!out.contains("abcd1234"), "{out}");
+        let out = redact("password=supersecret");
+        assert!(!out.contains("supersecret"), "{out}");
+    }
 }

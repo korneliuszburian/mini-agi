@@ -185,6 +185,10 @@ struct DreamArgs {
     /// Source file to distill.
     #[arg(long)]
     source: Option<String>,
+    /// HITL approval reason (ADR-0010): canonical writes are refused
+    /// without it — dream --source writes canonical directly.
+    #[arg(long)]
+    approve: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -536,6 +540,11 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
     let root = root();
     match &args.source {
         Some(source) => {
+            if args.approve.is_none() {
+                return fail(
+                    "dream requires --approve <reason> (HITL, ADR-0010) — it writes canonical directly",
+                );
+            }
             let text = match std::fs::read_to_string(source) {
                 Ok(t) => t,
                 Err(e) => return fail(&format!("dream: {e}")),

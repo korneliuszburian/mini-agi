@@ -522,13 +522,23 @@ pub fn apply_verdicts(
                     queued += 1;
                     continue;
                 }
-                let preserved_collision = preserved.iter().any(|p| {
+                // Preserved-fact collision (ADR-0010 D3): compare against
+                // the preserved facts' canonical BODIES (resolved from the
+                // preserved ids) — a body-vs-id comparison never matches
+                // and would let a promote rewrite a preserved fact.
+                let preserved_ids = crate::memory::preserved_ids(root);
+                let preserved_bodies: Vec<String> = crate::memory::canonical_facts(root)
+                    .into_iter()
+                    .filter(|(_, id)| preserved_ids.contains(id))
+                    .map(|(body, _)| body)
+                    .collect();
+                let preserved_collision = preserved_bodies.iter().any(|p| {
                     let take = fact
                         .body
                         .char_indices()
                         .nth(fact.body.chars().count().min(40))
                         .map_or(fact.body.len(), |(i, _)| i);
-                    fact.body[..take].contains(p.as_str()) || p.contains(&fact.body[..take])
+                    p.starts_with(&fact.body[..take]) || fact.body[..take].starts_with(p.as_str())
                 });
                 if preserved_collision {
                     crate::memory::append_contested(root, &fact.body, &h, source, "preserved")?;

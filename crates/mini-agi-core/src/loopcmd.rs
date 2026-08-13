@@ -631,11 +631,14 @@ pub fn dispatch(
     // On ANY failure the claim is released and a created ticket removed —
     // no leased case with a missing spec/ledger row.
     let lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
-    let rollback = || {
-        let _ = crate::ticket::release_ticket(root, &ticket_id, claimant);
+    let rollback = |ledger_written: bool| {
+        let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
         if ticket_created {
             let _ =
                 fs::remove_file(crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")));
+        }
+        if ledger_written {
+            let _ = fs::remove_file(ledger_path(root, &case));
         }
     };
     let now = crate::memory::utc_now_stamp();
@@ -646,7 +649,7 @@ pub fn dispatch(
         ..Gap::default()
     });
     if gap_is_terminal(&gap.state) {
-        rollback();
+        rollback(false);
         return Err(format!(
             "case '{case}' is {} in the ledger (closed between pick and claim) — redispatch refused",
             gap.state_name()
@@ -658,23 +661,20 @@ pub fn dispatch(
     gap.attempts += 1;
     gap.last_attempted_at = Some(now);
     gap.state = GapState::Dispatched;
-    write_ledger_atomic(root, &gap).map_err(|e| {
-        rollback();
-        format!("cannot write ledger: {e}")
-    })?;
-    drop(lock);
+    // Spec FIRST, ledger LAST: the ledger row is the commit point — a
+    // spec failure leaves NO phantom dispatched row (§3.1 ordering).
     let spec = match write_spec(root, &case, &ticket_id) {
         Ok(s) => s,
         Err(e) => {
-            let _ = crate::ticket::release_ticket(root, &ticket_id, claimant);
-            if ticket_created {
-                let _ = fs::remove_file(
-                    crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")),
-                );
-            }
+            rollback(false);
             return Err(format!("cannot write spec: {e}"));
         }
     };
+    write_ledger_atomic(root, &gap).map_err(|e| {
+        rollback(true);
+        format!("cannot write ledger: {e}")
+    })?;
+    drop(lock);
     Ok(DispatchOutcome {
         case,
         ticket: ticket_id,
@@ -728,7 +728,7 @@ pub fn objective(
             out.skipped_unavailable.push(name.clone());
             continue;
         };
-        if run.verify_command.is_none() {
+        if run.verify_command.is_none() || run.verify_target.is_none() {
             out.skipped_no_verifier.push(name.clone());
             continue;
         }
@@ -762,8 +762,8 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     let mut body = format!("# SLICE SPEC — {ticket_id} (case: {case})\n\n");
     body.push_str("- source: `mini-agi loop dispatch` (condensed)\n");
     let _ = writeln!(body, "- goal: {}", run.goal);
-    let vc = run.verify_command.unwrap_or_default();
-    let vt = run.verify_target.unwrap_or_else(|| "<repo root>".into());
+    let vc = crate::redact::redact(&run.verify_command.unwrap_or_default());
+    let vt = crate::redact::redact(&run.verify_target.unwrap_or_else(|| "<repo root>".into()));
     // Separate lines, never `{vc} in {vt}`: a command legitimately
     // containing " in " must not be re-split by the codex parser.
     let _ = writeln!(body, "- verify_command: {vc}");
@@ -858,19 +858,22 @@ pub fn verify(
         // capped runner (5.2): hard wall cap + truncated output, never a
         // bare `Command::output()`.
         let target_dir = resolve_target(root, target)?;
+        // §5.3: the command is echoed redacted (embedded credentials
+        // never reach stdout) — the ORIGINAL still executes.
+        let cmd_r = crate::redact::redact(cmd);
         let res =
             crate::worker::run_capped("sh", &["-c", cmd], &target_dir, Some(GATE_WALL_CAP_SECS))
                 .map_err(|e| format!("gate unavailable: {e}"))?;
         if res.aborted {
             lines.push(format!(
-                "  gate: FAIL ({cmd} aborted after {GATE_WALL_CAP_SECS}s wall cap)"
+                "  gate: FAIL ({cmd_r} aborted after {GATE_WALL_CAP_SECS}s wall cap)"
             ));
         } else if res.status == Some(0) {
             passed = true;
-            lines.push(format!("  gate: PASS ({cmd})"));
+            lines.push(format!("  gate: PASS ({cmd_r})"));
         } else {
             lines.push(format!(
-                "  gate: FAIL ({cmd} exit {})",
+                "  gate: FAIL ({cmd_r} exit {})",
                 res.status.unwrap_or(-1)
             ));
         }
@@ -978,6 +981,17 @@ pub fn verify(
             "  gap closed: {base} (gate passed) ledger state=closed closed_by={case}"
         ));
     } else {
+        // DISPATCHED->DISPATCHED (§3.1): a failed/not-achieved verify is
+        // still an attempt — record it in the base's ledger (under the
+        // lock) so attempts track verification, not just dispatches.
+        let _lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
+        if let Some(mut gap) = read_ledger(root, base) {
+            gap.attempts += 1;
+            gap.last_attempted_at = Some(crate::memory::utc_now_stamp());
+            if let Err(e) = write_ledger_atomic(root, &gap) {
+                eprintln!("loopcmd: cannot record failed verify attempt for {base}: {e}");
+            }
+        }
         lines.push("  gap open: outcome not verified — keep working".into());
     }
     lines.insert(

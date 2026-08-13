@@ -27,16 +27,13 @@ const AGENTS_MD: &str = r"# AGENTS.md — agent instructions (mini-agi powered)
 This repo runs on the mini-agi kernel: enforcement-bound memory,
 evaluation, verifiable skills, checkpoint journal. CLI: `mini-agi`.
 Deterministic gate: `scripts/verify.sh` (fmt, clippy, tests, skills,
-eval gate, checkpoint audit, provenance, mem-dedup/integrity, stats,
-budget, insights, audit, sandbox) — a silent target is a failing target.
+checkpoint audit, provenance) — a silent target is a failing target.
 
 - Memory: `memory/canonical/` is the only hand-written source of truth
   (append-only, provenance on every entry). Derived views regenerate via
   `mini-agi derive`; on conflict canonical wins. Read
   `memory/derived/context-brief.md` before working; never re-research what
-  canonical already knows. `mini-agi mem verify` audits memory integrity
-  (duplicates, lineage, preservation); `mem supersede`/`preserve`/
-  `unpreserve` evolve the lineage deliberately (never edit an entry).
+  canonical already knows.
 - Checkpointing: `scripts/checkpoint.sh begin <label>` before every edit
   step, `scripts/checkpoint.sh verify <label>` after gates pass. The
   journal is audited by the gate (every VERIFY needs an earlier BEGIN).
@@ -45,19 +42,24 @@ budget, insights, audit, sandbox) — a silent target is a failing target.
 - Review: rubric in `.agents/checks/review-rubric.md`; verdicts must end
   with an `Anchors:` line of canonical fact ids (16-hex).
 - Intelligence layer (run from a fresh session):
-  `mini-agi resume` — what a new session must load (brief head, journal
-  tail, failure and mismatch registers: do not repeat recorded failures).
+  `mini-agi mem query <topic>` — canonical facts before re-research.
   `mini-agi insights` — compounding report; capability gaps ARE the
   roadmap. `mini-agi loop status|dispatch|verify` — the gap -> ticket ->
   slice -> rerun loop without human routing (claims are leases: never
-  start work on a ticket someone else holds). `mini-agi health` / `mini-agi
-  audit` — machine and repo invariants before long sessions.
+  start work on a ticket someone else holds).
 - MCP writes need HITL: every tool that changes the worker tree or
   canonical memory (`loop_dispatch`, `loop_objective`, `memory_signoff`,
-  `memory_consolidate`, `memory_derive`, `run_ingest`, `ticket_claim`/
-  `release`, `skill_add`, `harness`, `loop_run`) requires a non-empty
-  `approve` reason in the kernel — a session cannot write without human
-  signoff (`.codex/config.toml` mirrors this with `approval_mode = prompt`).
+  `memory_consolidate`, `memory_derive`, `skill_add`, `dream`) requires a
+  non-empty `approve` reason in the kernel — a session cannot write
+  without human signoff (`.codex/config.toml` mirrors this with
+  `approval_mode = prompt`).
+- Every case run needs a deterministic verifier (P0-3): `loop dispatch`
+  refuses cases without a declared `verify_command` + `verify_target`;
+  `loop verify` runs the gate in the resolved target and closes the case
+  only when it passes.
+- Verification discipline: a run's `outcome.achieved` is its OWN claim
+  until `loop verify` (or the supervised verifier) confirms it; never
+  report a run as successful without its verifier.
 - Communication: facts and next actions, no filler.
 ";
 
@@ -252,7 +254,7 @@ pub fn init(root: &Path, claude_shim: bool) -> Result<Vec<String>, io::Error> {
     }
 
     created.push(
-        "ready: run scripts/verify.sh, then mini-agi health && mini-agi audit && mini-agi resume"
+        "ready: run scripts/verify.sh, then mini-agi checkpoint && mini-agi provenance && mini-agi insights"
             .to_string(),
     );
 

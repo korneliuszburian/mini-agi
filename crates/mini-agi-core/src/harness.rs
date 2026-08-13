@@ -155,7 +155,9 @@ pub fn verify_candidate(
     }
     let candidate_text = fs::read_to_string(candidate)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
-    let _ = fs::write(&target, &candidate_text);
+    // A failed swap must NOT be measured as the original file (a
+    // fabricated NEUTRAL/ACCEPT) — propagate the write error.
+    fs::write(&target, &candidate_text)?;
     let (after, after_ok) = gate_run(root);
     restore(&target, original.as_ref())?;
     // A gate that FAILS after the swap (markerless abort, crash) is an
@@ -190,24 +192,22 @@ fn gate_failures_text(root: &Path) -> Vec<String> {
 /// broken current gate must be visible); the AFTER check treats any
 /// non-success as invalid (see `verify_candidate`).
 fn gate_run(root: &Path) -> (Vec<String>, bool) {
-    let output = std::process::Command::new("sh")
-        .arg("scripts/verify.sh")
-        .current_dir(root)
-        .output();
-    match output {
-        Ok(out) => {
-            let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
-            text.push_str(&String::from_utf8_lossy(&out.stderr));
+    // §5.2: the harness gate runs through the capped runner too — never a
+    // bare `Command::output()` (a hung verify.sh must not block the
+    // counterfactual forever). verify.sh runs cargo test, so the cap is
+    // generous; the [FAIL] markers survive in the captured output.
+    let cap = 1800u64;
+    match crate::worker::run_capped("sh", &["scripts/verify.sh"], root, Some(cap)) {
+        Ok(res) => {
+            let text = res.output;
             let mut failures = gate_failures(&text);
-            if !out.status.success() && failures.is_empty() {
+            if (res.status != Some(0) || res.aborted) && failures.is_empty() {
                 failures.push(format!(
                     "gate exited {} without [FAIL] markers",
-                    out.status
-                        .code()
-                        .map_or_else(|| "-".into(), |c| c.to_string())
+                    res.status.map_or_else(|| "-".into(), |c| c.to_string())
                 ));
             }
-            (failures, out.status.success())
+            (failures, res.status == Some(0) && !res.aborted)
         }
         Err(_) => (vec!["gate unavailable".to_string()], false),
     }

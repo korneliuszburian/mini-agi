@@ -92,7 +92,7 @@ the raw text, never blocks).
 ## The client surface (v3)
 
 The MCP bridge — codex sessions launch, poll and read supervised runs
-through the kernel (`loop_run` / `run_status` / `run_report`). Client
+through the kernel (the supervisor CLI `mini-agi loop run`; MCP exposes `loop_dispatch`/`loop_verify`). Client
 details live in `docs/CODEX-INTEGRATION.md`; this doc covers the
 supervisor SEMANTICS only (cross-referenced, not duplicated).
 

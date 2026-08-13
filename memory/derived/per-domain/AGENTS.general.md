@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 4952691b2c4b7292
-# canonical_entries: 111
+# canonical_sha256: 85583f24844bc03d
+# canonical_entries: 112
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -985,3 +985,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `f1a7d3d4eab744b8` cycle 10 (2026-08-12): hardening round 2 — concurrent run_capped temp-file collision fixed (unique token); supervisor resolve() routes untrusted case verify_target through resolve_target (the loop run verifier seam MUST-FIX 5 missed); explicit operator --target stays trusted. 76 tests green.
 - `3d2c793520105f8d` cycle 11-12 (2026-08-12): loop codex spec target resolved via resolve_target (3rd verifier seam); max_rerun_attempts enforced at dispatch — GapState::Exhausted now written (was dead), pick_target/objective skip over-bound cases. 78 tests green.
 - `425820398d0ff3b9` cycle 13 (2026-08-12): skill verify hooks now execute via worker::run_capped (120s cap + 8MiB output truncation) — the last bare Command::output gate execution, parity with loop verify/supervisor/codex. 79 tests green.
+- `89bd153e24e24b9b` cycle 14 (2026-08-13): deepseek-v4-pro external review of the hardening range produced 17 findings; 11 substantive fixes landed — suffix-only rerun base, transactional dispatch (TOCTOU recheck + rollback), fail-closed Config::load_checked, base-gate verify, spec-line split, foreign-claim close refusal, ledger-attempts in status, Unverifiable marking, budget governor, exhaustion claim release. 86 tests green.

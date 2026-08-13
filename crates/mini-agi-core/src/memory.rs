@@ -834,23 +834,23 @@ pub fn consolidate(
         // preserved ids resolve to their canonical BODIES; the candidate
         // prefix is matched against them (same char-boundary-safe
         // prefix rule as the contested check).
-        let preserved_bodies: Vec<&str> = canonical
+        let preserved: Vec<(&str, &str)> = canonical
             .iter()
             .filter(|(_, id)| preserved_ids(root).contains(id))
-            .map(|(body, _)| body.as_str())
+            .map(|(body, id)| (body.as_str(), id.as_str()))
             .collect();
-        let preserved_collision = (!preserved_bodies.is_empty())
+        let preserved_collision = (!preserved.is_empty())
             .then(|| {
                 let take = fact
                     .char_indices()
                     .nth(fact.chars().count().min(40))
                     .map_or(fact.len(), |(i, _)| i);
-                preserved_bodies
+                preserved
                     .iter()
-                    .find(|old_fact| {
-                        old_fact.starts_with(&fact[..take]) || fact[..take].starts_with(**old_fact)
+                    .find(|(body, _)| {
+                        body.starts_with(&fact[..take]) || fact[..take].starts_with(*body)
                     })
-                    .map(|_| preserved_bodies[0].to_string())
+                    .map(|(_, id)| (*id).to_string())
             })
             .flatten();
         if let Some(preserved) = preserved_collision {

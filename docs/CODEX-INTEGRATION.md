@@ -12,7 +12,7 @@ command = "cargo"
 args = ["run", "-q", "-p", "mini-agi", "--", "mcp"]
 trusted = true
 default_tools_approval_mode = "auto"
-enabled_tools = ["loop_status", "memory_query", "run_verify", ...]
+enabled_tools = ["loop_status", "loop_dispatch", "loop_objective", "loop_verify", "memory_query", "memory_consolidate", "memory_derive", "memory_signoff", "provenance", "skill_add", "skill_list", "skill_show", "checkpoint_audit", "dream"]
 ```
 
 - `cargo run` resolves the kernel from source — no machine-specific paths in
@@ -28,7 +28,7 @@ enabled_tools = ["loop_status", "memory_query", "run_verify", ...]
   from the MCP server's `initialize` response (MCP spec, `InitializeResult.
   instructions`), emitted by `crates/mini-agi/src/mcp.rs` (512 chars,
   self-contained: results are provenance-bound; a run stays unverified
-  until `run_verify` passes).
+  until `loop verify` (or the supervised verifier) passes).
 - Schema is per the codex 0.146 manual: `enabled_tools` (allow-list),
   `default_tools_approval_mode`, per-tool `approval_mode` under
   `[mcp_servers.mini-agi.tools.<name>]`.
@@ -37,9 +37,9 @@ enabled_tools = ["loop_status", "memory_query", "run_verify", ...]
 ## Per-tool approval — the explicit allowlist
 
 39 tools, no wildcard (`enabled_tools`). Reads (`loop_status`, `memory_query`,
-`run_verify`, `loop_verify`, `eval_gate`, `checkpoint_audit`, `provenance`,
+`loop_verify`, `checkpoint_audit`, `provenance`,
 ...) run `auto`; writes (`loop_dispatch`, `loop_objective`,
-`ticket_claim/release`, `skill_add`, `run_ingest`, `memory_consolidate/
+`skill_add`, `dream`, `memory_consolidate/
 derive`) and `harness` run `prompt` (HITL). `memory_signoff` stays `prompt`
 by design — the signoff gate is human (ADR-0010); a session cannot silently
 merge its own memory.
@@ -56,7 +56,7 @@ signoff contract (ADR-0010), so it needs both a queue entry and `approve`.
 
 ## The supervisor tools (AFK v3 — launch and poll)
 
-- `loop_run` (approval **prompt** — a write that changes the worker
+- `loop_run` (supervisor CLI `mini-agi loop run`, not an MCP tool — a write that changes the worker
   tree; the `approve` reason is required): launches a verified-iteration
   run in the BACKGROUND (detached child; MCP tool timeouts cannot kill
   it) and returns the run handle. The resolved case target/verifier are
