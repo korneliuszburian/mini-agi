@@ -94,8 +94,10 @@ pub fn extract_fact_ids(text: &str) -> Vec<String> {
 /// enclosing fact and spawns a phantom fact with the quoted id
 /// (EXP-014: real information loss in the memory pipeline).
 fn is_fact_header(line: &str) -> bool {
-    let l = line.trim_start();
-    let Some(rest) = l.strip_prefix("## F-") else {
+    // Column-0 ONLY: an escaped body (` ## F-000 \`id\``) must NOT be
+    // re-read as a header after trim_start (that spawned phantom
+    // id-less facts and broke the digest invariant).
+    let Some(rest) = line.strip_prefix("## F-") else {
         return false;
     };
     let digits: usize = rest.bytes().take_while(u8::is_ascii_digit).count();
@@ -152,6 +154,20 @@ pub fn parse_canonical_facts(text: &str) -> Vec<(String, String)> {
 #[cfg(test)]
 mod store_tests {
     use super::*;
+
+    #[test]
+    fn escaped_header_bodies_are_not_headers() {
+        // The space-prefixed escape must NOT be re-read as a header after
+        // trim_start (that spawned phantom id-less facts).
+        assert!(
+            !is_fact_header(" ## F-000 `deadbeefdeadbeef`"),
+            "escaped body is not a header"
+        );
+        assert!(
+            is_fact_header("## F-000 `deadbeefdeadbeef`"),
+            "a real header is"
+        );
+    }
 
     #[test]
     fn fact_ids_come_only_from_headers_not_bodies() {

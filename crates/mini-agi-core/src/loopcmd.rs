@@ -918,7 +918,14 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     // the run.json executable copy). Display surfaces (loop verify output,
     // ledger) stay redacted; this executable contract must not be.
     let vc = run.verify_command.unwrap_or_default();
-    let vt = run.verify_target.unwrap_or_else(|| "<repo root>".into());
+    // Flatten vt too: an injected `\n- verify_command:` line in an
+    // untrusted verify_target must not reach the executable spec.
+    let vt = run
+        .verify_target
+        .unwrap_or_else(|| "<repo root>".into())
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     // Separate lines, never `{vc} in {vt}`: a command legitimately
     // containing " in " must not be re-split by the codex parser.
     let _ = writeln!(body, "- verify_command: {vc}");
@@ -1016,6 +1023,36 @@ pub fn verify(
         run.clone()
     };
     let mut lines = vec![format!("verify {case}: achieved={}", run.achieved())];
+
+    // Guards run BEFORE the gate executes (up to 120s): a terminal base
+    // must not be re-gated, and a foreign claim must not force a gate run
+    // only to be refused after.
+    if let Some(gap) = read_ledger_checked(root, base)?
+        && gap_is_terminal(&gap.state)
+    {
+        lines.push(format!(
+            "  gap already {} in the ledger — no-op",
+            gap.state_name()
+        ));
+        let closed = gap.state == GapState::Closed;
+        lines.insert(
+            0,
+            format!("loop verify: {}", if closed { "CLOSED" } else { "OPEN" }),
+        );
+        return Ok((lines.join("\n"), closed));
+    }
+    if let Some(t) = ticket_for_case(root, base)
+        && let Some(foreign) = crate::ticket::read_claims(root)
+            .unwrap_or_default()
+            .iter()
+            .find(|c| c.ticket == t.id && c.claimant != claimant)
+            .map(|c| c.claimant.clone())
+    {
+        return Err(format!(
+            "cannot verify {base}: ticket {} is claimed by {foreign}, not {claimant}",
+            t.id
+        ));
+    }
 
     let mut passed = false;
     if let (Some(cmd), Some(target)) = (&gate.verify_command, &gate.verify_target) {

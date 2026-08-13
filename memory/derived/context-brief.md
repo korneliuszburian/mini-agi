@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: e3e69cd8c759997b
-# canonical_entries: 137
+# canonical_sha256: b37f64ea8d024bdf
+# canonical_entries: 138
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -35,4 +35,4 @@ Read this before starting any session. Canonical wins over this file.
 - `2a08ff2b87eddc68` [eval] run real-ticket-005-v2 scored composite 0.4896 on 162500 tokens (0.4179 USD) with 0 scope violations and 4 tool mismatches.
   links: 0d15dc7a5f566730, 24ca89466bb01359, 717835cda5492d7d, 9cb30db774cf56e1, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a2c96954211dbbd4
 
-# truncated: 1233 of 1246 facts fit the 8192B brief cap — full listing: memory/canonical/ (append-only)
+# truncated: 1234 of 1247 facts fit the 8192B brief cap — full listing: memory/canonical/ (append-only)

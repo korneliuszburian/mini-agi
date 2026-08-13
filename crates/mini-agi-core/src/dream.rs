@@ -412,6 +412,12 @@ pub fn read_verdicts(path: &Path) -> Vec<AuditorVerdict> {
         .filter_map(|item| {
             let index = usize::try_from(item.get("index")?.as_u64()?).ok()?;
             let verdict = item.get("verdict")?.as_str()?.to_string();
+            if !matches!(
+                verdict.as_str(),
+                "promote" | "duplicate" | "conflict" | "reject"
+            ) {
+                return None;
+            }
             Some(AuditorVerdict {
                 index,
                 verdict,

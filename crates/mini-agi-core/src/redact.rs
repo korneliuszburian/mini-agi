@@ -376,6 +376,19 @@ fn redact_flag_values(text: &str) -> String {
             c.is_whitespace() || c == '=' || c == ':' || c == '"' || c == '\''
         });
         if !left_ok {
+            // JSON STRING VALUE containing a flag (`{"args":"-phunter2"}`):
+            // `-p` preceded by a quote and followed by a NON-quote means
+            // the credential rides inside the quoted value — redact from
+            // after `-p` through the closing quote.
+            if rest[..pos].ends_with('"')
+                && !rest[after..].starts_with('"')
+                && let Some(close) = rest[after..].find('"')
+            {
+                out.push_str(&rest[..after]);
+                out.push_str(REDACTED);
+                rest = &rest[after + close..];
+                continue;
+            }
             // JSON ARRAY element `["-p","secret"]`: the quote before `-p`
             // closes the element string, and the element's VALUE is the
             // next array element. Left_ok fails on the quote, so handle
@@ -687,6 +700,21 @@ mod redact_tests {
             "unquoted array value leaked: {out}"
         );
         assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn json_string_value_flags_are_redacted() {
+        for input in [
+            r#"{"args":"-phunter2secret"}"#,
+            r#"{"args": "-p'x hunter2'"}"#,
+        ] {
+            let out = redact(input);
+            assert!(
+                !out.contains("hunter2"),
+                "JSON-string -p value leaked: {out}"
+            );
+            assert!(out.contains(REDACTED), "{out}");
+        }
     }
 
     #[test]

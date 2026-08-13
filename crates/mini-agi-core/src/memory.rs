@@ -464,6 +464,7 @@ pub fn write_supersede_entry(
     );
     let _ = writeln!(content, "- supersedes: {}", supersedes.join(", "));
     for (i, (fact, digest)) in facts.iter().enumerate() {
+        let (fact, digest) = canonical_body(fact, digest);
         let _ = writeln!(content, "\n## F-{i:03} `{digest}`\n\n{fact}");
     }
     // Same create_new TOCTOU guard as write_canonical_entry: a concurrent

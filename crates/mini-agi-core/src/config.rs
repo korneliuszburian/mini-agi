@@ -121,9 +121,20 @@ impl Config {
     pub fn load_checked(root: &Path) -> Result<Self, String> {
         let mut cfg = Self::default();
         let path = root.join(".miniagi.json");
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            cfg = serde_json::from_str::<Self>(&text)
-                .map_err(|e| format!("{} is invalid JSON: {e}", path.display()))?;
+        match std::fs::read_to_string(&path) {
+            Ok(text) => {
+                cfg = serde_json::from_str::<Self>(&text)
+                    .map_err(|e| format!("{} is invalid JSON: {e}", path.display()))?;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                // PRESENT but unreadable (permissions/io): failing open to
+                // defaults would silently disable every worker cap.
+                return Err(format!(
+                    "{} is present but unreadable ({e}) — refusing to run with unlimited caps",
+                    path.display()
+                ));
+            }
         }
         let check = |name: &str, kind: &str, parse: fn(&str) -> bool| {
             if let Some(raw) = std::env::var(name).ok()

@@ -831,6 +831,9 @@ pub fn append_ticket_note(root: &Path, id: &str, note: &str) -> Result<(), Ticke
         .append(true)
         .open(&path)
         .map_err(TicketError::Io)?;
+    // Flatten the note: a newline would inject a `- blocked_by:`/`- status:`
+    // line into the ticket file.
+    let note = note.split_whitespace().collect::<Vec<_>>().join(" ");
     writeln!(f, "- note: {note}").map_err(TicketError::Io)?;
     Ok(())
 }
@@ -928,7 +931,7 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
     } else {
         format!("{text}\n{status_line}\n")
     };
-    let tmp = path.with_extension("md.tmp");
+    let tmp = tmp_unique(&path, "status");
     fs::write(&tmp, updated).map_err(TicketError::Io)?;
     fs::rename(&tmp, &path).map_err(TicketError::Io)
 }
