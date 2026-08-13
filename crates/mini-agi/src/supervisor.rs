@@ -587,8 +587,13 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
                 .to_string_lossy()
                 .into_owned()
         };
+        // §5.3: the spec carries the gate redacted — an untrusted
+        // verify_command with embedded credentials must not reach the
+        // worker's context/transcript.
+        let vc_r = mini_agi_core::redact::redact(vc);
+        let vt_redacted = mini_agi_core::redact::redact(&vt);
         let spec_text = format!(
-            "# SLICE SPEC (supervised)\n\n- goal: {}\n- scope: {}\n- verify_command: {vc}\n- verify_target: {vt}\n",
+            "# SLICE SPEC (supervised)\n\n- goal: {}\n- scope: {}\n- verify_command: {vc_r}\n- verify_target: {vt_redacted}\n",
             run.goal,
             run.scope.join(", ")
         );
@@ -604,10 +609,11 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
             "ad-hoc goal requires --verify (the deterministic verifier, P0-3)".to_string()
         })?;
         let vt = input.target.unwrap_or(input.workdir);
+        let vc_r = mini_agi_core::redact::redact(vc);
+        let vt_redacted = mini_agi_core::redact::redact(&vt.to_string_lossy());
         let spec_text = format!(
-            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {}\n- scope: (none declared)\n- verify_command: {vc}\n- verify_target: {}\n",
-            input.goal_or_case,
-            vt.display()
+            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {}\n- scope: (none declared)\n- verify_command: {vc_r}\n- verify_target: {vt_redacted}\n",
+            input.goal_or_case
         );
         Ok(ResolvedSpec {
             spec_text,

@@ -11,7 +11,7 @@ use std::fs::{self, File};
 use std::io;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Outcome of a budget-capped worker run.
 #[derive(Debug, Clone)]
@@ -141,6 +141,14 @@ pub fn run_capped(
     run_capped_idle(command, args, cwd, max_wall_seconds, None)
 }
 
+/// Newest mtime across the given files (None when none readable).
+fn newest_mtime(paths: &[&Path]) -> Option<SystemTime> {
+    paths
+        .iter()
+        .filter_map(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
+        .max()
+}
+
 /// `run_capped` with an idle-timeout (AFK supervisor S1).
 ///
 /// When `max_idle_seconds` is set and the worker's output file has not
@@ -180,10 +188,12 @@ pub fn run_capped_idle(
         // Liveness baseline: an `Instant` reset on every output-file
         // mtime change — a worker is STUCK only after one full idle
         // interval WITHOUT any new output (not one interval from start).
+        // Watch BOTH streams: a worker whose progress goes only to stderr
+        // must not be killed as stuck on a silent stdout.
+        let out_path = stdout_path.as_path();
+        let err_path = stderr_path.as_path();
         let mut last_activity = start;
-        let mut last_mtime = std::fs::metadata(&stdout_path)
-            .and_then(|m| m.modified())
-            .ok();
+        let mut last_mtime = newest_mtime(&[out_path, err_path]);
         loop {
             if child.try_wait()?.is_some() {
                 break;
@@ -195,9 +205,7 @@ pub fn run_capped_idle(
                 break;
             }
             if let Some(idle) = idle {
-                let mtime = std::fs::metadata(&stdout_path)
-                    .and_then(|m| m.modified())
-                    .ok();
+                let mtime = newest_mtime(&[&stdout_path, &stderr_path]);
                 if let (Some(prev), Some(cur)) = (last_mtime, mtime)
                     && cur != prev
                 {

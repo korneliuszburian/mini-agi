@@ -510,7 +510,17 @@ pub fn apply_verdicts(
                 }
                 if fact.body.contains("enforced_by") {
                     // ADR-0010: enforcement-bound facts need a human.
-                    if !fact.body.contains("existing fact hash") {
+                    // Dedup by digest (the queue file holds them as
+                    // `## C-<n> `<digest>`` blocks) — never skip on fact
+                    // CONTENT (a body mentioning "existing fact hash"
+                    // would otherwise be counted queued but never written).
+                    let queue = root
+                        .join("memory/review")
+                        .join(format!("contested-{}.md", crate::memory::utc_now_date()));
+                    let already = crate::memory::queued_facts(&queue)
+                        .iter()
+                        .any(|(d, _)| *d == h);
+                    if !already {
                         crate::memory::append_contested(
                             root,
                             &fact.body,

@@ -631,25 +631,34 @@ pub fn dispatch(
     // On ANY failure the claim is released and a created ticket removed —
     // no leased case with a missing spec/ledger row.
     let lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
-    let rollback = |ledger_written: bool| {
+    let prior_gap = read_ledger(root, &case);
+    let rollback = |prior_gap: &Option<Gap>| {
         let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
         if ticket_created {
             let _ =
                 fs::remove_file(crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")));
         }
-        if ledger_written {
-            let _ = fs::remove_file(ledger_path(root, &case));
+        // Restore the PRIOR ledger row — never delete it: a pre-existing
+        // row carries attempt history (deleting it would reset the retry
+        // bound and erase the case's dispatch record).
+        match prior_gap {
+            Some(g) => {
+                let _ = write_ledger_atomic(root, g);
+            }
+            None => {
+                let _ = fs::remove_file(ledger_path(root, &case));
+            }
         }
     };
     let now = crate::memory::utc_now_stamp();
-    let mut gap = read_ledger(root, &case).unwrap_or_else(|| Gap {
+    let mut gap = prior_gap.clone().unwrap_or_else(|| Gap {
         case: case.clone(),
         state: GapState::Open,
         opened_by: case.clone(),
         ..Gap::default()
     });
     if gap_is_terminal(&gap.state) {
-        rollback(false);
+        rollback(&prior_gap);
         return Err(format!(
             "case '{case}' is {} in the ledger (closed between pick and claim) — redispatch refused",
             gap.state_name()
@@ -666,12 +675,12 @@ pub fn dispatch(
     let spec = match write_spec(root, &case, &ticket_id) {
         Ok(s) => s,
         Err(e) => {
-            rollback(false);
+            rollback(&prior_gap);
             return Err(format!("cannot write spec: {e}"));
         }
     };
     write_ledger_atomic(root, &gap).map_err(|e| {
-        rollback(true);
+        rollback(&prior_gap);
         format!("cannot write ledger: {e}")
     })?;
     drop(lock);

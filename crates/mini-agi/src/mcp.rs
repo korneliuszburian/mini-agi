@@ -291,6 +291,7 @@ fn handle_tools_call(params: &Value) -> Value {
 }
 
 fn call_tool(name: &str, args: &Value, root: &Path) -> String {
+    use std::fmt::Write as _;
     match name {
         "memory_consolidate" => {
             let dry_run = arg_bool(args, "dry_run");
@@ -455,9 +456,33 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 Err(e) => return format!("error: {e}"),
             };
             let staged = mini_agi_core::dream::parse_distilled_facts(&text);
+            // ADR-0010 D2: enforcement-bound facts always route to the
+            // human queue (the distiller path has no strong-model audit);
+            // only the rest consolidate into canonical.
             let mut buffer = String::new();
+            let mut queued = 0usize;
             for f in &staged {
-                use std::fmt::Write as _;
+                if f.body.contains("enforced_by") {
+                    let h = mini_agi_core::hash::fact_id(&f.body);
+                    let q = root.join("memory/review").join(format!(
+                        "contested-{}.md",
+                        mini_agi_core::memory::utc_now_date()
+                    ));
+                    let already = mini_agi_core::memory::queued_facts(&q)
+                        .iter()
+                        .any(|(d, _)| *d == h);
+                    if !already {
+                        let _ = mini_agi_core::memory::append_contested(
+                            root,
+                            &f.body,
+                            &h,
+                            source,
+                            "0000000000000000",
+                        );
+                    }
+                    queued += 1;
+                    continue;
+                }
                 let _ = writeln!(buffer, "- {}", f.body);
             }
             let opts = mini_agi_core::memory::ConsolidateOptions {
@@ -466,7 +491,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 dry_run: false,
             };
             match mini_agi_core::memory::consolidate(root, &buffer, source, &opts) {
-                Ok(o) => format!("dream: {} facts distilled", o.new_facts),
+                Ok(o) => format!(
+                    "dream: {} facts distilled ({} enforcement-bound queued for human review)",
+                    o.new_facts, queued
+                ),
                 Err(e) => format!("error: {e}"),
             }
         }

@@ -434,7 +434,19 @@ pub fn lock_claims(root: &Path) -> io::Result<ClaimsLock> {
                     })
                 });
                 if stale {
-                    let _ = fs::remove_file(&path);
+                    // Atomic steal: RENAME the stale lock to a unique name
+                    // instead of remove_file + create_new. Two waiters that
+                    // both observe a stale lock must not remove each other's
+                    // FRESH lock: only one `rename` of the same inode can
+                    // succeed; the loser retries and then waits on the
+                    // winner's new lock (or steals a genuinely stale one).
+                    // The renamed inode is discarded best-effort.
+                    let steal = path.with_extension(format!("lock.steal.{}", std::process::id()));
+                    if fs::rename(&path, &steal).is_ok() {
+                        let _ = fs::remove_file(&steal);
+                        continue;
+                    }
+                    // Another waiter stole it first — retry the loop.
                     continue;
                 }
                 if started.elapsed().as_millis() > LOCK_MAX_WAIT_MS.into() {
@@ -745,4 +757,58 @@ pub fn validate_graph(root: &Path) -> Result<Vec<String>, TicketError> {
     problems.sort();
     problems.dedup();
     Ok(problems)
+}
+
+#[cfg(test)]
+mod lock_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn lock_claims_steals_a_stale_lock_atomically() {
+        let root = std::env::temp_dir().join(format!("mag-lock-race-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        // Force steal contention: a STALE lock file.
+        let lock_path = root.join("tickets/.claims.lock");
+        fs::write(&lock_path, b"").unwrap();
+        let old =
+            std::time::SystemTime::now() - std::time::Duration::from_secs(LOCK_STALE_SECS * 4);
+        fs::File::open(&lock_path)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(old))
+            .unwrap();
+        // 8 threads contend on the stale lock; mutual exclusion must hold:
+        // at most ONE holder at a time (a remove+create steal lets two
+        // holders overlap and trips the shared counter).
+        let held = Arc::new(AtomicUsize::new(0));
+        let max_seen = Arc::new(AtomicUsize::new(0));
+        let root = Arc::new(root);
+        let mut handles = Vec::new();
+        for _ in 0..8 {
+            let root = root.clone();
+            let held = held.clone();
+            let max_seen = max_seen.clone();
+            handles.push(std::thread::spawn(move || {
+                for _ in 0..5 {
+                    let _l = lock_claims(&root).unwrap();
+                    let n = held.fetch_add(1, Ordering::SeqCst) + 1;
+                    max_seen.fetch_max(n, Ordering::SeqCst);
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    held.fetch_sub(1, Ordering::SeqCst);
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        assert!(
+            max_seen.load(Ordering::SeqCst) <= 1,
+            "two holders overlapped: {} concurrent",
+            max_seen.load(Ordering::SeqCst)
+        );
+        assert!(!lock_path.exists(), "no lock file survives");
+        let _ = fs::remove_dir_all(&*root);
+    }
 }

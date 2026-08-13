@@ -744,13 +744,16 @@ pub fn append_contested(
     }
     let current = fs::read_to_string(&queue).unwrap_or_default();
     let number = current.lines().filter(|l| l.starts_with("## C-")).count() + 1;
+    // Single-line payload: a multi-line fact would truncate on the
+    // queue parse and promote an id that no longer hashes its body.
+    let fact_flat = fact.replace('\n', " ");
     let mut f = fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&queue)?;
     writeln!(
         f,
-        "## C-{number:03} `{digest}`\n- source: {source}\n- reason: same first 40 chars\n- existing fact hash: {existing_hash}\n\n{fact}\n"
+        "## C-{number:03} `{digest}`\n- source: {source}\n- reason: same first 40 chars\n- existing fact hash: {existing_hash}\n\n{fact_flat}\n"
     )?;
     Ok(queue)
 }
@@ -909,13 +912,37 @@ pub fn signoff(
     index: usize,
     domain: &str,
 ) -> Result<EntryFile, MemoryError> {
-    if !queue.exists() || index < 1 {
+    if index < 1 {
         return Err(MemoryError::BadSignoff);
     }
-    let blocks = queued_facts(queue);
+    // The queue path is UNTRUSTED caller input (MCP): constrain it to the
+    // review queue directory — a signoff must never read an arbitrary
+    // file the process can reach (path traversal).
+    let queue = if queue.is_absolute() {
+        queue.to_path_buf()
+    } else {
+        root.join(queue)
+    };
+    let review_root = root.join(REVIEW_REL);
+    let review_canon = review_root
+        .canonicalize()
+        .map_err(|_| MemoryError::BadSignoff)?;
+    let queue_canon = queue.canonicalize().map_err(|_| MemoryError::BadSignoff)?;
+    if !queue_canon.starts_with(&review_canon) {
+        return Err(MemoryError::BadSignoff);
+    }
+    if !queue.exists() {
+        return Err(MemoryError::BadSignoff);
+    }
+    let blocks = queued_facts(&queue);
     let Some((digest, fact)) = blocks.get(index - 1).cloned() else {
         return Err(MemoryError::IndexNotFound);
     };
+    // The queued digest must actually hash the queued body — a caller
+    // cannot promote under an arbitrary id (fact ids = sha256[:16]).
+    if crate::hash::fact_id(&fact) != digest {
+        return Err(MemoryError::BadSignoff);
+    }
     if existing_fact_ids(root).contains(&digest) {
         return Err(MemoryError::FactKnown);
     }
