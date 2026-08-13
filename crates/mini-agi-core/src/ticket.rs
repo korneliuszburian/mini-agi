@@ -549,8 +549,16 @@ pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> 
                             continue;
                         }
                         // The renamed inode is a FRESH lock (stolen mid-
-                        // window) — put it back and wait on it.
-                        let _ = fs::rename(&steal, &path);
+                        // window) — put it back and wait on it. Use
+                        // hard_link (fails if `path` was re-taken): a
+                        // plain rename would OVERWRITE a concurrently
+                        // created fresh lock, leaving its holder running
+                        // without an exclusive lock file.
+                        // hard_link fails (does not overwrite) when the
+                        // path was re-taken — in either case our stolen
+                        // inode is now orphaned; discard it and retry.
+                        let _ = fs::hard_link(&steal, &path);
+                        let _ = fs::remove_file(&steal);
                     } else {
                         // Another waiter stole it first — retry the loop.
                         continue;

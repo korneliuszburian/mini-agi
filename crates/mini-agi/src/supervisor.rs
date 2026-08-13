@@ -622,7 +622,13 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
 /// Resolve the idle cap: an explicit CLI value wins, else the config
 /// default (`max_idle_seconds`).
 fn resolve_idle_cap(explicit: Option<u64>, workdir: &Path) -> Option<u64> {
-    explicit.or_else(|| mini_agi_core::config::Config::load(workdir).max_idle_seconds)
+    explicit.or_else(|| {
+        // Fail-closed: a corrupt config must not silently swap the
+        // operator's liveness cap for the default.
+        mini_agi_core::config::Config::load_checked(workdir)
+            .ok()
+            .and_then(|c| c.max_idle_seconds)
+    })
 }
 
 /// The verifier command to run: an explicit `--verify` wins, else the

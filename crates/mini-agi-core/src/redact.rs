@@ -284,7 +284,7 @@ fn redact_flag_values(text: &str) -> String {
             {
                 let vskip = vtail.len() - vtail.trim_start().len();
                 out.push_str(&rest[..pos]);
-                out.push_str("-p");
+                out.push_str(&rest[pos..after]);
                 out.push_str(REDACTED);
                 rest = &rest[after + close + 1 + 1 + vskip + vlen..];
                 continue;
@@ -302,7 +302,7 @@ fn redact_flag_values(text: &str) -> String {
             let tail = &rest[after..];
             let take = quoted_value_len(tail).unwrap_or_else(|| {
                 tail.find(|c: char| {
-                    c.is_whitespace() || c == ',' || c == '&' || c == ';' || c == '"' || c == '\''
+                    c.is_whitespace() || c == '&' || c == ';' || c == '"' || c == '\''
                 })
                 .unwrap_or(tail.len())
             });
@@ -367,8 +367,10 @@ fn redact_key_value_pairs(text: &str) -> String {
         };
         let value = &rest[pos + sep_after + skip..pos + sep_after + skip + take];
         let quoted = value.starts_with('"') && value.ends_with('"');
-        if value.trim().starts_with(REDACTED) {
-            // Already redacted (e.g. a header value handled above) — keep.
+        // Already-redacted keep applies ONLY when the value IS the marker
+        // (a prefix like `[REDACTED]hunter2` would smuggle a secret past
+        // the redactor — deny-by-default).
+        if value.trim() == REDACTED {
             out.push_str(&rest[..pos + sep_after + skip + take]);
             rest = &rest[pos + sep_after + skip + take..];
             continue;
@@ -516,9 +518,7 @@ fn split_pair_value(text: &str, sep: u8) -> Option<(usize, usize)> {
             return None;
         }
         trimmed
-            .find(|c: char| {
-                c.is_whitespace() || c == ',' || c == '&' || c == ';' || c == '"' || c == '\''
-            })
+            .find(|c: char| c.is_whitespace() || c == '&' || c == ';' || c == '"' || c == '\'')
             .unwrap_or(trimmed.len())
     };
     Some((skip, take))
@@ -576,6 +576,32 @@ mod redact_tests {
             );
             assert!(out.contains(REDACTED), "{out}");
         }
+    }
+
+    #[test]
+    fn marker_prefix_does_not_bypass_redaction() {
+        let out = redact("password=[REDACTED]hunter2");
+        assert!(
+            !out.contains("hunter2"),
+            "marker-prefix smuggled a secret: {out}"
+        );
+        let out = redact("Bearer [REDACTED]hunter2");
+        assert!(
+            !out.contains("hunter2"),
+            "marker-prefix bearer leaked: {out}"
+        );
+    }
+
+    #[test]
+    fn comma_does_not_terminate_flag_values() {
+        let out = redact("sshpass -psecret,foo host");
+        assert!(!out.contains("secret,foo"), "comma tail leaked: {out}");
+        assert!(out.contains(REDACTED), "{out}");
+        let out = redact("curl -u user:pass,foo https://x");
+        assert!(
+            !out.contains("pass,foo"),
+            "basic-auth comma tail leaked: {out}"
+        );
     }
 
     #[test]
