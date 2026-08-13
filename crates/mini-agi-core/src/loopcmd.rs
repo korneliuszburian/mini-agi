@@ -402,14 +402,21 @@ pub fn case_is_open(case_dir: &Path) -> bool {
 /// Does `haystack` mention `case` as a whole token (bounded by a
 /// non-alphanumeric char or the edges)? A raw `contains` would alias
 /// `gap-a` to the ticket of `gap-ab` (wrong ticket claimed/closed).
+/// A case name is matched as a WHOLE token: the neighbours must be a
+/// boundary char, where `-` and `_` are TOKEN chars (a hyphen-prefixed
+/// sibling like `gap-a-b` must NOT token-match `gap-a`).
+fn is_case_boundary(c: char) -> bool {
+    !c.is_alphanumeric() && c != '-' && c != '_'
+}
+
 fn mentions_case(haystack: &str, case: &str) -> bool {
     haystack.match_indices(case).any(|(pos, _)| {
         let before_ok = haystack[..pos]
             .chars()
             .next_back()
-            .is_none_or(|c| !c.is_alphanumeric());
+            .is_none_or(is_case_boundary);
         let after = &haystack[pos + case.len()..];
-        let after_ok = after.chars().next().is_none_or(|c| !c.is_alphanumeric());
+        let after_ok = after.chars().next().is_none_or(is_case_boundary);
         before_ok && after_ok
     })
 }
@@ -439,7 +446,7 @@ fn id_matches_case(id: &str, case_lower: &str) -> bool {
         let before_ok = case_lower[..pos]
             .chars()
             .next_back()
-            .is_none_or(|c| !c.is_alphanumeric());
+            .is_none_or(is_case_boundary);
         before_ok
             && case_lower[pos + needle.len()..]
                 .chars()
@@ -1459,7 +1466,11 @@ mod loop_tests {
             "mid-word ticket reference must not alias"
         );
         assert!(
-            id_matches_case("TICKET-7", "gap-ticket-7"),
+            !id_matches_case("TICKET-7", "gap-ticket-7"),
+            "a hyphen-prefixed reference is a different token"
+        );
+        assert!(
+            id_matches_case("TICKET-7", "gap ticket-7"),
             "a bounded ticket-7 reference matches"
         );
     }

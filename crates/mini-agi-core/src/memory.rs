@@ -785,6 +785,17 @@ pub fn write_canonical_entry(
     }
 }
 
+/// The stored-payload digest for review-queue records.
+///
+/// Newlines collapse to spaces (single-line records), then the payload is
+/// trimmed on read — the digest hashes `body.replace('\n', " ").trim()`.
+/// Every dedup site (dream, MCP, CLI) uses this same helper; a second
+/// normalization would silently re-queue on every run.
+#[must_use]
+pub fn fact_digest_stored(body: &str) -> String {
+    fact_id(body.replace('\n', " ").trim())
+}
+
 /// Append one contested fact to the review queue (`PoC` `append_contested`).
 ///
 /// # Errors
@@ -819,7 +830,7 @@ pub fn append_contested(
     // trims the payload). For an escaped `## C-` body the stored line is
     // ` {body}` which reads back as `body` — hash the TRIMMED form, not
     // the escape-prefixed one, or the entry is permanently un-promotable.
-    let digest = fact_id(fact_flat.trim());
+    let digest = fact_digest_stored(&fact_flat);
     let mut f = fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -859,13 +870,19 @@ pub fn queued_facts(queue: &Path) -> Vec<(String, String)> {
         let Some(blank) = after_header.iter().position(|l| l.is_empty()) else {
             continue;
         };
-        let payload = after_header[blank + 1..]
+        // The payload is the first non-empty line after the blank — but a
+        // line that is the NEXT record's header (`## C-`) means THIS
+        // record's payload was empty (an empty body must not swallow the
+        // following record).
+        let payload = match after_header[blank + 1..]
             .iter()
             .find(|l| !l.is_empty())
             .copied()
-            .unwrap_or("")
-            .trim()
-            .to_string();
+        {
+            Some(line) if line.starts_with("## C-") => String::new(),
+            Some(line) => line.trim().to_string(),
+            None => String::new(),
+        };
         records.push((id.to_string(), payload));
     }
     records

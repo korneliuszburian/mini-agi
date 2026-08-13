@@ -558,6 +558,19 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
         }
         // The staged facts sit next to the manifest (`<seq>.md`).
         let staged_path = Path::new(manifest).with_extension("md");
+        // Idempotency receipt: a manifest whose staged file was already
+        // promoted must NOT be re-applied (documented D2 contract).
+        if let Some(receipt) = mini_agi_core::dream::read_promotion_receipt(&staged_path)
+            && mini_agi_core::dream::receipt_matches_staged(&staged_path, &receipt)
+        {
+            return fail(&format!(
+                "dream --promote: {} was already promoted (receipt {}); nothing re-applied",
+                staged_path.display(),
+                receipt.staged
+            ));
+        }
+        // The staged facts sit next to the manifest (`<seq>.md`).
+        let staged_path = Path::new(manifest).with_extension("md");
         let staged = match std::fs::read_to_string(&staged_path) {
             Ok(t) => mini_agi_core::dream::parse_distilled_facts(&t),
             Err(e) => {
@@ -597,13 +610,14 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
             for f in &staged {
                 if f.body.contains("enforced_by") {
                     let h = mini_agi_core::hash::fact_id(&f.body);
+                    let flat_h = mini_agi_core::memory::fact_digest_stored(&f.body);
                     let q = root.join("memory/review").join(format!(
                         "contested-{}.md",
                         mini_agi_core::memory::utc_now_date()
                     ));
                     let already = mini_agi_core::memory::queued_facts(&q)
                         .iter()
-                        .any(|(d, _)| *d == h);
+                        .any(|(d, _)| *d == flat_h);
                     if !already {
                         let _ = mini_agi_core::memory::append_contested(
                             &root,

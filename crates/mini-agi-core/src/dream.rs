@@ -579,12 +579,10 @@ pub fn apply_verdicts(
                     // Dedup against the FLATTENED hash: append_contested
                     // stores fact_id(flattened-trimmed); comparing the raw
                     // body hash would re-queue every multiline fact.
-                    let flat_h = crate::hash::fact_id(
-                        &fact.body.split_whitespace().collect::<Vec<_>>().join(" "),
-                    );
+                    let stored_h = crate::memory::fact_digest_stored(&fact.body);
                     let already = crate::memory::queued_facts(&queue)
                         .iter()
-                        .any(|(d, _)| *d == flat_h);
+                        .any(|(d, _)| *d == stored_h);
                     if !already && !dry_run {
                         crate::memory::append_contested(
                             root,
@@ -636,7 +634,16 @@ pub fn apply_verdicts(
                     .existing_id
                     .clone()
                     .unwrap_or_else(|| "unknown".to_string());
-                if !dry_run {
+                // Idempotent: a conflict verdict already queued must not
+                // append a duplicate record on re-promote.
+                let stored_h = crate::memory::fact_digest_stored(&fact.body);
+                let queue = root
+                    .join("memory/review")
+                    .join(format!("contested-{}.md", crate::memory::utc_now_date()));
+                let already = crate::memory::queued_facts(&queue)
+                    .iter()
+                    .any(|(d, _)| *d == stored_h);
+                if !already && !dry_run {
                     crate::memory::append_contested(root, &fact.body, &h, source, &existing)?;
                 }
                 queued += 1;
@@ -674,7 +681,20 @@ pub fn apply_verdicts(
                 let flat_candidate: String =
                     fact.body.split_whitespace().collect::<Vec<_>>().join(" ");
                 match (existing, existing_body) {
-                    (Some(existing_id), Some(body)) if body != flat_candidate => {
+                    (Some(existing_id), Some(body)) => {
+                        // Normalize the EXISTING body the same way: a
+                        // whitespace-only difference (double space, tab)
+                        // is NOT an "improved version" — it is the same
+                        // fact and must not soft-delete it via supersede.
+                        let existing_flat = body.split_whitespace().collect::<Vec<_>>().join(" ");
+                        if existing_flat == flat_candidate {
+                            skipped += 1;
+                            continue;
+                        }
+                        if body == flat_candidate {
+                            skipped += 1;
+                            continue;
+                        }
                         // ADR-0010: a load-bearing (preserved) fact is a
                         // stronger contract than supersede — a duplicate
                         // verdict against one routes to the human queue
