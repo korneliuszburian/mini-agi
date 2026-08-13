@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 078d9263fda27528
-# canonical_entries: 142
+# canonical_sha256: 0ff0f6ee047ef802
+# canonical_entries: 143
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -1016,3 +1016,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `076e28e503d85e34` cycle 42 (2026-08-13): twenty-ninth deepseek-v4-pro whole-repo review (repo-health-28) — 3 fixed (JSON -u basic-auth, leading-quoted flag tails, whole-word consume), 1 cosmetic documented. 121 tests green.
 - `8f2a2a314d23480a` cycle 43 (2026-08-13): thirtieth deepseek-v4-pro whole-repo review (repo-health-29) — 2 fixed (escape-aware JSON -p, harness verdict refresh). 121 tests green.
 - `b6619391dd8ac897` cycle 44 (2026-08-13): thirty-first deepseek-v4-pro whole-repo review (repo-health-30) — 3 fixed (verify_command flatten, usage accumulation, pre-gate claims fail-closed), 2 documented. 122 tests green.
+- `7dd1addd5fcdcc1a` cycle 45 (2026-08-13): thirty-second deepseek-v4-pro whole-repo review (repo-health-31) — 2 fixed (goal flatten, MCP sentinel), 1 rejected with evidence (ticket ids already path-safe), 1 documented. 122 tests green.

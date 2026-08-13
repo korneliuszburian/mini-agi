@@ -848,7 +848,7 @@ pub fn append_contested(
     // header (`## C-<n> `<16hex>``) would forge a phantom queue record —
     // prefix a space so the line no longer matches, and re-hash the
     // STORED payload (the digest must hash what signoff reads back).
-    if fact_flat.trim_start().starts_with("## C-") {
+    if fact_flat.trim_start().starts_with("## C-") || fact_flat.trim_start().starts_with("## F-") {
         fact_flat = format!(" {fact_flat}");
     }
     // The stored digest MUST hash what signoff READS BACK (queued_facts
@@ -1074,6 +1074,11 @@ pub fn signoff(
     if crate::hash::fact_id(&fact) != digest {
         return Err(MemoryError::BadSignoff);
     }
+    // DEDUP-CONSISTENT escape: a queued body shaped like a `## F-` header
+    // must be stored escaped, and the id recomputed over the escaped form
+    // — otherwise `known`/`FactKnown` (keyed on the raw id) would never
+    // match the stored id and the same entry could be promoted twice.
+    let (fact, digest) = canonical_body(&fact, &digest);
     if existing_fact_ids(root).contains(&digest) {
         return Err(MemoryError::FactKnown);
     }

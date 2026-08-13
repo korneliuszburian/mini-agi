@@ -451,7 +451,7 @@ fn id_matches_case(id: &str, case_lower: &str) -> bool {
             && case_lower[pos + needle.len()..]
                 .chars()
                 .next()
-                .is_none_or(|c| !c.is_ascii_digit())
+                .is_none_or(is_case_boundary)
     })
 }
 
@@ -873,15 +873,23 @@ pub fn objective(
         }
         // Budget governor (§5.2): stop dispatching once the declared
         // budget would be exceeded by the next case's declared cost.
+        // A declared cost must be a finite non-negative number — a
+        // negative or NaN cost would silently enlarge the effective
+        // budget (untrusted run.json data).
+        let cost = if run.cost_usd.is_finite() && run.cost_usd >= 0.0 {
+            run.cost_usd
+        } else {
+            0.0
+        };
         if let Some(budget) = out.budget_cost
-            && out.budget_spent + run.cost_usd > budget
+            && out.budget_spent + cost > budget
         {
             // STOP, not skip: the batch is ordered worst-first; once the
             // budget is exhausted the remaining cases are beyond it.
             break;
         }
         let d_out = dispatch(root, Some(&name), TARGET_COMPOSITE, claimant)?;
-        out.budget_spent += run.cost_usd;
+        out.budget_spent += cost;
         out.dispatched.push(d_out);
     }
     Ok(out)

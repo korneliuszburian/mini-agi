@@ -371,6 +371,11 @@ fn read_arg_file(root: &Path, args: &Value, key: &str) -> String {
             "\u{1}containment-rejected: {key} path '{declared}' is outside the repo root"
         );
     }
+    // A FIFO/device node would block the single-threaded MCP server on
+    // read — only regular files are accepted.
+    if !std::path::Path::new(&path).is_file() {
+        return format!("\u{1}not-a-regular-file: {key} path '{declared}'");
+    }
     match std::fs::read_to_string(&path) {
         Ok(t) => t,
         Err(e) => format!("error: {e}"),
