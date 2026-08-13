@@ -76,8 +76,15 @@ impl SandboxPolicy {
         let status = created
             .restrict_self()
             .map_err(|e| format!("landlock: cannot restrict self: {e}"))?;
-        if status.ruleset == RulesetStatus::NotEnforced {
-            return Err("landlock: ruleset not enforced by the running kernel".into());
+        // FAIL-CLOSED on ANY shortfall: total absence (NotEnforced) OR
+        // partial coverage (PartiallyEnforced — some write bits, e.g.
+        // REFER/REMOVE_DIR on older kernels, silently unconfined) both
+        // refuse the sandboxed run.
+        if status.ruleset != RulesetStatus::FullyEnforced {
+            return Err(format!(
+                "landlock: ruleset {:?} — sandbox requires full enforcement",
+                status.ruleset
+            ));
         }
         Ok(())
     }

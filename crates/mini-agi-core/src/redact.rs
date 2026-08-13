@@ -189,31 +189,90 @@ fn redact_header_values(text: &str, key: &str) -> String {
     out
 }
 
-/// Length of the whole header value: a quoted section inside the value
-/// (`Authorization: Bearer "secret"`) is consumed THROUGH its closing
-/// quote so the quoted credential cannot leak past the first `"`; an
-/// unclosed quote redacts to the end of the line; otherwise the value
-/// runs to the next quote/newline or the end.
-fn header_value_len(trimmed: &str) -> usize {
-    let Some((qpos, quote)) = trimmed
-        .char_indices()
-        .find(|&(_, c)| c == '"' || c == '\'' || c == '\n')
-    else {
-        return trimmed.len();
-    };
-    if quote == '\n' {
-        return qpos;
+/// Length of the whole header value (quote-pair aware).
+///
+/// A quoted section inside the value (`Bearer "secret"`) is consumed
+/// through its closing quote; an UNQUOTED value with embedded quote
+/// pairs (`Bearer abc"def"ghi`) is one token, consumed whole. Spaces are
+/// NOT boundaries (the whole header value is the secret); the value runs
+/// to the next quote/newline or the end.
+/// Length of an unquoted shell WORD that skips embedded quote-PAIRS
+/// instead of stopping at the FIRST quote: `abc"def"ghi` is one argv
+/// token, so its tail must not leak. Stops at whitespace / `&` / `;`.
+fn unquoted_word_len(text: &str) -> usize {
+    let mut i = 0;
+    while i < text.len() {
+        let c = text[i..].chars().next().unwrap();
+        match c {
+            '\'' | '"' => {
+                let ql = c.len_utf8();
+                let inner = &text[i + ql..];
+                let closing = if c == '"' {
+                    closing_quote(inner)
+                } else {
+                    inner.find(c)
+                };
+                match closing {
+                    Some(end) => i += ql + end + ql,
+                    None => return i,
+                }
+            }
+            '&' | ';' => return i,
+            ch if ch.is_whitespace() => return i,
+            _ => i += c.len_utf8(),
+        }
     }
-    let after = &trimmed[qpos + quote.len_utf8()..];
-    // Escape-aware: `Bearer "ab\"cdef"` closes at the unescaped quote.
-    let closing = if quote == '"' {
-        closing_quote(after)
-    } else {
-        after.find(quote)
-    };
-    closing.map_or(trimmed.len(), |closing| {
-        qpos + quote.len_utf8() + closing + quote.len_utf8()
-    })
+    i
+}
+
+fn header_value_len(trimmed: &str) -> usize {
+    // A leading quote: the existing escape-aware quoted handling.
+    if trimmed.starts_with('"') || trimmed.starts_with('\'') {
+        let Some((qpos, quote)) = trimmed
+            .char_indices()
+            .find(|&(_, c)| c == '"' || c == '\'' || c == '\n')
+        else {
+            return trimmed.len();
+        };
+        if quote == '\n' {
+            return qpos;
+        }
+        let after = &trimmed[qpos + quote.len_utf8()..];
+        let closing = if quote == '"' {
+            closing_quote(after)
+        } else {
+            after.find(quote)
+        };
+        return closing.map_or(trimmed.len(), |closing| {
+            qpos + quote.len_utf8() + closing + quote.len_utf8()
+        });
+    }
+    // Unquoted header value (`Bearer abc"def"ghi`): spaces are NOT
+    // boundaries (the whole value is the secret — round-12 semantics),
+    // but an embedded quote PAIR is one token and must not end the
+    // value at its opening quote (the tail would leak).
+    let mut i = 0;
+    while i < trimmed.len() {
+        let c = trimmed[i..].chars().next().unwrap();
+        match c {
+            '\'' | '"' => {
+                let ql = c.len_utf8();
+                let inner = &trimmed[i + ql..];
+                let closing = if c == '"' {
+                    closing_quote(inner)
+                } else {
+                    inner.find(c)
+                };
+                match closing {
+                    Some(end) => i += ql + end + ql,
+                    None => return i,
+                }
+            }
+            '\n' => return i,
+            _ => i += c.len_utf8(),
+        }
+    }
+    i
 }
 
 /// Length of a quote-delimited value at the start of `text`, THROUGH the
@@ -350,12 +409,9 @@ fn redact_flag_values(text: &str) -> String {
             // ambiguous `-print`-style suffix — over-redaction is safe,
             // a leaked `-psecret` is not.
             let tail = &rest[after..];
-            let take = quoted_value_len(tail).unwrap_or_else(|| {
-                tail.find(|c: char| {
-                    c.is_whitespace() || c == '&' || c == ';' || c == '"' || c == '\''
-                })
-                .unwrap_or(tail.len())
-            });
+            let take = quoted_value_len(tail)
+                .or_else(|| substitution_len(tail))
+                .unwrap_or_else(|| unquoted_word_len(tail));
             out.push_str(&rest[..after]);
             out.push_str(REDACTED);
             rest = &rest[after + take..];
@@ -380,13 +436,7 @@ fn redact_flag_values(text: &str) -> String {
         });
         let take = substitution_len(value)
             .or_else(|| quoted_value_len(value))
-            .unwrap_or_else(|| {
-                value
-                    .find(|c: char| {
-                        c.is_whitespace() || c == '&' || c == ';' || c == '"' || c == '\''
-                    })
-                    .unwrap_or(value.len())
-            });
+            .unwrap_or_else(|| unquoted_word_len(value));
         out.push_str(REDACTED);
         rest = &rest[skip + eq_extra + take..];
     }
@@ -571,9 +621,8 @@ fn split_pair_value(text: &str, sep: u8) -> Option<(usize, usize)> {
         if sep == 0 && trimmed.starts_with('-') {
             return None;
         }
-        trimmed
-            .find(|c: char| c.is_whitespace() || c == '&' || c == ';' || c == '"' || c == '\'')
-            .unwrap_or(trimmed.len())
+        // An embedded quote pair (`user:p"ass"word`) is part of the word.
+        unquoted_word_len(trimmed)
     };
     Some((skip, take))
 }
@@ -614,6 +663,20 @@ mod redact_tests {
             "escaped-quote -p value tail leaked: {out}"
         );
         assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn embedded_quote_pairs_in_unquoted_values_do_not_leak() {
+        for (input, secret) in [
+            (r#"Authorization: Bearer abc"def"ghi"#, r#"abc"def"ghi"#),
+            (r#"X-Api-Key ab"cd"ef"#, r#"ab"cd"ef"#),
+            (r#"curl -u user:p"ass"word https://x"#, r#"user:p"ass"word"#),
+            (r#"sshpass -p ab"cd"ef ssh host"#, r#"ab"cd"ef"#),
+        ] {
+            let out = redact(input);
+            assert!(!out.contains(secret), "embedded-quote value leaked: {out}");
+            assert!(out.contains(REDACTED), "{out}");
+        }
     }
 
     #[test]

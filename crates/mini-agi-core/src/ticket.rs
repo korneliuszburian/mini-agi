@@ -718,7 +718,8 @@ pub fn release_ticket_locked(root: &Path, id: &str, claimant: &str) -> Result<()
 /// Unique temp suffix so a crash mid-write cannot leave a stray tmp that
 /// permanently blocks the next write (`create_new` on a fixed tmp name
 /// would fail with `AlreadyExists` forever).
-pub(crate) fn tmp_unique(base: &Path, tag: &str) -> std::path::PathBuf {
+#[must_use]
+pub fn tmp_unique(base: &Path, tag: &str) -> std::path::PathBuf {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());

@@ -938,10 +938,22 @@ fn distill_failure(attempt: usize, verifier_output: &str) -> String {
 
 fn write_draft(run_out: Option<&Path>, workdir: &Path, run: &serde_json::Value) -> ExitCode {
     let out_path = run_out.unwrap_or(&workdir.join("run.json")).to_path_buf();
-    match std::fs::write(
-        &out_path,
-        serde_json::to_string_pretty(run).unwrap_or_default(),
-    ) {
+    // Atomic (temp + rename): a crash mid-write must not leave a
+    // truncated run.json that the loop then reads as unreadable.
+    let json = serde_json::to_string_pretty(run).unwrap_or_default();
+    let tmp = mini_agi_core::ticket::tmp_unique(&out_path, "draft");
+    let res = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, json.as_bytes()));
+    let rename_res = if res.is_ok() {
+        std::fs::rename(&tmp, &out_path)
+    } else {
+        let _ = std::fs::remove_file(&tmp);
+        res
+    };
+    match rename_res {
         Ok(()) => {
             println!("  run draft: {}", out_path.display());
             ExitCode::SUCCESS

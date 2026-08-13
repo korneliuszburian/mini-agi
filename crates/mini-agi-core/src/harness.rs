@@ -269,6 +269,12 @@ fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
         .open(&tmp)
         .and_then(|mut f| f.write_all(content.as_bytes()));
     if res.is_ok() {
+        // Preserve the target's file MODE: temp+rename replaces the
+        // inode, so an executable/restricted target would come back 0644
+        // (lost +x, or a previously private file made world-readable).
+        if let Ok(meta) = std::fs::metadata(path) {
+            let _ = std::fs::set_permissions(&tmp, meta.permissions());
+        }
         std::fs::rename(&tmp, path)
     } else {
         let _ = std::fs::remove_file(&tmp);

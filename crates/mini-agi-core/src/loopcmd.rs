@@ -458,11 +458,20 @@ fn id_matches_case(id: &str, case_lower: &str) -> bool {
 /// Claimant of a ticket, if any.
 #[must_use]
 fn claimant_for(root: &Path, ticket_id: &str) -> Option<String> {
-    crate::ticket::read_claims(root)
-        .unwrap_or_default()
-        .into_iter()
-        .find(|c| c.ticket == ticket_id)
-        .map(|c| c.claimant)
+    // A corrupt registry must not SILENTLY look empty here: mark_state's
+    // Exhausted path would then skip the claim release and strand the
+    // lease on a terminal case. Be loud (the authoritative sites already
+    // hard-fail; this read is best-effort but never silent).
+    match crate::ticket::read_claims(root) {
+        Ok(claims) => claims
+            .into_iter()
+            .find(|c| c.ticket == ticket_id)
+            .map(|c| c.claimant),
+        Err(e) => {
+            eprintln!("loopcmd: claims registry unreadable ({e}) — lease lookups are incomplete");
+            None
+        }
+    }
 }
 
 /// Rerun attempts for a case (`<case>-rerun`, `-rerun-2`, ...).
