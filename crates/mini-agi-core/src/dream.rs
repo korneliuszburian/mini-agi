@@ -652,9 +652,14 @@ pub fn apply_verdicts(
                             continue;
                         }
                         if !dry_run {
+                            // The STORED body is the flattened candidate —
+                            // the id must hash THAT (fact ids = sha256[:16]
+                            // of the stored body; a raw-body id would not
+                            // re-hash after write).
+                            let flat_h = crate::hash::fact_id(&flat_candidate);
                             crate::memory::write_supersede_entry(
                                 root,
-                                &[(flat_candidate, h.clone())],
+                                &[(flat_candidate, flat_h)],
                                 source,
                                 &fact.domain,
                                 &[existing_id],

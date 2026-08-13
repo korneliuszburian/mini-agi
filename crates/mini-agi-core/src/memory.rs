@@ -789,7 +789,7 @@ pub fn write_canonical_entry(
 pub fn append_contested(
     root: &Path,
     fact: &str,
-    digest: &str,
+    _digest: &str,
     source: &str,
     existing_hash: &str,
 ) -> Result<PathBuf, MemoryError> {
@@ -804,6 +804,9 @@ pub fn append_contested(
     // Single-line payload: a multi-line fact would truncate on the
     // queue parse and promote an id that no longer hashes its body.
     let fact_flat = fact.replace('\n', " ");
+    // The stored digest MUST hash the stored (flattened) payload, or the
+    // signoff digest check rejects the entry forever (dead HITL state).
+    let digest = fact_id(&fact_flat);
     let mut f = fs::OpenOptions::new()
         .create(true)
         .append(true)

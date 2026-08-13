@@ -177,7 +177,12 @@ pub fn verify_candidate(
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
     // A failed swap must NOT be measured as the original file (a
     // fabricated NEUTRAL/ACCEPT) — propagate the write error.
-    fs::write(&target, &candidate_text)?;
+    // A failed swap must NOT be measured as the original file — and must
+    // NOT leave the target swapped/truncated: restore on write error.
+    if let Err(e) = fs::write(&target, &candidate_text) {
+        let _ = restore(&target, original.as_ref());
+        return Err(e);
+    }
     let (after, after_ok) = gate_run(root);
     restore(&target, original.as_ref())?;
     // A gate that FAILS after the swap (markerless abort, crash) is an

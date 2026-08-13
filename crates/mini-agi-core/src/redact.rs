@@ -222,11 +222,14 @@ fn quoted_value_len(text: &str) -> Option<usize> {
     }
     let ql = quote.len_utf8();
     let inner = &text[ql..];
-    Some(
-        inner
-            .find(quote)
-            .map_or(inner.len() + ql, |end| end + 2 * ql),
-    )
+    // Escape-aware for double quotes: `"ab\"cdef"` closes at the
+    // unescaped quote, not the escaped one (leak).
+    let end = if quote == '"' {
+        closing_quote(inner)
+    } else {
+        inner.find(quote)
+    };
+    Some(end.map_or(inner.len() + ql, |end| end + 2 * ql))
 }
 
 /// Redact the value of `-p <value>` / `sshpass -p <value>` flags.
@@ -236,13 +239,12 @@ fn redact_flag_values(text: &str) -> String {
     while let Some(pos) = rest.find("-p") {
         let after = pos + 2;
         let left_ok = pos == 0
-            || rest[..pos]
-                .chars()
-                .next_back()
-                .is_some_and(|c| c.is_whitespace() || c == '=' || c == '"');
+            || rest[..pos].chars().next_back().is_some_and(|c| {
+                c.is_whitespace() || c == '=' || c == '"' || c == '\'' || c == '`'
+            });
         let right_ok = rest.as_bytes().get(after).is_none_or(|b| {
             let c = char::from(*b);
-            c.is_whitespace() || c == '=' || c == ':' || c == '"'
+            c.is_whitespace() || c == '=' || c == ':' || c == '"' || c == '\''
         });
         if !left_ok {
             // Not the `-p` flag token (e.g. the middle of `--password`).
@@ -256,11 +258,12 @@ fn redact_flag_values(text: &str) -> String {
             // ambiguous `-print`-style suffix — over-redaction is safe,
             // a leaked `-psecret` is not.
             let tail = &rest[after..];
-            let take = tail
-                .find(|c: char| {
+            let take = quoted_value_len(tail).unwrap_or_else(|| {
+                tail.find(|c: char| {
                     c.is_whitespace() || c == ',' || c == '&' || c == ';' || c == '"' || c == '\''
                 })
-                .unwrap_or(tail.len());
+                .unwrap_or(tail.len())
+            });
             out.push_str(&rest[..after]);
             out.push_str(REDACTED);
             rest = &rest[after + take..];
@@ -504,6 +507,26 @@ mod redact_tests {
             assert!(!out.contains("hunter"), "quoted -p value leaked: {out}");
             assert!(out.contains(REDACTED), "{out}");
         }
+    }
+
+    #[test]
+    fn escaped_quotes_in_flag_values_do_not_leak() {
+        let out = redact("sshpass -p \"ab\\\"cdef\" ssh host");
+        assert!(
+            !out.contains("cdef"),
+            "escaped-quote -p value tail leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn single_quoted_flag_values_are_redacted() {
+        let out = redact("sshpass -p'secret' ssh host");
+        assert!(
+            !out.contains("secret"),
+            "single-quoted concatenated -p leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
     }
 
     #[test]

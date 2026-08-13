@@ -263,7 +263,12 @@ fn queued_facts_parse_returns_payload_after_header() {
     .unwrap();
     let records = mini_agi_core::memory::queued_facts(&queue);
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].0, "aabbccddeeff0011");
+    // The stored digest MUST hash the stored payload (fact ids =
+    // sha256[:16] of the body), not the caller's raw input.
+    assert_eq!(
+        records[0].0,
+        mini_agi_core::hash::fact_id("the alternate fact body")
+    );
     assert_eq!(records[0].1, "the alternate fact body");
     wipe(&root);
 }

@@ -190,12 +190,20 @@ fn mark_state(root: &Path, case: &str, state: GapState) {
             return;
         }
     };
-    let mut gap = read_ledger(root, case).unwrap_or_else(|| Gap {
-        case: case.to_string(),
-        state: GapState::Open,
-        opened_by: case.to_string(),
-        ..Gap::default()
-    });
+    let mut gap = match read_ledger_checked(root, case) {
+        Ok(Some(g)) => g,
+        Ok(None) => Gap {
+            case: case.to_string(),
+            state: GapState::Open,
+            opened_by: case.to_string(),
+            ..Gap::default()
+        },
+        Err(e) => {
+            eprintln!("loopcmd: {e}");
+            drop(lock);
+            return;
+        }
+    };
     // EXHAUSTED per §3.1 = claim released, ticket left OPEN with a note.
     if matches!(&state, GapState::Exhausted)
         && let Some(ticket) = ticket_for_case(root, case)
@@ -1109,7 +1117,7 @@ pub fn verify(
         // still an attempt — record it in the base's ledger (under the
         // lock) so attempts track verification, not just dispatches.
         let _lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
-        if let Some(mut gap) = read_ledger(root, base) {
+        if let Some(mut gap) = read_ledger_checked(root, base)? {
             // Terminal check (mirrors the close branch): another process
             // may have closed the base while our gate ran — never mutate
             // a Closed/Exhausted row's attempt count.
