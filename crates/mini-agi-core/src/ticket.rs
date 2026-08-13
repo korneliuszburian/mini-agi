@@ -788,18 +788,43 @@ pub fn write_claims_registry(root: &Path, claims: &[Claim]) -> io::Result<()> {
 /// Returns [`TicketError::Io`] on filesystem failure.
 pub fn append_ticket_note(root: &Path, id: &str, note: &str) -> Result<(), TicketError> {
     use std::io::Write as _;
-    let digits = id
-        .strip_prefix("TICKET-")
-        .or_else(|| id.strip_prefix("ticket-"))
-        .unwrap_or(id);
-    let prefix: String = digits.chars().take_while(char::is_ascii_digit).collect();
-    if prefix.is_empty() {
-        return Err(TicketError::Io(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("invalid ticket id '{id}'"),
-        )));
-    }
-    let path = tickets_dir(root).join(format!("TICKET-{prefix}.md"));
+    // Resolve the EXACT file (parity with set_ticket_status): a suffixed
+    // id must annotate `TICKET-006-v2.md`, never create a stray
+    // `TICKET-006.md` that aliases lookups away from the real ticket.
+    let t = find_ticket(root, id)?;
+    let prefix: String =
+        t.id.strip_prefix("TICKET-")
+            .unwrap_or(&t.id)
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
+    let dir = tickets_dir(root);
+    let path = {
+        let p = dir.join(format!("{}.md", t.id));
+        if p.is_file() {
+            p
+        } else {
+            let mut cands: Vec<PathBuf> = dir
+                .read_dir()
+                .map_err(TicketError::Io)?
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| {
+                    p.file_name().is_some_and(|n| {
+                        let n = n.to_string_lossy();
+                        n.starts_with(&format!("TICKET-{prefix}-"))
+                    })
+                })
+                .collect();
+            cands.sort();
+            cands.into_iter().next().ok_or_else(|| {
+                TicketError::Io(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("no ticket file for {id}"),
+                ))
+            })?
+        }
+    };
     let mut f = fs::OpenOptions::new()
         .create(true)
         .append(true)

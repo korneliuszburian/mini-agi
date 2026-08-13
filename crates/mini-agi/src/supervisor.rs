@@ -478,15 +478,21 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         } else {
             "1"
         };
-        let _ = std::process::Command::new("sh")
-            .args([
+        // Cap the hook (wall cap + truncated output) and run it in the
+        // workdir, not the parent's cwd — a hung hook must not block the
+        // supervisor forever (the repo's no-bare-Command discipline).
+        let _ = mini_agi_core::worker::run_capped(
+            "sh",
+            &[
                 "-c",
                 cmd,
                 "on-done",
                 &report_path.to_string_lossy(),
                 outcome,
-            ])
-            .status();
+            ],
+            args.workdir,
+            Some(60),
+        );
     }
 
     Ok(SupervisorResult {
