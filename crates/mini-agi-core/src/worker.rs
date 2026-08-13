@@ -79,6 +79,9 @@ fn estimate_flash_cost(tokens_in: u64, tokens_out: u64) -> f64 {
 /// under-report cost to the P0-1 caps (codex review F3b).
 #[must_use]
 pub fn parse_opencode_usage(output: &str) -> Option<WorkerUsage> {
+    // ACCUMULATE across every `step_finish` event: a multi-step session
+    // streams one finish per step, so "the LAST one wins" would book only
+    // the final step and under-report the cost cap + run.json.
     let mut usage: Option<WorkerUsage> = None;
     for line in output.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
@@ -105,18 +108,28 @@ pub fn parse_opencode_usage(output: &str) -> Option<WorkerUsage> {
             let Some(cost_usd) = reported_cost else {
                 continue;
             };
+            let prev = usage.unwrap_or(WorkerUsage {
+                tokens_in: 0,
+                tokens_out: 0,
+                cost_usd: 0.0,
+            });
             usage = Some(WorkerUsage {
-                tokens_in: tokens_in.unwrap_or(0),
-                tokens_out: tokens_out.unwrap_or(0),
-                cost_usd,
+                tokens_in: prev.tokens_in + tokens_in.unwrap_or(0),
+                tokens_out: prev.tokens_out + tokens_out.unwrap_or(0),
+                cost_usd: prev.cost_usd + cost_usd,
             });
             continue;
         };
         let cost_usd = reported_cost.unwrap_or_else(|| estimate_flash_cost(tokens_in, tokens_out));
+        let prev = usage.unwrap_or(WorkerUsage {
+            tokens_in: 0,
+            tokens_out: 0,
+            cost_usd: 0.0,
+        });
         usage = Some(WorkerUsage {
-            tokens_in,
-            tokens_out,
-            cost_usd,
+            tokens_in: prev.tokens_in + tokens_in,
+            tokens_out: prev.tokens_out + tokens_out,
+            cost_usd: prev.cost_usd + cost_usd,
         });
     }
     usage
@@ -413,18 +426,20 @@ mod tests {
     }
 
     #[test]
-    fn opencode_usage_ignores_garbage_and_keeps_last_event() {
+    fn opencode_usage_ignores_garbage_and_accumulates_events() {
         assert!(parse_opencode_usage("not json at all").is_none());
         assert!(parse_opencode_usage("").is_none());
         assert!(parse_opencode_usage(r#"{"type":"text","part":{"text":"hi"}}"#).is_none());
-        // Multiple step_finish events: the LAST one wins (per-attempt runs
-        // stream one finish per step).
+        // Multiple step_finish events ACCUMULATE (a multi-step session
+        // streams one finish per step; the last-wins behavior under-
+        // reported the cost cap + ledger).
         let out = r#"{"type":"step_finish","part":{"type":"step-finish","tokens":{"input":10,"output":1},"cost":0.001}}
 {"type":"step_finish","part":{"type":"step-finish","tokens":{"input":20,"output":2},"cost":0.002}}
 "#;
         let u = parse_opencode_usage(out).unwrap();
-        assert_eq!(u.tokens_in, 20);
-        assert!((u.cost_usd - 0.002).abs() < 1e-9);
+        assert_eq!(u.tokens_in, 30);
+        assert_eq!(u.tokens_out, 3);
+        assert!((u.cost_usd - 0.003).abs() < 1e-9);
     }
 
     #[test]

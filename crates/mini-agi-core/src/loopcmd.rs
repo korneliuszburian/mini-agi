@@ -917,7 +917,11 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     // these. Redacting them would execute a MUTATED gate (diverging from
     // the run.json executable copy). Display surfaces (loop verify output,
     // ledger) stay redacted; this executable contract must not be.
-    let vc = run.verify_command.unwrap_or_default();
+    // Flatten NEWLINES in the command (preserving quotes/spaces so the
+    // executed shell string is unchanged): an injected `\n- verify_target:`
+    // inside an untrusted verify_command would relocate the worker's gate
+    // target ahead of the real line.
+    let vc = run.verify_command.unwrap_or_default().replace('\n', " ");
     // Flatten vt too: an injected `\n- verify_command:` line in an
     // untrusted verify_target must not reach the executable spec.
     let vt = run
@@ -1043,7 +1047,7 @@ pub fn verify(
     }
     if let Some(t) = ticket_for_case(root, base)
         && let Some(foreign) = crate::ticket::read_claims(root)
-            .unwrap_or_default()
+            .map_err(|e| e.to_string())?
             .iter()
             .find(|c| c.ticket == t.id && c.claimant != claimant)
             .map(|c| c.claimant.clone())
