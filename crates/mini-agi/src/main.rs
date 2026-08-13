@@ -189,6 +189,11 @@ struct DreamArgs {
     /// without it — dream --source writes canonical directly.
     #[arg(long)]
     approve: Option<String>,
+    /// Apply a persisted auditor verdicts manifest
+    /// (`memory/staging/<date>/<seq>.verdicts.json`): the audited
+    /// promote half of the dream-loop.
+    #[arg(long)]
+    promote: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -542,6 +547,35 @@ fn cmd_loop(args: LoopArgs) -> ExitCode {
 
 fn cmd_dream(args: &DreamArgs) -> ExitCode {
     let root = root();
+    if let Some(manifest) = &args.promote {
+        if args.approve.is_none() {
+            return fail("dream --promote requires --approve <reason> (HITL, ADR-0010)");
+        }
+        let verdicts = mini_agi_core::dream::read_verdicts(Path::new(manifest));
+        if verdicts.is_empty() {
+            return fail(&format!("dream --promote: no verdicts in {manifest}"));
+        }
+        // The staged facts sit next to the manifest (`<seq>.md`).
+        let staged_path = Path::new(manifest).with_extension("md");
+        let staged = match std::fs::read_to_string(&staged_path) {
+            Ok(t) => mini_agi_core::dream::parse_distilled_facts(&t),
+            Err(e) => {
+                return fail(&format!(
+                    "dream --promote: cannot read {}: {e}",
+                    staged_path.display()
+                ));
+            }
+        };
+        match mini_agi_core::dream::apply_verdicts(&root, &staged, &verdicts, manifest, false) {
+            Ok((promoted, queued, skipped)) => {
+                println!(
+                    "dream --promote: {promoted} promoted, {queued} queued, {skipped} skipped"
+                );
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => return fail(&format!("dream --promote: {e}")),
+        }
+    }
     match &args.source {
         Some(source) => {
             if args.approve.is_none() {

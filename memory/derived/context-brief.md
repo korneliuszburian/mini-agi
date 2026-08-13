@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 2e254e20a9b4312e
-# canonical_entries: 127
+# canonical_sha256: f4ebdf6a452e6eb2
+# canonical_entries: 128
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -15,7 +15,7 @@ Read this before starting any session. Canonical wins over this file.
 - `fa58509d3523cc84` [agent-behavior] Behavioral guideline (Karpathy): surgical changes — touch only what the request demands; do not improve adjacent code/comments/formatting, do not refactor what is not broken, match existing style, and mention (not delete) unrelated dead code. enforced_by: review rubric (scope creep = FIX-MINOR)
   links: a49b169111deb842, 4992782a5790d742, a588d4401a139d71
 - `a588d4401a139d71` [agent-behavior] Behavioral guideline (Karpathy): goal-driven execution — transform tasks into verifiable goals (validation -> tests first), state a brief per-step plan with a verify check per step, and loop only until verified. enforced_by: review rubric (claiming without evidence = REWORK)
-  links: a49b169111deb842, 4992782a5790d742, fa58509d3523cc84, 1c5fa98a451f3d3e, 65ce018035f73ae0
+  links: a49b169111deb842, 4992782a5790d742, fa58509d3523cc84, 1c5fa98a451f3d3e, 65ce018035f73ae0, 0ac3897bbb6424ef
 - `0d15dc7a5f566730` [eval] run real-ticket-008-v2 scored composite 0.9774 on 265897 tokens (0.6971 USD) with 0 scope violations and 0 tool mismatches.
   links: 24ca89466bb01359, 717835cda5492d7d, 9cb30db774cf56e1, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 2a08ff2b87eddc68, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a2c96954211dbbd4
 - `24ca89466bb01359` [eval] run flailing scored composite 0.2851 on 9200 tokens (0.6100 USD) with 3 scope violations and 0 tool mismatches.
@@ -35,4 +35,4 @@ Read this before starting any session. Canonical wins over this file.
 - `2a08ff2b87eddc68` [eval] run real-ticket-005-v2 scored composite 0.4896 on 162500 tokens (0.4179 USD) with 0 scope violations and 4 tool mismatches.
   links: 0d15dc7a5f566730, 24ca89466bb01359, 717835cda5492d7d, 9cb30db774cf56e1, 9b114f49a878d2b0, a08b4972b251ec1c, 0133392e91476d88, 1baffc8f38dd24b1, 552e4f04104ecf4d, 35295a4f074c3beb, 8b5b3ef807586d35, b4276acdfd6cc4e8, d99cfea97ec1f680, 8d50a7e3c1de7c54, 7362817a2cc3d407, 8d857c62f78a8965, c98b32aa684e9295, e5869011def095cd, fcba3e1dab0dda01, 580fa37aee6d4dcb, 963cdf65fd1ed26b, 3067516995d804e2, 1f344eb53f325890, 9504f9d0aef69f13, 962e3f48ab9060db, a2c96954211dbbd4
 
-# truncated: 1223 of 1236 facts fit the 8192B brief cap — full listing: memory/canonical/ (append-only)
+# truncated: 1224 of 1237 facts fit the 8192B brief cap — full listing: memory/canonical/ (append-only)

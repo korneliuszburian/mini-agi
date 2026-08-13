@@ -557,11 +557,15 @@ pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> 
                         // plain rename would OVERWRITE a concurrently
                         // created fresh lock, leaving its holder running
                         // without an exclusive lock file.
-                        // hard_link fails (does not overwrite) when the
-                        // path was re-taken — in either case our stolen
-                        // inode is now orphaned; discard it and retry.
-                        let _ = fs::hard_link(&steal, &path);
-                        let _ = fs::remove_file(&steal);
+                        if fs::hard_link(&steal, &path).is_ok() {
+                            let _ = fs::remove_file(&steal);
+                        }
+                        // hard_link failed: the path was re-taken. This
+                        // inode is a LIVE holder's lock — NEVER delete it
+                        // (that would leave its critical section
+                        // unprotected while the path holder proceeds).
+                        // Leave it as an orphaned steal file for manual
+                        // recovery instead.
                     } else {
                         // Another waiter stole it first — retry the loop.
                         continue;
@@ -762,6 +766,47 @@ fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
 /// Returns the underlying filesystem error on write failure.
 pub fn write_claims_registry(root: &Path, claims: &[Claim]) -> io::Result<()> {
     write_claims(root, claims)
+}
+
+/// Set a ticket's lifecycle status (`OPEN`/`CLOSED`/...), rewriting the
+/// ticket file atomically (temp + rename).
+///
+/// Callers MUST already hold the claims lock so the status change is part
+/// of one atomic close transaction.
+///
+/// # Errors
+///
+/// Returns [`TicketError::Io`] on filesystem failure or
+/// [`TicketError::Parse`] when the ticket file cannot be read.
+///
+/// Append a note line to a ticket file (under the caller's claims lock).
+/// Used by the loop's exhaustion mark ("ticket left OPEN with a note",
+/// ARCHITECTURE-CONDENSED 5.2).
+///
+/// # Errors
+///
+/// Returns [`TicketError::Io`] on filesystem failure.
+pub fn append_ticket_note(root: &Path, id: &str, note: &str) -> Result<(), TicketError> {
+    use std::io::Write as _;
+    let digits = id
+        .strip_prefix("TICKET-")
+        .or_else(|| id.strip_prefix("ticket-"))
+        .unwrap_or(id);
+    let prefix: String = digits.chars().take_while(char::is_ascii_digit).collect();
+    if prefix.is_empty() {
+        return Err(TicketError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("invalid ticket id '{id}'"),
+        )));
+    }
+    let path = tickets_dir(root).join(format!("TICKET-{prefix}.md"));
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(TicketError::Io)?;
+    writeln!(f, "- note: {note}").map_err(TicketError::Io)?;
+    Ok(())
 }
 
 /// Set a ticket's lifecycle status (`OPEN`/`CLOSED`/...), rewriting the

@@ -737,7 +737,22 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     if cfg.require_approval {
         match &args.approve {
             Some(reason) => {
-                let _ = reason;
+                // The approve decision lands in the action log (the
+                // documented HITL trace) — not discarded.
+                use std::io::Write as _;
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(workdir.join("actions.log"))
+                {
+                    let _ = writeln!(
+                        f,
+                        "{} approve worker={} reason={}",
+                        mini_agi_core::memory::utc_now_stamp(),
+                        worker_name,
+                        reason
+                    );
+                }
             }
             None => {
                 return fail(

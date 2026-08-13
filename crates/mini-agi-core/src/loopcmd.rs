@@ -217,6 +217,15 @@ fn mark_state(root: &Path, case: &str, state: GapState) {
             "loopcmd: cannot release {} on exhausting {case}: {e}",
             ticket.id
         );
+    } else if let Some(ticket) = ticket_for_case(root, case) {
+        let _ = crate::ticket::append_ticket_note(
+            root,
+            &ticket.id,
+            &format!(
+                "exhausted in the ledger on {}",
+                crate::memory::utc_now_date()
+            ),
+        );
     }
     gap.state = state;
     if let Err(e) = write_ledger_atomic(root, &gap) {
@@ -704,7 +713,21 @@ pub fn dispatch(
         }
         e.to_string()
     })?;
-    let prior_gap = read_ledger_checked(root, &case)?;
+    let prior_gap = match read_ledger_checked(root, &case) {
+        Ok(g) => g,
+        Err(e) => {
+            // Stranded-lease guard on the corrupt-ledger path too: the
+            // claim + created ticket must roll back here (the rollback
+            // closure below would not be reached).
+            let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
+            if ticket_created {
+                let _ = fs::remove_file(
+                    crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")),
+                );
+            }
+            return Err(e);
+        }
+    };
     let rollback = |prior_gap: &Option<Gap>| {
         let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
         if ticket_created {
@@ -855,8 +878,12 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     let mut body = format!("# SLICE SPEC — {ticket_id} (case: {case})\n\n");
     body.push_str("- source: `mini-agi loop dispatch` (condensed)\n");
     let _ = writeln!(body, "- goal: {}", run.goal);
-    let vc = crate::redact::redact(&run.verify_command.unwrap_or_default());
-    let vt = crate::redact::redact(&run.verify_target.unwrap_or_else(|| "<repo root>".into()));
+    // The spec is EXECUTABLE: `mini-agi codex <spec>` parses and runs
+    // these. Redacting them would execute a MUTATED gate (diverging from
+    // the run.json executable copy). Display surfaces (loop verify output,
+    // ledger) stay redacted; this executable contract must not be.
+    let vc = run.verify_command.unwrap_or_default();
+    let vt = run.verify_target.unwrap_or_else(|| "<repo root>".into());
     // Separate lines, never `{vc} in {vt}`: a command legitimately
     // containing " in " must not be re-split by the codex parser.
     let _ = writeln!(body, "- verify_command: {vc}");

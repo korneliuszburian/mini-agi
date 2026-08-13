@@ -815,9 +815,11 @@ pub fn append_contested(
     if fact_flat.trim_start().starts_with("## C-") {
         fact_flat = format!(" {fact_flat}");
     }
-    // The stored digest MUST hash the stored (flattened) payload, or the
-    // signoff digest check rejects the entry forever (dead HITL state).
-    let digest = fact_id(&fact_flat);
+    // The stored digest MUST hash what signoff READS BACK (queued_facts
+    // trims the payload). For an escaped `## C-` body the stored line is
+    // ` {body}` which reads back as `body` — hash the TRIMMED form, not
+    // the escape-prefixed one, or the entry is permanently un-promotable.
+    let digest = fact_id(fact_flat.trim());
     let mut f = fs::OpenOptions::new()
         .create(true)
         .append(true)

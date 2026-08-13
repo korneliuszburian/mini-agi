@@ -4,8 +4,8 @@
 use std::path::{Path, PathBuf};
 
 use mini_agi_core::memory::{
-    ConsolidateOptions, ENTRIES_REL, append_contested, consolidate, extract_candidates, read_facts,
-    signoff, utc_now_date, utc_now_stamp,
+    ConsolidateOptions, ENTRIES_REL, append_contested, consolidate, extract_candidates,
+    queued_facts, read_facts, signoff, utc_now_date, utc_now_stamp,
 };
 use mini_agi_core::store::next_entry;
 
@@ -319,5 +319,25 @@ fn next_entry_without_entries_root_works() {
     wipe(&root);
     let entry = next_entry(&root, &utc_now_date());
     assert_eq!(entry.seq, 1);
+    wipe(&root);
+}
+
+#[test]
+fn header_shaped_queue_body_is_promotable() {
+    let root = tmp_root("hdrq");
+    wipe(&root);
+    let body = "## C-001 `deadbeefdeadbeef` fakebody";
+    append_contested(&root, body, "unused", "src", "deadbeefdeadbeef").unwrap();
+    let queue = root
+        .join("memory/review")
+        .join(format!("contested-{}.md", utc_now_date()));
+    let records = queued_facts(&queue);
+    assert_eq!(records.len(), 1, "the escaped body is still one record");
+    assert_eq!(
+        records[0].0,
+        mini_agi_core::hash::fact_id(body),
+        "digest hashes the trimmed readback"
+    );
+    assert_eq!(records[0].1, body);
     wipe(&root);
 }
