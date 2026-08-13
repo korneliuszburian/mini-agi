@@ -1444,8 +1444,14 @@ mod loop_tests {
 
     #[test]
     fn id_matches_case_requires_a_left_boundary() {
-        assert!(id_matches_case("TICKET-7", "xyticket-7") == false, "mid-word ticket reference must not alias");
-        assert!(id_matches_case("TICKET-7", "gap-ticket-7"), "a bounded ticket-7 reference matches");
+        assert!(
+            !id_matches_case("TICKET-7", "xyticket-7"),
+            "mid-word ticket reference must not alias"
+        );
+        assert!(
+            id_matches_case("TICKET-7", "gap-ticket-7"),
+            "a bounded ticket-7 reference matches"
+        );
     }
 
     #[test]
