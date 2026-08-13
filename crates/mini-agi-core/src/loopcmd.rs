@@ -150,6 +150,35 @@ pub fn write_ledger_atomic(root: &Path, gap: &Gap) -> io::Result<()> {
     fs::rename(&tmp, &path)
 }
 
+/// Has the case exceeded the configured rerun bound (its attempts vs
+/// `max_rerun_attempts`)? The ledger's attempt count is authoritative
+/// when a row exists (ARCHITECTURE-CONDENSED 5.2: the bound is ENFORCED
+/// at dispatch time, not merely reported by `status`).
+#[must_use]
+fn case_exceeded_bound(root: &Path, case: &str) -> bool {
+    let Some(max) = crate::config::Config::load(root).max_rerun_attempts else {
+        return false;
+    };
+    let attempts = read_ledger(root, case).map_or(0, |g| g.attempts);
+    attempts > max
+}
+
+/// Mark a case exhausted in the ledger (terminal: never dispatchable
+/// again). Preserves the attempt count and stamps no false timestamps.
+/// Best-effort under the claims lock — a caller that already holds the
+/// lock passes `_lock_held = true` to avoid a nested acquire.
+fn mark_exhausted(root: &Path, case: &str) {
+    let _lock = crate::ticket::lock_claims(root).ok();
+    let mut gap = read_ledger(root, case).unwrap_or_else(|| Gap {
+        case: case.to_string(),
+        state: GapState::Open,
+        opened_by: case.to_string(),
+        ..Gap::default()
+    });
+    gap.state = GapState::Exhausted;
+    let _ = write_ledger_atomic(root, &gap);
+}
+
 /// One case's loop row.
 #[derive(Debug)]
 pub struct LoopRow {
@@ -439,6 +468,7 @@ pub fn dispatch_no_work(root: &Path, _below: f64) -> Option<String> {
             !is_rerun_case(&name)
                 && read_run(d).is_none_or(|r| !r.achieved())
                 && !read_ledger(root, &name).is_some_and(|g| gap_is_terminal(&g.state))
+                && !case_exceeded_bound(root, &name)
         })
         .collect();
     if candidates.is_empty() {
@@ -503,6 +533,12 @@ fn pick_target(root: &Path, case: Option<&str>) -> Result<String, String> {
                 gap.state_name()
             ));
         }
+        if case_exceeded_bound(root, case) {
+            mark_exhausted(root, case);
+            return Err(format!(
+                "case '{case}' has exceeded max_rerun_attempts — exhausted in the ledger"
+            ));
+        }
         return Ok(case.to_string());
     }
     for d in case_dirs(&cases_dir) {
@@ -516,6 +552,10 @@ fn pick_target(root: &Path, case: Option<&str>) -> Result<String, String> {
         if let Some(gap) = read_ledger(root, &name)
             && gap_is_terminal(&gap.state)
         {
+            continue;
+        }
+        if case_exceeded_bound(root, &name) {
+            mark_exhausted(root, &name);
             continue;
         }
         if let Some(ticket) = ticket_for_case(root, &name)
@@ -621,6 +661,11 @@ pub fn objective(
             continue;
         }
         if read_ledger(root, &name).is_some_and(|g| gap_is_terminal(&g.state)) {
+            continue;
+        }
+        if case_exceeded_bound(root, &name) {
+            mark_exhausted(root, &name);
+            out.skipped_exhausted.push(name.clone());
             continue;
         }
         let Some(run) = read_run(&d) else {
@@ -1124,6 +1169,54 @@ mod loop_tests {
             "terminal-ledger cases are not listed as open"
         );
         assert_eq!(s.cases[0].case, "open-a");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_refuses_an_exhausted_case_and_marks_the_ledger() {
+        let root = tmp_root("x-disp");
+        fs::write(root.join(".miniagi.json"), r#"{"max_rerun_attempts": 2}"#).unwrap();
+        write_run(&root, "gap-x", false, Some(("true", ".")));
+        let gap = Gap {
+            case: "gap-x".into(),
+            state: GapState::Dispatched,
+            opened_by: "gap-x".into(),
+            attempts: 3,
+            ..Gap::default()
+        };
+        write_ledger_atomic(&root, &gap).unwrap();
+        let err = dispatch(&root, Some("gap-x"), 0.5, "t").unwrap_err();
+        assert!(
+            err.contains("exhausted"),
+            "an over-bound case is refused as exhausted: {err}"
+        );
+        let row = read_ledger(&root, "gap-x").expect("ledger row");
+        assert_eq!(
+            row.state,
+            GapState::Exhausted,
+            "ledger marks the case exhausted"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn objective_skips_exhausted_cases_and_reports_them() {
+        let root = tmp_root("x-obj");
+        fs::write(root.join(".miniagi.json"), r#"{"max_rerun_attempts": 1}"#).unwrap();
+        write_run(&root, "exh-a", false, Some(("true", ".")));
+        write_run(&root, "ok-b", false, Some(("true", ".")));
+        let gap = Gap {
+            case: "exh-a".into(),
+            state: GapState::Dispatched,
+            opened_by: "exh-a".into(),
+            attempts: 2,
+            ..Gap::default()
+        };
+        write_ledger_atomic(&root, &gap).unwrap();
+        let out = objective(&root, 5, "t", None).unwrap();
+        assert_eq!(out.dispatched.len(), 1, "only the open case dispatches");
+        assert_eq!(out.dispatched[0].case, "ok-b");
+        assert!(out.skipped_exhausted.contains(&"exh-a".to_string()));
         let _ = fs::remove_dir_all(&root);
     }
 }
