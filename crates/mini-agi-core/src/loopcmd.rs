@@ -177,8 +177,15 @@ fn mark_state(root: &Path, case: &str, state: GapState) {
     if matches!(&state, GapState::Exhausted)
         && let Some(ticket) = ticket_for_case(root, case)
         && let Some(claimant) = claimant_for(root, &ticket.id)
+        && let Err(e) = crate::ticket::release_ticket_locked(root, &ticket.id, &claimant)
     {
-        let _ = crate::ticket::release_ticket_locked(root, &ticket.id, &claimant);
+        // A stranded lease is worse than a failed ledger mark — say it
+        // loudly (the case will be terminal, so the claim has no other
+        // release path).
+        eprintln!(
+            "loopcmd: cannot release {} on exhausting {case}: {e}",
+            ticket.id
+        );
     }
     gap.state = state;
     if let Err(e) = write_ledger_atomic(root, &gap) {
@@ -800,6 +807,17 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     use std::fmt::Write as _;
     let run = read_run(&root.join("evals/cases").join(case))
         .ok_or_else(|| io::Error::other("run unreadable"))?;
+    // Defense-in-depth: a ticket id that escaped parse_ticket's path-safe
+    // check must never join into a write path (traversal sink).
+    if !ticket_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("ticket id '{ticket_id}' is not path-safe"),
+        ));
+    }
     let spec_dir = root.join("artifacts").join(ticket_id);
     fs::create_dir_all(&spec_dir)?;
     let path = spec_dir.join("spec.md");

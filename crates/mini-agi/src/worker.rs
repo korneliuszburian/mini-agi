@@ -447,11 +447,17 @@ pub fn run_verified_iteration(
         final_wall = worker.wall_seconds;
         total_wall += worker.wall_seconds;
         total_bytes += combined.len() as u64;
-        std::fs::write(
-            &log_path,
-            format!("{combined}\n--- attempt {attempt} ---\n"),
-        )
-        .unwrap_or(());
+        // APPEND, never truncate: a multi-attempt verified-iteration must
+        // keep every attempt's transcript (fs::write would keep only the
+        // last and destroy the post-mortem evidence).
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+        {
+            let _ = std::io::Write::write_fmt(&mut f, format_args!("--- attempt {attempt} ---\n"));
+            let _ = std::io::Write::write_all(&mut f, combined.as_bytes());
+        }
         let stripped = combined.replace(&prompt, "");
         let outcome = mini_agi_core::capture::CaptureOutcome {
             log_path: log_path.clone(),

@@ -203,6 +203,10 @@ struct CodexArgs {
     target: Option<String>,
     #[arg(long)]
     iterate: Option<usize>,
+    /// HITL approval reason (ADR-0014): when config `require_approval` is
+    /// set, a run without this is refused.
+    #[arg(long)]
+    approve: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -583,7 +587,7 @@ fn cmd_codex(args: &CodexArgs) -> ExitCode {
         max_steps: None,
         no_sandbox: false,
         worker_name: None,
-        approve: Some("cli".to_string()),
+        approve: args.approve.clone(),
         iterate: args.iterate.unwrap_or(1),
         blind_worker: false,
         hidden_dir: None,

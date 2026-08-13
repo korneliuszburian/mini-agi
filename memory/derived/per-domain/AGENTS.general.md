@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: a748c2261142af4c
-# canonical_entries: 118
+# canonical_sha256: df6818c79f99f9e7
+# canonical_entries: 119
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -992,3 +992,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `dd3bb75f1d11da0c` cycle 18 (2026-08-13): fifth deepseek-v4-pro whole-repo review (repo-health-4) found 9 defects, 8 fixed — process-group kill closes the cap bypass (std-only process_group(0)+killpg), redact hyphen normalization (X-Api-Key), verify fail-closed base gate, atomic claims write, dream dry-run queue guard, MCP input path containment, attempt-record visibility, run.json draft redaction; stale-lock holder trade-off documented. 92 tests green.
 - `9ca3003be60a00e3` cycle 19 (2026-08-13): sixth deepseek-v4-pro whole-repo review (repo-health-5) found 12 defects, all fixed — reverted the r5 gate redaction (run.json holds the executable contract), stranded-lease recovery, create_new temp files, supersede TOCTOU guard, read_claims fail-on-corrupt, bounded MCP framing, loop_verify HITL, exact ticket-id resolution, signoff index required, escape-aware redaction, dispatch_no_work counter, docs aligned. 93 tests green.
 - `60d7d6ed2e6a84a3` cycle 20 (2026-08-13): seventh deepseek-v4-pro whole-repo review (repo-health-6) found 9 defects, all fixed — frontmatter status form-match, Landlock fail-closed, corrupt claims-line hard error, PGP key redaction, lock ownership token, canonical-path MCP reads, locking stranded-lease recovery, dream supersede dedup, idempotent verify. 97 tests green.
+- `65ce018035f73ae0` cycle 21 (2026-08-13): eighth deepseek-v4-pro whole-repo review (repo-health-7) — 9 findings, 8 fixed + 1 documented: max_cost_usd + max_repeated_steps enforcement wired, harness lock narrowed (mutual-exclusion break closed), whole-name ticket_for_case match, dream staging create_new, verify-fail terminal check, sandbox doc, sorted find_ticket, dream error surfacing. 98 tests green.

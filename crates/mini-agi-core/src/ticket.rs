@@ -212,6 +212,21 @@ pub fn parse_ticket(text: &str) -> Result<Ticket, TicketError> {
             ticket.id
         )));
     }
+    // PATH-SAFE id: the suffix may carry `-<name>` but NEVER a path
+    // separator, `..`, or any non-alphanumeric/dash char. A repo-resident
+    // ticket with `id: TICKET-1/../../tmp/x` would otherwise flow into
+    // `find_ticket`'s join and `write_spec`'s artifacts path — an
+    // arbitrary write outside `artifacts/` (traversal sink).
+    if !ticket
+        .id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err(TicketError::Invalid(format!(
+            "id '{}' must be path-safe (^TICKET-[0-9][A-Za-z0-9-]*$)",
+            ticket.id
+        )));
+    }
     Ok(ticket)
 }
 
@@ -706,20 +721,33 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
             format!("invalid ticket id '{id}': expected TICKET-<number>"),
         )));
     }
-    let mut path = dir.join(format!("TICKET-{prefix}.md"));
+    // Resolve the EXACT file first (parity with find_ticket): a suffixed
+    // id must update `TICKET-006-v2.md`, never a plain twin that happens
+    // to exist — the close transaction would otherwise mark the wrong
+    // ticket while the claimed one stays OPEN.
+    let suffix = digits[prefix.len()..].trim_start_matches('-');
+    let exact = if suffix.is_empty() {
+        None
+    } else {
+        let p = dir.join(format!("TICKET-{prefix}-{suffix}.md"));
+        p.is_file().then_some(p)
+    };
+    let mut path = exact.unwrap_or_else(|| dir.join(format!("TICKET-{prefix}.md")));
     if !path.is_file() {
-        let found = dir
+        let mut cands: Vec<PathBuf> = dir
             .read_dir()
             .map_err(TicketError::Io)?
             .flatten()
             .map(|e| e.path())
-            .find(|p| {
+            .filter(|p| {
                 p.file_name().is_some_and(|n| {
                     let n = n.to_string_lossy();
                     n.starts_with(&format!("TICKET-{prefix}-"))
                 })
-            });
-        path = found.ok_or_else(|| {
+            })
+            .collect();
+        cands.sort();
+        path = cands.into_iter().next().ok_or_else(|| {
             TicketError::Io(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!("no ticket file for {id}"),
@@ -916,6 +944,22 @@ mod status_tests {
         let t = find_ticket(&root, "TICKET-1").unwrap();
         assert_eq!(t.status, "CLOSED", "frontmatter status must re-parse");
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ticket_ids_with_path_separators_are_rejected() {
+        for bad in [
+            "TICKET-1/../../evil",
+            "TICKET-1/../x",
+            "TICKET-1\\..\\x",
+            "TICKET-1:..",
+        ] {
+            let text = format!("---\nid: {bad}\ntitle: t\ngoal: g\n---\n");
+            assert!(
+                parse_ticket(&text).is_err(),
+                "traversal id {bad} must be rejected"
+            );
+        }
     }
 
     #[test]

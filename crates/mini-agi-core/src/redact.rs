@@ -88,9 +88,12 @@ fn redact_pem_blocks(text: &str) -> String {
         // (PGP) before the dashes.
         let after_begin = &rest[start + BEGIN.len()..];
         let Some(until) = after_begin.find("PRIVATE KEY") else {
-            out.push_str(&rest[..start + BEGIN.len()]);
-            out.push_str(after_begin);
-            break;
+            // Not a private-key block — keep the BEGIN line as-is and
+            // continue scanning AFTER it (no tail duplication).
+            let advance = start + BEGIN.len() + after_begin.len();
+            out.push_str(&rest[..advance]);
+            rest = &rest[advance..];
+            continue;
         };
         let Some(dashes) = after_begin[until..].find("-----") else {
             out.push_str(&rest[..start + BEGIN.len()]);
@@ -99,7 +102,15 @@ fn redact_pem_blocks(text: &str) -> String {
         };
         let header_end = start + BEGIN.len() + until + dashes + "-----".len();
         let Some(rel_end) = rest[header_end..].find(END_MARK) else {
-            break;
+            // UNTERMINATED block (a killed worker's truncated transcript):
+            // redact the remainder — an unclosed PEM body must not leak.
+            out.push_str(&rest[..start]);
+            out.push_str(BEGIN);
+            out.push_str(&rest[start + BEGIN.len()..header_end]);
+            out.push('\n');
+            out.push_str(REDACTED);
+            out.push('\n');
+            return out;
         };
         let block_end = header_end + rel_end;
         // Include the END marker line so no key material escapes.
@@ -488,6 +499,16 @@ mod redact_tests {
             assert!(!out.contains("hunter"), "quoted -p value leaked: {out}");
             assert!(out.contains(REDACTED), "{out}");
         }
+    }
+
+    #[test]
+    fn unterminated_private_key_blocks_are_redacted() {
+        let out = redact("-----BEGIN RSA PRIVATE KEY-----\nbase64-cut-off-mid-transcript");
+        assert!(
+            !out.contains("base64-cut-off"),
+            "unterminated PEM body leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
     }
 
     #[test]

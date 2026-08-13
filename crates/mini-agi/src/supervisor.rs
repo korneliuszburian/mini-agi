@@ -547,16 +547,14 @@ pub struct ResolvedSpec {
 /// parsed, when the goal declares no verifier, or when the verifier
 /// shape is invalid.
 pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
-    // Path safety (mirrors loopcmd/snapshot validation): a raw join
-    // would let `loop run ../x` read a run.json outside evals/cases.
-    if !mini_agi_core::loopcmd::case_is_plain_segment(input.goal_or_case) {
-        return Err(format!(
-            "invalid case name '{}' — use a plain name (no separators)",
-            input.goal_or_case
-        ));
-    }
+    // A PLAIN name is treated as a case (mirrors loopcmd/snapshot
+    // validation: a raw join would let `loop run ../x` read a run.json
+    // outside evals/cases). A NON-plain string is an AD-HOC GOAL — it may
+    // legitimately contain `/`, `\`, or `:` ("add TCP/UDP timeouts") and
+    // must not be rejected as a bad case name.
+    let is_case = mini_agi_core::loopcmd::case_is_plain_segment(input.goal_or_case);
     let case_dir = input.root.join("evals/cases").join(input.goal_or_case);
-    if case_dir.join("run.json").is_file() {
+    if is_case && case_dir.join("run.json").is_file() {
         let run: mini_agi_core::eval::Run = serde_json::from_str(
             &std::fs::read_to_string(case_dir.join("run.json")).map_err(|e| e.to_string())?,
         )
