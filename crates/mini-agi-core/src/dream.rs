@@ -419,10 +419,18 @@ pub fn read_verdicts(path: &Path) -> Vec<AuditorVerdict> {
                     .get("reason")
                     .and_then(serde_json::Value::as_str)
                     .map(str::to_string),
-                existing_id: item
-                    .get("existing_id")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_string),
+                existing_id: {
+                    // Same 16-hex validation as parse_audit_verdicts: a
+                    // tampered manifest must not flow an arbitrary string
+                    // into the queue's `existing fact hash:` metadata.
+                    let id = item
+                        .get("existing_id")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_default();
+                    (id.is_empty() || (id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit())))
+                        .then_some(id)
+                },
             })
         })
         .collect()

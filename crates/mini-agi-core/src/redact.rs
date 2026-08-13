@@ -330,7 +330,7 @@ fn redact_flag_values(text: &str) -> String {
         });
         let take = quoted_value_len(value).unwrap_or_else(|| {
             value
-                .find(|c: char| c.is_whitespace() || c == ',' || c == '&' || c == ';' || c == '"')
+                .find(|c: char| c.is_whitespace() || c == '&' || c == ';' || c == '"' || c == '\'')
                 .unwrap_or(value.len())
         });
         out.push_str(REDACTED);
@@ -579,6 +579,22 @@ mod redact_tests {
     }
 
     #[test]
+    fn bare_bearer_and_api_key_headers_are_redacted() {
+        for input in [
+            r#"curl -H "Bearer abc123secret" https://x"#,
+            "curl -H 'X-Api-Key abc123secret' https://x",
+            "curl -u user:passsecret https://x",
+        ] {
+            let out = redact(input);
+            assert!(
+                !out.contains("abc123secret"),
+                "bare credential leaked: {out}"
+            );
+            assert!(!out.contains("passsecret"), "basic-auth leaked: {out}");
+        }
+    }
+
+    #[test]
     fn marker_prefix_does_not_bypass_redaction() {
         let out = redact("password=[REDACTED]hunter2");
         assert!(
@@ -595,29 +611,20 @@ mod redact_tests {
     #[test]
     fn comma_does_not_terminate_flag_values() {
         let out = redact("sshpass -psecret,foo host");
-        assert!(!out.contains("secret,foo"), "comma tail leaked: {out}");
+        assert!(!out.contains("secret"), "comma tail leaked: {out}");
+        assert!(!out.contains(",foo"), "comma tail segment leaked: {out}");
         assert!(out.contains(REDACTED), "{out}");
         let out = redact("curl -u user:pass,foo https://x");
+        assert!(!out.contains("pass"), "basic-auth comma tail leaked: {out}");
         assert!(
-            !out.contains("pass,foo"),
-            "basic-auth comma tail leaked: {out}"
+            !out.contains(",foo"),
+            "basic-auth tail segment leaked: {out}"
         );
-    }
-
-    #[test]
-    fn bare_bearer_and_api_key_headers_are_redacted() {
-        for input in [
-            r#"curl -H "Bearer abc123secret" https://x"#,
-            "curl -H 'X-Api-Key abc123secret' https://x",
-            "curl -u user:passsecret https://x",
-        ] {
-            let out = redact(input);
-            assert!(
-                !out.contains("abc123secret"),
-                "bare credential leaked: {out}"
-            );
-            assert!(!out.contains("passsecret"), "basic-auth leaked: {out}");
-        }
+        let out = redact("sshpass -p secret,foo host");
+        assert!(
+            !out.contains("secret"),
+            "space-separated comma tail leaked: {out}"
+        );
     }
 
     #[test]

@@ -992,7 +992,14 @@ pub fn verify(
         );
     }
 
-    let closed = run.achieved() && passed;
+    // Re-read the closing run's `achieved` AFTER the gate: the gate ran
+    // for up to 120s, during which a concurrent worker could have
+    // rewritten the rerun dir's run.json (achieved true->false). Closing
+    // on the STALE pre-gate value would stamp closed_by/verified_at on a
+    // run the disk no longer reports as achieved.
+    let achieved_now = read_run(&root.join("evals/cases").join(case))
+        .map_or_else(|| run.achieved(), |r| r.achieved());
+    let closed = achieved_now && passed;
     if closed {
         // Atomic close under the claims lock: ledger (state=closed,
         // closed_by=<closing rerun dir>, verified_at) -> release the

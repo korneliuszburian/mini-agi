@@ -807,7 +807,14 @@ pub fn append_contested(
     let number = current.lines().filter(|l| l.starts_with("## C-")).count() + 1;
     // Single-line payload: a multi-line fact would truncate on the
     // queue parse and promote an id that no longer hashes its body.
-    let fact_flat = fact.replace('\n', " ");
+    let mut fact_flat = fact.replace('\n', " ");
+    // Header-shape escape: a payload that would itself parse as a record
+    // header (`## C-<n> `<16hex>``) would forge a phantom queue record —
+    // prefix a space so the line no longer matches, and re-hash the
+    // STORED payload (the digest must hash what signoff reads back).
+    if fact_flat.trim_start().starts_with("## C-") {
+        fact_flat = format!(" {fact_flat}");
+    }
     // The stored digest MUST hash the stored (flattened) payload, or the
     // signoff digest check rejects the entry forever (dead HITL state).
     let digest = fact_id(&fact_flat);

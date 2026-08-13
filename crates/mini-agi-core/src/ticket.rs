@@ -520,8 +520,11 @@ pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> 
             }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
                 let stale = fs::metadata(&path).is_ok_and(|m| {
-                    m.modified()
-                        .is_ok_and(|mt| mt.elapsed().map_or(true, |d| d.as_secs() > stale_secs))
+                    m.modified().is_ok_and(|mt| {
+                        // A FUTURE mtime (clock stepped back) is NOT
+                        // stale — a fresh lock must not be stolen.
+                        mt.elapsed().is_ok_and(|d| d.as_secs() > stale_secs)
+                    })
                 });
                 if stale {
                     // Atomic steal: RENAME the stale lock to a unique name
@@ -541,7 +544,7 @@ pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> 
                         // back and wait, so no double-holder arises.
                         let still_stale = fs::metadata(&steal).is_ok_and(|m| {
                             m.modified().is_ok_and(|mt| {
-                                mt.elapsed().map_or(true, |d| d.as_secs() > stale_secs)
+                                mt.elapsed().is_ok_and(|d| d.as_secs() > stale_secs)
                             })
                         });
                         if still_stale {

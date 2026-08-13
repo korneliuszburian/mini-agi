@@ -195,7 +195,14 @@ pub fn run_capped_idle(
     // output fds open (orphans).
     #[cfg(unix)]
     cmd.process_group(0);
-    let mut child = cmd.spawn()?;
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = fs::remove_file(&stdout_path);
+            let _ = fs::remove_file(&stderr_path);
+            return Err(e);
+        }
+    };
     let mut aborted = false;
     // Kill the direct child AND its whole process group.
     let kill_tree = |child: &mut std::process::Child| {

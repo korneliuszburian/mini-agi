@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 803636a387d2f4b1
-# canonical_entries: 126
+# canonical_sha256: 2e254e20a9b4312e
+# canonical_entries: 127
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -1000,3 +1000,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `5fa1999470e3d2b9` cycle 26 (2026-08-13): thirteenth deepseek-v4-pro whole-repo review (repo-health-12) found 4 defects, all fixed — JSON/array -p redaction, shell-metachar flag boundary, path-safe ticket suffixes, containment comment honesty. 106 tests green.
 - `78754d38a287f1c0` cycle 27 (2026-08-13): fourteenth deepseek-v4-pro whole-repo review (repo-health-13) found 3 defects, all fixed — frontmatter injection via source/domain/body flattened, duplicate-arm known check, lock token write propagation. 107 tests green.
 - `126fb51ec0fb9255` cycle 28 (2026-08-13): fifteenth deepseek-v4-pro whole-repo review (repo-health-14) found 5 defects, all fixed — bare Bearer/X-Api-Key/basic-auth redaction, existing_id validation (queue forgery), worker caps fail-closed, queued_facts payload parse, fragment name collisions. 108 tests green.
+- `1c4928fc706ca5af` cycle 29 (2026-08-13): sixteenth deepseek-v4-pro whole-repo review (repo-health-15) found 5 defects, all fixed — marker-prefix redaction bypass, comma flag-tail leak, JSON-array flag preservation, lock put-back hard_link, idle-cap fail-closed. 110 tests green.
