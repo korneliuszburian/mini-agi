@@ -153,10 +153,11 @@ fn redact_header_values(text: &str, key: &str) -> String {
         let trimmed = rest.trim_start();
         if trimmed.starts_with('"') {
             // JSON form: opening quote stays visible, value ends at the
-            // closing quote.
+            // CLOSING quote — escape-aware (`"abc\"def"` must not close
+            // at the escaped quote and leak `def`).
             let value_start = rest.len() - trimmed.len();
             let inside = &rest[value_start + 1..];
-            if let Some(end) = inside.find('"') {
+            if let Some(end) = closing_quote(inside) {
                 out.push_str(&rest[..=value_start]);
                 out.push_str(REDACTED);
                 rest = &rest[value_start + 1 + end + 1..];
@@ -503,6 +504,16 @@ mod redact_tests {
             assert!(!out.contains("hunter"), "quoted -p value leaked: {out}");
             assert!(out.contains(REDACTED), "{out}");
         }
+    }
+
+    #[test]
+    fn escaped_quotes_in_json_headers_do_not_leak() {
+        let out = redact(r#"{"Cookie": "abc\"def"}"#);
+        assert!(
+            !out.contains("def"),
+            "escaped-quote header tail leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
     }
 
     #[test]

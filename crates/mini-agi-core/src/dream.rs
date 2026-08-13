@@ -529,6 +529,7 @@ pub fn apply_verdicts(
     let mut promoted: std::collections::BTreeMap<String, Vec<(String, String)>> =
         std::collections::BTreeMap::new();
     let mut queued = 0usize;
+    let mut superseded = 0usize;
     let mut skipped = 0usize;
     for v in verdicts {
         let Some(fact) = staged.get(v.index) else {
@@ -664,7 +665,7 @@ pub fn apply_verdicts(
                         // id under another seq number (exact-duplicate
                         // integrity finding).
                         known.insert(h);
-                        queued += 1;
+                        superseded += 1;
                     }
                     _ => {
                         skipped += 1;
@@ -676,7 +677,7 @@ pub fn apply_verdicts(
             }
         }
     }
-    let promoted_count = promoted.values().map(Vec::len).sum();
+    let promoted_count = promoted.values().map(Vec::len).sum::<usize>() + superseded;
     for (domain, facts) in promoted {
         if !dry_run {
             crate::memory::write_canonical_entry(root, &facts, source, &domain, "dream")?;

@@ -991,7 +991,10 @@ pub fn signoff(
     if !queue.exists() {
         return Err(MemoryError::BadSignoff);
     }
-    let blocks = queued_facts(&queue);
+    // Read the CANONICAL path (not the raw caller string): a component
+    // swapped to a symlink between containment and read must not redirect
+    // the read outside memory/review.
+    let blocks = queued_facts(&queue_canon);
     let Some((digest, fact)) = blocks.get(index - 1).cloned() else {
         return Err(MemoryError::IndexNotFound);
     };

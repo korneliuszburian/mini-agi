@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: e0be821c4adcd362
-# canonical_entries: 120
+# canonical_sha256: 2b761b9e363bd2f7
+# canonical_entries: 121
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -994,3 +994,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `60d7d6ed2e6a84a3` cycle 20 (2026-08-13): seventh deepseek-v4-pro whole-repo review (repo-health-6) found 9 defects, all fixed — frontmatter status form-match, Landlock fail-closed, corrupt claims-line hard error, PGP key redaction, lock ownership token, canonical-path MCP reads, locking stranded-lease recovery, dream supersede dedup, idempotent verify. 97 tests green.
 - `65ce018035f73ae0` cycle 21 (2026-08-13): eighth deepseek-v4-pro whole-repo review (repo-health-7) — 9 findings, 8 fixed + 1 documented: max_cost_usd + max_repeated_steps enforcement wired, harness lock narrowed (mutual-exclusion break closed), whole-name ticket_for_case match, dream staging create_new, verify-fail terminal check, sandbox doc, sorted find_ticket, dream error surfacing. 98 tests green.
 - `c326676d2dfb941e` cycle 22 (2026-08-13): ninth deepseek-v4-pro whole-repo review (repo-health-8) — 9 findings, 8 fixed: path-safe ticket ids (traversal sink), dream supersede dry-run guard, exact-file status writes, unterminated PEM redaction, codex.log append, mark_state release logging, real --approve for CLI codex, supervisor ad-hoc goals; lock-drop TOCTOU documented. 100 tests green.
+- `ee594eb9689c9882` cycle 23 (2026-08-13): tenth deepseek-v4-pro whole-repo review (repo-health-9) found 4 defects, all fixed — create_case_ticket re-checks under lock (no duplicate tickets), supervisor passes routed through the worker-kind adapter, unique atomic-write tmp names, PEM tail dedup. 101 tests green.

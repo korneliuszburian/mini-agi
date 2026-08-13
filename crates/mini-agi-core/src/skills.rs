@@ -768,15 +768,25 @@ pub fn set_disabled(root: &Path, name: &str, disabled: bool) -> Result<(), Skill
 /// the staging directory is always created by this function, so this is
 /// not reachable in practice.
 pub fn install_skills(root: &Path, source: &str) -> Result<Vec<String>, SkillError> {
-    let normalized = if source.contains('/') && !source.starts_with("http") {
-        if source.starts_with("github.com") || source.matches('/').count() == 1 {
-            format!("https://github.com/{source}")
+    // Only a BARE `owner/repo` (exactly one slash, no dot, no path)
+    // is a GitHub shorthand. A single-slash LOCAL path (`./foo`,
+    // `sub/dir`) or a path with more than one slash stays as-is —
+    // rewriting it to https would silently fail the clone.
+    let normalized =
+        if source.contains('/') && !source.starts_with("http") && !source.starts_with("github.com")
+        {
+            let bare = source.matches('/').count() == 1
+                && !source.starts_with('.')
+                && !source.ends_with('/')
+                && !source.contains("..");
+            if bare {
+                format!("https://github.com/{source}")
+            } else {
+                source.to_string()
+            }
         } else {
             source.to_string()
-        }
-    } else {
-        source.to_string()
-    };
+        };
     let staging = std::env::temp_dir().join(format!(
         "mag-skill-src-{}-{}",
         std::process::id(),

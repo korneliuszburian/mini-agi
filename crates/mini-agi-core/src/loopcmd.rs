@@ -126,11 +126,34 @@ pub fn ledger_path(root: &Path, case: &str) -> PathBuf {
     root.join("evals/ledger").join(format!("{case}.json"))
 }
 
-/// Read a case's ledger row (absent = gap not yet opened).
+/// Read a case's ledger row, distinguishing ABSENT from CORRUPT.
+///
+/// A corrupt row is a hard error (fail-closed): treating it as "never
+/// dispatched" would silently reset the retry bound and make a
+/// Closed/Exhausted case re-dispatchable.
+fn read_ledger_checked(root: &Path, case: &str) -> Result<Option<Gap>, String> {
+    let path = ledger_path(root, case);
+    match fs::read_to_string(&path) {
+        Ok(text) => serde_json::from_str(&text)
+            .map(Some)
+            .map_err(|e| format!("ledger {} is corrupt: {e}", path.display())),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("cannot read ledger {}: {e}", path.display())),
+    }
+}
+
+/// Read a case's ledger row (absent = gap not yet opened). A corrupt row
+/// is logged LOUDLY and treated as absent (best-effort call sites);
+/// authoritative paths use [`read_ledger_checked`].
 #[must_use]
 pub fn read_ledger(root: &Path, case: &str) -> Option<Gap> {
-    let text = fs::read_to_string(ledger_path(root, case)).ok()?;
-    serde_json::from_str(&text).ok()
+    match read_ledger_checked(root, case) {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("loopcmd: {e}");
+            None
+        }
+    }
 }
 
 /// Atomically write a ledger row (temp file + rename). Callers MUST hold
@@ -575,7 +598,7 @@ fn pick_target(root: &Path, case: Option<&str>) -> Result<String, String> {
                 ticket.id
             ));
         }
-        if let Some(gap) = read_ledger(root, case)
+        if let Some(gap) = read_ledger_checked(root, case)?
             && gap_is_terminal(&gap.state)
         {
             return Err(format!(
@@ -599,7 +622,7 @@ fn pick_target(root: &Path, case: Option<&str>) -> Result<String, String> {
         if is_rerun_case(&name) || read_run(&d).is_some_and(|r| r.achieved()) {
             continue;
         }
-        if let Some(gap) = read_ledger(root, &name)
+        if let Some(gap) = read_ledger_checked(root, &name)?
             && gap_is_terminal(&gap.state)
         {
             continue;
@@ -673,7 +696,7 @@ pub fn dispatch(
         }
         e.to_string()
     })?;
-    let prior_gap = read_ledger(root, &case);
+    let prior_gap = read_ledger_checked(root, &case)?;
     let rollback = |prior_gap: &Option<Gap>| {
         let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
         if ticket_created {
@@ -968,7 +991,7 @@ pub fn verify(
         // claim -> ticket file status: CLOSED. Any failure rolls every
         // on-disk state back (the ledger is the single commit point).
         let close_lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
-        let prior_gap = read_ledger(root, base);
+        let prior_gap = read_ledger_checked(root, base)?;
         // Idempotence guard: a terminal prior state (already Closed /
         // Exhausted / Unverifiable) must not be re-closed — re-running
         // `loop verify` on a closed base would re-execute the gate and

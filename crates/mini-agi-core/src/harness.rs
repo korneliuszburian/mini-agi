@@ -105,6 +105,14 @@ pub fn gate_failures(text: &str) -> Vec<String> {
 /// claim is not in the BEFORE failure set, the edit is rejected with
 /// evidence (byte-exact replay, not suppression).
 ///
+/// Stale threshold for the DEDICATED harness lock: above the capped
+/// gate run so a concurrent harness cannot steal a live counterfactual.
+const HARNESS_STALE_SECS: u64 = 3600;
+
+/// Counterfactual gate (Phantom Guardrails): a candidate edit must
+/// REDUCE observed gate failures; fixing a failure never observed before
+/// the edit is fabricated.
+///
 /// # Errors
 ///
 /// Returns the underlying filesystem error.
@@ -142,6 +150,14 @@ pub fn verify_candidate(
                 .into(),
         );
     }
+    // The WHOLE counterfactual (before -> phantom check -> swap -> gate
+    // -> restore) is serialized under a DEDICATED harness lock with a
+    // stale threshold ABOVE the gate cap — two concurrent `harness verify`
+    // runs must not measure each other's candidate as a baseline (a
+    // phantom ACCEPT). The claims lock stays for short ticket ops.
+    let _harness_lock =
+        crate::ticket::lock_file(&root.join("tickets/.harness.lock"), HARNESS_STALE_SECS)
+            .map_err(io::Error::other)?;
     let before = gate_failures_text(root);
     // Phantom-guardrail check: claims must name failures observed BEFORE.
     if let Some(claims) = claims {
@@ -154,22 +170,16 @@ pub fn verify_candidate(
             }
         }
     }
+    // The dedicated harness lock (above) already serializes this whole
+    // section — no claims-lock involvement (its 30s steal would trip on
+    // the 1800s gate).
     let candidate_text = fs::read_to_string(candidate)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
-    // The swap + restore are serialized under the claims lock, but ONLY
-    // the file operations — the 1800s-capped gate runs OUTSIDE the lock.
-    // Holding the claims lock across the gate would trip the 30s stale-
-    // steal and silently break mutual exclusion for every ticket/ledger
-    // writer (two holders proceed concurrently).
-    let lock = crate::ticket::lock_claims(root).map_err(io::Error::other)?;
     // A failed swap must NOT be measured as the original file (a
     // fabricated NEUTRAL/ACCEPT) — propagate the write error.
     fs::write(&target, &candidate_text)?;
-    drop(lock);
     let (after, after_ok) = gate_run(root);
-    let lock = crate::ticket::lock_claims(root).map_err(io::Error::other)?;
     restore(&target, original.as_ref())?;
-    drop(lock);
     // A gate that FAILS after the swap (markerless abort, crash) is an
     // INVALID after-observation — automatic rejection, never a
     // countable "reduction" (codex review).

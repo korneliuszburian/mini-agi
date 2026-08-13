@@ -470,7 +470,20 @@ fn lock_token() -> String {
 ///
 /// Returns an io error when the lock cannot be acquired in time.
 pub fn lock_claims(root: &Path) -> io::Result<ClaimsLock> {
-    let path = root.join("tickets/.claims.lock");
+    lock_file(&root.join("tickets/.claims.lock"), LOCK_STALE_SECS)
+}
+
+/// Exclusive lock over an ARBITRARY lock file (claims or harness) with a
+/// caller-chosen stale threshold: `O_EXCL` create + atomic rename-steal +
+/// ownership token, so parallel agents cannot lose a lease and a slow
+/// holder cannot be double-stolen. The harness uses a LONGER threshold
+/// because its critical section spans a capped gate run.
+///
+/// # Errors
+///
+/// Returns an io error when the lock cannot be acquired in time.
+pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> {
+    let path = path.to_path_buf();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -490,9 +503,8 @@ pub fn lock_claims(root: &Path) -> io::Result<ClaimsLock> {
             }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
                 let stale = fs::metadata(&path).is_ok_and(|m| {
-                    m.modified().is_ok_and(|mt| {
-                        mt.elapsed().map_or(true, |d| d.as_secs() > LOCK_STALE_SECS)
-                    })
+                    m.modified()
+                        .is_ok_and(|mt| mt.elapsed().map_or(true, |d| d.as_secs() > stale_secs))
                 });
                 if stale {
                     // Atomic steal: RENAME the stale lock to a unique name
@@ -504,19 +516,33 @@ pub fn lock_claims(root: &Path) -> io::Result<ClaimsLock> {
                     // The renamed inode is discarded best-effort.
                     let steal = path.with_extension(format!("lock.steal.{}", std::process::id()));
                     if fs::rename(&path, &steal).is_ok() {
-                        let _ = fs::remove_file(&steal);
+                        // POST-RENAME verify: between observing "stale"
+                        // and the rename, the original holder may have
+                        // released (drop) and another waiter acquired a
+                        // FRESH lock — our rename then moved a LIVE lock
+                        // aside. If the renamed inode is NOT stale, put it
+                        // back and wait, so no double-holder arises.
+                        let still_stale = fs::metadata(&steal).is_ok_and(|m| {
+                            m.modified().is_ok_and(|mt| {
+                                mt.elapsed().map_or(true, |d| d.as_secs() > stale_secs)
+                            })
+                        });
+                        if still_stale {
+                            let _ = fs::remove_file(&steal);
+                            continue;
+                        }
+                        // The renamed inode is a FRESH lock (stolen mid-
+                        // window) — put it back and wait on it.
+                        let _ = fs::rename(&steal, &path);
+                    } else {
+                        // Another waiter stole it first — retry the loop.
                         continue;
                     }
-                    // Another waiter stole it first — retry the loop.
-                    continue;
                 }
                 if started.elapsed().as_millis() > LOCK_MAX_WAIT_MS.into() {
                     return Err(io::Error::new(
                         io::ErrorKind::WouldBlock,
-                        format!(
-                            "claims lock {} busy (held > {LOCK_MAX_WAIT_MS}ms)",
-                            path.display()
-                        ),
+                        format!("lock {} busy (held > {LOCK_MAX_WAIT_MS}ms)", path.display()),
                     ));
                 }
                 std::thread::sleep(std::time::Duration::from_millis(100));
