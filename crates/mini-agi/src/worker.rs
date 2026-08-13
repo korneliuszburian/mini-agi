@@ -397,7 +397,17 @@ pub fn run_verified_iteration(
         };
         let idle_cap = match input.max_idle {
             Some(v) => Some(v),
-            None => mini_agi_core::config::Config::load_checked(input.workdir)?.max_idle_seconds,
+            None => match mini_agi_core::config::Config::load_checked(input.workdir) {
+                Ok(cfg) => cfg.max_idle_seconds,
+                Err(e) => {
+                    // Do not strand the hidden suite renamed-aside on a
+                    // config error — restore it before propagating.
+                    if hidden_away && let Some(dir) = input.hidden_dir {
+                        let _ = restore_verifier(dir);
+                    }
+                    return Err(e);
+                }
+            },
         };
         // Session resume (AFK v2): ownership via the marker — the
         // worker's session is the one containing OUR marker.
@@ -1233,7 +1243,16 @@ pub fn run_worker_sandboxed(
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = (no_sandbox, read_only, wall_cap);
+        // Non-Linux has no Landlock wrapper: an unsandboxed run is ONLY
+        // legitimate with the explicit --no-sandbox flag (fail-closed
+        // parity with the Linux Landlock-unavailable refusal).
+        if !no_sandbox {
+            return Err(
+                "sandbox is Linux-only (Landlock, ADR-0012) — use --no-sandbox only if you explicitly accept an unsandboxed run"
+                    .to_string(),
+            );
+        }
+        let _ = (read_only, wall_cap);
     }
     // Multi-worker (production-readiness P2/E): the runner resolves the
     // worker command from the parameter — codex today, a second type

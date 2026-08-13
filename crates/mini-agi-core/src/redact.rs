@@ -101,14 +101,21 @@ fn redact_pem_blocks(text: &str) -> String {
             rest = &rest[advance..];
             continue;
         };
-        let Some(dashes) = after_begin[until..].find("-----") else {
-            // "PRIVATE KEY" without the closing dashes (a malformed
-            // header) — keep the text and continue past the marker
-            // WITHOUT duplicating the tail.
-            let advance = start + BEGIN.len() + until;
-            out.push_str(&rest[..advance]);
-            rest = &rest[advance..];
-            continue;
+        // The closing dashes must be on the SAME line as the label — a
+        // `-----` found later (on the END line) would span the whole body.
+        let line_end = after_begin[until..]
+            .find('\n')
+            .unwrap_or_else(|| after_begin[until..].len());
+        let Some(dashes) = after_begin[until..until + line_end].find("-----") else {
+            // "PRIVATE KEY" without same-line closing dashes (a malformed
+            // header): the body is key material — redact the remainder.
+            out.push_str(&rest[..start]);
+            out.push_str(BEGIN);
+            out.push_str(&rest[start + BEGIN.len()..start + BEGIN.len() + until]);
+            out.push('\n');
+            out.push_str(REDACTED);
+            out.push('\n');
+            return out;
         };
         let header_end = start + BEGIN.len() + until + dashes + "-----".len();
         let Some(rel_end) = rest[header_end..].find(END_MARK) else {
@@ -429,11 +436,15 @@ fn redact_flag_values(text: &str) -> String {
             let tail = &rest[after..];
             let take = substitution_len(tail)
                 .or_else(|| {
-                    let w = unquoted_word_len(tail);
-                    if w > 0 {
-                        Some(w)
+                    if tail.starts_with("$(") || tail.starts_with('`') {
+                        Some(tail.len())
                     } else {
-                        quoted_value_len(tail)
+                        let w = unquoted_word_len(tail);
+                        if w > 0 {
+                            Some(w)
+                        } else {
+                            quoted_value_len(tail)
+                        }
                     }
                 })
                 .unwrap_or(tail.len());
@@ -461,11 +472,17 @@ fn redact_flag_values(text: &str) -> String {
         });
         let take = substitution_len(value)
             .or_else(|| {
-                let w = unquoted_word_len(value);
-                if w > 0 {
-                    Some(w)
+                // UNCLOSED substitution: the rest of the value is part of
+                // the credential — consume it.
+                if value.starts_with("$(") || value.starts_with('`') {
+                    Some(value.len())
                 } else {
-                    quoted_value_len(value)
+                    let w = unquoted_word_len(value);
+                    if w > 0 {
+                        Some(w)
+                    } else {
+                        quoted_value_len(value)
+                    }
                 }
             })
             .unwrap_or(value.len());
@@ -897,6 +914,36 @@ mod redact_tests {
             "escaped-quote header tail leaked: {out}"
         );
         assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn malformed_pem_headers_do_not_leak_the_key_body() {
+        for input in [
+            "-----BEGIN RSA PRIVATE KEY\nMIICsecretbody\n-----END RSA PRIVATE KEY-----",
+            "-----BEGIN RSA PRIVATE KEY\nMIICsecretbody-unterminated",
+        ] {
+            let out = redact(input);
+            assert!(
+                !out.contains("MIIC"),
+                "malformed PEM leaked the body: {out}"
+            );
+            assert!(out.contains(REDACTED), "{out}");
+        }
+    }
+
+    #[test]
+    fn unclosed_substitutions_do_not_leak() {
+        for input in ["sshpass -p $(echo hunter2", "sshpass -p `cat pwfile"] {
+            let out = redact(input);
+            assert!(
+                !out.contains("hunter2"),
+                "unclosed dollar-sub leaked: {out}"
+            );
+            assert!(
+                !out.contains("pwfile"),
+                "unclosed backtick-sub leaked: {out}"
+            );
+        }
     }
 
     #[test]

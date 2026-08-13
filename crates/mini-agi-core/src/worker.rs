@@ -105,8 +105,13 @@ pub fn parse_opencode_usage(output: &str) -> Option<WorkerUsage> {
             // cost are nothing we can attribute — skip. Missing
             // tokens WITH a cost must not be discarded: the explicit
             // measurement survives the truncated telemetry.
-            let Some(cost_usd) = reported_cost else {
+            let Some(reported) = reported_cost else {
                 continue;
+            };
+            let cost_usd = if reported.is_finite() && reported >= 0.0 {
+                reported
+            } else {
+                0.0
             };
             let prev = usage.unwrap_or(WorkerUsage {
                 tokens_in: 0,
@@ -120,7 +125,10 @@ pub fn parse_opencode_usage(output: &str) -> Option<WorkerUsage> {
             });
             continue;
         };
-        let cost_usd = reported_cost.unwrap_or_else(|| estimate_flash_cost(tokens_in, tokens_out));
+        let cost_usd = reported_cost.map_or_else(
+            || estimate_flash_cost(tokens_in, tokens_out),
+            |c| if c.is_finite() && c >= 0.0 { c } else { 0.0 },
+        );
         let prev = usage.unwrap_or(WorkerUsage {
             tokens_in: 0,
             tokens_out: 0,

@@ -589,8 +589,8 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
                 receipt.staged
             ));
         }
-        // The staged facts sit next to the manifest (`<seq>.md`).
-        let staged_path = Path::new(manifest).with_extension("md");
+        // Read the CANONICAL staged file (the raw-path shadow would
+        // follow a symlink planted inside memory/staging outside it).
         let staged = match std::fs::read_to_string(&staged_path) {
             Ok(t) => mini_agi_core::dream::parse_distilled_facts(&t),
             Err(e) => {
@@ -608,6 +608,14 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
             false,
         ) {
             Ok((promoted, queued, skipped)) => {
+                // Write the durable promotion receipt (idempotency guard):
+                // a re-promote of the same staged file is then refused.
+                let _ = mini_agi_core::dream::write_promotion_receipt(
+                    &staged_path,
+                    promoted,
+                    queued,
+                    skipped,
+                );
                 println!(
                     "dream --promote: {promoted} promoted, {queued} queued, {skipped} skipped"
                 );
