@@ -416,6 +416,9 @@ impl Drop for ClaimsLock {
 /// Returns an io error when the lock cannot be acquired in time.
 pub fn lock_claims(root: &Path) -> io::Result<ClaimsLock> {
     let path = root.join("tickets/.claims.lock");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let started = std::time::Instant::now();
     loop {
         match fs::OpenOptions::new()
@@ -595,7 +598,21 @@ pub fn write_claims_registry(root: &Path, claims: &[Claim]) -> io::Result<()> {
 /// [`TicketError::Parse`] when the ticket file cannot be read.
 pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), TicketError> {
     let dir = tickets_dir(root);
-    let mut path = dir.join(format!("{id}.md"));
+    // Same traversal guard as find_ticket: only `TICKET-<digits>` ids
+    // (a suffix like `TICKET-001-v2` resolves via prefix scan); a
+    // caller-supplied id can never escape `tickets/`.
+    let digits = id
+        .strip_prefix("TICKET-")
+        .or_else(|| id.strip_prefix("ticket-"))
+        .unwrap_or(id);
+    let prefix: String = digits.chars().take_while(char::is_ascii_digit).collect();
+    if prefix.is_empty() {
+        return Err(TicketError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("invalid ticket id '{id}': expected TICKET-<number>"),
+        )));
+    }
+    let mut path = dir.join(format!("TICKET-{prefix}.md"));
     if !path.is_file() {
         let found = dir
             .read_dir()
@@ -605,7 +622,7 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
             .find(|p| {
                 p.file_name().is_some_and(|n| {
                     let n = n.to_string_lossy();
-                    n.starts_with(&format!("{id}-")) || n == format!("{id}.md")
+                    n.starts_with(&format!("TICKET-{prefix}-"))
                 })
             });
         path = found.ok_or_else(|| {

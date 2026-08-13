@@ -378,6 +378,9 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
         if !open {
             continue;
         }
+        if read_ledger(root, &case).is_some_and(|g| gap_is_terminal(&g.state)) {
+            continue;
+        }
         let ticket = ticket_for_case(root, &case);
         let (ticket_id, status_, claimant) = ticket.as_ref().map_or((None, None, None), |t| {
             (
@@ -701,7 +704,16 @@ pub fn verify(
             "invalid case name '{case}' — use a plain name (no separators)"
         ));
     }
-    let base = case.strip_suffix("-rerun").unwrap_or(case);
+    // The base is the gap owner: `foo-rerun` -> `foo`, `foo-rerun-2` ->
+    // `foo` (ARCHITECTURE-CONDENSED: rerun dirs are attempt artifacts and
+    // never own a ledger row; a numbered rerun still closes the BASE).
+    // A plain case name with a mid-string `-rerun-` (e.g. `my-rerun-tool`)
+    // is NOT a rerun dir — only an exact `-rerun` suffix or a
+    // `-rerun-<N>` suffix counts.
+    let base = case.strip_suffix("-rerun").map_or_else(
+        || case.rfind("-rerun-").map_or(case, |idx| &case[..idx]),
+        |s| s,
+    );
     let run_path = root.join("evals/cases").join(case).join("run.json");
     let run = read_run(run_path.parent().expect("case dir"))
         .ok_or_else(|| format!("cannot read {case}"))?;
@@ -1079,6 +1091,39 @@ mod loop_tests {
             err.contains("outside"),
             "verify refuses to run a gate in an outside target: {err}"
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_numbered_rerun_closes_the_base_not_the_rerun_dir() {
+        let root = tmp_root("v-rerun2");
+        write_run(&root, "gap-z-rerun-2", true, Some(("true", ".")));
+        let (text, closed) = verify(&root, "gap-z-rerun-2", "t", false).unwrap();
+        assert!(closed, "{text}");
+        assert!(
+            read_ledger(&root, "gap-z").is_some_and(|g| g.state == GapState::Closed),
+            "a numbered rerun (-rerun-2) closes the BASE ledger row"
+        );
+        assert!(
+            !ledger_path(&root, "gap-z-rerun-2").is_file(),
+            "a rerun dir never owns a ledger row"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn status_hides_terminal_ledger_cases() {
+        let root = tmp_root("s-ledger");
+        write_run(&root, "open-a", false, None);
+        write_run(&root, "closed-b", false, None);
+        write_ledger(&root, "closed-b", GapState::Closed);
+        let s = status(&root).unwrap();
+        assert_eq!(
+            s.cases.len(),
+            1,
+            "terminal-ledger cases are not listed as open"
+        );
+        assert_eq!(s.cases[0].case, "open-a");
         let _ = fs::remove_dir_all(&root);
     }
 }
