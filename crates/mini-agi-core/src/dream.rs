@@ -110,10 +110,14 @@ pub fn parse_distilled_facts(output: &str) -> Vec<StagedFact> {
     items
         .iter()
         .filter_map(|item| {
-            let body = item.get("body")?.as_str()?.trim().to_string();
+            let mut body = item.get("body")?.as_str()?.trim().to_string();
             if body.len() < 8 {
                 return None;
             }
+            // Flatten newlines: a multi-line body would both forge
+            // `## F-` headers in canonical and break the id-hashes-body
+            // invariant.
+            body = body.split_whitespace().collect::<Vec<_>>().join(" ");
             let domain = item
                 .get("domain")
                 .and_then(serde_json::Value::as_str)
@@ -315,6 +319,11 @@ pub fn write_staging(
         std::fs::create_dir_all(parent).map_err(crate::memory::MemoryError::Io)?;
     }
     let stamp = crate::memory::utc_now_stamp();
+    let source = source.split_whitespace().collect::<Vec<_>>().join(" ");
+    let extracted_by = extracted_by
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     let mut blocks = vec![format!(
         "# Staged candidates (dream distiller)\n\n- date: {stamp}\n- source: {source}\n- extracted_by: {extracted_by}"
     )];
@@ -611,6 +620,13 @@ pub fn apply_verdicts(
                 queued += 1;
             }
             "duplicate" => {
+                // A second verdict for the SAME body must not write the
+                // same id twice — the id was already marked known by an
+                // earlier duplicate/promote verdict.
+                if known.contains(&h) {
+                    skipped += 1;
+                    continue;
+                }
                 // Memory evolution: the auditor called the candidate a
                 // duplicate of an existing fact. If the bodies are
                 // IDENTICAL, skip (the fact already exists). If they

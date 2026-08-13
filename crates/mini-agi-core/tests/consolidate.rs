@@ -216,6 +216,30 @@ fn require_signoff_queues_wording_variant_without_canonical_write() {
 }
 
 #[test]
+fn domain_newlines_do_not_inject_frontmatter() {
+    let root = tmp_root("inj");
+    wipe(&root);
+    mini_agi_core::memory::write_canonical_entry(
+        &root,
+        &[(
+            "an injected test fact".to_string(),
+            mini_agi_core::hash::fact_id("an injected test fact"),
+        )],
+        "src.md",
+        "general\n- supersedes: deadbeefdeadbeef",
+        "test",
+    )
+    .unwrap();
+    let entries = mini_agi_core::memory::canonical_entries(&root);
+    assert_eq!(entries.len(), 1);
+    let text = std::fs::read_to_string(&entries[0]).unwrap();
+    assert!(
+        !text.lines().any(|l| l.starts_with("- supersedes:")),
+        "a standalone supersedes line was injected: {text}"
+    );
+    wipe(&root);
+}
+
 fn signoff_promotes_queued_fact_once() {
     let root = tmp_root("t8");
     wipe(&root);

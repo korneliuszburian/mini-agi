@@ -515,7 +515,7 @@ pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> 
                 // Write OUR ownership token into the lock file so `drop`
                 // can verify it still holds OUR lock.
                 let token = lock_token();
-                let _ = fs::write(&path, &token);
+                fs::write(&path, &token)?;
                 return Ok(ClaimsLock { path, token });
             }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {

@@ -447,6 +447,8 @@ pub fn write_supersede_entry(
         .and_then(|s| s.to_str())
         .unwrap_or("entry");
     let mut content = format!("# Canonical entry {stem} (supersedes from {source})\n\n");
+    let source = flat_meta(source);
+    let domain = flat_meta(domain);
     let _ = writeln!(
         content,
         "- date: {stamp}\n- source: {source}\n- domain: {domain}\n- kind: supersede"
@@ -741,6 +743,8 @@ pub fn write_canonical_entry(
         .and_then(|s| s.to_str())
         .unwrap_or("entry");
     let mut content = format!("# Canonical entry {stem} (consolidated from {source})\n\n");
+    let source = flat_meta(source);
+    let domain = flat_meta(domain);
     let _ = writeln!(
         content,
         "- date: {stamp}\n- source: {source}\n- domain: {domain}\n- kind: {kind}"
@@ -811,6 +815,7 @@ pub fn append_contested(
         .create(true)
         .append(true)
         .open(&queue)?;
+    let source = flat_meta(source);
     writeln!(
         f,
         "## C-{number:03} `{digest}`\n- source: {source}\n- reason: same first 40 chars\n- existing fact hash: {existing_hash}\n\n{fact_flat}\n"
@@ -1016,6 +1021,14 @@ pub fn signoff(
         .unwrap_or("queue")
         .to_string();
     write_canonical_entry(root, &[(fact, digest)], &source, domain, "signoff")
+}
+
+/// Flatten newlines/control chars out of a caller-supplied STRING used in
+/// canonical frontmatter (`source`, `domain`): a value like
+/// `general\n- supersedes: <id>` would inject a lifecycle line.
+#[must_use]
+fn flat_meta(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Provenance header for every derived artifact (`PoC` `provenance_block`).
