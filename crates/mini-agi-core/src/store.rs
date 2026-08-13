@@ -60,16 +60,25 @@ pub fn next_entry(root: &Path, today: &str) -> EntryFile {
 
 /// Extract every backtick-delimited 16-hex-char id from text (one per line).
 #[must_use]
+/// Extract fact ids from a canonical entry — header lines only.
+///
+/// A body that merely QUOTES another fact's id must not enter the known
+/// set (that would make `consolidate` skip / `signoff` refuse a fact
+/// whose own id is quoted elsewhere).
 pub fn extract_fact_ids(text: &str) -> Vec<String> {
     let mut ids = Vec::new();
     for line in text.lines() {
-        if let Some(start) = line.find('`') {
-            let rest = &line[start + 1..];
-            if let Some(end) = rest.find('`') {
-                let cand = &rest[..end];
-                if cand.len() == 16 && cand.chars().all(|c| c.is_ascii_hexdigit()) {
-                    ids.push(cand.to_string());
-                }
+        let Some(rest) = line.strip_prefix("## F-") else {
+            continue;
+        };
+        let Some(start) = rest.find('`') else {
+            continue;
+        };
+        let rest = &rest[start + 1..];
+        if let Some(end) = rest.find('`') {
+            let cand = &rest[..end];
+            if cand.len() == 16 && cand.chars().all(|c| c.is_ascii_hexdigit()) {
+                ids.push(cand.to_string());
             }
         }
     }
@@ -138,4 +147,20 @@ pub fn parse_canonical_facts(text: &str) -> Vec<(String, String)> {
         facts.push((current_body.join(" ").trim().to_string(), prev));
     }
     facts
+}
+
+#[cfg(test)]
+mod store_tests {
+    use super::*;
+
+    #[test]
+    fn fact_ids_come_only_from_headers_not_bodies() {
+        let text = "# Canonical entry\n\n## F-000 `aabbccddeeff0011`\n\nthis body references `1122334455667788` in prose\n";
+        let ids = extract_fact_ids(text);
+        assert_eq!(
+            ids,
+            vec!["aabbccddeeff0011".to_string()],
+            "only the header id is known"
+        );
+    }
 }

@@ -198,7 +198,7 @@ pub fn verify_candidate(
     // fabricated NEUTRAL/ACCEPT) — propagate the write error.
     // A failed swap must NOT be measured as the original file — and must
     // NOT leave the target swapped/truncated: restore on write error.
-    if let Err(e) = fs::write(&target, &candidate_text) {
+    if let Err(e) = write_atomic(&target, &candidate_text) {
         let _ = restore(&target, original.as_ref());
         return Err(e);
     }
@@ -257,12 +257,31 @@ fn gate_run(root: &Path) -> (Vec<String>, bool) {
     }
 }
 
+/// Write `content` to `path` atomically (temp + rename): a crash/SIGKILL
+/// mid-write must not leave a truncated file, and concurrent readers must
+/// see the OLD or the NEW content, never a partial write.
+fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let tmp = crate::ticket::tmp_unique(path, "harness");
+    let res = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .and_then(|mut f| f.write_all(content.as_bytes()));
+    if res.is_ok() {
+        std::fs::rename(&tmp, path)
+    } else {
+        let _ = std::fs::remove_file(&tmp);
+        res
+    }
+}
+
 fn restore(target: &Path, original: Option<&String>) -> std::io::Result<()> {
     original.map_or_else(
         || {
             let _ = fs::remove_file(target);
             Ok(())
         },
-        |text| fs::write(target, text),
+        |text| write_atomic(target, text),
     )
 }

@@ -324,14 +324,20 @@ fn redact_flag_values(text: &str) -> String {
             if rest[..pos].ends_with('"')
                 && let Some(close) = rest[after..].find('"')
                 && let Some(vtail) = rest[after + close + 1..].strip_prefix(',')
-                && let Some(vlen) = quoted_value_len(vtail.trim_start())
             {
                 let vskip = vtail.len() - vtail.trim_start().len();
-                out.push_str(&rest[..pos]);
-                out.push_str(&rest[pos..after]);
-                out.push_str(REDACTED);
-                rest = &rest[after + close + 1 + 1 + vskip + vlen..];
-                continue;
+                let vlen = quoted_value_len(vtail.trim_start()).unwrap_or_else(|| {
+                    // Unquoted (malformed-JSON) value: take to the next
+                    // delimiter so the literal cannot leak.
+                    vtail.find([',', ']']).map_or(vtail.len(), |i| i)
+                });
+                if vlen > 0 {
+                    out.push_str(&rest[..pos]);
+                    out.push_str(&rest[pos..after]);
+                    out.push_str(REDACTED);
+                    rest = &rest[after + close + 1 + 1 + vskip + vlen..];
+                    continue;
+                }
             }
             // Not the `-p` flag token (e.g. the middle of `--password`).
             out.push_str(&rest[..after]);
@@ -606,6 +612,16 @@ mod redact_tests {
         assert!(
             !out.contains("cdef"),
             "escaped-quote -p value tail leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn unquoted_json_array_flag_values_are_redacted() {
+        let out = redact(r#"["-p",hunter2secret]"#);
+        assert!(
+            !out.contains("hunter2secret"),
+            "unquoted array value leaked: {out}"
         );
         assert!(out.contains(REDACTED), "{out}");
     }
