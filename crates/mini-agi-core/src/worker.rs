@@ -9,6 +9,8 @@
 
 use std::fs::{self, File};
 use std::io;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime};
@@ -173,13 +175,27 @@ pub fn run_capped_idle(
     let stderr_path = cwd.join(format!(".worker-{}-{token}.err", std::process::id()));
     let stdout_file = File::create(&stdout_path)?;
     let stderr_file = File::create(&stderr_path)?;
-    let mut child = Command::new(command)
-        .args(args)
+    let mut cmd = Command::new(command);
+    cmd.args(args)
         .current_dir(cwd)
         .stdout(Stdio::from(stdout_file))
-        .stderr(Stdio::from(stderr_file))
-        .spawn()?;
+        .stderr(Stdio::from(stderr_file));
+    // The child leads its OWN process group so the cap can kill the WHOLE
+    // tree, not just the `sh -c` wrapper — a gate/worker that backgrounds
+    // a daemon must not outlive the wall cap (bypass) or keep the temp
+    // output fds open (orphans).
+    #[cfg(unix)]
+    cmd.process_group(0);
+    let mut child = cmd.spawn()?;
     let mut aborted = false;
+    // Kill the direct child AND its whole process group.
+    let kill_tree = |child: &mut std::process::Child| {
+        let _ = child.kill();
+        #[cfg(unix)]
+        let _ = std::process::Command::new("kill")
+            .args(["-9", &format!("-{}", child.id())])
+            .status();
+    };
     // Poll when a wall cap OR an idle cap is set (idle needs the poll
     // loop to watch the output-file mtime).
     if max_wall_seconds.is_some() || max_idle_seconds.is_some() {
@@ -200,7 +216,7 @@ pub fn run_capped_idle(
             }
             let now = Instant::now();
             if deadline.is_some_and(|d| now >= d) {
-                let _ = child.kill();
+                kill_tree(&mut child);
                 aborted = true;
                 break;
             }
@@ -213,7 +229,7 @@ pub fn run_capped_idle(
                     last_activity = now;
                 }
                 if now.duration_since(last_activity) >= idle {
-                    let _ = child.kill();
+                    kill_tree(&mut child);
                     aborted = true;
                     break;
                 }

@@ -853,10 +853,15 @@ pub fn verify(
     // closing dir is a rerun, the rerun's own run.json must not be able
     // to weaken the acceptance — an edited rerun gate would change what
     // "close" means. `achieved` still comes from the closing run.
-    let gate_run = (base != case)
-        .then(|| read_run(&root.join("evals/cases").join(base)))
-        .flatten();
-    let gate = gate_run.as_ref().unwrap_or(&run);
+    // FAIL-CLOSED: an unreadable/corrupt base run.json must not silently
+    // fall back to the rerun's self-declared gate.
+    let gate = if base.ne(case) {
+        read_run(&root.join("evals/cases").join(base)).ok_or_else(|| {
+            format!("cannot read the base case's run.json to obtain its declared gate ({base})")
+        })?
+    } else {
+        run.clone()
+    };
     let mut lines = vec![format!("verify {case}: achieved={}", run.achieved())];
 
     let mut passed = false;
@@ -998,7 +1003,12 @@ pub fn verify(
             gap.attempts += 1;
             gap.last_attempted_at = Some(crate::memory::utc_now_stamp());
             if let Err(e) = write_ledger_atomic(root, &gap) {
-                eprintln!("loopcmd: cannot record failed verify attempt for {base}: {e}");
+                // The attempt record is lost — say so in the verdict so a
+                // caller cannot mistake "attempt recorded" for "attempt
+                // lost" (the retry bound would silently stop counting).
+                lines.push(format!(
+                    "  warning: could not record the failed verify attempt for {base}: {e}"
+                ));
             }
         }
         lines.push("  gap open: outcome not verified — keep working".into());
@@ -1053,6 +1063,7 @@ mod loop_tests {
     #[test]
     fn verify_closes_only_when_gate_passes_and_run_achieved() {
         let root = tmp_root("v-close");
+        write_run(&root, "gap-a", false, Some(("true", ".")));
         write_run(&root, "gap-a-rerun", true, Some(("true", ".")));
         let ticket = write_ticket(&root, "gap-a");
         crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
@@ -1068,6 +1079,7 @@ mod loop_tests {
     #[test]
     fn verify_stays_open_when_gate_fails() {
         let root = tmp_root("v-fail");
+        write_run(&root, "gap-b", false, Some(("false", ".")));
         write_run(&root, "gap-b-rerun", true, Some(("false", ".")));
         let ticket = write_ticket(&root, "gap-b");
         crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
@@ -1086,6 +1098,7 @@ mod loop_tests {
     #[test]
     fn verify_open_without_declared_gate_and_no_allow() {
         let root = tmp_root("v-nogate");
+        write_run(&root, "gap-c", false, None);
         write_run(&root, "gap-c-rerun", true, None);
         let (_, closed) = verify(&root, "gap-c-rerun", "t", false).unwrap();
         assert!(!closed, "no gate + no allow-unverified stays open");
@@ -1160,6 +1173,7 @@ mod loop_tests {
     #[test]
     fn verify_marks_the_base_ledger_closed_and_closes_the_ticket() {
         let root = tmp_root("l-close");
+        write_run(&root, "gap-y", false, Some(("true", ".")));
         write_run(&root, "gap-y-rerun", true, Some(("true", ".")));
         let ticket = write_ticket(&root, "gap-y");
         crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
@@ -1252,6 +1266,7 @@ mod loop_tests {
     #[test]
     fn verify_rejects_a_gate_target_outside_the_root() {
         let root = tmp_root("v-out");
+        write_run(&root, "gap-o", false, Some(("true", "/etc")));
         write_run(&root, "gap-o-rerun", true, Some(("true", "/etc")));
         let err = verify(&root, "gap-o-rerun", "t", false).unwrap_err();
         assert!(
@@ -1264,6 +1279,7 @@ mod loop_tests {
     #[test]
     fn verify_numbered_rerun_closes_the_base_not_the_rerun_dir() {
         let root = tmp_root("v-rerun2");
+        write_run(&root, "gap-z", false, Some(("true", ".")));
         write_run(&root, "gap-z-rerun-2", true, Some(("true", ".")));
         let (text, closed) = verify(&root, "gap-z-rerun-2", "t", false).unwrap();
         assert!(closed, "{text}");
@@ -1375,6 +1391,7 @@ mod loop_tests {
     #[test]
     fn verify_refuses_close_when_another_claimant_holds_the_lease() {
         let root = tmp_root("v-foreign");
+        write_run(&root, "gap-f", false, Some(("true", ".")));
         write_run(&root, "gap-f-rerun", true, Some(("true", ".")));
         let ticket = write_ticket(&root, "gap-f");
         crate::ticket::claim_ticket(&root, &ticket, "alice", true).unwrap();

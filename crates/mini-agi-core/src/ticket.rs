@@ -595,7 +595,13 @@ fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
         out.push_str(&line);
         out.push('\n');
     }
-    fs::write(&path, out)
+    // Atomic (temp + rename): a crash mid-write must not leave a
+    // truncated registry — every live lease would silently vanish and
+    // tickets become double-claimable. Matches the ledger/ticket-status
+    // write discipline.
+    let tmp = path.with_extension("md.tmp");
+    fs::write(&tmp, out)?;
+    fs::rename(&tmp, &path)
 }
 
 /// Rewrite the claims registry with an explicit set.

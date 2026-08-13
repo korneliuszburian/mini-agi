@@ -34,9 +34,11 @@ const CREDENTIAL_KEYS: [&str; 14] = [
 
 /// True when a credential-ish word appears as a delimited component of the
 /// key token (`cred-stuff`, `auth-token`) — never swallowed mid-word
-/// (`mycredstuff`, `tokens_total` stay untouched).
+/// (`mycredstuff`, `tokens_total` stay untouched). Hyphens and underscores
+/// are treated as equivalent joins, so `X-Api-Key` matches `api_key`.
 fn is_credential_key(token: &str) -> bool {
-    CREDENTIAL_KEYS.iter().any(|k| token_contains_key(token, k))
+    let norm = token.replace('-', "_");
+    CREDENTIAL_KEYS.iter().any(|k| token_contains_key(&norm, k))
 }
 
 /// Bounded substring match: `key` must be delimited by non-alphanumerics
@@ -456,6 +458,16 @@ mod redact_tests {
             assert!(!out.contains("hunter"), "quoted -p value leaked: {out}");
             assert!(out.contains(REDACTED), "{out}");
         }
+    }
+
+    #[test]
+    fn hyphenated_header_keys_are_redacted() {
+        let out = redact("curl -H \"X-Api-Key: abc123supersecret\" https://x");
+        assert!(
+            !out.contains("abc123supersecret"),
+            "X-Api-Key leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
     }
 
     #[test]

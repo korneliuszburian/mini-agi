@@ -298,6 +298,40 @@ fn handle_tools_call(params: &Value) -> Value {
     json!({ "isError": is_error, "content": [{ "type": "text", "text": text }] })
 }
 
+/// Resolve a caller-supplied file path against the repo root and reject
+/// anything that escapes it — an MCP client must not read arbitrary
+/// filesystem files into canonical memory (credential exfiltration).
+/// Relative paths resolve inside the root; absolute paths are confined
+/// lexically after canonicalization.
+fn contained_path(root: &Path, declared: &str) -> String {
+    let p = Path::new(declared);
+    let candidate = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        root.join(declared)
+    };
+    let ok = candidate
+        .canonicalize()
+        .is_ok_and(|c| root.canonicalize().is_ok_and(|rc| c.starts_with(&rc)));
+    if ok {
+        candidate.to_string_lossy().into_owned()
+    } else {
+        String::new()
+    }
+}
+
+fn read_arg_file(root: &Path, args: &Value, key: &str) -> String {
+    let declared = arg(args, key);
+    let path = contained_path(root, declared);
+    if path.is_empty() {
+        return format!("error: {key} path '{declared}' is outside the repo root");
+    }
+    match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) => format!("error: {e}"),
+    }
+}
+
 fn call_tool(name: &str, args: &Value, root: &Path) -> String {
     use std::fmt::Write as _;
     match name {
@@ -311,7 +345,10 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             } else {
                 arg(args, "domain").to_string()
             };
-            let buffer = std::fs::read_to_string(arg(args, "episodic")).unwrap_or_default();
+            let buffer = read_arg_file(root, args, "episodic");
+            if buffer.starts_with("error:") {
+                return buffer;
+            }
             let opts = mini_agi_core::memory::ConsolidateOptions {
                 domain,
                 require_signoff: arg_bool(args, "require_signoff"),
@@ -458,11 +495,11 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             if arg(args, "approve").is_empty() {
                 return "error: dream requires an approval reason (approve)".into();
             }
+            let text = read_arg_file(root, args, "source");
+            if text.starts_with("error:") {
+                return text;
+            }
             let source = arg(args, "source");
-            let text = match std::fs::read_to_string(source) {
-                Ok(t) => t,
-                Err(e) => return format!("error: {e}"),
-            };
             let staged = mini_agi_core::dream::parse_distilled_facts(&text);
             // ADR-0010 D2: enforcement-bound facts always route to the
             // human queue (the distiller path has no strong-model audit);

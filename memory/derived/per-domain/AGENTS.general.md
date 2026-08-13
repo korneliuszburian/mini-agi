@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: dd21e3a313e8a05a
-# canonical_entries: 114
+# canonical_sha256: 556477f1f2d5aa6b
+# canonical_entries: 115
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -988,3 +988,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `89bd153e24e24b9b` cycle 14 (2026-08-13): deepseek-v4-pro external review of the hardening range produced 17 findings; 11 substantive fixes landed — suffix-only rerun base, transactional dispatch (TOCTOU recheck + rollback), fail-closed Config::load_checked, base-gate verify, spec-line split, foreign-claim close refusal, ledger-attempts in status, Unverifiable marking, budget governor, exhaustion claim release. 86 tests green.
 - `487786b79176e569` cycle 15 (2026-08-13): whole-repo deepseek-v4-pro external review produced 14 findings; 13 fixed — redact quoted-value leak (deny-by-default), dream preserved-collision now body-based, CLI dream HITL approve, gate redaction in spec/verify output, harness gate capped + swap errors propagated, supervisor missing-target error, objective half-gate skip, dispatch spec-before-ledger + rollback, verify-fail attempts recorded, docs aligned to real surface, memory preserved id, clifmt clean draft. 89 tests green.
 - `1c5fa98a451f3d3e` cycle 16 (2026-08-13): third deepseek-v4-pro whole-repo review (repo-health-2) found 8 defects, all fixed — atomic lock rename-steal (mutual exclusion), dispatch rollback preserves ledger history, signoff path containment + digest check, MCP dream routes enforced facts to human queue, supervisor spec redaction, idle-cap dual-stream liveness, flat queue bodies, digest-based enforce dedup. 90 tests green.
+- `2f2854b1202c7107` cycle 17 (2026-08-13): fourth deepseek-v4-pro whole-repo review (repo-health-3) found 9 defects, 8 fixed — concatenated -p redaction, blind-worker restore fail-hard, dream promote dedup, canonical create_new+retry, completion-grace runs verifier, MCP newline frame bound, harness swap serialization, git clone -- separator; process-group kill stays documented (unsafe forbid). 91 tests green.

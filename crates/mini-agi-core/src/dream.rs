@@ -521,7 +521,7 @@ pub fn apply_verdicts(
                     let already = crate::memory::queued_facts(&queue)
                         .iter()
                         .any(|(d, _)| *d == h);
-                    if !already {
+                    if !already && !dry_run {
                         crate::memory::append_contested(
                             root,
                             &fact.body,
@@ -552,7 +552,9 @@ pub fn apply_verdicts(
                     p.starts_with(&fact.body[..take]) || fact.body[..take].starts_with(p.as_str())
                 });
                 if preserved_collision {
-                    crate::memory::append_contested(root, &fact.body, &h, source, "preserved")?;
+                    if !dry_run {
+                        crate::memory::append_contested(root, &fact.body, &h, source, "preserved")?;
+                    }
                     queued += 1;
                     continue;
                 }
@@ -570,7 +572,9 @@ pub fn apply_verdicts(
                     .existing_id
                     .clone()
                     .unwrap_or_else(|| "unknown".to_string());
-                crate::memory::append_contested(root, &fact.body, &h, source, &existing)?;
+                if !dry_run {
+                    crate::memory::append_contested(root, &fact.body, &h, source, &existing)?;
+                }
                 queued += 1;
             }
             "duplicate" => {
@@ -602,13 +606,15 @@ pub fn apply_verdicts(
                         // F2: the write-layer PreservedId error would
                         // abort dream --promote partially).
                         if preserved.contains(&existing_id) {
-                            crate::memory::append_contested(
-                                root,
-                                &flat_candidate,
-                                &h,
-                                source,
-                                &existing_id,
-                            )?;
+                            if !dry_run {
+                                crate::memory::append_contested(
+                                    root,
+                                    &flat_candidate,
+                                    &h,
+                                    source,
+                                    &existing_id,
+                                )?;
+                            }
                             queued += 1;
                             continue;
                         }
