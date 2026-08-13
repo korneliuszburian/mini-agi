@@ -616,7 +616,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         spec_text
             .lines()
             .find_map(|l| l.strip_prefix("- verify_command: "))
-            .map(|l| l.split(" in ").next().unwrap_or("").trim().to_owned())
+            .map(|s| s.trim().to_owned())
             .filter(|s| !s.is_empty())
     }) else {
         return fail(
@@ -628,8 +628,8 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     let Some(mut target) = target.map(str::to_owned).or_else(|| {
         spec_text
             .lines()
-            .find_map(|l| l.strip_prefix("- verify_command: "))
-            .map(|l| l.split(" in ").nth(1).unwrap_or_default().trim().to_owned())
+            .find_map(|l| l.strip_prefix("- verify_target: "))
+            .map(|s| s.trim().to_owned())
             .filter(|s| !s.is_empty())
     }) else {
         return fail(

@@ -110,6 +110,57 @@ impl Config {
         self.apply_env_overlay(|name| std::env::var(name).ok());
     }
 
+    /// Fail-closed load for loop commands (ARCHITECTURE-CONDENSED 5.2):
+    /// a malformed `.miniagi.json` or a non-numeric `MINIAGI_*` bound is
+    /// a hard error that refuses dispatch/verify — NOT a warning that
+    /// silently means "unlimited" (finding 2).
+    ///
+    /// # Errors
+    ///
+    /// Returns a message naming the malformed file or env bound.
+    pub fn load_checked(root: &Path) -> Result<Self, String> {
+        let mut cfg = Self::default();
+        let path = root.join(".miniagi.json");
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            cfg = serde_json::from_str::<Self>(&text)
+                .map_err(|e| format!("{} is invalid JSON: {e}", path.display()))?;
+        }
+        let check = |name: &str, kind: &str, parse: fn(&str) -> bool| {
+            if let Some(raw) = std::env::var(name).ok()
+                && !parse(&raw)
+            {
+                return Err(format!("{name} is not a {kind} ('{raw}')"));
+            }
+            Ok(())
+        };
+        check("MINIAGI_TARGET_COMPOSITE", "number", |s| {
+            s.parse::<f64>().is_ok()
+        })?;
+        check("MINIAGI_MAX_COST_USD", "number", |s| {
+            s.parse::<f64>().is_ok()
+        })?;
+        check("MINIAGI_MAX_STEPS", "integer", |s| {
+            s.parse::<usize>().is_ok()
+        })?;
+        check("MINIAGI_MAX_REPEATED_STEPS", "integer", |s| {
+            s.parse::<usize>().is_ok()
+        })?;
+        check("MINIAGI_MAX_RERUN_ATTEMPTS", "integer", |s| {
+            s.parse::<usize>().is_ok()
+        })?;
+        check("MINIAGI_MAX_TOKENS", "integer", |s| {
+            s.parse::<u64>().is_ok()
+        })?;
+        check("MINIAGI_MAX_WALL_SECONDS", "integer", |s| {
+            s.parse::<u64>().is_ok()
+        })?;
+        check("MINIAGI_MAX_IDLE_SECONDS", "integer", |s| {
+            s.parse::<u64>().is_ok()
+        })?;
+        cfg.apply_env();
+        Ok(cfg)
+    }
+
     /// Environment overlay behind a lookup closure (testable without
     /// mutating process env — `unsafe_code = "forbid"`).
     fn apply_env_overlay(&mut self, get: impl Fn(&str) -> Option<String>) {

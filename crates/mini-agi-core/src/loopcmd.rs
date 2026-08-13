@@ -150,6 +150,38 @@ pub fn write_ledger_atomic(root: &Path, gap: &Gap) -> io::Result<()> {
     fs::rename(&tmp, &path)
 }
 
+/// Mark a case in a terminal/recorded state in the ledger (exhausted,
+/// unverifiable). Best-effort under the claims lock: the state write and
+/// any claim release happen in one locked section. Errors are logged to
+/// stderr, not swallowed silently.
+fn mark_state(root: &Path, case: &str, state: GapState) {
+    let lock = match crate::ticket::lock_claims(root) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("loopcmd: cannot lock claims to mark {case} {state:?}: {e}");
+            return;
+        }
+    };
+    let mut gap = read_ledger(root, case).unwrap_or_else(|| Gap {
+        case: case.to_string(),
+        state: GapState::Open,
+        opened_by: case.to_string(),
+        ..Gap::default()
+    });
+    // EXHAUSTED per §3.1 = claim released, ticket left OPEN with a note.
+    if matches!(&state, GapState::Exhausted)
+        && let Some(ticket) = ticket_for_case(root, case)
+        && let Some(claimant) = claimant_for(root, &ticket.id)
+    {
+        let _ = crate::ticket::release_ticket_locked(root, &ticket.id, &claimant);
+    }
+    gap.state = state;
+    if let Err(e) = write_ledger_atomic(root, &gap) {
+        eprintln!("loopcmd: cannot mark {case} {:?}: {e}", gap.state);
+    }
+    drop(lock);
+}
+
 /// Has the case exceeded the configured rerun bound (its attempts vs
 /// `max_rerun_attempts`)? The ledger's attempt count is authoritative
 /// when a row exists (ARCHITECTURE-CONDENSED 5.2: the bound is ENFORCED
@@ -161,22 +193,6 @@ fn case_exceeded_bound(root: &Path, case: &str) -> bool {
     };
     let attempts = read_ledger(root, case).map_or(0, |g| g.attempts);
     attempts > max
-}
-
-/// Mark a case exhausted in the ledger (terminal: never dispatchable
-/// again). Preserves the attempt count and stamps no false timestamps.
-/// Best-effort under the claims lock — a caller that already holds the
-/// lock passes `_lock_held = true` to avoid a nested acquire.
-fn mark_exhausted(root: &Path, case: &str) {
-    let _lock = crate::ticket::lock_claims(root).ok();
-    let mut gap = read_ledger(root, case).unwrap_or_else(|| Gap {
-        case: case.to_string(),
-        state: GapState::Open,
-        opened_by: case.to_string(),
-        ..Gap::default()
-    });
-    gap.state = GapState::Exhausted;
-    let _ = write_ledger_atomic(root, &gap);
 }
 
 /// One case's loop row.
@@ -422,7 +438,10 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
         let rerun_achieved = reruns
             .iter()
             .any(|d| read_run(d).is_some_and(|r| r.achieved()));
-        let attempts = 1 + reruns.len();
+        // The ledger's attempt count is authoritative when a row exists
+        // (the dispatch-time bound uses it); fall back to the filesystem
+        // count for never-dispatched cases so status and dispatch agree.
+        let attempts = read_ledger(root, &case).map_or(1 + reruns.len(), |g| g.attempts.max(1));
         let max_reruns = crate::config::Config::load(root).max_rerun_attempts;
         rows.push(LoopRow {
             case: case.clone(),
@@ -534,7 +553,7 @@ fn pick_target(root: &Path, case: Option<&str>) -> Result<String, String> {
             ));
         }
         if case_exceeded_bound(root, case) {
-            mark_exhausted(root, case);
+            mark_state(root, case, GapState::Exhausted);
             return Err(format!(
                 "case '{case}' has exceeded max_rerun_attempts — exhausted in the ledger"
             ));
@@ -555,7 +574,7 @@ fn pick_target(root: &Path, case: Option<&str>) -> Result<String, String> {
             continue;
         }
         if case_exceeded_bound(root, &name) {
-            mark_exhausted(root, &name);
+            mark_state(root, &name, GapState::Exhausted);
             continue;
         }
         if let Some(ticket) = ticket_for_case(root, &name)
@@ -584,10 +603,15 @@ pub fn dispatch(
     claimant: &str,
 ) -> Result<DispatchOutcome, String> {
     let _ = below;
+    crate::config::Config::load_checked(root)?;
     let case = pick_target(root, case)?;
     let run = read_run(&root.join("evals/cases").join(&case))
         .ok_or_else(|| format!("run unreadable for case '{case}'"))?;
     if run.verify_command.is_none() || run.verify_target.is_none() {
+        // The case is unverifiable: record it in the ledger (terminal) so
+        // the state machine reflects reality instead of an open gap that
+        // can never dispatch (§3.1 OPEN->UNVERIFIABLE).
+        mark_state(root, &case, GapState::Unverifiable);
         return Err(format!(
             "case '{case}' declares no complete gate (verify_command AND verify_target) — refusing dispatch"
         ));
@@ -601,9 +625,19 @@ pub fn dispatch(
     };
     crate::ticket::claim_ticket(root, &ticket_id, claimant, false)
         .map_err(|e| format!("cannot claim {ticket_id}: {e}"))?;
-    // The ledger is the authoritative gap lifecycle: mark dispatched
-    // atomically under the claims lock, then write the slice spec.
+    // Transactional dispatch (§3.1): one lock-held section that re-checks
+    // the ledger (TOCTOU: another writer may have closed the case between
+    // pick_target and the lock), marks dispatched, then writes the spec.
+    // On ANY failure the claim is released and a created ticket removed —
+    // no leased case with a missing spec/ledger row.
     let lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
+    let rollback = || {
+        let _ = crate::ticket::release_ticket(root, &ticket_id, claimant);
+        if ticket_created {
+            let _ =
+                fs::remove_file(crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")));
+        }
+    };
     let now = crate::memory::utc_now_stamp();
     let mut gap = read_ledger(root, &case).unwrap_or_else(|| Gap {
         case: case.clone(),
@@ -611,15 +645,36 @@ pub fn dispatch(
         opened_by: case.clone(),
         ..Gap::default()
     });
+    if gap_is_terminal(&gap.state) {
+        rollback();
+        return Err(format!(
+            "case '{case}' is {} in the ledger (closed between pick and claim) — redispatch refused",
+            gap.state_name()
+        ));
+    }
     if gap.first_dispatched_at.is_none() {
         gap.first_dispatched_at = Some(now.clone());
     }
     gap.attempts += 1;
     gap.last_attempted_at = Some(now);
     gap.state = GapState::Dispatched;
-    write_ledger_atomic(root, &gap).map_err(|e| e.to_string())?;
+    write_ledger_atomic(root, &gap).map_err(|e| {
+        rollback();
+        format!("cannot write ledger: {e}")
+    })?;
     drop(lock);
-    let spec = write_spec(root, &case, &ticket_id).map_err(|e| e.to_string())?;
+    let spec = match write_spec(root, &case, &ticket_id) {
+        Ok(s) => s,
+        Err(e) => {
+            let _ = crate::ticket::release_ticket(root, &ticket_id, claimant);
+            if ticket_created {
+                let _ = fs::remove_file(
+                    crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")),
+                );
+            }
+            return Err(format!("cannot write spec: {e}"));
+        }
+    };
     Ok(DispatchOutcome {
         case,
         ticket: ticket_id,
@@ -639,6 +694,7 @@ pub fn objective(
     claimant: &str,
     budget_cost: Option<f64>,
 ) -> Result<ObjectiveOutcome, String> {
+    crate::config::Config::load_checked(root)?;
     let cases_dir = root.join("evals/cases");
     let mut out = ObjectiveOutcome {
         dispatched: Vec::new(),
@@ -664,7 +720,7 @@ pub fn objective(
             continue;
         }
         if case_exceeded_bound(root, &name) {
-            mark_exhausted(root, &name);
+            mark_state(root, &name, GapState::Exhausted);
             out.skipped_exhausted.push(name.clone());
             continue;
         }
@@ -678,6 +734,13 @@ pub fn objective(
         }
         if let Some(t) = ticket_for_case(root, &name)
             && (t.status == "CLOSED" || claimant_for(root, &t.id).is_some())
+        {
+            continue;
+        }
+        // Budget governor (§5.2): stop dispatching once the declared
+        // budget would be exceeded by the next case's declared cost.
+        if let Some(budget) = out.budget_cost
+            && out.budget_spent + run.cost_usd > budget
         {
             continue;
         }
@@ -701,7 +764,10 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     let _ = writeln!(body, "- goal: {}", run.goal);
     let vc = run.verify_command.unwrap_or_default();
     let vt = run.verify_target.unwrap_or_else(|| "<repo root>".into());
-    let _ = writeln!(body, "- verify_command: {vc} in {vt}");
+    // Separate lines, never `{vc} in {vt}`: a command legitimately
+    // containing " in " must not be re-split by the codex parser.
+    let _ = writeln!(body, "- verify_command: {vc}");
+    let _ = writeln!(body, "- verify_target: {vt}");
     let _ = writeln!(
         body,
         "- acceptance: `mini-agi loop verify {case}-rerun` closes only when the declared gate passes"
@@ -744,6 +810,7 @@ pub fn verify(
     claimant: &str,
     allow_unverified: bool,
 ) -> Result<(String, bool), String> {
+    crate::config::Config::load_checked(root)?;
     if !case_is_plain_segment(case) {
         return Err(format!(
             "invalid case name '{case}' — use a plain name (no separators)"
@@ -752,20 +819,39 @@ pub fn verify(
     // The base is the gap owner: `foo-rerun` -> `foo`, `foo-rerun-2` ->
     // `foo` (ARCHITECTURE-CONDENSED: rerun dirs are attempt artifacts and
     // never own a ledger row; a numbered rerun still closes the BASE).
-    // A plain case name with a mid-string `-rerun-` (e.g. `my-rerun-tool`)
-    // is NOT a rerun dir — only an exact `-rerun` suffix or a
-    // `-rerun-<N>` suffix counts.
+    // Only a SUFFIX counts: a plain case name with a mid-string `-rerun-`
+    // (e.g. `my-rerun-tool`) is NOT a rerun dir — `is_rerun_case` treats
+    // it as a base and the gate must close IT, not strip it.
     let base = case.strip_suffix("-rerun").map_or_else(
-        || case.rfind("-rerun-").map_or(case, |idx| &case[..idx]),
-        |s| s,
+        || {
+            let mut base = case;
+            while let Some(idx) = base.rfind("-rerun-") {
+                let tail = &base[idx + "-rerun-".len()..];
+                if !tail.is_empty() && tail.bytes().all(|c| c.is_ascii_digit()) {
+                    base = &base[..idx];
+                } else {
+                    break;
+                }
+            }
+            base
+        },
+        |stripped| stripped,
     );
     let run_path = root.join("evals/cases").join(case).join("run.json");
     let run = read_run(run_path.parent().expect("case dir"))
         .ok_or_else(|| format!("cannot read {case}"))?;
+    // The gate is the BASE case's declared contract (§3.2): when the
+    // closing dir is a rerun, the rerun's own run.json must not be able
+    // to weaken the acceptance — an edited rerun gate would change what
+    // "close" means. `achieved` still comes from the closing run.
+    let gate_run = (base != case)
+        .then(|| read_run(&root.join("evals/cases").join(base)))
+        .flatten();
+    let gate = gate_run.as_ref().unwrap_or(&run);
     let mut lines = vec![format!("verify {case}: achieved={}", run.achieved())];
 
     let mut passed = false;
-    if let (Some(cmd), Some(target)) = (&run.verify_command, &run.verify_target) {
+    if let (Some(cmd), Some(target)) = (&gate.verify_command, &gate.verify_target) {
         // The declared target is UNTRUSTED run data: resolve it against
         // the repo root and refuse to run the gate anywhere that escapes
         // it (ARCHITECTURE-CONDENSED 5.1), then execute through the
@@ -840,6 +926,19 @@ pub fn verify(
             }
         };
         let prior_status = prior_ticket.as_ref().map(|t| t.status.clone());
+        // Foreign-claim guard: if another claimant holds the lease, this
+        // verify must not mark the ticket CLOSED (that would strand their
+        // claim with no release path — the close bypasses release_ticket).
+        if let Some(id) = close_ticket.as_ref()
+            && let Some(foreign) = prior_claims
+                .iter()
+                .find(|c| &c.ticket == id && c.claimant != claimant)
+                .map(|c| c.claimant.as_str())
+        {
+            return Err(format!(
+                "cannot close {base}: ticket {id} is claimed by {foreign}, not {claimant}"
+            ));
+        }
         if let Err(e) = write_ledger_atomic(root, &close_gap) {
             return Err(format!("cannot write ledger: {e}"));
         }
@@ -1217,6 +1316,135 @@ mod loop_tests {
         assert_eq!(out.dispatched.len(), 1, "only the open case dispatches");
         assert_eq!(out.dispatched[0].case, "ok-b");
         assert!(out.skipped_exhausted.contains(&"exh-a".to_string()));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_mid_string_rerun_is_a_base_case_not_stripped() {
+        let root = tmp_root("v-midrerun");
+        write_run(&root, "my-rerun-tool", true, Some(("true", ".")));
+        let (text, closed) = verify(&root, "my-rerun-tool", "t", false).unwrap();
+        assert!(closed, "{text}");
+        assert!(
+            read_ledger(&root, "my-rerun-tool").is_some_and(|g| g.state == GapState::Closed),
+            "a base case with a mid-string '-rerun-' closes ITS OWN ledger row"
+        );
+        assert!(
+            !ledger_path(&root, "my").is_file(),
+            "the mid-string name is never stripped"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_uses_the_base_gate_not_the_rerun_gate() {
+        let root = tmp_root("v-basegate");
+        write_run(&root, "gap-g", false, Some(("false", ".")));
+        write_run(&root, "gap-g-rerun", true, Some(("true", ".")));
+        let (text, closed) = verify(&root, "gap-g-rerun", "t", false).unwrap();
+        assert!(
+            !closed,
+            "a rerun cannot weaken the base's failing gate to close the gap: {text}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_refuses_close_when_another_claimant_holds_the_lease() {
+        let root = tmp_root("v-foreign");
+        write_run(&root, "gap-f-rerun", true, Some(("true", ".")));
+        let ticket = write_ticket(&root, "gap-f");
+        crate::ticket::claim_ticket(&root, &ticket, "alice", true).unwrap();
+        let err = verify(&root, "gap-f-rerun", "bob", false).unwrap_err();
+        assert!(
+            err.contains("claimed by alice"),
+            "a close by a non-holder is refused: {err}"
+        );
+        assert!(
+            crate::ticket::read_claims(&root)
+                .unwrap()
+                .iter()
+                .any(|c| c.ticket == ticket && c.claimant == "alice"),
+            "the foreign lease survives"
+        );
+        assert!(
+            !read_ledger(&root, "gap-f").is_some_and(|g| g.state == GapState::Closed),
+            "no close, no ledger write"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_refuses_on_a_malformed_config() {
+        let root = tmp_root("cfg-bad");
+        fs::write(root.join(".miniagi.json"), "{ not json").unwrap();
+        write_run(&root, "gap-c", false, Some(("true", ".")));
+        let err = dispatch(&root, Some("gap-c"), 0.5, "t").unwrap_err();
+        assert!(
+            err.contains("invalid JSON"),
+            "a malformed .miniagi.json is a hard error, not silently unlimited: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn dispatch_marks_a_no_gate_case_unverifiable() {
+        let root = tmp_root("u-nogate");
+        write_run(&root, "gap-u", false, None);
+        dispatch(&root, Some("gap-u"), 0.5, "t").unwrap_err();
+        let row = read_ledger(&root, "gap-u").expect("ledger row");
+        assert_eq!(row.state, GapState::Unverifiable);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn objective_stops_at_the_budget_governor() {
+        let root = tmp_root("b-budget");
+        for (case, cost) in [("aa-x", 0.4f64), ("bb-y", 0.4f64)] {
+            let dir = root.join("evals/cases").join(case);
+            fs::create_dir_all(&dir).unwrap();
+            let run = serde_json::json!({
+                "goal": case, "scope": [], "outcome": {"achieved": false},
+                "trajectory": [], "cost_usd": cost,
+                "verify_command": "true", "verify_target": ".",
+            });
+            fs::write(dir.join("run.json"), serde_json::to_string(&run).unwrap()).unwrap();
+        }
+        let out = objective(&root, 5, "t", Some(0.5)).unwrap();
+        assert_eq!(out.dispatched.len(), 1, "budget stops the batch");
+        assert!(
+            out.budget_spent <= 0.5,
+            "spent {:.2} within budget",
+            out.budget_spent
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn exhausted_mark_releases_the_claim() {
+        let root = tmp_root("x-release");
+        write_run(&root, "gap-x", false, Some(("true", ".")));
+        let ticket = write_ticket(&root, "gap-x");
+        crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
+        let gap = Gap {
+            case: "gap-x".into(),
+            state: GapState::Dispatched,
+            opened_by: "gap-x".into(),
+            attempts: 5,
+            ..Gap::default()
+        };
+        write_ledger_atomic(&root, &gap).unwrap();
+        fs::write(root.join(".miniagi.json"), r#"{"max_rerun_attempts": 2}"#).unwrap();
+        let err = dispatch(&root, Some("gap-x"), 0.5, "t").unwrap_err();
+        assert!(err.contains("exhausted"), "{err}");
+        assert_eq!(
+            read_ledger(&root, "gap-x").unwrap().state,
+            GapState::Exhausted
+        );
+        assert!(
+            crate::ticket::read_claims(&root).unwrap().is_empty(),
+            "exhaustion releases the claim"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

@@ -538,8 +538,20 @@ pub fn claim_ticket(
 /// Returns [`TicketError::Invalid`] for lease violations or
 /// [`TicketError::Io`] for registry failures.
 pub fn release_ticket(root: &Path, id: &str, claimant: &str) -> Result<(), TicketError> {
-    let ticket = find_ticket(root, id)?;
     let _lock = lock_claims(root).map_err(TicketError::Io)?;
+    release_ticket_locked(root, id, claimant)
+}
+
+/// `release_ticket` for a caller that ALREADY holds the claims lock
+/// (the loop's atomic close and the exhaustion mark must not re-acquire
+/// the `O_EXCL` lock — a nested acquire would block then time out).
+///
+/// # Errors
+///
+/// Returns [`TicketError::Invalid`] for lease violations or
+/// [`TicketError::Io`] for registry failures.
+pub fn release_ticket_locked(root: &Path, id: &str, claimant: &str) -> Result<(), TicketError> {
+    let ticket = find_ticket(root, id)?;
     let mut claims = read_claims(root).unwrap_or_default();
     let Some(pos) = claims.iter().position(|c| c.ticket == ticket.id) else {
         return Err(TicketError::Invalid(format!(

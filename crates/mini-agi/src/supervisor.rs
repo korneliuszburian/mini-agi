@@ -583,7 +583,7 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
                 .into_owned()
         };
         let spec_text = format!(
-            "# SLICE SPEC (supervised)\n\n- goal: {}\n- scope: {}\n- verify_command: {vc} in {vt}\n",
+            "# SLICE SPEC (supervised)\n\n- goal: {}\n- scope: {}\n- verify_command: {vc}\n- verify_target: {vt}\n",
             run.goal,
             run.scope.join(", ")
         );
@@ -600,7 +600,7 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
         })?;
         let vt = input.target.unwrap_or(input.workdir);
         let spec_text = format!(
-            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {}\n- scope: (none declared)\n- verify_command: {vc} in {}\n",
+            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {}\n- scope: (none declared)\n- verify_command: {vc}\n- verify_target: {}\n",
             input.goal_or_case,
             vt.display()
         );
