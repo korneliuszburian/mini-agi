@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
+use std::io;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -702,7 +703,7 @@ pub fn write_canonical_entry(
     domain: &str,
     kind: &str,
 ) -> Result<EntryFile, MemoryError> {
-    let entry = crate::store::next_entry(root, &utc_now_date());
+    let mut entry = crate::store::next_entry(root, &utc_now_date());
     if let Some(parent) = entry.path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -720,8 +721,37 @@ pub fn write_canonical_entry(
     for (i, (fact, digest)) in facts.iter().enumerate() {
         let _ = writeln!(content, "\n## F-{i:03} `{digest}`\n\n{fact}");
     }
-    fs::write(&entry.path, content)?;
-    Ok(entry)
+    // TOCTOU guard: next_entry is scan-then-write; a concurrent writer
+    // can claim the same sequence. create_new makes the collision FAIL
+    // (never overwrite an existing entry — append-only contract,
+    // ADR-0002) and retries with the next free sequence.
+    let mut attempt = 0;
+    loop {
+        let path = entry.path.clone();
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut f) => {
+                use std::io::Write as _;
+                f.write_all(content.as_bytes())?;
+                return Ok(EntryFile {
+                    path,
+                    date: entry.date.clone(),
+                    seq: entry.seq,
+                });
+            }
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                attempt += 1;
+                if attempt >= 10 {
+                    return Err(MemoryError::Io(e));
+                }
+                entry = crate::store::next_entry(root, &entry.date);
+            }
+            Err(e) => return Err(MemoryError::Io(e)),
+        }
+    }
 }
 
 /// Append one contested fact to the review queue (`PoC` `append_contested`).

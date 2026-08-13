@@ -487,7 +487,8 @@ pub fn apply_verdicts(
     source: &str,
     dry_run: bool,
 ) -> Result<(usize, usize, usize), crate::memory::MemoryError> {
-    let known = crate::memory::existing_fact_ids(root);
+    let mut known: std::collections::HashSet<String> =
+        crate::memory::existing_fact_ids(root).into_iter().collect();
     let preserved = crate::memory::preserved_ids(root);
     // Hoisted once (cycle-33 review F3): the duplicate arm matches a
     // candidate against an existing fact's body; reading the whole
@@ -558,7 +559,11 @@ pub fn apply_verdicts(
                 promoted
                     .entry(fact.domain.clone())
                     .or_default()
-                    .push((fact.body.clone(), h));
+                    .push((fact.body.clone(), h.clone()));
+                // Two verdicts for the same index (or two staged facts
+                // with identical bodies) must not write the same id
+                // twice — mark it known as it is promoted.
+                known.insert(h);
             }
             "conflict" => {
                 let existing = v

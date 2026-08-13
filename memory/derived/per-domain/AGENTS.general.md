@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 94743730d4f4898b
-# canonical_entries: 113
+# canonical_sha256: dd21e3a313e8a05a
+# canonical_entries: 114
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -987,3 +987,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `425820398d0ff3b9` cycle 13 (2026-08-12): skill verify hooks now execute via worker::run_capped (120s cap + 8MiB output truncation) — the last bare Command::output gate execution, parity with loop verify/supervisor/codex. 79 tests green.
 - `89bd153e24e24b9b` cycle 14 (2026-08-13): deepseek-v4-pro external review of the hardening range produced 17 findings; 11 substantive fixes landed — suffix-only rerun base, transactional dispatch (TOCTOU recheck + rollback), fail-closed Config::load_checked, base-gate verify, spec-line split, foreign-claim close refusal, ledger-attempts in status, Unverifiable marking, budget governor, exhaustion claim release. 86 tests green.
 - `487786b79176e569` cycle 15 (2026-08-13): whole-repo deepseek-v4-pro external review produced 14 findings; 13 fixed — redact quoted-value leak (deny-by-default), dream preserved-collision now body-based, CLI dream HITL approve, gate redaction in spec/verify output, harness gate capped + swap errors propagated, supervisor missing-target error, objective half-gate skip, dispatch spec-before-ledger + rollback, verify-fail attempts recorded, docs aligned to real surface, memory preserved id, clifmt clean draft. 89 tests green.
+- `1c5fa98a451f3d3e` cycle 16 (2026-08-13): third deepseek-v4-pro whole-repo review (repo-health-2) found 8 defects, all fixed — atomic lock rename-steal (mutual exclusion), dispatch rollback preserves ledger history, signoff path containment + digest check, MCP dream routes enforced facts to human queue, supervisor spec redaction, idle-cap dual-stream liveness, flat queue bodies, digest-based enforce dedup. 90 tests green.

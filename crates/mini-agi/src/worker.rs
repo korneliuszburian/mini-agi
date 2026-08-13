@@ -416,7 +416,12 @@ pub fn run_verified_iteration(
             }
         };
         if hidden_away && let Some(dir) = input.hidden_dir {
-            let _ = restore_verifier(dir);
+            // Fail-hard on restore too: if the hidden suite cannot be put
+            // back, the verifier below would run WITHOUT it and a gate
+            // over the missing suite could pass vacuously — closing the
+            // gap without the hidden evidence.
+            restore_verifier(dir)
+                .map_err(|e| format!("cannot restore the hidden suite after the worker: {e}"))?;
         }
         let worker_session = std::env::var_os("HOME")
             .map(PathBuf::from)
@@ -481,7 +486,11 @@ pub fn run_verified_iteration(
         if grace {
             completion_grace = true;
         }
-        if aborted {
+        // A completion-grace attempt is NOT lost work: the transcript
+        // already carries the completion marker, so the verifier still
+        // runs over the finished work (the machine outcome matches the
+        // "success-with-warning" contract instead of a bare abort).
+        if aborted && !grace {
             progress(ProgressEvent::Aborted {
                 reason: "budget cap".to_string(),
             });

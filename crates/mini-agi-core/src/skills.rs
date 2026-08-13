@@ -789,6 +789,7 @@ pub fn install_skills(root: &Path, source: &str) -> Result<Vec<String>, SkillErr
             "--depth",
             "1",
             "-q",
+            "--",
             &normalized,
             staging.to_str().unwrap(),
         ])

@@ -5,6 +5,7 @@
 //! it (pairwise eval); the checkpoint journal is the evolution ledger.
 
 use std::fs;
+use std::io;
 use std::path::Path;
 
 /// The harness spec snapshot: the constants and loop semantics that
@@ -155,11 +156,17 @@ pub fn verify_candidate(
     }
     let candidate_text = fs::read_to_string(candidate)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
+    // Serialize the swap + gate + restore under the claims lock: a
+    // concurrent gate run (CI verify.sh, another harness) must not
+    // measure the swapped file or race the restore — the counterfactual
+    // is only credible if the swap window is exclusive.
+    let lock = crate::ticket::lock_claims(root).map_err(io::Error::other)?;
     // A failed swap must NOT be measured as the original file (a
     // fabricated NEUTRAL/ACCEPT) — propagate the write error.
     fs::write(&target, &candidate_text)?;
     let (after, after_ok) = gate_run(root);
     restore(&target, original.as_ref())?;
+    drop(lock);
     // A gate that FAILS after the swap (markerless abort, crash) is an
     // INVALID after-observation — automatic rejection, never a
     // countable "reduction" (codex review).

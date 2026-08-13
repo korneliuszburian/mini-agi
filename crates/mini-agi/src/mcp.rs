@@ -200,6 +200,14 @@ fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io:
             .map(|v| Some((v, Framing::ContentLength)))
             .map_err(io::Error::other)
     } else if first.starts_with('{') || first.starts_with('[') {
+        // Newline framing must respect the same frame bound as
+        // Content-Length — an unbounded line allocates without limit.
+        if first.len() > MAX_FRAME_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "frame too large",
+            ));
+        }
         serde_json::from_str(first)
             .map(|v| Some((v, Framing::Newline)))
             .map_err(io::Error::other)

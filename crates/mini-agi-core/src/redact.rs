@@ -213,10 +213,26 @@ fn redact_flag_values(text: &str) -> String {
             let c = char::from(*b);
             c.is_whitespace() || c == '=' || c == ':' || c == '"'
         });
-        if !left_ok || !right_ok {
+        if !left_ok {
             // Not the `-p` flag token (e.g. the middle of `--password`).
             out.push_str(&rest[..after]);
             rest = &rest[after..];
+            continue;
+        }
+        if !right_ok {
+            // Concatenated `-p<value>` (`sshpass -psecret ssh host`): the
+            // value starts immediately. Deny-by-default wins over the
+            // ambiguous `-print`-style suffix — over-redaction is safe,
+            // a leaked `-psecret` is not.
+            let tail = &rest[after..];
+            let take = tail
+                .find(|c: char| {
+                    c.is_whitespace() || c == ',' || c == '&' || c == ';' || c == '"' || c == '\''
+                })
+                .unwrap_or(tail.len());
+            out.push_str(&rest[..after]);
+            out.push_str(REDACTED);
+            rest = &rest[after + take..];
             continue;
         }
         out.push_str(&rest[..after]);
@@ -440,6 +456,18 @@ mod redact_tests {
             assert!(!out.contains("hunter"), "quoted -p value leaked: {out}");
             assert!(out.contains(REDACTED), "{out}");
         }
+    }
+
+    #[test]
+    fn concatenated_flag_values_are_redacted() {
+        let out = redact("sshpass -psecret ssh host");
+        assert!(
+            !out.contains("secret"),
+            "concatenated -p value leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
+        let out = redact("sshpass -p=secret ssh host");
+        assert!(!out.contains("secret"), "-p= value leaked: {out}");
     }
 
     #[test]
