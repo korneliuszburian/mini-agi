@@ -41,21 +41,19 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
     if !path.exists() {
         fs::write(&path, spec_text())?;
     }
-    // Frozen-suite verdict with this revision: the gate IS verify.sh
-    // (the counterfactual gate already runs it). Errors propagate — a
-    // corrupt or missing gate must NEVER record a fabricated green.
+    let ledger = dir.join("ledger.md");
+    // Hold the harness lock ACROSS the gate run AND the ledger write: a
+    // concurrent `harness verify <candidate>` swaps a file — measuring the
+    // gate here while a candidate is live would record a wrong-verdict
+    // ledger row for the real revision.
+    let _lock = crate::ticket::lock_file(&root.join("tickets/.harness.lock"), HARNESS_STALE_SECS)
+        .map_err(io::Error::other)?;
     let (failures, passed) = gate_run(root);
     let gate = format!(
         "{} regression(s), {}",
         failures.len(),
         if passed { "green" } else { "red" }
     );
-    let ledger = dir.join("ledger.md");
-    // Serialize the read-modify-write under the harness lock and write
-    // atomically (temp + rename): two concurrent snapshots must not lose
-    // a row, and a crash mid-write must not truncate the ledger.
-    let _lock = crate::ticket::lock_file(&root.join("tickets/.harness.lock"), HARNESS_STALE_SECS)
-        .map_err(io::Error::other)?;
     let header = "| rev | date | spec | gate |\n| --- | --- | --- | --- |\n";
     let existing = fs::read_to_string(&ledger).unwrap_or_default();
     let body = if existing.contains("| rev |") {
@@ -288,7 +286,7 @@ fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
         if let Ok(meta) = std::fs::metadata(path) {
             let _ = std::fs::set_permissions(&tmp, meta.permissions());
         }
-        std::fs::rename(&tmp, path)
+        crate::ticket::sync_then_rename(&tmp, path)
     } else {
         let _ = std::fs::remove_file(&tmp);
         res

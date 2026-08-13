@@ -754,7 +754,19 @@ fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
         .create_new(true)
         .open(&tmp)
         .and_then(|mut f| std::io::Write::write_all(&mut f, out.as_bytes()))?;
-    fs::rename(&tmp, &path)
+    sync_then_rename(&tmp, &path)
+}
+
+/// Rename after syncing the temp file — a crash OR power loss must not
+/// deliver an empty destination (ext4 delayed allocation can zero a file
+/// renamed without fsync).
+///
+/// # Errors
+///
+/// Returns the underlying io error on sync or rename failure.
+pub fn sync_then_rename(tmp: &Path, dest: &Path) -> io::Result<()> {
+    fs::File::open(tmp)?.sync_all()?;
+    fs::rename(tmp, dest)
 }
 
 /// Rewrite the claims registry with an explicit set.

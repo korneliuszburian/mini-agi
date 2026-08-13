@@ -275,6 +275,21 @@ pub const fn should_resume(resume: bool, attempt: usize, session: Option<&str>) 
     resume && attempt > 1 && session.is_some()
 }
 
+/// The worker PROMPT text: the spec WITHOUT the executable gate lines.
+/// The gate (`- verify_command:` / `- verify_target:`) is the HARNESS's
+/// contract — the worker does not need to see it, and a credential in an
+/// untrusted `verify_command` must not reach the prompt or the persistent
+/// codex.log transcript.
+fn worker_prompt_text(spec: &str) -> String {
+    spec.lines()
+        .filter(|l| {
+            let l = l.trim();
+            !l.starts_with("- verify_command:") && !l.starts_with("- verify_target:")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The verified-iteration core (BREAKTHROUGH).
 ///
 /// Runs the worker up to N attempts; on verifier failure distill the
@@ -323,7 +338,7 @@ pub fn run_verified_iteration(
     };
     let base_prompt = format!(
         "{}\n\n{protocol}\n\n<session-marker>{marker}</session-marker>\n",
-        input.spec_text
+        worker_prompt_text(input.spec_text)
     );
     let log_path = input.workdir.join("codex.log");
     let mut all_steps: Vec<mini_agi_core::capture::CapturedStep> = Vec::new();

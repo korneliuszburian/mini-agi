@@ -175,7 +175,7 @@ pub fn write_ledger_atomic(root: &Path, gap: &Gap) -> io::Result<()> {
         .create_new(true)
         .open(&tmp)
         .and_then(|mut f| std::io::Write::write_all(&mut f, json.as_bytes()))?;
-    fs::rename(&tmp, &path)
+    crate::ticket::sync_then_rename(&tmp, &path)
 }
 
 /// Mark a case in a terminal/recorded state in the ledger (exhausted,
