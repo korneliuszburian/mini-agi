@@ -485,7 +485,7 @@ pub fn run_verified_iteration(
         // P0-1 post-hoc cap check (accumulated) — REAL cost and the
         // configured cost cap (was hardcoded 0.0/None: max_cost_usd was
         // dead enforcement).
-        let caps_cfg = mini_agi_core::config::Config::load(input.workdir);
+        let caps_cfg = mini_agi_core::config::Config::load_checked(input.workdir)?;
         let mut violations = mini_agi_core::worker::budget_violations(
             all_steps.len(),
             total_cost,
@@ -543,7 +543,7 @@ pub fn run_verified_iteration(
             break;
         }
         // S4: total-budget governor across ALL attempts.
-        let cfg = mini_agi_core::config::Config::load(input.workdir);
+        let cfg = mini_agi_core::config::Config::load_checked(input.workdir)?;
         if let Some(max_tokens) = cfg.max_tokens
             && total_bytes / 4 > max_tokens
         {
@@ -720,7 +720,10 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         .map(|s| s.trim().trim_matches('`').to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    let cfg = mini_agi_core::config::Config::load(workdir);
+    let cfg = match mini_agi_core::config::Config::load_checked(workdir) {
+        Ok(c) => c,
+        Err(e) => return fail(&e),
+    };
     let wall_cap = max_wall.or(cfg.max_wall_seconds);
     let step_cap = max_steps.or(cfg.max_steps);
     let read_only = is_read_only_spec(&spec_text);
@@ -729,7 +732,7 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
     // worker's config requires approval, a run without --approve refuses
     // BEFORE spawning the worker; an approved run logs the decision to
     // the action log.
-    if mini_agi_core::config::Config::load(workdir).require_approval {
+    if cfg.require_approval {
         match &args.approve {
             Some(reason) => {
                 let _ = reason;

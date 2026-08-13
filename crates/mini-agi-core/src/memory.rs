@@ -816,6 +816,7 @@ pub fn append_contested(
         .append(true)
         .open(&queue)?;
     let source = flat_meta(source);
+    let existing_hash = flat_meta(existing_hash);
     writeln!(
         f,
         "## C-{number:03} `{digest}`\n- source: {source}\n- reason: same first 40 chars\n- existing fact hash: {existing_hash}\n\n{fact_flat}\n"
@@ -839,9 +840,19 @@ pub fn queued_facts(queue: &Path) -> Vec<(String, String)> {
         else {
             continue;
         };
-        let payload = lines[pos + 1..]
+        // Payload = the FIRST non-empty line AFTER the first blank line
+        // following the header. The metadata lines (`- source:`, `- reason:`,
+        // `- existing fact hash:`) end with a blank, then the single-line
+        // payload follows — a body that itself STARTS with `- ` must not
+        // be mistaken for metadata (the old non-`- ` heuristic produced
+        // dead, un-promotable entries).
+        let after_header = &lines[pos + 1..];
+        let Some(blank) = after_header.iter().position(|l| l.is_empty()) else {
+            continue;
+        };
+        let payload = after_header[blank + 1..]
             .iter()
-            .find(|item| !item.is_empty() && !item.starts_with("- "))
+            .find(|l| !l.is_empty())
             .copied()
             .unwrap_or("")
             .trim()
@@ -1246,16 +1257,27 @@ pub fn render_domain_agents(
             .or_default()
             .push(format!("- `{fid}` {text}"));
     }
+    // Track used fragment names so distinct domains sanitizing to the
+    // same fragment (a/b vs a b) do not silently overwrite each other.
+    let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
     domains
         .into_iter()
         .map(|(domain, lines)| {
-            let name: String = domain
+            let mut name: String = domain
                 .to_ascii_lowercase()
                 .chars()
                 .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
                 .collect::<String>()
                 .trim_matches('-')
                 .to_string();
+            if name.is_empty() {
+                name = "unlabeled".to_string();
+            }
+            if !used.insert(name.clone()) {
+                // collision: make it unique with a short digest suffix
+                let tag = &crate::hash::source_sha256(&domain)[..8];
+                name = format!("{name}-{tag}");
+            }
             let mut content = provenance_block(root);
             let _ = writeln!(
                 content,

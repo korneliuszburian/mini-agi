@@ -287,10 +287,18 @@ pub fn parse_audit_verdicts(output: &str, staged: &[StagedFact]) -> Vec<AuditorV
                 .get("reason")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
-            existing_id: item
-                .get("existing_id")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string),
+            existing_id: {
+                // existing_id must be a 16-hex canonical fact id — an
+                // arbitrary string (auditor output is untrusted) could
+                // forge a queue record when written into the review queue.
+                let id = item
+                    .get("existing_id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+                    .unwrap_or_default();
+                (id.is_empty() || (id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit())))
+                    .then_some(id)
+            },
         });
     }
     out

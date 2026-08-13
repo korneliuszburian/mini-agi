@@ -238,11 +238,17 @@ fn quoted_value_len(text: &str) -> Option<usize> {
     Some(end.map_or(inner.len() + ql, |end| end + 2 * ql))
 }
 
-/// Redact the value of `-p <value>` / `sshpass -p <value>` flags.
+/// Redact the value of `-p <value>` / `sshpass -p <value>` flags and the
+/// basic-auth `-u user:pass` form.
 fn redact_flag_values(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(pos) = rest.find("-p") {
+    while let Some((pos, flag)) = rest
+        .match_indices("-p")
+        .chain(rest.match_indices("-u"))
+        .min_by_key(|(p, _)| *p)
+    {
+        let _ = flag;
         let after = pos + 2;
         // Left boundary: shell-command context only. `"` is EXCLUDED — a
         // `-p` preceded by a quote is inside a JSON/array string
@@ -442,11 +448,12 @@ fn find_value_separator(after_key: &str) -> Option<(usize, usize, u8)> {
     }
     let sep = after_key[i..].chars().next()?;
     if sep != '=' && sep != ':' {
-        // Flag-style keys (`--password hunter2`) take their value as
-        // the next whitespace-separated argument — the separator is
-        // implicit (real defect found by falsifier: space-separated
-        // flag values leaked).
-        if after_key.starts_with('-') && i > key_len {
+        // Implicit space form: dash-prefixed flags (`--password hunter2`)
+        // AND bare credential keys (`Bearer abc123`, `X-Api-Key abc123`)
+        // take the next whitespace-separated argument as the value.
+        let key = &after_key[..key_len];
+        let credential_key = is_credential_key(&key.to_ascii_lowercase()) || key.starts_with('-');
+        if credential_key && i > key_len {
             return Some((key_len, i, 0));
         }
         return None;
@@ -568,6 +575,22 @@ mod redact_tests {
                 "JSON -p value leaked: {out}"
             );
             assert!(out.contains(REDACTED), "{out}");
+        }
+    }
+
+    #[test]
+    fn bare_bearer_and_api_key_headers_are_redacted() {
+        for input in [
+            r#"curl -H "Bearer abc123secret" https://x"#,
+            "curl -H 'X-Api-Key abc123secret' https://x",
+            "curl -u user:passsecret https://x",
+        ] {
+            let out = redact(input);
+            assert!(
+                !out.contains("abc123secret"),
+                "bare credential leaked: {out}"
+            );
+            assert!(!out.contains("passsecret"), "basic-auth leaked: {out}");
         }
     }
 
