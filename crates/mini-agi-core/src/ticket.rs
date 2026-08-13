@@ -416,12 +416,30 @@ const LOCK_MAX_WAIT_MS: u64 = 10_000;
 #[derive(Debug)]
 pub struct ClaimsLock {
     path: PathBuf,
+    /// Unique ownership token written into the lock file at creation.
+    /// `drop` removes the file ONLY if it still carries OUR token — after
+    /// a stale-steal, a slow original holder must not delete the stealing
+    /// waiter's live lock (that would let two writers proceed).
+    token: String,
 }
 
 impl Drop for ClaimsLock {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
+        if fs::read_to_string(&self.path).is_ok_and(|c| c.trim() == self.token) {
+            let _ = fs::remove_file(&self.path);
+        }
     }
+}
+
+fn lock_token() -> String {
+    format!(
+        "{}:{}:{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+        crate::worker::worker_token()
+    )
 }
 
 /// Acquire the claims lock, retrying until `LOCK_MAX_WAIT_MS`; a stale
@@ -442,7 +460,13 @@ pub fn lock_claims(root: &Path) -> io::Result<ClaimsLock> {
             .create_new(true)
             .open(&path)
         {
-            Ok(_) => return Ok(ClaimsLock { path }),
+            Ok(_) => {
+                // Write OUR ownership token into the lock file so `drop`
+                // can verify it still holds OUR lock.
+                let token = lock_token();
+                let _ = fs::write(&path, &token);
+                return Ok(ClaimsLock { path, token });
+            }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
                 let stale = fs::metadata(&path).is_ok_and(|m| {
                     m.modified().is_ok_and(|mt| {
@@ -512,9 +536,15 @@ pub fn read_claims(root: &Path) -> io::Result<Vec<Claim>> {
         if line.starts_with('#') || line.trim().is_empty() {
             continue;
         }
-        if let Ok(claim) = serde_json::from_str::<Claim>(line) {
-            out.push(claim);
-        }
+        // A corrupt line is a HARD error, never a silently dropped lease
+        // — the next write would rewrite the registry without it.
+        let claim = serde_json::from_str::<Claim>(line).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("corrupt claims line: {e}"),
+            )
+        })?;
+        out.push(claim);
     }
     Ok(out)
 }
@@ -691,6 +721,12 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
         })?;
     }
     let text = fs::read_to_string(&path).map_err(TicketError::Io)?;
+    let frontmatter = text.trim_start().starts_with("---");
+    let status_line = if frontmatter {
+        format!("status: {status}")
+    } else {
+        format!("- status: {status}")
+    };
     let updated = if text.trim_start().starts_with('{') {
         let mut value: serde_json::Value =
             serde_json::from_str(&text).map_err(|e| TicketError::Parse(e.to_string()))?;
@@ -701,10 +737,16 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
         l.starts_with("- status:") || l.starts_with("status:")
     }) {
         let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
-        lines[pos] = format!("- status: {status}");
+        lines[pos] = status_line;
         lines.join("\n")
+    } else if frontmatter {
+        // Frontmatter keys live INSIDE the `---` block: appending outside
+        // would leave the key unreadable (`- status:` parses as a
+        // different key). Insert before the closing `---`.
+        let close = text.find("\n---").map_or(text.len(), |i| i + 1);
+        format!("{}{}\n{}", &text[..close], status_line, &text[close..])
     } else {
-        format!("{text}\n- status: {status}\n")
+        format!("{text}\n{status_line}\n")
     };
     let tmp = path.with_extension("md.tmp");
     fs::write(&tmp, updated).map_err(TicketError::Io)?;
@@ -844,5 +886,40 @@ mod lock_tests {
         );
         assert!(!lock_path.exists(), "no lock file survives");
         let _ = fs::remove_dir_all(&*root);
+    }
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-tkt-{}-{}", tag, std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        root
+    }
+
+    #[test]
+    fn frontmatter_ticket_status_roundtrips() {
+        let root = tmp_root("fm");
+        let path = root.join("tickets/TICKET-1.md");
+        fs::write(&path, "---\nid: TICKET-1\ntitle: t\ngoal: g\n---\n").unwrap();
+        set_ticket_status(&root, "TICKET-1", "CLOSED").unwrap();
+        let t = find_ticket(&root, "TICKET-1").unwrap();
+        assert_eq!(t.status, "CLOSED", "frontmatter status must re-parse");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn corrupt_claims_line_is_a_hard_error() {
+        let root = tmp_root("cc");
+        fs::write(root.join("tickets/claims.md"), "not-json-at-all\n").unwrap();
+        assert!(
+            read_claims(&root).is_err(),
+            "a corrupt line must not parse as an empty registry"
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 }

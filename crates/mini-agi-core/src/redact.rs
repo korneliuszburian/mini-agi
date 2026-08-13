@@ -83,14 +83,21 @@ fn redact_pem_blocks(text: &str) -> String {
     let mut rest = text;
     while let Some(start) = rest.find(BEGIN) {
         // The BEGIN line names the key type (`RSA PRIVATE KEY-----` /
-        // `OPENSSH PRIVATE KEY-----` etc.). Require a PRIVATE KEY label.
+        // `OPENSSH PRIVATE KEY-----`, `PGP PRIVATE KEY BLOCK-----` etc.).
+        // Require a PRIVATE KEY label, with an optional `BLOCK` word
+        // (PGP) before the dashes.
         let after_begin = &rest[start + BEGIN.len()..];
-        let Some(until) = after_begin.find("PRIVATE KEY-----") else {
+        let Some(until) = after_begin.find("PRIVATE KEY") else {
             out.push_str(&rest[..start + BEGIN.len()]);
             out.push_str(after_begin);
             break;
         };
-        let header_end = start + BEGIN.len() + until + "PRIVATE KEY-----".len();
+        let Some(dashes) = after_begin[until..].find("-----") else {
+            out.push_str(&rest[..start + BEGIN.len()]);
+            out.push_str(after_begin);
+            break;
+        };
+        let header_end = start + BEGIN.len() + until + dashes + "-----".len();
         let Some(rel_end) = rest[header_end..].find(END_MARK) else {
             break;
         };
@@ -481,6 +488,17 @@ mod redact_tests {
             assert!(!out.contains("hunter"), "quoted -p value leaked: {out}");
             assert!(out.contains(REDACTED), "{out}");
         }
+    }
+
+    #[test]
+    fn pgp_private_key_blocks_are_redacted() {
+        let key = "-----BEGIN PGP PRIVATE KEY BLOCK-----\nbase64-secret-material\n-----END PGP PRIVATE KEY BLOCK-----";
+        let out = redact(key);
+        assert!(
+            !out.contains("base64-secret-material"),
+            "PGP key body leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
     }
 
     #[test]

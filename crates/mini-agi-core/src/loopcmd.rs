@@ -642,7 +642,9 @@ pub fn dispatch(
     let lock = crate::ticket::lock_claims(root).map_err(|e| {
         // Stranded-lease guard: the claim was taken above; a lock failure
         // must not leave a permanently-leased ticket with no spec/ledger.
-        let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
+        // Use the LOCKING release (it re-acquires, possibly stealing a
+        // stale lock) — never an unlocked registry write.
+        let _ = crate::ticket::release_ticket(root, &ticket_id, claimant);
         if ticket_created {
             let _ =
                 fs::remove_file(crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")));
@@ -925,8 +927,33 @@ pub fn verify(
         // closed_by=<closing rerun dir>, verified_at) -> release the
         // claim -> ticket file status: CLOSED. Any failure rolls every
         // on-disk state back (the ledger is the single commit point).
-        let _lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
+        let close_lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
         let prior_gap = read_ledger(root, base);
+        // Idempotence guard: a terminal prior state (already Closed /
+        // Exhausted / Unverifiable) must not be re-closed — re-running
+        // `loop verify` on a closed base would re-execute the gate and
+        // overwrite closed_by/verified_at. Mirrors the dispatch guard.
+        if let Some(g) = &prior_gap
+            && gap_is_terminal(&g.state)
+        {
+            drop(close_lock);
+            lines.push(format!(
+                "  gap already {} in the ledger — no-op",
+                g.state_name()
+            ));
+            lines.insert(
+                0,
+                format!(
+                    "loop verify: {}",
+                    if g.state == GapState::Closed {
+                        "CLOSED"
+                    } else {
+                        "OPEN"
+                    }
+                ),
+            );
+            return Ok((lines.join("\n"), g.state == GapState::Closed));
+        }
         // An unreadable claims registry must NOT be treated as empty (the
         // close would rewrite it and silently erase every lease).
         let prior_claims = crate::ticket::read_claims(root).map_err(|e| e.to_string())?;
@@ -1292,6 +1319,26 @@ mod loop_tests {
         assert!(
             err.contains("outside"),
             "verify refuses to run a gate in an outside target: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_on_an_already_closed_base_is_a_noop() {
+        let root = tmp_root("v-idem");
+        write_run(&root, "gap-q", false, Some(("true", ".")));
+        write_run(&root, "gap-q-rerun", true, Some(("true", ".")));
+        let ticket = write_ticket(&root, "gap-q");
+        crate::ticket::claim_ticket(&root, &ticket, "t", true).unwrap();
+        let (_, closed) = verify(&root, "gap-q-rerun", "t", false).unwrap();
+        assert!(closed);
+        let closed_at = read_ledger(&root, "gap-q").unwrap().verified_at;
+        // re-run the SAME verify — must be a no-op, not re-execute + overwrite.
+        let (text, closed2) = verify(&root, "gap-q-rerun", "t", false).unwrap();
+        assert!(closed2, "already-closed base reports CLOSED");
+        assert!(
+            read_ledger(&root, "gap-q").unwrap().verified_at == closed_at,
+            "verified_at must not be overwritten: {text}"
         );
         let _ = fs::remove_dir_all(&root);
     }

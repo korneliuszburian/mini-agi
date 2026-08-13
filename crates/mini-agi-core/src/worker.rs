@@ -56,7 +56,7 @@ const MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 /// output).
 static RUN_TOKEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-fn worker_token() -> u64 {
+pub(crate) fn worker_token() -> u64 {
     RUN_TOKEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 const FLASH_OUT_PER_1M: f64 = 0.28;

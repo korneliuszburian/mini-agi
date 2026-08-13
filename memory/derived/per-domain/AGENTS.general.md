@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: c624f4f62f61c300
-# canonical_entries: 116
+# canonical_sha256: ec35cedae25648ab
+# canonical_entries: 117
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -990,3 +990,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `1c5fa98a451f3d3e` cycle 16 (2026-08-13): third deepseek-v4-pro whole-repo review (repo-health-2) found 8 defects, all fixed — atomic lock rename-steal (mutual exclusion), dispatch rollback preserves ledger history, signoff path containment + digest check, MCP dream routes enforced facts to human queue, supervisor spec redaction, idle-cap dual-stream liveness, flat queue bodies, digest-based enforce dedup. 90 tests green.
 - `2f2854b1202c7107` cycle 17 (2026-08-13): fourth deepseek-v4-pro whole-repo review (repo-health-3) found 9 defects, 8 fixed — concatenated -p redaction, blind-worker restore fail-hard, dream promote dedup, canonical create_new+retry, completion-grace runs verifier, MCP newline frame bound, harness swap serialization, git clone -- separator; process-group kill stays documented (unsafe forbid). 91 tests green.
 - `dd3bb75f1d11da0c` cycle 18 (2026-08-13): fifth deepseek-v4-pro whole-repo review (repo-health-4) found 9 defects, 8 fixed — process-group kill closes the cap bypass (std-only process_group(0)+killpg), redact hyphen normalization (X-Api-Key), verify fail-closed base gate, atomic claims write, dream dry-run queue guard, MCP input path containment, attempt-record visibility, run.json draft redaction; stale-lock holder trade-off documented. 92 tests green.
+- `9ca3003be60a00e3` cycle 19 (2026-08-13): sixth deepseek-v4-pro whole-repo review (repo-health-5) found 12 defects, all fixed — reverted the r5 gate redaction (run.json holds the executable contract), stranded-lease recovery, create_new temp files, supersede TOCTOU guard, read_claims fail-on-corrupt, bounded MCP framing, loop_verify HITL, exact ticket-id resolution, signoff index required, escape-aware redaction, dispatch_no_work counter, docs aligned. 93 tests green.

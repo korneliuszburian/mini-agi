@@ -349,13 +349,15 @@ fn contained_path(root: &Path, declared: &str) -> String {
     } else {
         root.join(declared)
     };
-    let ok = candidate
-        .canonicalize()
-        .is_ok_and(|c| root.canonicalize().is_ok_and(|rc| c.starts_with(&rc)));
-    if ok {
-        candidate.to_string_lossy().into_owned()
-    } else {
-        String::new()
+    let root_canon = root.canonicalize().unwrap_or_default();
+    // Return the CANONICAL path (like loopcmd::resolve_target): the
+    // caller must open THIS, never the raw string — a component swapped
+    // to a symlink between canonicalize and open would escape the root.
+    match candidate.canonicalize() {
+        Ok(c) if !root_canon.as_os_str().is_empty() && c.starts_with(&root_canon) => {
+            c.to_string_lossy().into_owned()
+        }
+        _ => String::new(),
     }
 }
 

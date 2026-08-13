@@ -620,11 +620,16 @@ pub fn apply_verdicts(
                         }
                         crate::memory::write_supersede_entry(
                             root,
-                            &[(flat_candidate, h)],
+                            &[(flat_candidate, h.clone())],
                             source,
                             &fact.domain,
                             &[existing_id],
                         )?;
+                        // Mark the new fact known so a SECOND duplicate
+                        // verdict for the same body cannot write the same
+                        // id under another seq number (exact-duplicate
+                        // integrity finding).
+                        known.insert(h);
                         queued += 1;
                     }
                     _ => {

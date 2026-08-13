@@ -1137,8 +1137,13 @@ pub fn cmd_exec_sandbox(allow_write: &[PathBuf], command: &[String]) -> ExitCode
         match policy.apply() {
             Ok(()) => {}
             Err(e) => {
-                eprintln!("  [warn] sandbox unavailable: {e}");
-                eprintln!("  [warn] running the worker UNSANDBOXED (ADR-0012)");
+                // FAIL-CLOSED (ADR-0012): an unsandboxed run is ONLY
+                // legitimate with the explicit --no-sandbox flag. A kernel
+                // without the Landlock ABI must refuse, not silently run
+                // the worker with no isolation boundary.
+                return fail(&format!(
+                    "refusing to run sandboxed: Landlock unavailable ({e}) — use --no-sandbox only if you explicitly accept an unsandboxed run"
+                ));
             }
         }
         match std::process::Command::new(&command[0])
