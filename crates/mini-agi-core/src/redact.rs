@@ -724,7 +724,10 @@ mod redact_tests {
     #[test]
     fn escaped_quote_in_json_string_flag_values_is_redacted() {
         let out = redact(r#"{"args":"-p\"hunter2"}"#);
-        assert!(!out.contains("hunter2"), "escaped-quote JSON -p leaked: {out}");
+        assert!(
+            !out.contains("hunter2"),
+            "escaped-quote JSON -p leaked: {out}"
+        );
         assert!(out.contains(REDACTED), "{out}");
     }
 
