@@ -258,8 +258,11 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
     std::fs::create_dir_all(args.workdir).map_err(|e| e.to_string())?;
     let progress_path = args.workdir.join("progress.md");
     let stamp = || mini_agi_core::memory::utc_now_stamp();
-    std::fs::write(&progress_path, format!("# progress — {}\n\n", args.goal))
-        .map_err(|e| e.to_string())?;
+    std::fs::write(
+        &progress_path,
+        format!("# progress — {}\n\n", flat_goal(args.goal)),
+    )
+    .map_err(|e| e.to_string())?;
 
     let input = IterationInput {
         spec_text: args.spec_text,
@@ -428,8 +431,9 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         .unwrap_or(&args.workdir.join("REPORT.md"))
         .to_path_buf();
     let mut report = String::new();
-    let _ = writeln!(report, "# run report — {}", args.goal);
-    let _ = writeln!(report, "- goal: {}", args.goal);
+    let goal_flat = flat_goal(args.goal);
+    let _ = writeln!(report, "# run report — {goal_flat}");
+    let _ = writeln!(report, "- goal: {goal_flat}");
     let _ = writeln!(report, "- attempts: {}", iteration.attempts_done);
     let _ = writeln!(
         report,
@@ -687,10 +691,17 @@ fn append_progress(path: &Path, line: &str) {
 /// The independent review pass (sequential-reviewer): a read-only codex
 /// session reviews the produced work against the rubric and returns a
 /// verdict. Wall-capped like a worker run.
+/// Flatten an untrusted goal before it reaches parsed output (report
+/// lines, reviewer prompts): newlines would forge `- outcome:` lines or
+/// the review's verdict contract.
+fn flat_goal(goal: &str) -> String {
+    goal.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 fn run_review_pass(args: &SupervisorArgs<'_>) -> Result<String, String> {
     let prompt = format!(
         "Read-only adversarial review of the work just produced in this workdir by a supervised worker run (see progress.md and run.json for the goal and attempt chain). Review the working tree: the changes the worker made.\n\nGoal: {}\n\nScore 4 dimensions 0-2 (Correctness, Security, Tests, Scope), total /8: APPROVE >=7, FIX-MINOR 5-6, REWORK <5. Evidence-first: cite file:line or verifier output for EVERY finding. You are READ-ONLY: make NO changes, run NO writes.\n\nEnd with exactly:\nVerdict: APPROVE|FIX-MINOR|REWORK\nscore X/8\nTop findings:\n1. ... (each with file:line + severity)\n",
-        args.goal
+        flat_goal(args.goal)
     );
     let kind = worker::worker_kind(args.worker_name);
     let review_args = worker::worker_pass_args(&kind, false, None, true, &prompt);

@@ -367,7 +367,9 @@ fn read_arg_file(root: &Path, args: &Value, key: &str) -> String {
     let declared = arg(args, key);
     let path = contained_path(root, declared);
     if path.is_empty() {
-        return format!("error: {key} path '{declared}' is outside the repo root");
+        return format!(
+            "\u{1}containment-rejected: {key} path '{declared}' is outside the repo root"
+        );
     }
     match std::fs::read_to_string(&path) {
         Ok(t) => t,
@@ -389,7 +391,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 arg(args, "domain").to_string()
             };
             let buffer = read_arg_file(root, args, "episodic");
-            if buffer.starts_with("error:") {
+            if buffer.starts_with('\u{1}') {
                 return buffer;
             }
             let opts = mini_agi_core::memory::ConsolidateOptions {
@@ -553,7 +555,7 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 return "error: dream requires an approval reason (approve)".into();
             }
             let text = read_arg_file(root, args, "source");
-            if text.starts_with("error:") {
+            if text.starts_with('\u{1}') {
                 return text;
             }
             let source = arg(args, "source");
