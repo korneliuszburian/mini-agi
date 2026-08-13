@@ -75,9 +75,13 @@ Canonical memory import source: `agentic-core@HEAD`.
   bound to a gate that runs in CI (ADR-0010). The kernel's own memory is a
   first-class dogfood user.
 - Dream-loop (D2): `mini-agi dream --source <material> --approve <reason>`
-  distills facts into canonical (HITL — canonical writes need --approve);
-  enforcement-bound facts (`enforced_by`) always route to the human queue
-  (ADR-0010 signoff) via `memory/review/`.
+  parses distilled facts and consolidates them into canonical directly
+  (HITL — canonical writes need --approve). The strong-model AUDITOR stage
+  is NOT wired in the CLI/MCP path: enforcement-bound facts
+  (`enforced_by`) always route to the human queue (ADR-0010 signoff) via
+  `memory/review/`; `dream --promote <manifest>` applies an externally
+  produced auditor verdicts manifest (idempotent via the promotion
+  receipt).
 - Read the brief + index before working. Knowledge given once must not be
   re-asked or re-researched.
 

@@ -103,10 +103,11 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "loop_objective",
-        description: "Batch-dispatch open gaps. Requires an approval reason.",
+        description: "Batch-dispatch open gaps under a cost bound. Requires an approval reason.",
         params: &[
             ("max_cases", "integer"),
             ("claimant", "string"),
+            ("budget_cost", "number"),
             ("approve", "string"),
         ],
         requires_approval: true,
@@ -524,7 +525,11 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             }
             let max = usize::try_from(args.get("max_cases").and_then(Value::as_u64).unwrap_or(1))
                 .unwrap_or(1);
-            match mini_agi_core::loopcmd::objective(root, max, arg(args, "claimant"), None) {
+            // The budget governor MUST be wired (parity with the CLI):
+            // without it one approved call could dispatch the whole gap
+            // set with no cost bound.
+            let budget = args.get("budget_cost").and_then(Value::as_f64);
+            match mini_agi_core::loopcmd::objective(root, max, arg(args, "claimant"), budget) {
                 Ok(o) => format!("dispatched {} case(s)", o.dispatched.len()),
                 Err(e) => format!("error: {e}"),
             }

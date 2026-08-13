@@ -405,11 +405,21 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
         .run_out
         .unwrap_or(&args.workdir.join("run.json"))
         .to_path_buf();
-    std::fs::write(
-        &draft_path,
-        serde_json::to_string_pretty(&run).unwrap_or_default(),
-    )
-    .map_err(|e| format!("cannot write run draft: {e}"))?;
+    // Atomic (temp + rename), parity with the binary worker's write_draft:
+    // a crash mid-write must not leave a truncated run.json the loop then
+    // reads as unreadable (skipped_unavailable).
+    let draft_json = serde_json::to_string_pretty(&run).unwrap_or_default();
+    let draft_tmp = mini_agi_core::ticket::tmp_unique(&draft_path, "draft");
+    let draft_res = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&draft_tmp)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, draft_json.as_bytes()));
+    if draft_res.is_err() {
+        let _ = std::fs::remove_file(&draft_tmp);
+        return Err(format!("cannot write run draft: {draft_res:?}"));
+    }
+    std::fs::rename(&draft_tmp, &draft_path).map_err(|e| format!("cannot write run draft: {e}"))?;
 
     // Run report (the reviewable artifact — Matt's "end in a PR", here
     // a report the agent reads and cites).

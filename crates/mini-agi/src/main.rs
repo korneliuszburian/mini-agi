@@ -552,12 +552,31 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
         if args.approve.is_none() {
             return fail("dream --promote requires --approve <reason> (HITL, ADR-0010)");
         }
-        let verdicts = mini_agi_core::dream::read_verdicts(Path::new(manifest));
+        // Containment (parity with signoff): the manifest must live under
+        // memory/staging/ — a caller-supplied path must not read an
+        // arbitrary file or write arbitrary `- source:` metadata.
+        let staging_root = root.join("memory/staging");
+        let manifest_path = Path::new(manifest);
+        let candidate = if manifest_path.is_absolute() {
+            manifest_path.to_path_buf()
+        } else {
+            root.join(manifest_path)
+        };
+        let contained = candidate
+            .canonicalize()
+            .ok()
+            .is_some_and(|c| c.starts_with(&staging_root));
+        if !contained {
+            return fail(&format!(
+                "dream --promote: {manifest} is outside memory/staging/"
+            ));
+        }
+        let verdicts = mini_agi_core::dream::read_verdicts(manifest_path);
         if verdicts.is_empty() {
             return fail(&format!("dream --promote: no verdicts in {manifest}"));
         }
         // The staged facts sit next to the manifest (`<seq>.md`).
-        let staged_path = Path::new(manifest).with_extension("md");
+        let staged_path = manifest_path.with_extension("md");
         // Idempotency receipt: a manifest whose staged file was already
         // promoted must NOT be re-applied (documented D2 contract).
         if let Some(receipt) = mini_agi_core::dream::read_promotion_receipt(&staged_path)
