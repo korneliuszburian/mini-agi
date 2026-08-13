@@ -40,7 +40,7 @@ fn is_credential_key(token: &str) -> bool {
     // The sshpass password flag as a bare key (`-p`, `p`) is a credential
     // key — this catches the JSON form `{"-p": "secret"}` whose value the
     // flag scanner (correctly) no longer touches.
-    if token == "p" || token == "-p" {
+    if token == "p" || token == "-p" || token == "u" || token == "-u" {
         return true;
     }
     let norm = token.replace('-', "_");
@@ -214,7 +214,9 @@ fn unquoted_word_len(text: &str) -> usize {
                 };
                 match closing {
                     Some(end) => i += ql + end + ql,
-                    None => return i,
+                    // UNCLOSED quote: the rest of the value is part of
+                    // the credential — consume it (deny-by-default).
+                    None => return text.len(),
                 }
             }
             '&' | ';' => return i,
@@ -265,7 +267,9 @@ fn header_value_len(trimmed: &str) -> usize {
                 };
                 match closing {
                     Some(end) => i += ql + end + ql,
-                    None => return i,
+                    // UNCLOSED quote: the rest of the value is part of
+                    // the credential — consume it (deny-by-default).
+                    None => return trimmed.len(),
                 }
             }
             '\n' => return i,
@@ -422,9 +426,16 @@ fn redact_flag_values(text: &str) -> String {
             // ambiguous `-print`-style suffix — over-redaction is safe,
             // a leaked `-psecret` is not.
             let tail = &rest[after..];
-            let take = quoted_value_len(tail)
-                .or_else(|| substitution_len(tail))
-                .unwrap_or_else(|| unquoted_word_len(tail));
+            let take = substitution_len(tail)
+                .or_else(|| {
+                    let w = unquoted_word_len(tail);
+                    if w > 0 {
+                        Some(w)
+                    } else {
+                        quoted_value_len(tail)
+                    }
+                })
+                .unwrap_or(tail.len());
             out.push_str(&rest[..after]);
             out.push_str(REDACTED);
             rest = &rest[after + take..];
@@ -448,8 +459,15 @@ fn redact_flag_values(text: &str) -> String {
             (eq_trimmed, 1 + eq.len() - eq_trimmed.len())
         });
         let take = substitution_len(value)
-            .or_else(|| quoted_value_len(value))
-            .unwrap_or_else(|| unquoted_word_len(value));
+            .or_else(|| {
+                let w = unquoted_word_len(value);
+                if w > 0 {
+                    Some(w)
+                } else {
+                    quoted_value_len(value)
+                }
+            })
+            .unwrap_or(value.len());
         out.push_str(REDACTED);
         rest = &rest[skip + eq_extra + take..];
     }
@@ -700,6 +718,39 @@ mod redact_tests {
             "unquoted array value leaked: {out}"
         );
         assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn json_object_basic_auth_is_redacted() {
+        let out = redact(r#"{"-u": "user:pass"}"#);
+        assert!(
+            !out.contains("user:pass"),
+            "JSON-object basic-auth leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn leading_quoted_flag_values_do_not_leak_trailing_fragments() {
+        for input in [
+            "curl -u \"us\"er:\"pw\"rd https://x",
+            "sshpass -p \"se\"\"cret ssh host",
+            "curl -u 'us'er https://x",
+        ] {
+            let out = redact(input);
+            assert!(
+                !out.contains("pw\"rd"),
+                "leading-quoted -u tail leaked: {out}"
+            );
+            assert!(
+                !out.contains("cret"),
+                "leading-quoted -p tail leaked: {out}"
+            );
+            assert!(
+                !out.contains("'us'er"),
+                "single-quote -u tail leaked: {out}"
+            );
+        }
     }
 
     #[test]
