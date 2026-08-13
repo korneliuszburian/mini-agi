@@ -240,6 +240,50 @@ fn quoted_value_len(text: &str) -> Option<usize> {
 
 /// Redact the value of `-p <value>` / `sshpass -p <value>` flags and the
 /// basic-auth `-u user:pass` form.
+/// Length of a shell command-substitution value: `$(...)` or a
+/// backtick-...-backtick group is consumed WHOLE (the credential inside
+/// must not leak past the first whitespace). Returns None when `text`
+/// does not start with a substitution.
+fn substitution_len(text: &str) -> Option<usize> {
+    if let Some(inner) = text.strip_prefix("$(") {
+        let mut depth = 1;
+        let mut in_q = None;
+        let mut escaped = false;
+        for (i, c) in inner.char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if let Some(q) = in_q {
+                if c == '\\' {
+                    escaped = true;
+                } else if c == q {
+                    in_q = None;
+                }
+                continue;
+            }
+            match c {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(2 + i + 1);
+                    }
+                }
+                '"' | '\'' => in_q = Some(c),
+                '\\' => escaped = true,
+                _ => {}
+            }
+        }
+        return None;
+    }
+    if let Some(inner) = text.strip_prefix('`') {
+        let end = inner.find('`')?;
+        return Some(1 + end + 1);
+    }
+    None
+}
+
 fn redact_flag_values(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -328,11 +372,15 @@ fn redact_flag_values(text: &str) -> String {
             let eq_trimmed = eq.trim_start();
             (eq_trimmed, 1 + eq.len() - eq_trimmed.len())
         });
-        let take = quoted_value_len(value).unwrap_or_else(|| {
-            value
-                .find(|c: char| c.is_whitespace() || c == '&' || c == ';' || c == '"' || c == '\'')
-                .unwrap_or(value.len())
-        });
+        let take = substitution_len(value)
+            .or_else(|| quoted_value_len(value))
+            .unwrap_or_else(|| {
+                value
+                    .find(|c: char| {
+                        c.is_whitespace() || c == '&' || c == ';' || c == '"' || c == '\''
+                    })
+                    .unwrap_or(value.len())
+            });
         out.push_str(REDACTED);
         rest = &rest[skip + eq_extra + take..];
     }
@@ -606,6 +654,19 @@ mod redact_tests {
             !out.contains("hunter2"),
             "marker-prefix bearer leaked: {out}"
         );
+    }
+
+    #[test]
+    fn command_substitution_flag_values_are_redacted() {
+        for input in [
+            "sshpass -p $(echo hunter2) host",
+            "sshpass -p `cat pwfile` host",
+        ] {
+            let out = redact(input);
+            assert!(!out.contains("hunter2"), "dollar-substitution leaked: {out}");
+            assert!(!out.contains("pwfile"), "backtick substitution leaked: {out}");
+            assert!(out.contains(REDACTED), "{out}");
+        }
     }
 
     #[test]

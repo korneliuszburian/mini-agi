@@ -174,7 +174,14 @@ pub fn verify_candidate(
     // Phantom-guardrail check: claims must name failures observed BEFORE.
     if let Some(claims) = claims {
         for claim in claims.split(',').map(str::trim).filter(|c| !c.is_empty()) {
-            if !before.iter().any(|f| f.contains(claim)) {
+            // TOKEN-grade match: a claim of "foo" must not pass on an
+            // observed "foobar failed" (substring matching would let a
+            // claim ride on an unrelated failure's label).
+            let token_match = |f: &str, claim: &str| {
+                f.split(|c: char| !c.is_alphanumeric())
+                    .any(|tok| tok == claim)
+            };
+            if !before.iter().any(|f| token_match(f, claim)) {
                 let _ = restore(&target, original.as_ref());
                 return Ok(format!(
                     "REJECT: claimed failure '{claim}' was never observed before the edit (Phantom Guardrails) — gate before: {before:?}"

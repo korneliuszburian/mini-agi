@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 51b38b96d3d65647
-# canonical_entries: 131
+# canonical_sha256: e689e353ca78a8e9
+# canonical_entries: 132
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -1005,3 +1005,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `a0960535620a25e4` cycle 31 (2026-08-13): eighteenth deepseek-v4-pro whole-repo review (repo-health-17) found 6 defects, all fixed — dispatch corrupt-ledger rollback, trimmed queue digest, executable spec gate, live-lock preservation, exhaustion note + actions.log, dream promote wiring. 111 tests green.
 - `ec457caf3ac18b9b` cycle 32 (2026-08-13): nineteenth deepseek-v4-pro whole-repo review (repo-health-18) — 4 fixed (id left boundary, fail-closed achieved re-read, idle-cap fail-closed, try_wait cleanup), 1 documented (harness SIGKILL), 1 rejected with evidence (retry bound = doc semantics). 112 tests green.
 - `3e8509adcb29cc04` cycle 33 (2026-08-13): twentieth deepseek-v4-pro whole-repo review (repo-health-19) — 3 fixed (dream supersede known-id, ticket-note exact file, capped on-done hook), 2 documented residuals (signoff lock, lock-drop TOCTOU), 1 flagged (Landlock read design). 112 tests green.
+- `2eec215abacadca4` cycle 34 (2026-08-13): twenty-first deepseek-v4-pro whole-repo review (repo-health-20) found 6 defects, all fixed — executable-spec goal/scope flattening, CLI dream enforce routing, idle-cap propagation, status rerun filter, harness snapshot atomicity, flattened-hash duplicate guard. 112 tests green.

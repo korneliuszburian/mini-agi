@@ -561,13 +561,18 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             for f in &staged {
                 if f.body.contains("enforced_by") {
                     let h = mini_agi_core::hash::fact_id(&f.body);
+                    // Dedup against the FLATTENED hash (append_contested
+                    // stores fact_id(flattened-trimmed)).
+                    let flat_h = mini_agi_core::hash::fact_id(
+                        &f.body.split_whitespace().collect::<Vec<_>>().join(" "),
+                    );
                     let q = root.join("memory/review").join(format!(
                         "contested-{}.md",
                         mini_agi_core::memory::utc_now_date()
                     ));
                     let already = mini_agi_core::memory::queued_facts(&q)
                         .iter()
-                        .any(|(d, _)| *d == h);
+                        .any(|(d, _)| *d == flat_h);
                     if !already
                         && let Err(e) = mini_agi_core::memory::append_contested(
                             root,

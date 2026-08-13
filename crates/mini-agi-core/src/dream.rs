@@ -576,9 +576,15 @@ pub fn apply_verdicts(
                     let queue = root
                         .join("memory/review")
                         .join(format!("contested-{}.md", crate::memory::utc_now_date()));
+                    // Dedup against the FLATTENED hash: append_contested
+                    // stores fact_id(flattened-trimmed); comparing the raw
+                    // body hash would re-queue every multiline fact.
+                    let flat_h = crate::hash::fact_id(
+                        &fact.body.split_whitespace().collect::<Vec<_>>().join(" "),
+                    );
                     let already = crate::memory::queued_facts(&queue)
                         .iter()
-                        .any(|(d, _)| *d == h);
+                        .any(|(d, _)| *d == flat_h);
                     if !already && !dry_run {
                         crate::memory::append_contested(
                             root,
