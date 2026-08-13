@@ -663,8 +663,14 @@ mod redact_tests {
             "sshpass -p `cat pwfile` host",
         ] {
             let out = redact(input);
-            assert!(!out.contains("hunter2"), "dollar-substitution leaked: {out}");
-            assert!(!out.contains("pwfile"), "backtick substitution leaked: {out}");
+            assert!(
+                !out.contains("hunter2"),
+                "dollar-substitution leaked: {out}"
+            );
+            assert!(
+                !out.contains("pwfile"),
+                "backtick substitution leaked: {out}"
+            );
             assert!(out.contains(REDACTED), "{out}");
         }
     }
