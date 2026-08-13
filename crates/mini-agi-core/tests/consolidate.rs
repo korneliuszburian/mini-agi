@@ -240,6 +240,7 @@ fn domain_newlines_do_not_inject_frontmatter() {
     wipe(&root);
 }
 
+#[test]
 fn signoff_promotes_queued_fact_once() {
     let root = tmp_root("t8");
     wipe(&root);
