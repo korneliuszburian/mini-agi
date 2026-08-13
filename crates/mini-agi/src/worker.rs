@@ -464,15 +464,43 @@ pub fn run_verified_iteration(
         // whose transcript already carries the completion marker counts
         // as success-with-warning — the attempt is not aborted.
         let grace = attempt_grace(worker.aborted, outcome.completed);
-        // P0-1 post-hoc cap check (accumulated).
-        let violations = mini_agi_core::worker::budget_violations(
+        // P0-1 post-hoc cap check (accumulated) — REAL cost and the
+        // configured cost cap (was hardcoded 0.0/None: max_cost_usd was
+        // dead enforcement).
+        let caps_cfg = mini_agi_core::config::Config::load(input.workdir);
+        let mut violations = mini_agi_core::worker::budget_violations(
             all_steps.len(),
-            0.0,
+            total_cost,
             final_wall,
             input.step_cap,
-            None,
+            caps_cfg.max_cost_usd,
             input.wall_cap,
         );
+        // Repetition watchdog (P1-5): abort after this many IDENTICAL
+        // consecutive (tool, action) pairs — was dead config.
+        if let Some(max) = caps_cfg.max_repeated_steps
+            && !violations.iter().any(|v| v.contains("repeated"))
+        {
+            let mut run = 0usize;
+            let mut prev: Option<(String, String)> = None;
+            for s in &all_steps {
+                let key = (s.tool.clone(), s.action.clone());
+                if prev.as_ref() == Some(&key) {
+                    run += 1;
+                } else {
+                    run = 1;
+                    prev = Some(key);
+                }
+                if run > max {
+                    let mut v = violations;
+                    v.push(format!(
+                        "repeated identical actions > max_repeated_steps ({max})"
+                    ));
+                    violations = v;
+                    break;
+                }
+            }
+        }
         aborted = worker.aborted || !violations.is_empty();
         for v in &violations {
             eprintln!("  [abort] {v}");

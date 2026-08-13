@@ -12,9 +12,9 @@
 //! `unsafe` is used — the workspace `unsafe_code = "forbid"` stays
 //! intact.
 //!
-//! Degradation is explicit: when the kernel lacks Landlock the wrapper
-//! prints a warning and runs the worker unsandboxed — a missing sandbox
-//! is reported, never silent.
+//! Degradation is FAIL-CLOSED: when the kernel lacks Landlock the
+//! wrapper REFUSES to run the worker unless `--no-sandbox` is passed
+//! explicitly — a missing sandbox boundary is never silent.
 
 use std::path::Path;
 

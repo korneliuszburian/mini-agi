@@ -133,24 +133,30 @@ pub fn find_ticket(root: &Path, id: &str) -> Result<Ticket, TicketError> {
     } else {
         let mut path = dir.join(format!("TICKET-{prefix}.md"));
         if !path.is_file() {
-            path = dir
+            // SORTED candidates, matching resolve_dep's documented
+            // "first in sorted order" — read_dir order is filesystem
+            // dependent and would make claim/close disagree with the
+            // graph validator on the same repo.
+            let mut cands: Vec<PathBuf> = dir
                 .read_dir()
                 .map_err(TicketError::Io)?
                 .flatten()
                 .map(|e| e.path())
-                .find(|p| {
+                .filter(|p| {
                     p.extension().is_some_and(|e| e == "md")
                         && p.file_name().is_some_and(|n| {
                             let n = n.to_string_lossy();
                             n.starts_with(&format!("TICKET-{prefix}-"))
                         })
                 })
-                .ok_or_else(|| {
-                    TicketError::Io(io::Error::new(
-                        io::ErrorKind::NotFound,
-                        format!("no ticket {id} in {}", dir.display()),
-                    ))
-                })?;
+                .collect();
+            cands.sort();
+            path = cands.into_iter().next().ok_or_else(|| {
+                TicketError::Io(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("no ticket {id} in {}", dir.display()),
+                ))
+            })?;
         }
         path
     };

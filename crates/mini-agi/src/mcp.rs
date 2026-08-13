@@ -567,14 +567,16 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                     let already = mini_agi_core::memory::queued_facts(&q)
                         .iter()
                         .any(|(d, _)| *d == h);
-                    if !already {
-                        let _ = mini_agi_core::memory::append_contested(
+                    if !already
+                        && let Err(e) = mini_agi_core::memory::append_contested(
                             root,
                             &f.body,
                             &h,
                             source,
                             "0000000000000000",
-                        );
+                        )
+                    {
+                        return format!("error: dream queue write failed: {e}");
                     }
                     queued += 1;
                     continue;

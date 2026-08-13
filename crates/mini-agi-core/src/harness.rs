@@ -156,15 +156,18 @@ pub fn verify_candidate(
     }
     let candidate_text = fs::read_to_string(candidate)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
-    // Serialize the swap + gate + restore under the claims lock: a
-    // concurrent gate run (CI verify.sh, another harness) must not
-    // measure the swapped file or race the restore — the counterfactual
-    // is only credible if the swap window is exclusive.
+    // The swap + restore are serialized under the claims lock, but ONLY
+    // the file operations — the 1800s-capped gate runs OUTSIDE the lock.
+    // Holding the claims lock across the gate would trip the 30s stale-
+    // steal and silently break mutual exclusion for every ticket/ledger
+    // writer (two holders proceed concurrently).
     let lock = crate::ticket::lock_claims(root).map_err(io::Error::other)?;
     // A failed swap must NOT be measured as the original file (a
     // fabricated NEUTRAL/ACCEPT) — propagate the write error.
     fs::write(&target, &candidate_text)?;
+    drop(lock);
     let (after, after_ok) = gate_run(root);
+    let lock = crate::ticket::lock_claims(root).map_err(io::Error::other)?;
     restore(&target, original.as_ref())?;
     drop(lock);
     // A gate that FAILS after the swap (markerless abort, crash) is an

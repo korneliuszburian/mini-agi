@@ -352,15 +352,30 @@ pub fn case_is_open(case_dir: &Path) -> bool {
     read_run(case_dir).is_none_or(|r| !r.achieved())
 }
 
-/// Find the ticket whose goal/title/id references `case`.
+/// Does `haystack` mention `case` as a whole token (bounded by a
+/// non-alphanumeric char or the edges)? A raw `contains` would alias
+/// `gap-a` to the ticket of `gap-ab` (wrong ticket claimed/closed).
+fn mentions_case(haystack: &str, case: &str) -> bool {
+    haystack.match_indices(case).any(|(pos, _)| {
+        let before_ok = haystack[..pos]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric());
+        let after = &haystack[pos + case.len()..];
+        let after_ok = after.chars().next().is_none_or(|c| !c.is_alphanumeric());
+        before_ok && after_ok
+    })
+}
+
+/// Find the ticket whose goal/title/id references `case` (token-bounded).
 #[must_use]
 pub fn ticket_for_case(root: &Path, case: &str) -> Option<crate::ticket::Ticket> {
     crate::ticket::list_tickets(root)
         .unwrap_or_default()
         .into_iter()
         .find(|t| {
-            t.goal.contains(case)
-                || t.title.contains(case)
+            mentions_case(&t.goal, case)
+                || mentions_case(&t.title, case)
                 || id_matches_case(&t.id, &case.to_lowercase())
         })
 }
@@ -1047,15 +1062,20 @@ pub fn verify(
         // lock) so attempts track verification, not just dispatches.
         let _lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
         if let Some(mut gap) = read_ledger(root, base) {
-            gap.attempts += 1;
-            gap.last_attempted_at = Some(crate::memory::utc_now_stamp());
-            if let Err(e) = write_ledger_atomic(root, &gap) {
-                // The attempt record is lost — say so in the verdict so a
-                // caller cannot mistake "attempt recorded" for "attempt
-                // lost" (the retry bound would silently stop counting).
-                lines.push(format!(
-                    "  warning: could not record the failed verify attempt for {base}: {e}"
-                ));
+            // Terminal check (mirrors the close branch): another process
+            // may have closed the base while our gate ran — never mutate
+            // a Closed/Exhausted row's attempt count.
+            if !gap_is_terminal(&gap.state) {
+                gap.attempts += 1;
+                gap.last_attempted_at = Some(crate::memory::utc_now_stamp());
+                if let Err(e) = write_ledger_atomic(root, &gap) {
+                    // The attempt record is lost — say so in the verdict so a
+                    // caller cannot mistake "attempt recorded" for "attempt
+                    // lost" (the retry bound would silently stop counting).
+                    lines.push(format!(
+                        "  warning: could not record the failed verify attempt for {base}: {e}"
+                    ));
+                }
             }
         }
         lines.push("  gap open: outcome not verified — keep working".into());
@@ -1319,6 +1339,25 @@ mod loop_tests {
         assert!(
             err.contains("outside"),
             "verify refuses to run a gate in an outside target: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ticket_for_case_matches_whole_case_names_only() {
+        let root = tmp_root("t-alias");
+        fs::write(
+            root.join("tickets/TICKET-1.md"),
+            "- id: TICKET-1\n- title: fix gap-ab\n- goal: bring gap-ab to achieved\n- scope: evals/cases\n",
+        )
+        .unwrap();
+        assert!(
+            ticket_for_case(&root, "gap-ab").is_some(),
+            "the exact case resolves its ticket"
+        );
+        assert!(
+            ticket_for_case(&root, "gap-a").is_none(),
+            "a substring case must NOT alias to the gap-ab ticket"
         );
         let _ = fs::remove_dir_all(&root);
     }

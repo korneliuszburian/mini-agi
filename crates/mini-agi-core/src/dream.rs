@@ -306,7 +306,7 @@ pub fn write_staging(
     extracted_by: &str,
 ) -> Result<std::path::PathBuf, crate::memory::MemoryError> {
     let today = crate::memory::utc_now_date();
-    let seq = staging_seq(root, &today);
+    let mut seq = staging_seq(root, &today);
     let path = root
         .join(STAGING_REL)
         .join(&today)
@@ -321,7 +321,39 @@ pub fn write_staging(
     for (i, fact) in staged.iter().enumerate() {
         blocks.push(format!("\n## S-{i:03} ({})\n\n{}", fact.domain, fact.body));
     }
-    std::fs::write(&path, blocks.join("\n")).map_err(crate::memory::MemoryError::Io)?;
+    // create_new + retry: two same-day distiller runs must not clobber
+    // each other's staging file (scan-then-write TOCTOU).
+    let content = blocks.join("\n");
+    let mut attempt = 0;
+    let path = loop {
+        let p = root
+            .join(STAGING_REL)
+            .join(&today)
+            .join(format!("{seq:03}.md"));
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent).map_err(crate::memory::MemoryError::Io)?;
+        }
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&p)
+        {
+            Ok(mut f) => {
+                use std::io::Write as _;
+                f.write_all(content.as_bytes())
+                    .map_err(crate::memory::MemoryError::Io)?;
+                break p;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                attempt += 1;
+                if attempt >= 10 {
+                    return Err(crate::memory::MemoryError::Io(e));
+                }
+                seq = staging_seq(root, &today);
+            }
+            Err(e) => return Err(crate::memory::MemoryError::Io(e)),
+        }
+    };
     Ok(path)
 }
 
