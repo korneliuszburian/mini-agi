@@ -63,11 +63,24 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
     } else {
         header.to_string()
     };
-    if body.contains(&format!("| {rev} |")) {
-        return Ok((
-            name,
-            format!("gate: {gate} (revision {rev} already recorded)"),
-        ));
+    if let Some(pos) = body.lines().position(|l| l.contains(&format!("| {rev} |"))) {
+        // Same-rev re-snapshot: REFRESH the row's gate verdict (a frozen
+        // suite that regressed on the same rev must not keep a stale
+        // green row — the ledger's purpose is recording the verdict).
+        let mut lines: Vec<String> = body.lines().map(str::to_string).collect();
+        lines[pos] = format!(
+            "| {rev} | {} | {name} | {gate} |",
+            crate::memory::utc_now_date(),
+        );
+        let refreshed = lines.join("\n") + "\n";
+        let tmp = crate::ticket::tmp_unique(&ledger, "harness");
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, refreshed.as_bytes()))?;
+        fs::rename(&tmp, &ledger)?;
+        return Ok((name, format!("gate: {gate} (revision {rev} refreshed)")));
     }
     let row = format!(
         "| {rev} | {} | {name} | {gate} |\n",

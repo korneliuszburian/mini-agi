@@ -383,10 +383,11 @@ fn redact_flag_values(text: &str) -> String {
             // JSON STRING VALUE containing a flag (`{"args":"-phunter2"}`):
             // `-p` preceded by a quote and followed by a NON-quote means
             // the credential rides inside the quoted value — redact from
-            // after `-p` through the closing quote.
+            // after `-p` through the closing quote, ESCAPE-AWARE (an
+            // escaped quote inside the value must not end it early).
             if rest[..pos].ends_with('"')
                 && !rest[after..].starts_with('"')
-                && let Some(close) = rest[after..].find('"')
+                && let Some(close) = closing_quote(&rest[after..])
             {
                 out.push_str(&rest[..after]);
                 out.push_str(REDACTED);
@@ -717,6 +718,13 @@ mod redact_tests {
             !out.contains("hunter2secret"),
             "unquoted array value leaked: {out}"
         );
+        assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn escaped_quote_in_json_string_flag_values_is_redacted() {
+        let out = redact(r#"{"args":"-p\"hunter2"}"#);
+        assert!(!out.contains("hunter2"), "escaped-quote JSON -p leaked: {out}");
         assert!(out.contains(REDACTED), "{out}");
     }
 
