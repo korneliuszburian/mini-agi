@@ -325,6 +325,6 @@ mod init_tests {
             );
         }
         assert_eq!(crate::mcp::tool_names().len(), 14, "14-tool registry");
-        assert_eq!(crate::mcp::approval_tool_names().len(), 7, "7 write tools");
+        assert_eq!(crate::mcp::approval_tool_names().len(), 8, "8 write tools");
     }
 }

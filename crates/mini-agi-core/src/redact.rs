@@ -176,7 +176,13 @@ fn header_value_len(trimmed: &str) -> usize {
         return qpos;
     }
     let after = &trimmed[qpos + quote.len_utf8()..];
-    after.find(quote).map_or(trimmed.len(), |closing| {
+    // Escape-aware: `Bearer "ab\"cdef"` closes at the unescaped quote.
+    let closing = if quote == '"' {
+        closing_quote(after)
+    } else {
+        after.find(quote)
+    };
+    closing.map_or(trimmed.len(), |closing| {
         qpos + quote.len_utf8() + closing + quote.len_utf8()
     })
 }
@@ -402,6 +408,22 @@ fn find_value_separator(after_key: &str) -> Option<(usize, usize, u8)> {
 /// line; `0` (space-separated flag) refuses a leading dash (a following
 /// flag is not a value); `=` records redact one field even when the
 /// value itself starts with a dash.
+/// Byte index of the first UNESCAPED closing quote in `inner` (a string
+/// that follows an opening `"`). A backslash escapes the next char, so
+/// `ab\"cdef"` closes at the LAST quote, not the escaped one.
+fn closing_quote(inner: &str) -> Option<usize> {
+    let bytes = inner.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 2,
+            b'"' => return Some(i),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
 fn split_pair_value(text: &str, sep: u8) -> Option<(usize, usize)> {
     let trimmed = text.trim_start();
     if trimmed.is_empty() {
@@ -409,10 +431,11 @@ fn split_pair_value(text: &str, sep: u8) -> Option<(usize, usize)> {
     }
     let skip = text.len() - trimmed.len();
     if let Some(inner) = trimmed.strip_prefix('"') {
-        // Closed JSON string: both quotes included. UNCLOSED (a killed
-        // worker's truncated transcript): redact everything to the end
-        // of the line — an unterminated string must not leak.
-        let take = inner.find('"').map_or(inner.len() + 1, |end| end + 2);
+        // Closed JSON string: both quotes included, ESCAPE-AWARE — a
+        // `\"` inside the value must not end it (`"ab\"cdef"` redacts the
+        // whole string, not just `ab\`). UNCLOSED (a killed worker's
+        // truncated transcript): redact everything to the end of the line.
+        let take = closing_quote(inner).map_or(inner.len() + 1, |end| end + 2);
         return Some((skip, take.min(trimmed.len())));
     }
     let take = if sep == b':' {
@@ -458,6 +481,16 @@ mod redact_tests {
             assert!(!out.contains("hunter"), "quoted -p value leaked: {out}");
             assert!(out.contains(REDACTED), "{out}");
         }
+    }
+
+    #[test]
+    fn escaped_quotes_do_not_leak_the_value_tail() {
+        let out = redact(r#""api_key": "ab\"cdef""#);
+        assert!(
+            !out.contains("cdef"),
+            "value tail after an escaped quote leaked: {out}"
+        );
+        assert!(out.contains(REDACTED), "{out}");
     }
 
     #[test]

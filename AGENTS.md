@@ -15,21 +15,18 @@ Charter (founding goal, verbatim, NEVER lose or paraphrase): `docs/CHALLENGE.md`
 ADRs: `docs/adr/` (ADR-0001..0014 local). Master plan: `docs/PLAN.md`.
 Canonical memory import source: `agentic-core@HEAD`.
 
-## Verification discipline (Phase 8-9: verified before trusted)
+## Verification discipline (verified before trusted)
 
 - A run's `outcome.achieved` is the run's OWN claim until
-  `mini-agi run verify <run.json>` confirms it: the declared
-  `verify_command` executes in `verify_target` and the kernel reports
-  verified / disagrees / unverified. `loop verify` closes a gap ONLY
-  when composite >= 0.5 AND the verifier passes (or `--allow-unverified`
-  is explicit). Never report a run as successful without its verifier.
-- `run verify --dry-run` prints the command without executing it.
-- `mini-agi eval judge-drift` reports how often the judged outcome
-  disagrees with the deterministic layer (calibration corpus:
-  memory/derived/calibration.md) — treat disagreement as a signal.
-- Failure register entries carry MAST classification (14 modes) and
-  reflections; `loop dispatch` injects them into slice specs — never
-  repeat a recorded failure.
+  `mini-agi loop verify <case>-rerun` confirms it: the declared
+  `verify_command` executes in the resolved `verify_target` and the
+  kernel reports CLOSED/OPEN. `loop verify` closes a gap ONLY when the
+  run is achieved AND the base's declared gate passes (or
+  `--allow-unverified` is explicit). Never report a run as successful
+  without its verifier.
+- The gap lifecycle is authoritative in `evals/ledger/<case>.json`
+  (written by `loop dispatch`/`loop verify` under the claims lock);
+  terminal states (closed/exhausted/unverifiable) are never redispatched.
 
 ## Harness evolution (Phase 8-9: guarded)
 
@@ -77,11 +74,10 @@ Canonical memory import source: `agentic-core@HEAD`.
 - Facts are enforced or reference: a fact with an `enforced_by` check is
   bound to a gate that runs in CI (ADR-0010). The kernel's own memory is a
   first-class dogfood user.
-- Dream-loop (D2): `mini-agi dream --source <material>` distills episodic
-  material via the cheap distiller, audits with the strong model, and
-  `dream --promote` lands verdicts in canonical; enforced facts and
-  conflicts route to the human queue (ADR-0010 signoff). The cadence is
-  `dream --idle` (load + freshness guarded) — a busy box skips.
+- Dream-loop (D2): `mini-agi dream --source <material> --approve <reason>`
+  distills facts into canonical (HITL — canonical writes need --approve);
+  enforcement-bound facts (`enforced_by`) always route to the human queue
+  (ADR-0010 signoff) via `memory/review/`.
 - Read the brief + index before working. Knowledge given once must not be
   re-asked or re-researched.
 
@@ -118,11 +114,11 @@ Every codex session here follows the same discipline:
 - Session start: `loop_status` (open gaps), `memory_query <topic>` (facts
   before re-research), `checkpoint_audit` (journal state). Knowledge given
   once must not be re-asked.
-- Post-run: a run is UNVERIFIED until `run_verify <run.json>` passes — never
-  claim success on an unverified run. Close gaps with `loop_verify <case>`.
-- Writes (loop_dispatch, memory_signoff/consolidate/derive, run_ingest,
-  ticket_claim/release, skill_add, harness) require a prompt (HITL) — the
-  kernel's memory-signoff gate is human by design (ADR-0010).
+- Post-run: a gap is UNVERIFIED until `loop_verify <case>` closes it — never
+  claim success on an unverified run.
+- Writes (loop_dispatch, loop_objective, loop_verify, memory_signoff/consolidate/derive,
+  skill_add, dream) require an `approve` reason (HITL) — the kernel's
+  memory-signoff gate is human by design (ADR-0010).
 - Verification: `./scripts/verify.sh` ALL GREEN before a run is real.
 
 ## Process rules (hard lessons, standards-polish S3)

@@ -51,6 +51,10 @@ approval_mode = "prompt"
 approval_mode = "prompt"
 
 
+[mcp_servers.mini-agi.tools.loop_verify]
+approval_mode = "prompt"
+
+
 [mcp_servers.mini-agi.tools.dream]
 approval_mode = "prompt"
 

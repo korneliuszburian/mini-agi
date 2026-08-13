@@ -7,7 +7,7 @@
 //! worker live; step/cost caps are enforced after capture. Std-only
 //! (no async): spawn + poll + kill.
 
-use std::fs::{self, File};
+use std::fs;
 use std::io;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
@@ -173,8 +173,17 @@ pub fn run_capped_idle(
     let token = worker_token();
     let stdout_path = cwd.join(format!(".worker-{}-{token}.out", std::process::id()));
     let stderr_path = cwd.join(format!(".worker-{}-{token}.err", std::process::id()));
-    let stdout_file = File::create(&stdout_path)?;
-    let stderr_file = File::create(&stderr_path)?;
+    // create_new: a pre-planted symlink at the temp path must NOT be
+    // followed (File::create would truncate an arbitrary writable file) —
+    // an existing entry is refused loudly instead.
+    let stdout_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&stdout_path)?;
+    let stderr_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&stderr_path)?;
     let mut cmd = Command::new(command);
     cmd.args(args)
         .current_dir(cwd)

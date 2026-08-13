@@ -436,7 +436,7 @@ pub fn write_supersede_entry(
             return Err(MemoryError::PreservedId(id.clone()));
         }
     }
-    let entry = crate::store::next_entry(root, &utc_now_date());
+    let mut entry = crate::store::next_entry(root, &utc_now_date());
     if let Some(parent) = entry.path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -455,8 +455,35 @@ pub fn write_supersede_entry(
     for (i, (fact, digest)) in facts.iter().enumerate() {
         let _ = writeln!(content, "\n## F-{i:03} `{digest}`\n\n{fact}");
     }
-    fs::write(&entry.path, content)?;
-    Ok(entry)
+    // Same create_new TOCTOU guard as write_canonical_entry: a concurrent
+    // supersede scan-then-write must not overwrite an existing entry.
+    let mut attempt = 0;
+    loop {
+        let path = entry.path.clone();
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut f) => {
+                use std::io::Write as _;
+                f.write_all(content.as_bytes())?;
+                return Ok(EntryFile {
+                    path,
+                    date: entry.date.clone(),
+                    seq: entry.seq,
+                });
+            }
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                attempt += 1;
+                if attempt >= 10 {
+                    return Err(MemoryError::Io(e));
+                }
+                entry = crate::store::next_entry(root, &entry.date);
+            }
+            Err(e) => return Err(MemoryError::Io(e)),
+        }
+    }
 }
 
 /// Fact ids of enforcement-bound facts (ADR-0010): bodies carrying an

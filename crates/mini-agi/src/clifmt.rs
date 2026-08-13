@@ -47,11 +47,13 @@ pub fn build_run_draft(
         "outcome": {"achieved": false},
         "tokens_total": 0,
         "cost_usd": 0.0,
-        // §5.3: the persisted gate is redacted like every other surface —
-        // a verifier with an embedded credential must not sit in
-        // run.json in cleartext.
-        "verify_command": verify_command.map(redact::redact),
-        "verify_target": verify_target.map(redact::redact),
+        // The persisted gate is the DECLARED executable contract: it must
+        // be the real command so `loop verify` re-runs exactly what was
+        // declared. Redaction applies to DISPLAY surfaces (spec.md, ledger,
+        // loop verify output), never to this executable copy — a redacted
+        // gate would execute a mutated command.
+        "verify_command": verify_command,
+        "verify_target": verify_target,
         "kernel_version": env!("CARGO_PKG_VERSION"),
         "n_steps": steps.len(),
         "n_toolcalls": steps.iter().filter(|s| s.tool == "exec").count(),

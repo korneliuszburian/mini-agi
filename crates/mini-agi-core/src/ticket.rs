@@ -117,27 +117,43 @@ pub fn find_ticket(root: &Path, id: &str) -> Result<Ticket, TicketError> {
         )));
     }
     let dir = tickets_dir(root);
-    let mut path = dir.join(format!("TICKET-{prefix}.md"));
-    if !path.is_file() {
-        path = dir
-            .read_dir()
-            .map_err(TicketError::Io)?
-            .flatten()
-            .map(|e| e.path())
-            .find(|p| {
-                p.extension().is_some_and(|e| e == "md")
-                    && p.file_name().is_some_and(|n| {
-                        let n = n.to_string_lossy();
-                        n.starts_with(&format!("TICKET-{prefix}-"))
-                    })
-            })
-            .ok_or_else(|| {
-                TicketError::Io(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("no ticket {id} in {}", dir.display()),
-                ))
-            })?;
-    }
+    // Prefer the EXACT id: `TICKET-006-v2` must resolve `TICKET-006-v2.md`
+    // first — resolving `TICKET-006.md` when both exist would alias to the
+    // wrong ticket (claim/close/graph disagree on identity). The plain
+    // `TICKET-<digits>.md` is the fallback for a numeric-only id.
+    let suffix = digits[prefix.len()..].trim_start_matches('-');
+    let exact = if suffix.is_empty() {
+        None
+    } else {
+        let p = dir.join(format!("TICKET-{prefix}-{suffix}.md"));
+        p.is_file().then_some(p)
+    };
+    let path = if let Some(p) = exact {
+        p
+    } else {
+        let mut path = dir.join(format!("TICKET-{prefix}.md"));
+        if !path.is_file() {
+            path = dir
+                .read_dir()
+                .map_err(TicketError::Io)?
+                .flatten()
+                .map(|e| e.path())
+                .find(|p| {
+                    p.extension().is_some_and(|e| e == "md")
+                        && p.file_name().is_some_and(|n| {
+                            let n = n.to_string_lossy();
+                            n.starts_with(&format!("TICKET-{prefix}-"))
+                        })
+                })
+                .ok_or_else(|| {
+                    TicketError::Io(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        format!("no ticket {id} in {}", dir.display()),
+                    ))
+                })?;
+        }
+        path
+    };
     load_ticket(&path)
 }
 
@@ -482,7 +498,15 @@ pub struct Claim {
 ///
 /// Returns the underlying filesystem error on unreadable files.
 pub fn read_claims(root: &Path) -> io::Result<Vec<Claim>> {
-    let text = fs::read_to_string(claims_path(root))?;
+    let text = match fs::read_to_string(claims_path(root)) {
+        Ok(t) => t,
+        // Absent registry = empty (the first claim creates it). An
+        // EXISTING but unreadable/corrupt registry is a hard error — it
+        // must never be silently treated as empty (the next write would
+        // erase every lease).
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e),
+    };
     let mut out = Vec::new();
     for line in text.lines() {
         if line.starts_with('#') || line.trim().is_empty() {
@@ -511,7 +535,7 @@ pub fn claim_ticket(
 ) -> Result<Claim, TicketError> {
     let ticket = find_ticket(root, id)?;
     let _lock = lock_claims(root).map_err(TicketError::Io)?;
-    let mut claims = read_claims(root).unwrap_or_default();
+    let mut claims = read_claims(root).map_err(TicketError::Io)?;
     if let Some(existing) = claims.iter().find(|c| c.ticket == ticket.id) {
         if existing.claimant != claimant {
             return Err(TicketError::Invalid(format!(
@@ -564,7 +588,7 @@ pub fn release_ticket(root: &Path, id: &str, claimant: &str) -> Result<(), Ticke
 /// [`TicketError::Io`] for registry failures.
 pub fn release_ticket_locked(root: &Path, id: &str, claimant: &str) -> Result<(), TicketError> {
     let ticket = find_ticket(root, id)?;
-    let mut claims = read_claims(root).unwrap_or_default();
+    let mut claims = read_claims(root).map_err(TicketError::Io)?;
     let Some(pos) = claims.iter().position(|c| c.ticket == ticket.id) else {
         return Err(TicketError::Invalid(format!(
             "ticket {} is not claimed",
@@ -600,7 +624,11 @@ fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
     // tickets become double-claimable. Matches the ledger/ticket-status
     // write discipline.
     let tmp = path.with_extension("md.tmp");
-    fs::write(&tmp, out)?;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, out.as_bytes()))?;
     fs::rename(&tmp, &path)
 }
 

@@ -113,9 +113,13 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "loop_verify",
-        description: "Verify a rerun; close when its gate passes.",
-        params: &[("case", "string"), ("claimant", "string")],
-        requires_approval: false,
+        description: "Verify a rerun; close when its gate passes. Requires an approval reason (it executes the case's declared gate shell and writes the ledger).",
+        params: &[
+            ("case", "string"),
+            ("claimant", "string"),
+            ("approve", "string"),
+        ],
+        requires_approval: true,
     },
     ToolDef {
         name: "dream",
@@ -164,11 +168,47 @@ pub fn run_stdio_server() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io::Error> {
-    let mut first = String::new();
-    if input.read_line(&mut first)? == 0 {
-        return Ok(None);
+/// Read one line BOUNDED at `MAX_FRAME_BYTES`: `BufRead::read_line`
+/// allocates the whole line before any cap check, so an unterminated
+/// multi-GB line would allocate without limit. Reads byte-by-byte into a
+/// buffer and errors as soon as the cap is crossed.
+fn read_bounded_line<R: BufRead>(input: &mut R) -> io::Result<Option<String>> {
+    let mut bytes = Vec::new();
+    loop {
+        let (consumed, complete) = {
+            let buf = input.fill_buf()?;
+            if buf.is_empty() {
+                return if bytes.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(String::from_utf8_lossy(&bytes).into_owned()))
+                };
+            }
+            if let Some(i) = buf.iter().position(|&b| b == b'\n') {
+                bytes.extend_from_slice(&buf[..=i]);
+                (i + 1, true)
+            } else {
+                if bytes.len() + buf.len() > MAX_FRAME_BYTES {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "frame too large",
+                    ));
+                }
+                bytes.extend_from_slice(buf);
+                (buf.len(), false)
+            }
+        };
+        input.consume(consumed);
+        if complete {
+            return Ok(Some(String::from_utf8_lossy(&bytes).into_owned()));
+        }
     }
+}
+
+fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io::Error> {
+    let Some(first) = read_bounded_line(input)? else {
+        return Ok(None);
+    };
     let first = first.trim_end();
     if first.to_ascii_lowercase().starts_with("content-length:") {
         let rest = first.split_once(':').map_or("", |(_, v)| v);
@@ -183,13 +223,12 @@ fn read_frame<R: BufRead>(input: &mut R) -> Result<Option<(Value, Framing)>, io:
             ));
         }
         loop {
-            let mut header = String::new();
-            if input.read_line(&mut header)? == 0 {
+            let Some(header) = read_bounded_line(input)? else {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "EOF in headers",
                 ));
-            }
+            };
             if header.trim().is_empty() {
                 break;
             }
@@ -367,8 +406,15 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                 return "error: memory_signoff requires an approval reason (approve)".into();
             }
             let queue = arg(args, "queue");
-            let index = usize::try_from(args.get("index").and_then(Value::as_u64).unwrap_or(1))
-                .unwrap_or(1);
+            // A MISSING index must refuse, never silently promote #1 —
+            // a malformed HITL write would promote an unintended fact.
+            let Some(index) = args
+                .get("index")
+                .and_then(Value::as_u64)
+                .and_then(|i| usize::try_from(i).ok())
+            else {
+                return "error: memory_signoff requires a numeric index".into();
+            };
             match mini_agi_core::memory::signoff(root, Path::new(queue), index, arg(args, "domain"))
             {
                 Ok(e) => format!("promoted {}", e.path.display()),
@@ -481,6 +527,9 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             }
         }
         "loop_verify" => {
+            if arg(args, "approve").is_empty() {
+                return "error: loop_verify requires an approval reason (approve) — it executes the declared gate and writes the ledger".into();
+            }
             match mini_agi_core::loopcmd::verify(
                 root,
                 arg(args, "case"),

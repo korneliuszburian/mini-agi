@@ -146,7 +146,12 @@ pub fn write_ledger_atomic(root: &Path, gap: &Gap) -> io::Result<()> {
         fs::create_dir_all(parent)?;
     }
     let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, serde_json::to_string(gap).map_err(io::Error::other)?)?;
+    let json = serde_json::to_string(gap).map_err(io::Error::other)?;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, json.as_bytes()))?;
     fs::rename(&tmp, &path)
 }
 
@@ -493,7 +498,7 @@ pub fn dispatch_no_work(root: &Path, _below: f64) -> Option<String> {
     if candidates.is_empty() {
         return Some("no cases below the target — loop is clear".to_string());
     }
-    let closed = 0usize;
+    let mut closed = 0usize;
     let mut leased = 0usize;
     for d in &candidates {
         let name = d
@@ -501,7 +506,11 @@ pub fn dispatch_no_work(root: &Path, _below: f64) -> Option<String> {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if let Some(t) = ticket_for_case(root, &name)
-            && (t.status == "CLOSED" || claimant_for(root, &t.id).is_some())
+            && t.status == "CLOSED"
+        {
+            closed += 1;
+        } else if let Some(t) = ticket_for_case(root, &name)
+            && claimant_for(root, &t.id).is_some()
         {
             leased += 1;
         }
@@ -630,7 +639,16 @@ pub fn dispatch(
     // pick_target and the lock), marks dispatched, then writes the spec.
     // On ANY failure the claim is released and a created ticket removed —
     // no leased case with a missing spec/ledger row.
-    let lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
+    let lock = crate::ticket::lock_claims(root).map_err(|e| {
+        // Stranded-lease guard: the claim was taken above; a lock failure
+        // must not leave a permanently-leased ticket with no spec/ledger.
+        let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
+        if ticket_created {
+            let _ =
+                fs::remove_file(crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")));
+        }
+        e.to_string()
+    })?;
     let prior_gap = read_ledger(root, &case);
     let rollback = |prior_gap: &Option<Gap>| {
         let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
@@ -909,7 +927,9 @@ pub fn verify(
         // on-disk state back (the ledger is the single commit point).
         let _lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
         let prior_gap = read_ledger(root, base);
-        let prior_claims = crate::ticket::read_claims(root).unwrap_or_default();
+        // An unreadable claims registry must NOT be treated as empty (the
+        // close would rewrite it and silently erase every lease).
+        let prior_claims = crate::ticket::read_claims(root).map_err(|e| e.to_string())?;
         let prior_ticket = ticket_for_case(root, base);
         let now = crate::memory::utc_now_stamp();
         let close_gap = Gap {
