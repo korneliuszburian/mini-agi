@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: c7c8d8331d2b903e
-# canonical_entries: 107
+# canonical_sha256: 8925f1d5e4b109ec
+# canonical_entries: 108
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -981,3 +981,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `d2cdb80b7a00ad93` cycle 6 (2026-08-12): MCP registry now the single source for codex onboarding — init/codex_config derives enabled_tools + HITL prompt set from mcp::tool_names()/approval_tool_names() (ToolDef.requires_approval); stale 39-tool hardcoded list deleted; .codex/config.toml regenerated. 62 tests green.
 - `ae21577ba7526c76` cycle 7 (2026-08-12): MUST-FIX 4 completed — Run.golden/reflection/mast deleted (serialization clean, falsifier green); MUST-FIX 3 extended — eval::Run boundary tests (defaults, gate roundtrip, unknown-field tolerance, fake-field absence) + MCP dispatch boundary tests (initialize handshake gates tools/list+call, tools/list matches 14-tool registry, unknown method/tool errors, write tools refuse without approve). 70 tests green.
 - `bf5f3fcf8ef52d8a` cycle 8 (2026-08-12): E2E probes green — loop dispatch->verify closes the evals/ledger/<case>.json row per schema; verify_target outside root rejected E2E; MCP stdio initialize/tools/list framing works. No defects found; 3 consecutive defect-free cycles after the final MUST-FIX.
+- `749c6d3a5baf7b9e` cycle 9 (2026-08-12): independent fresh-session review of b52ca58..570318b found 4 defects now fixed — numbered-rerun base extraction (close BASE ledger row, never the rerun dir), status consults ledger for terminal states, set_ticket_status traversal guard, lock_claims parent dir. 72 tests green.

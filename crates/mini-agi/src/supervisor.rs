@@ -518,6 +518,7 @@ pub struct ResolveInput<'a> {
 }
 
 /// A resolved, verifiable supervised spec.
+#[derive(Debug)]
 pub struct ResolvedSpec {
     /// The spec text (prompt base).
     pub spec_text: String,
@@ -566,13 +567,21 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
                 input.goal_or_case
             )
         })?;
-        let vt = input.target.map_or_else(
-            || {
-                run.verify_target
-                    .unwrap_or_else(|| input.workdir.to_string_lossy().into_owned())
-            },
-            |t| t.to_string_lossy().into_owned(),
-        );
+        // A case's `verify_target` is UNTRUSTED run data (ARCHITECTURE-
+        // CONDENSED 5.1): when no explicit --target overrides it, resolve
+        // it against the repo root and REJECT a target that escapes it —
+        // the supervisor's verifier runs the gate in this directory.
+        // The operator's explicit --target stays trusted as-is.
+        let vt = if let Some(t) = input.target {
+            t.to_string_lossy().into_owned()
+        } else {
+            let declared = run
+                .verify_target
+                .unwrap_or_else(|| input.workdir.to_string_lossy().into_owned());
+            mini_agi_core::loopcmd::resolve_target(input.root, &declared)?
+                .to_string_lossy()
+                .into_owned()
+        };
         let spec_text = format!(
             "# SLICE SPEC (supervised)\n\n- goal: {}\n- scope: {}\n- verify_command: {vc} in {vt}\n",
             run.goal,
@@ -657,4 +666,80 @@ fn run_review_pass(args: &SupervisorArgs<'_>) -> Result<String, String> {
     )
     .map_err(|e| format!("review pass not available: {e}"))?;
     Ok(review.output)
+}
+
+#[cfg(test)]
+mod resolve_tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-sup-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("evals/cases/zz-case")).unwrap();
+        root
+    }
+
+    fn write_case(root: &std::path::Path, target: &str) {
+        let run = serde_json::json!({
+            "goal": "g", "scope": [], "outcome": {"achieved": false},
+            "trajectory": [],
+            "verify_command": "true",
+            "verify_target": target,
+        });
+        fs::write(
+            root.join("evals/cases/zz-case/run.json"),
+            serde_json::to_string(&run).unwrap(),
+        )
+        .unwrap();
+    }
+
+    fn input(root: &std::path::Path) -> ResolveInput<'_> {
+        ResolveInput {
+            goal_or_case: "zz-case",
+            root,
+            workdir: root,
+            verify: None,
+            target: None,
+        }
+    }
+
+    #[test]
+    fn resolve_rejects_a_case_verify_target_outside_the_root() {
+        let root = tmp_root("out");
+        write_case(&root, "/etc");
+        let err = resolve(&input(&root)).unwrap_err();
+        assert!(
+            err.contains("outside"),
+            "an untrusted case verify_target that escapes the root is rejected: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolve_accepts_a_relative_verify_target_inside_the_root() {
+        let root = tmp_root("in");
+        fs::create_dir_all(root.join("crates/x")).unwrap();
+        write_case(&root, "crates/x");
+        let spec = resolve(&input(&root)).unwrap();
+        assert!(
+            spec.target.is_absolute() && spec.target.starts_with(&root),
+            "relative target resolves inside the root: {:?}",
+            spec.target
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolve_keeps_an_explicit_operator_target_unresolved() {
+        let root = tmp_root("opt");
+        write_case(&root, "this-is-overridden");
+        let spec = resolve(&ResolveInput {
+            target: Some(std::path::Path::new("/etc")),
+            ..input(&root)
+        })
+        .unwrap();
+        assert_eq!(spec.target, std::path::PathBuf::from("/etc"));
+        let _ = fs::remove_dir_all(&root);
+    }
 }

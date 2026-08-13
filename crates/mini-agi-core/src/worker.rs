@@ -47,6 +47,16 @@ const FLASH_IN_PER_1M: f64 = 0.14;
 /// Captured worker output cap in bytes (ARCHITECTURE-CONDENSED 5.2): a
 /// runaway command cannot flood the caller.
 const MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
+
+/// Unique per-invocation token so concurrent runs in the SAME cwd never
+/// share the `.worker-*.out/.err` temp files (a pid-only suffix collides:
+/// `File::create` truncates and the runs corrupt each other's captured
+/// output).
+static RUN_TOKEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn worker_token() -> u64 {
+    RUN_TOKEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
 const FLASH_OUT_PER_1M: f64 = 0.28;
 
 /// Rate-card estimate for a token volume (fractional M-tokens).
@@ -150,8 +160,9 @@ pub fn run_capped_idle(
     max_idle_seconds: Option<u64>,
 ) -> io::Result<WorkerResult> {
     let start = Instant::now();
-    let stdout_path = cwd.join(format!(".worker-{}.out", std::process::id()));
-    let stderr_path = cwd.join(format!(".worker-{}.err", std::process::id()));
+    let token = worker_token();
+    let stdout_path = cwd.join(format!(".worker-{}-{token}.out", std::process::id()));
+    let stderr_path = cwd.join(format!(".worker-{}-{token}.err", std::process::id()));
     let stdout_file = File::create(&stdout_path)?;
     let stderr_file = File::create(&stderr_path)?;
     let mut child = Command::new(command)
@@ -432,6 +443,61 @@ mod idle_timeout_tests {
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         root
+    }
+
+    #[test]
+    fn concurrent_runs_in_one_cwd_keep_distinct_output() {
+        // Two capped runs in the SAME cwd must not corrupt each other's
+        // captured output. A pid-only temp suffix collides (File::create
+        // truncates the sibling's file); the unique token fixes it.
+        let root = tmp_root("conc");
+        let a = std::thread::spawn({
+            let root = root.clone();
+            move || {
+                run_capped(
+                    "sh",
+                    &["-c", "echo AAA; sleep 0.2; echo A2"],
+                    &root,
+                    Some(5),
+                )
+            }
+        });
+        let b = std::thread::spawn({
+            let root = root.clone();
+            move || {
+                run_capped(
+                    "sh",
+                    &["-c", "echo BBB; sleep 0.2; echo B2"],
+                    &root,
+                    Some(5),
+                )
+            }
+        });
+        let a = a.join().unwrap().unwrap();
+        let b = b.join().unwrap().unwrap();
+        assert!(
+            a.output.contains("AAA"),
+            "A keeps its own output: {:?}",
+            a.output
+        );
+        assert!(
+            !a.output.contains("BBB"),
+            "A must not see B's output: {:?}",
+            a.output
+        );
+        assert!(
+            b.output.contains("BBB"),
+            "B keeps its own output: {:?}",
+            b.output
+        );
+        assert!(
+            !b.output.contains("AAA"),
+            "B must not see A's output: {:?}",
+            b.output
+        );
+        assert_eq!(a.status, Some(0));
+        assert_eq!(b.status, Some(0));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
