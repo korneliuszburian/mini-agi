@@ -96,6 +96,15 @@ pub fn list_tickets(root: &Path) -> Result<Vec<Ticket>, TicketError> {
     Ok(tickets)
 }
 
+/// True when `id`'s remainder (past the numeric prefix) is path-safe:
+/// only alphanumerics and dashes — no `/`, `\\`, `.`, `:`, or `..`
+/// (a caller-supplied suffixed id must never escape `tickets/`).
+fn id_suffix_is_path_safe(id: &str, prefix_len: usize) -> bool {
+    id[prefix_len..]
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
 /// Load one ticket by id (`TICKET-7` or `7`), searching `tickets/`.
 ///
 /// # Errors
@@ -117,6 +126,14 @@ pub fn find_ticket(root: &Path, id: &str) -> Result<Ticket, TicketError> {
         )));
     }
     let dir = tickets_dir(root);
+    // Path-safe suffix: a caller-supplied id (`TICKET-1-/../../x.md`)
+    // must never escape `tickets/` via the join below.
+    if !id_suffix_is_path_safe(digits, prefix.len()) {
+        return Err(TicketError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("invalid ticket id '{id}': suffix must be path-safe"),
+        )));
+    }
     // Prefer the EXACT id: `TICKET-006-v2` must resolve `TICKET-006-v2.md`
     // first — resolving `TICKET-006.md` when both exist would alias to the
     // wrong ticket (claim/close/graph disagree on identity). The plain
@@ -766,6 +783,12 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
     // id must update `TICKET-006-v2.md`, never a plain twin that happens
     // to exist — the close transaction would otherwise mark the wrong
     // ticket while the claimed one stays OPEN.
+    if !id_suffix_is_path_safe(digits, prefix.len()) {
+        return Err(TicketError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("invalid ticket id '{id}': suffix must be path-safe"),
+        )));
+    }
     let suffix = digits[prefix.len()..].trim_start_matches('-');
     let exact = if suffix.is_empty() {
         None

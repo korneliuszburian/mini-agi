@@ -37,6 +37,12 @@ const CREDENTIAL_KEYS: [&str; 14] = [
 /// (`mycredstuff`, `tokens_total` stay untouched). Hyphens and underscores
 /// are treated as equivalent joins, so `X-Api-Key` matches `api_key`.
 fn is_credential_key(token: &str) -> bool {
+    // The sshpass password flag as a bare key (`-p`, `p`) is a credential
+    // key — this catches the JSON form `{"-p": "secret"}` whose value the
+    // flag scanner (correctly) no longer touches.
+    if token == "p" || token == "-p" {
+        return true;
+    }
     let norm = token.replace('-', "_");
     CREDENTIAL_KEYS.iter().any(|k| token_contains_key(&norm, k))
 }
@@ -238,15 +244,45 @@ fn redact_flag_values(text: &str) -> String {
     let mut rest = text;
     while let Some(pos) = rest.find("-p") {
         let after = pos + 2;
+        // Left boundary: shell-command context only. `"` is EXCLUDED — a
+        // `-p` preceded by a quote is inside a JSON/array string
+        // (`{"-p": "secret"}`, `["-p","secret"]`), i.e. a key, not the
+        // sshpass flag (the real value would otherwise leak). The shell
+        // metachar set (`;|&(<`) is INCLUDED — `echo x;-p=secret` is a
+        // one-liner the deny-by-default contract must cover.
         let left_ok = pos == 0
             || rest[..pos].chars().next_back().is_some_and(|c| {
-                c.is_whitespace() || c == '=' || c == '"' || c == '\'' || c == '`'
+                c.is_whitespace()
+                    || c == '='
+                    || c == '\''
+                    || c == '`'
+                    || c == ';'
+                    || c == '|'
+                    || c == '&'
+                    || c == '('
+                    || c == '<'
             });
         let right_ok = rest.as_bytes().get(after).is_none_or(|b| {
             let c = char::from(*b);
             c.is_whitespace() || c == '=' || c == ':' || c == '"' || c == '\''
         });
         if !left_ok {
+            // JSON ARRAY element `["-p","secret"]`: the quote before `-p`
+            // closes the element string, and the element's VALUE is the
+            // next array element. Left_ok fails on the quote, so handle
+            // it here: consume the key element and redact the value.
+            if rest[..pos].ends_with('"')
+                && let Some(close) = rest[after..].find('"')
+                && let Some(vtail) = rest[after + close + 1..].strip_prefix(',')
+                && let Some(vlen) = quoted_value_len(vtail.trim_start())
+            {
+                let vskip = vtail.len() - vtail.trim_start().len();
+                out.push_str(&rest[..pos]);
+                out.push_str("-p");
+                out.push_str(REDACTED);
+                rest = &rest[after + close + 1 + 1 + vskip + vlen..];
+                continue;
+            }
             // Not the `-p` flag token (e.g. the middle of `--password`).
             out.push_str(&rest[..after]);
             rest = &rest[after..];
@@ -517,6 +553,38 @@ mod redact_tests {
             "escaped-quote -p value tail leaked: {out}"
         );
         assert!(out.contains(REDACTED), "{out}");
+    }
+
+    #[test]
+    fn json_array_password_forms_are_redacted() {
+        for input in [
+            r#"{"-p": "hunter2secret"}"#,
+            r#"["-p","hunter2secret"]"#,
+            r#"{"args":["-p","hunter2secret"]}"#,
+        ] {
+            let out = redact(input);
+            assert!(
+                !out.contains("hunter2secret"),
+                "JSON -p value leaked: {out}"
+            );
+            assert!(out.contains(REDACTED), "{out}");
+        }
+    }
+
+    #[test]
+    fn shell_metachar_joined_flags_are_redacted() {
+        for input in [
+            "echo x;-p=hunter2secret",
+            "echo x|-p=hunter2secret",
+            "echo x&-p=hunter2secret",
+        ] {
+            let out = redact(input);
+            assert!(
+                !out.contains("hunter2secret"),
+                "metachar-joined -p leaked: {out}"
+            );
+            assert!(out.contains(REDACTED), "{out}");
+        }
     }
 
     #[test]

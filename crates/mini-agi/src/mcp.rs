@@ -351,8 +351,9 @@ fn contained_path(root: &Path, declared: &str) -> String {
     };
     let root_canon = root.canonicalize().unwrap_or_default();
     // Return the CANONICAL path (like loopcmd::resolve_target): the
-    // caller must open THIS, never the raw string — a component swapped
-    // to a symlink between canonicalize and open would escape the root.
+    // caller opens THIS, never the raw string. This narrows the symlink-
+    // swap window to a concurrent local writer racing the kernel — it is
+    // defense-in-depth, not a closed TOCTOU.
     match candidate.canonicalize() {
         Ok(c) if !root_canon.as_os_str().is_empty() && c.starts_with(&root_canon) => {
             c.to_string_lossy().into_owned()

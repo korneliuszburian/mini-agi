@@ -994,9 +994,10 @@ pub fn signoff(
     if !queue.exists() {
         return Err(MemoryError::BadSignoff);
     }
-    // Read the CANONICAL path (not the raw caller string): a component
-    // swapped to a symlink between containment and read must not redirect
-    // the read outside memory/review.
+    // Read the CANONICAL path (not the raw caller string): this NARROWS
+    // the symlink-swap window between containment and read to a
+    // concurrent local writer racing the kernel (not a remote-caller
+    // escape) — it does not fully close the TOCTOU.
     let blocks = queued_facts(&queue_canon);
     let Some((digest, fact)) = blocks.get(index - 1).cloned() else {
         return Err(MemoryError::IndexNotFound);

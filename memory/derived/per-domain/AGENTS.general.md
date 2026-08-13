@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 5df5e8e9116de502
-# canonical_entries: 122
+# canonical_sha256: 790b099fcb9627e2
+# canonical_entries: 123
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -996,3 +996,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `c326676d2dfb941e` cycle 22 (2026-08-13): ninth deepseek-v4-pro whole-repo review (repo-health-8) — 9 findings, 8 fixed: path-safe ticket ids (traversal sink), dream supersede dry-run guard, exact-file status writes, unterminated PEM redaction, codex.log append, mark_state release logging, real --approve for CLI codex, supervisor ad-hoc goals; lock-drop TOCTOU documented. 100 tests green.
 - `ee594eb9689c9882` cycle 23 (2026-08-13): tenth deepseek-v4-pro whole-repo review (repo-health-9) found 4 defects, all fixed — create_case_ticket re-checks under lock (no duplicate tickets), supervisor passes routed through the worker-kind adapter, unique atomic-write tmp names, PEM tail dedup. 101 tests green.
 - `6fbc7879f28ff8b5` cycle 24 (2026-08-13): eleventh deepseek-v4-pro whole-repo review (repo-health-10) — 5 findings + 3 minor, all fixed: lock post-rename staleness verify, read_ledger fail-closed on corrupt, escape-aware JSON header redaction, dedicated harness lock, canonical-path signoff read, supersede count, skills local-path. 102 tests green.
+- `e15e060fee3c3af1` cycle 25 (2026-08-13): twelfth deepseek-v4-pro whole-repo review (repo-health-11) found 5 defects, all fixed — escape-aware -p flag redaction, supersede stored-body hash, flattened digest in the review queue, harness swap restore, corrupt-ledger fail-closed in state writers. 104 tests green.
