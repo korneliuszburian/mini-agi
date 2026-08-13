@@ -624,7 +624,8 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
              (P0-3 no-dispatch-without-verifier)",
         );
     };
-    let Some(target) = target.map(str::to_owned).or_else(|| {
+    let target_from_spec = target.is_none();
+    let Some(mut target) = target.map(str::to_owned).or_else(|| {
         spec_text
             .lines()
             .find_map(|l| l.strip_prefix("- verify_command: "))
@@ -636,6 +637,18 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
              (P0-3 no-dispatch-without-verifier)",
         );
     };
+    // A SPEC-declared `verify_target` is untrusted data (it comes from a
+    // case's run.json): resolve it against the repo root and REJECT a
+    // target that escapes it — the verifier runs the gate in this
+    // directory. The operator's explicit --target stays trusted as-is
+    // (ARCHITECTURE-CONDENSED 5.1, supervisor::resolve parity).
+    if target_from_spec {
+        let resolved = match mini_agi_core::loopcmd::resolve_target(&crate::root(), &target) {
+            Ok(p) => p,
+            Err(e) => return fail(&e),
+        };
+        target = resolved.to_string_lossy().into_owned();
+    }
     std::fs::create_dir_all(workdir).unwrap_or(());
     let goal = spec_text
         .lines()
