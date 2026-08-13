@@ -691,17 +691,17 @@ pub fn verify_skill(skill: &Skill, cwd: &Path) -> Result<VerifyResult, SkillErro
     let Some(cmd) = skill.verify.as_deref() else {
         return Err(SkillError::NoVerifyHook(skill.name.clone()));
     };
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(cmd)
-        .current_dir(cwd)
-        .output()
-        .map_err(|e| SkillError::VerifyFailed(format!("{}: {e}", skill.name)))?;
+    let res = crate::worker::run_capped(
+        "sh",
+        &["-c", cmd],
+        cwd,
+        Some(crate::loopcmd::GATE_WALL_CAP_SECS),
+    )
+    .map_err(|e| SkillError::VerifyFailed(format!("{}: {e}", skill.name)))?;
     Ok(VerifyResult {
-        passed: output.status.success(),
-        output: String::from_utf8_lossy(&output.stdout).into_owned()
-            + &String::from_utf8_lossy(&output.stderr),
-        exit_code: output.status.code(),
+        passed: res.status == Some(0) && !res.aborted,
+        output: res.output,
+        exit_code: res.status,
     })
 }
 
@@ -947,4 +947,41 @@ fn copy_dir(src: &Path, dest: &Path) -> Result<(), SkillError> {
 fn hash_tail(s: &str) -> String {
     let h = crate::hash::source_sha256(s);
     h[..12].to_string()
+}
+
+#[cfg(test)]
+mod verify_tests {
+    use super::*;
+
+    fn skill_with_verify(name: &str, cmd: &str) -> Skill {
+        Skill {
+            name: name.to_string(),
+            description: String::new(),
+            verify: Some(cmd.to_string()),
+            disable_model_invocation: false,
+            argument_hint: None,
+            sandbox: None,
+            disabled: false,
+            path: std::path::PathBuf::new(),
+            version: None,
+            source: None,
+            kind: "procedural".to_string(),
+        }
+    }
+
+    #[test]
+    fn skill_verify_output_is_capped_at_8_mib() {
+        let root = std::env::temp_dir().join(format!("mag-skillcap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let skill = skill_with_verify("loud", "head -c 10000000 /dev/zero | tr '\\0' x");
+        let res = verify_skill(&skill, &root).unwrap();
+        assert!(res.passed, "exit status is still 0");
+        assert!(
+            res.output.len() <= 8 * 1024 * 1024,
+            "runaway hook output is capped: {} bytes",
+            res.output.len()
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

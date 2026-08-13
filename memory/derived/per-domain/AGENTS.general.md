@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: cf61bdcf9b3e475b
-# canonical_entries: 109
+# canonical_sha256: 3c6d09952168b8f1
+# canonical_entries: 110
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -983,3 +983,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `bf5f3fcf8ef52d8a` cycle 8 (2026-08-12): E2E probes green — loop dispatch->verify closes the evals/ledger/<case>.json row per schema; verify_target outside root rejected E2E; MCP stdio initialize/tools/list framing works. No defects found; 3 consecutive defect-free cycles after the final MUST-FIX.
 - `749c6d3a5baf7b9e` cycle 9 (2026-08-12): independent fresh-session review of b52ca58..570318b found 4 defects now fixed — numbered-rerun base extraction (close BASE ledger row, never the rerun dir), status consults ledger for terminal states, set_ticket_status traversal guard, lock_claims parent dir. 72 tests green.
 - `f1a7d3d4eab744b8` cycle 10 (2026-08-12): hardening round 2 — concurrent run_capped temp-file collision fixed (unique token); supervisor resolve() routes untrusted case verify_target through resolve_target (the loop run verifier seam MUST-FIX 5 missed); explicit operator --target stays trusted. 76 tests green.
+- `3d2c793520105f8d` cycle 11-12 (2026-08-12): loop codex spec target resolved via resolve_target (3rd verifier seam); max_rerun_attempts enforced at dispatch — GapState::Exhausted now written (was dead), pick_target/objective skip over-bound cases. 78 tests green.
