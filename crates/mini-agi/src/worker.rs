@@ -395,11 +395,10 @@ pub fn run_verified_iteration(
         } else {
             false
         };
-        let idle_cap = input.max_idle.or_else(|| {
-            mini_agi_core::config::Config::load_checked(input.workdir)
-                .ok()
-                .and_then(|c| c.max_idle_seconds)
-        });
+        let idle_cap = match input.max_idle {
+            Some(v) => Some(v),
+            None => mini_agi_core::config::Config::load_checked(input.workdir)?.max_idle_seconds,
+        };
         // Session resume (AFK v2): ownership via the marker — the
         // worker's session is the one containing OUR marker.
         // The marker scan reads codex's own session tree; opencode keeps

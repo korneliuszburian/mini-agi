@@ -546,6 +546,7 @@ fn cmd_loop(args: LoopArgs) -> ExitCode {
 }
 
 fn cmd_dream(args: &DreamArgs) -> ExitCode {
+    use std::fmt::Write as _;
     let root = root();
     if let Some(manifest) = &args.promote {
         if args.approve.is_none() {
@@ -588,9 +589,33 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
                 Err(e) => return fail(&format!("dream: {e}")),
             };
             let staged = mini_agi_core::dream::parse_distilled_facts(&text);
+            // ADR-0010 D2 (parity with the MCP dream tool): enforcement-
+            // bound facts ALWAYS route to the human queue, never straight
+            // into canonical — even with --approve.
             let mut buffer = String::new();
+            let mut queued = 0usize;
             for f in &staged {
-                use std::fmt::Write as _;
+                if f.body.contains("enforced_by") {
+                    let h = mini_agi_core::hash::fact_id(&f.body);
+                    let q = root.join("memory/review").join(format!(
+                        "contested-{}.md",
+                        mini_agi_core::memory::utc_now_date()
+                    ));
+                    let already = mini_agi_core::memory::queued_facts(&q)
+                        .iter()
+                        .any(|(d, _)| *d == h);
+                    if !already {
+                        let _ = mini_agi_core::memory::append_contested(
+                            &root,
+                            &f.body,
+                            &h,
+                            source,
+                            "0000000000000000",
+                        );
+                    }
+                    queued += 1;
+                    continue;
+                }
                 let _ = writeln!(buffer, "- {}", f.body);
             }
             let opts = mini_agi_core::memory::ConsolidateOptions {
@@ -600,7 +625,10 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
             };
             match mini_agi_core::memory::consolidate(&root, &buffer, source, &opts) {
                 Ok(out) => {
-                    println!("dream: {} facts distilled into canonical", out.new_facts);
+                    println!(
+                        "dream: {} facts distilled into canonical ({} enforcement-bound queued for human review)",
+                        out.new_facts, queued
+                    );
                     ExitCode::SUCCESS
                 }
                 Err(e) => fail(&format!("dream: {e}")),

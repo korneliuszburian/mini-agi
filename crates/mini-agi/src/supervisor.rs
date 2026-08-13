@@ -591,10 +591,18 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
         // worker's context/transcript.
         let vc_r = mini_agi_core::redact::redact(vc);
         let vt_redacted = mini_agi_core::redact::redact(&vt);
+        // Flatten goal + scope: this spec is executable — an injected
+        // `\n- verify_command: ...` line in untrusted run data must not
+        // become the gate the worker runs.
+        let goal_flat = run.goal.split_whitespace().collect::<Vec<_>>().join(" ");
+        let scope_flat = run
+            .scope
+            .join(", ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
         let spec_text = format!(
-            "# SLICE SPEC (supervised)\n\n- goal: {}\n- scope: {}\n- verify_command: {vc_r}\n- verify_target: {vt_redacted}\n",
-            run.goal,
-            run.scope.join(", ")
+            "# SLICE SPEC (supervised)\n\n- goal: {goal_flat}\n- scope: {scope_flat}\n- verify_command: {vc_r}\n- verify_target: {vt_redacted}\n",
         );
         Ok(ResolvedSpec {
             spec_text,

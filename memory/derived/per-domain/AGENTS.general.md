@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 3a5e9e8fe5e1355e
-# canonical_entries: 130
+# canonical_sha256: 51b38b96d3d65647
+# canonical_entries: 131
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -1004,3 +1004,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `0ac3897bbb6424ef` cycle 30 (2026-08-13): seventeenth deepseek-v4-pro whole-repo review (repo-health-16) found 5 defects, all fixed — comma flag-tail, verify achieved re-read, queue payload header-escape, verdicts existing_id validation, spawn cleanup + future-mtime. 110 tests green.
 - `a0960535620a25e4` cycle 31 (2026-08-13): eighteenth deepseek-v4-pro whole-repo review (repo-health-17) found 6 defects, all fixed — dispatch corrupt-ledger rollback, trimmed queue digest, executable spec gate, live-lock preservation, exhaustion note + actions.log, dream promote wiring. 111 tests green.
 - `ec457caf3ac18b9b` cycle 32 (2026-08-13): nineteenth deepseek-v4-pro whole-repo review (repo-health-18) — 4 fixed (id left boundary, fail-closed achieved re-read, idle-cap fail-closed, try_wait cleanup), 1 documented (harness SIGKILL), 1 rejected with evidence (retry bound = doc semantics). 112 tests green.
+- `3e8509adcb29cc04` cycle 33 (2026-08-13): twentieth deepseek-v4-pro whole-repo review (repo-health-19) — 3 fixed (dream supersede known-id, ticket-note exact file, capped on-done hook), 2 documented residuals (signoff lock, lock-drop TOCTOU), 1 flagged (Landlock read design). 112 tests green.

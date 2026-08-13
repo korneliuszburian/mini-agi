@@ -638,8 +638,13 @@ pub fn apply_verdicts(
             "duplicate" => {
                 // A second verdict for the SAME body must not write the
                 // same id twice — the id was already marked known by an
-                // earlier duplicate/promote verdict.
-                if known.contains(&h) {
+                // earlier duplicate/promote verdict. Check BOTH the raw
+                // and the FLATTENED hash: whitespace variants flatten to
+                // the same stored body/id.
+                let flat_h = crate::hash::fact_id(
+                    &fact.body.split_whitespace().collect::<Vec<_>>().join(" "),
+                );
+                if known.contains(&h) || known.contains(&flat_h) {
                     skipped += 1;
                     continue;
                 }

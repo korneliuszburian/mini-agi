@@ -51,6 +51,11 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
         if passed { "green" } else { "red" }
     );
     let ledger = dir.join("ledger.md");
+    // Serialize the read-modify-write under the harness lock and write
+    // atomically (temp + rename): two concurrent snapshots must not lose
+    // a row, and a crash mid-write must not truncate the ledger.
+    let _lock = crate::ticket::lock_file(&root.join("tickets/.harness.lock"), HARNESS_STALE_SECS)
+        .map_err(io::Error::other)?;
     let header = "| rev | date | spec | gate |\n| --- | --- | --- | --- |\n";
     let existing = fs::read_to_string(&ledger).unwrap_or_default();
     let body = if existing.contains("| rev |") {
@@ -68,7 +73,14 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
         "| {rev} | {} | {name} | {gate} |\n",
         crate::memory::utc_now_date(),
     );
-    fs::write(&ledger, format!("{body}{row}"))?;
+    let tmp = crate::ticket::tmp_unique(&ledger, "harness");
+    let content = format!("{body}{row}");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, content.as_bytes()))?;
+    fs::rename(&tmp, &ledger)?;
     Ok((name, format!("gate: {gate}")))
 }
 

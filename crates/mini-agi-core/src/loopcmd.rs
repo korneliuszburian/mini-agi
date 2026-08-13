@@ -492,6 +492,12 @@ pub fn status(root: &Path) -> Result<LoopStatus, io::Error> {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
+        // Rerun dirs are attempt artifacts, not gaps — they close the
+        // BASE and never own a ledger row (parity with pick_target /
+        // objective).
+        if is_rerun_case(&case) {
+            continue;
+        }
         let run = read_run(&dir);
         let open = run.is_none_or(|r| !r.achieved());
         if !open {
@@ -884,7 +890,11 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
     let path = spec_dir.join("spec.md");
     let mut body = format!("# SLICE SPEC — {ticket_id} (case: {case})\n\n");
     body.push_str("- source: `mini-agi loop dispatch` (condensed)\n");
-    let _ = writeln!(body, "- goal: {}", run.goal);
+    // Flatten the goal: this file is EXECUTABLE and the worker parses the
+    // FIRST `- verify_command:` line — a goal containing an injected
+    // `\n- verify_command: true` would replace the declared gate.
+    let goal_flat = run.goal.split_whitespace().collect::<Vec<_>>().join(" ");
+    let _ = writeln!(body, "- goal: {goal_flat}");
     // The spec is EXECUTABLE: `mini-agi codex <spec>` parses and runs
     // these. Redacting them would execute a MUTATED gate (diverging from
     // the run.json executable copy). Display surfaces (loop verify output,
