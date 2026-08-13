@@ -434,10 +434,17 @@ fn id_matches_case(id: &str, case_lower: &str) -> bool {
     };
     let needle = format!("ticket-{rest}");
     case_lower.match_indices(&needle).any(|(pos, _)| {
-        case_lower[pos + needle.len()..]
+        // LEFT boundary too (parity with mentions_case): `xyticket-7`
+        // must not alias to TICKET-7.
+        let before_ok = case_lower[..pos]
             .chars()
-            .next()
-            .is_none_or(|c| !c.is_ascii_digit())
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric());
+        before_ok
+            && case_lower[pos + needle.len()..]
+                .chars()
+                .next()
+                .is_none_or(|c| !c.is_ascii_digit())
     })
 }
 
@@ -1024,8 +1031,10 @@ pub fn verify(
     // rewritten the rerun dir's run.json (achieved true->false). Closing
     // on the STALE pre-gate value would stamp closed_by/verified_at on a
     // run the disk no longer reports as achieved.
-    let achieved_now = read_run(&root.join("evals/cases").join(case))
-        .map_or_else(|| run.achieved(), |r| r.achieved());
+    // FAIL-CLOSED: an unreadable closing run.json during the gate means
+    // the disk no longer reports the run — do NOT fall back to the stale
+    // pre-gate value (the close would stamp evidence the disk lacks).
+    let achieved_now = read_run(&root.join("evals/cases").join(case)).is_some_and(|r| r.achieved());
     let closed = achieved_now && passed;
     if closed {
         // Atomic close under the claims lock: ledger (state=closed,
@@ -1431,6 +1440,12 @@ mod loop_tests {
             "verify refuses to run a gate in an outside target: {err}"
         );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn id_matches_case_requires_a_left_boundary() {
+        assert!(id_matches_case("TICKET-7", "xyticket-7") == false, "mid-word ticket reference must not alias");
+        assert!(id_matches_case("TICKET-7", "gap-ticket-7"), "a bounded ticket-7 reference matches");
     }
 
     #[test]

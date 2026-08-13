@@ -227,8 +227,18 @@ pub fn run_capped_idle(
         let mut last_activity = start;
         let mut last_mtime = newest_mtime(&[out_path, err_path]);
         loop {
-            if child.try_wait()?.is_some() {
-                break;
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => {}
+                Err(e) => {
+                    // try_wait failed: kill the tree + clean the temp
+                    // files rather than leaking a live child and stray
+                    // `.worker-*.out/.err`.
+                    kill_tree(&mut child);
+                    let _ = fs::remove_file(&stdout_path);
+                    let _ = fs::remove_file(&stderr_path);
+                    return Err(e);
+                }
             }
             let now = Instant::now();
             if deadline.is_some_and(|d| now >= d) {
