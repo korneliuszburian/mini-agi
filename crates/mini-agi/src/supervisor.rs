@@ -628,9 +628,15 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
         let vt = input.target.unwrap_or(input.workdir);
         let vc_r = mini_agi_core::redact::redact(vc);
         let vt_redacted = mini_agi_core::redact::redact(&vt.to_string_lossy());
+        // Flatten the ad-hoc goal too (parity with the case branch): an
+        // injected `\n- verify_command:` line must not reach the spec.
+        let goal_flat = input
+            .goal_or_case
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
         let spec_text = format!(
-            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {}\n- scope: (none declared)\n- verify_command: {vc_r}\n- verify_target: {vt_redacted}\n",
-            input.goal_or_case
+            "# SLICE SPEC (ad-hoc, supervised)\n\n- goal: {goal_flat}\n- scope: (none declared)\n- verify_command: {vc_r}\n- verify_target: {vt_redacted}\n",
         );
         Ok(ResolvedSpec {
             spec_text,

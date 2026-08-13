@@ -98,19 +98,28 @@ pub fn extract_candidates(text: &str) -> Vec<String> {
     let mut facts = Vec::new();
     for line in text.lines() {
         let trimmed = line.trim();
-        if trimmed.to_ascii_lowercase().starts_with("fact:") {
-            let payload = trimmed["fact:".len()..].trim();
-            if !payload.is_empty() {
-                facts.push(payload.to_string());
-            }
+        let payload = if trimmed.to_ascii_lowercase().starts_with("fact:") {
+            Some(trimmed["fact:".len()..].trim().to_string())
         } else if let Some(payload) = trimmed
             .strip_prefix('-')
             .or_else(|| trimmed.strip_prefix('*'))
         {
             let payload = payload.trim();
-            if payload.len() >= 8 {
-                facts.push(payload.to_string());
+            (payload.len() >= 8).then(|| payload.to_string())
+        } else {
+            None
+        };
+        if let Some(mut payload) = payload {
+            if payload.is_empty() {
+                continue;
             }
+            // Header-shape escape: a body equal to `## F-000 \`<16hex>\``
+            // would be mis-parsed as a NEW fact header (phantom fact +
+            // forged id) — prefix a space so it stays a body.
+            if payload.starts_with("## F-") {
+                payload = format!(" {payload}");
+            }
+            facts.push(payload);
         }
     }
     facts
@@ -750,6 +759,7 @@ pub fn write_canonical_entry(
         "- date: {stamp}\n- source: {source}\n- domain: {domain}\n- kind: {kind}"
     );
     for (i, (fact, digest)) in facts.iter().enumerate() {
+        let (fact, digest) = canonical_body(fact, digest);
         let _ = writeln!(content, "\n## F-{i:03} `{digest}`\n\n{fact}");
     }
     // TOCTOU guard: next_entry is scan-then-write; a concurrent writer
@@ -794,6 +804,20 @@ pub fn write_canonical_entry(
 #[must_use]
 pub fn fact_digest_stored(body: &str) -> String {
     fact_id(body.replace('\n', " ").trim())
+}
+
+/// Defensive header-escape for a canonical fact BODY: a body equal to
+/// `## F-<n>` + backticked 16-hex would be re-parsed as a new header
+/// (phantom fact + forged id). Prefix a space and RECOMPUTE the id so
+/// "id = sha256[:16] of the stored body" still holds.
+fn canonical_body(fact: &str, digest: &str) -> (String, String) {
+    if fact.starts_with("## F-") {
+        let body = format!(" {fact}");
+        let id = fact_id(&body);
+        (body, id)
+    } else {
+        (fact.to_string(), digest.to_string())
+    }
 }
 
 /// Append one contested fact to the review queue (`PoC` `append_contested`).

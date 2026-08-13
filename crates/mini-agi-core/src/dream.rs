@@ -583,16 +583,20 @@ pub fn apply_verdicts(
                     let already = crate::memory::queued_facts(&queue)
                         .iter()
                         .any(|(d, _)| *d == stored_h);
-                    if !already && !dry_run {
-                        crate::memory::append_contested(
-                            root,
-                            &fact.body,
-                            &h,
-                            source,
-                            "0000000000000000",
-                        )?;
+                    if already {
+                        skipped += 1;
+                    } else {
+                        if !dry_run {
+                            crate::memory::append_contested(
+                                root,
+                                &fact.body,
+                                &h,
+                                source,
+                                "0000000000000000",
+                            )?;
+                        }
+                        queued += 1;
                     }
-                    queued += 1;
                     continue;
                 }
                 // Preserved-fact collision (ADR-0010 D3): compare against
@@ -643,10 +647,14 @@ pub fn apply_verdicts(
                 let already = crate::memory::queued_facts(&queue)
                     .iter()
                     .any(|(d, _)| *d == stored_h);
-                if !already && !dry_run {
-                    crate::memory::append_contested(root, &fact.body, &h, source, &existing)?;
+                if already {
+                    skipped += 1;
+                } else {
+                    if !dry_run {
+                        crate::memory::append_contested(root, &fact.body, &h, source, &existing)?;
+                    }
+                    queued += 1;
                 }
-                queued += 1;
             }
             "duplicate" => {
                 // A second verdict for the SAME body must not write the

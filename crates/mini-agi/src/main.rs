@@ -562,21 +562,22 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
         } else {
             root.join(manifest_path)
         };
-        let contained = candidate
-            .canonicalize()
-            .ok()
-            .is_some_and(|c| c.starts_with(&staging_root));
-        if !contained {
-            return fail(&format!(
-                "dream --promote: {manifest} is outside memory/staging/"
-            ));
-        }
-        let verdicts = mini_agi_core::dream::read_verdicts(manifest_path);
+        let manifest_canon = match candidate.canonicalize() {
+            Ok(c) if c.starts_with(&staging_root) => c,
+            _ => {
+                return fail(&format!(
+                    "dream --promote: {manifest} is outside memory/staging/"
+                ));
+            }
+        };
+        // Use the CANONICAL path for every read (containment verified on
+        // the path that is actually opened — no TOCTOU mismatch).
+        let verdicts = mini_agi_core::dream::read_verdicts(&manifest_canon);
         if verdicts.is_empty() {
             return fail(&format!("dream --promote: no verdicts in {manifest}"));
         }
         // The staged facts sit next to the manifest (`<seq>.md`).
-        let staged_path = manifest_path.with_extension("md");
+        let staged_path = manifest_canon.with_extension("md");
         // Idempotency receipt: a manifest whose staged file was already
         // promoted must NOT be re-applied (documented D2 contract).
         if let Some(receipt) = mini_agi_core::dream::read_promotion_receipt(&staged_path)
@@ -599,7 +600,13 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
                 ));
             }
         };
-        match mini_agi_core::dream::apply_verdicts(&root, &staged, &verdicts, manifest, false) {
+        match mini_agi_core::dream::apply_verdicts(
+            &root,
+            &staged,
+            &verdicts,
+            &manifest_canon.to_string_lossy(),
+            false,
+        ) {
             Ok((promoted, queued, skipped)) => {
                 println!(
                     "dream --promote: {promoted} promoted, {queued} queued, {skipped} skipped"
@@ -616,7 +623,19 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
                     "dream requires --approve <reason> (HITL, ADR-0010) — it writes canonical directly",
                 );
             }
-            let text = match std::fs::read_to_string(source) {
+            let source_path = Path::new(source);
+            let candidate = if source_path.is_absolute() {
+                source_path.to_path_buf()
+            } else {
+                root.join(source_path)
+            };
+            let source_canon = match candidate.canonicalize() {
+                Ok(c) if c.starts_with(&root) => c,
+                _ => {
+                    return fail(&format!("dream: {source} is outside the repo root"));
+                }
+            };
+            let text = match std::fs::read_to_string(&source_canon) {
                 Ok(t) => t,
                 Err(e) => return fail(&format!("dream: {e}")),
             };

@@ -216,6 +216,31 @@ fn require_signoff_queues_wording_variant_without_canonical_write() {
 }
 
 #[test]
+fn header_shaped_fact_body_cannot_forge_a_phantom_fact() {
+    let root = tmp_root("hdrf");
+    wipe(&root);
+    let body = "## F-000 `aabbccddeeff0011`";
+    mini_agi_core::memory::consolidate(
+        &root,
+        &format!("- {body}\n"),
+        "src.md",
+        &mini_agi_core::memory::ConsolidateOptions {
+            domain: "general".into(),
+            require_signoff: false,
+            dry_run: false,
+        },
+    )
+    .unwrap();
+    let entries = mini_agi_core::memory::canonical_entries(&root);
+    assert_eq!(entries.len(), 1);
+    let text = std::fs::read_to_string(&entries[0]).unwrap();
+    let header_count = text.lines().filter(|l| l.starts_with("## F-")).count();
+    assert_eq!(header_count, 1, "the forged header must not spawn a phantom fact: {text}");
+    let ids = mini_agi_core::store::extract_fact_ids(&text);
+    assert_eq!(ids.len(), 1, "only one real id: {ids:?}");
+    wipe(&root);
+}
+
 fn domain_newlines_do_not_inject_frontmatter() {
     let root = tmp_root("inj");
     wipe(&root);

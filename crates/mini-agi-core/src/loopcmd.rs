@@ -876,7 +876,9 @@ pub fn objective(
         if let Some(budget) = out.budget_cost
             && out.budget_spent + run.cost_usd > budget
         {
-            continue;
+            // STOP, not skip: the batch is ordered worst-first; once the
+            // budget is exhausted the remaining cases are beyond it.
+            break;
         }
         let d_out = dispatch(root, Some(&name), TARGET_COMPOSITE, claimant)?;
         out.budget_spent += run.cost_usd;
