@@ -244,6 +244,7 @@ fn header_shaped_fact_body_cannot_forge_a_phantom_fact() {
     wipe(&root);
 }
 
+#[test]
 fn domain_newlines_do_not_inject_frontmatter() {
     let root = tmp_root("inj");
     wipe(&root);
