@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: 85583f24844bc03d
-# canonical_entries: 112
+# canonical_sha256: 94743730d4f4898b
+# canonical_entries: 113
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -986,3 +986,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `3d2c793520105f8d` cycle 11-12 (2026-08-12): loop codex spec target resolved via resolve_target (3rd verifier seam); max_rerun_attempts enforced at dispatch — GapState::Exhausted now written (was dead), pick_target/objective skip over-bound cases. 78 tests green.
 - `425820398d0ff3b9` cycle 13 (2026-08-12): skill verify hooks now execute via worker::run_capped (120s cap + 8MiB output truncation) — the last bare Command::output gate execution, parity with loop verify/supervisor/codex. 79 tests green.
 - `89bd153e24e24b9b` cycle 14 (2026-08-13): deepseek-v4-pro external review of the hardening range produced 17 findings; 11 substantive fixes landed — suffix-only rerun base, transactional dispatch (TOCTOU recheck + rollback), fail-closed Config::load_checked, base-gate verify, spec-line split, foreign-claim close refusal, ledger-attempts in status, Unverifiable marking, budget governor, exhaustion claim release. 86 tests green.
+- `487786b79176e569` cycle 15 (2026-08-13): whole-repo deepseek-v4-pro external review produced 14 findings; 13 fixed — redact quoted-value leak (deny-by-default), dream preserved-collision now body-based, CLI dream HITL approve, gate redaction in spec/verify output, harness gate capped + swap errors propagated, supervisor missing-target error, objective half-gate skip, dispatch spec-before-ledger + rollback, verify-fail attempts recorded, docs aligned to real surface, memory preserved id, clifmt clean draft. 89 tests green.
