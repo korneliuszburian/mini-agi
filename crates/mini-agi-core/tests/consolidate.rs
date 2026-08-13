@@ -235,7 +235,10 @@ fn header_shaped_fact_body_cannot_forge_a_phantom_fact() {
     assert_eq!(entries.len(), 1);
     let text = std::fs::read_to_string(&entries[0]).unwrap();
     let header_count = text.lines().filter(|l| l.starts_with("## F-")).count();
-    assert_eq!(header_count, 1, "the forged header must not spawn a phantom fact: {text}");
+    assert_eq!(
+        header_count, 1,
+        "the forged header must not spawn a phantom fact: {text}"
+    );
     let ids = mini_agi_core::store::extract_fact_ids(&text);
     assert_eq!(ids.len(), 1, "only one real id: {ids:?}");
     wipe(&root);
