@@ -657,6 +657,21 @@ pub fn release_ticket_locked(root: &Path, id: &str, claimant: &str) -> Result<()
     Ok(())
 }
 
+/// Unique temp suffix so a crash mid-write cannot leave a stray tmp that
+/// permanently blocks the next write (`create_new` on a fixed tmp name
+/// would fail with `AlreadyExists` forever).
+pub(crate) fn tmp_unique(base: &Path, tag: &str) -> std::path::PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let name = format!(
+        "{}.{tag}.{}.{nanos}.tmp",
+        base.file_name().map_or("x", |s| s.to_str().unwrap_or("x")),
+        std::process::id()
+    );
+    base.with_file_name(name)
+}
+
 fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
     let path = claims_path(root);
     if let Some(parent) = path.parent() {
@@ -674,7 +689,7 @@ fn write_claims(root: &Path, claims: &[Claim]) -> io::Result<()> {
     // truncated registry — every live lease would silently vanish and
     // tickets become double-claimable. Matches the ledger/ticket-status
     // write discipline.
-    let tmp = path.with_extension("md.tmp");
+    let tmp = tmp_unique(&path, "claims");
     std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)

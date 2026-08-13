@@ -96,9 +96,13 @@ fn redact_pem_blocks(text: &str) -> String {
             continue;
         };
         let Some(dashes) = after_begin[until..].find("-----") else {
-            out.push_str(&rest[..start + BEGIN.len()]);
-            out.push_str(after_begin);
-            break;
+            // "PRIVATE KEY" without the closing dashes (a malformed
+            // header) — keep the text and continue past the marker
+            // WITHOUT duplicating the tail.
+            let advance = start + BEGIN.len() + until;
+            out.push_str(&rest[..advance]);
+            rest = &rest[advance..];
+            continue;
         };
         let header_end = start + BEGIN.len() + until + dashes + "-----".len();
         let Some(rel_end) = rest[header_end..].find(END_MARK) else {

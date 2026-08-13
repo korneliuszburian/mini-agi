@@ -351,13 +351,8 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
                 "Independent review of your work found issues — address them now in this session.\n\n{}\nRe-run the verifier when done; it must pass.",
                 verdict.findings
             );
-            let fix_args = vec![
-                "exec",
-                "resume",
-                session,
-                "--skip-git-repo-check",
-                &fix_prompt,
-            ];
+            let kind = worker::worker_kind(args.worker_name);
+            let fix_args = worker::worker_pass_args(&kind, true, Some(session), false, &fix_prompt);
             let wall_cap = args.wall_cap.unwrap_or(600);
             let idle_cap = resolve_idle_cap(args.max_idle, args.workdir);
             let fix = worker::run_worker_sandboxed(
@@ -367,7 +362,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
                 args.read_only,
                 Some(wall_cap),
                 idle_cap,
-                &fix_args,
+                &fix_args.iter().map(String::as_str).collect::<Vec<_>>(),
             );
             let verifier = mini_agi_core::worker::run_capped(
                 "sh",
@@ -662,7 +657,8 @@ fn run_review_pass(args: &SupervisorArgs<'_>) -> Result<String, String> {
         "Read-only adversarial review of the work just produced in this workdir by a supervised worker run (see progress.md and run.json for the goal and attempt chain). Review the working tree: the changes the worker made.\n\nGoal: {}\n\nScore 4 dimensions 0-2 (Correctness, Security, Tests, Scope), total /8: APPROVE >=7, FIX-MINOR 5-6, REWORK <5. Evidence-first: cite file:line or verifier output for EVERY finding. You are READ-ONLY: make NO changes, run NO writes.\n\nEnd with exactly:\nVerdict: APPROVE|FIX-MINOR|REWORK\nscore X/8\nTop findings:\n1. ... (each with file:line + severity)\n",
         args.goal
     );
-    let review_args = vec!["exec", "-s", "read-only", "--skip-git-repo-check", &prompt];
+    let kind = worker::worker_kind(args.worker_name);
+    let review_args = worker::worker_pass_args(&kind, false, None, true, &prompt);
     let idle_cap = resolve_idle_cap(args.max_idle, args.workdir);
     let review = worker::run_worker_sandboxed(
         args.worker_name,
@@ -671,7 +667,7 @@ fn run_review_pass(args: &SupervisorArgs<'_>) -> Result<String, String> {
         true,
         Some(600),
         idle_cap,
-        &review_args,
+        &review_args.iter().map(String::as_str).collect::<Vec<_>>(),
     )
     .map_err(|e| format!("review pass not available: {e}"))?;
     Ok(review.output)

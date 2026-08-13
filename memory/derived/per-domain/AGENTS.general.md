@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: df6818c79f99f9e7
-# canonical_entries: 119
+# canonical_sha256: e0be821c4adcd362
+# canonical_entries: 120
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -993,3 +993,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `9ca3003be60a00e3` cycle 19 (2026-08-13): sixth deepseek-v4-pro whole-repo review (repo-health-5) found 12 defects, all fixed — reverted the r5 gate redaction (run.json holds the executable contract), stranded-lease recovery, create_new temp files, supersede TOCTOU guard, read_claims fail-on-corrupt, bounded MCP framing, loop_verify HITL, exact ticket-id resolution, signoff index required, escape-aware redaction, dispatch_no_work counter, docs aligned. 93 tests green.
 - `60d7d6ed2e6a84a3` cycle 20 (2026-08-13): seventh deepseek-v4-pro whole-repo review (repo-health-6) found 9 defects, all fixed — frontmatter status form-match, Landlock fail-closed, corrupt claims-line hard error, PGP key redaction, lock ownership token, canonical-path MCP reads, locking stranded-lease recovery, dream supersede dedup, idempotent verify. 97 tests green.
 - `65ce018035f73ae0` cycle 21 (2026-08-13): eighth deepseek-v4-pro whole-repo review (repo-health-7) — 9 findings, 8 fixed + 1 documented: max_cost_usd + max_repeated_steps enforcement wired, harness lock narrowed (mutual-exclusion break closed), whole-name ticket_for_case match, dream staging create_new, verify-fail terminal check, sandbox doc, sorted find_ticket, dream error surfacing. 98 tests green.
+- `c326676d2dfb941e` cycle 22 (2026-08-13): ninth deepseek-v4-pro whole-repo review (repo-health-8) — 9 findings, 8 fixed: path-safe ticket ids (traversal sink), dream supersede dry-run guard, exact-file status writes, unterminated PEM redaction, codex.log append, mark_state release logging, real --approve for CLI codex, supervisor ad-hoc goals; lock-drop TOCTOU documented. 100 tests green.

@@ -12,7 +12,7 @@ mod init;
 mod mcp;
 mod sandbox;
 mod supervisor;
-mod worker;
+pub mod worker;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

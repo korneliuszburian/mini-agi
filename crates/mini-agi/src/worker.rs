@@ -1,8 +1,10 @@
 #![allow(dead_code)]
-//! Codex worker orchestration (hardening audit C.6: extracted from
-//! `main.rs`): run codex on a slice spec under the wall/step caps and
-//! the Landlock sandbox, capture the transcript, emit a truthful
-//! run.json draft. The reparse path rebuilds a draft from an existing
+//! Codex worker orchestration.
+//!
+//! Extracted from `main.rs` (hardening audit C.6): run codex on a slice
+//! spec under the wall/step caps and the Landlock sandbox, capture the
+//! transcript, emit a truthful run.json draft. The reparse path rebuilds
+//! a draft from an existing
 //! log without re-running codex.
 
 use std::path::{Path, PathBuf};
@@ -19,6 +21,7 @@ fn fail(msg: &str) -> ExitCode {
 /// Rebuild a run.json draft from an existing transcript log (no codex
 /// run). `--verify`/`--target` may be supplied; otherwise the draft
 /// carries null verifier fields (the caller decides).
+#[must_use]
 pub fn cmd_codex_reparse(
     log: &Path,
     workdir: &Path,
@@ -104,6 +107,7 @@ static SESSION_MARKER_NONCE: std::sync::atomic::AtomicU64 = std::sync::atomic::A
 // The bools mirror the CLI flags one-to-one (no_sandbox, read_only,
 // blind_worker, resume).
 #[allow(clippy::struct_excessive_bools)]
+#[derive(Debug)]
 pub struct IterationInput<'a> {
     /// The slice spec text (prompt base for attempt 1).
     pub spec_text: &'a str,
@@ -160,8 +164,9 @@ pub enum ProgressEvent {
     SessionResumed { attempt: usize, session_id: String },
 }
 
-/// Completion-grace decision (two-phase timeout S3, codex review F3):
-/// a worker killed by a cap is NOT an abort when its transcript already
+/// Completion-grace decision (two-phase timeout S3).
+///
+/// A worker killed by a cap is NOT an abort when its transcript already
 /// contains the completion marker — the file-redirect design keeps the
 /// full transcript readable after the kill, so the attempt resolves as
 /// success-with-warning instead of lost work.
@@ -270,11 +275,18 @@ pub const fn should_resume(resume: bool, attempt: usize, session: Option<&str>) 
     resume && attempt > 1 && session.is_some()
 }
 
-/// The verified-iteration core (BREAKTHROUGH): run the worker up to N
-/// attempts; on verifier failure distill the failure register and
+/// The verified-iteration core (BREAKTHROUGH).
+///
+/// Runs the worker up to N attempts; on verifier failure distill the
+/// failure register and
 /// re-invoke a fresh worker, bounded by budget caps; the verifier must
 /// be non-vacuous before iterating. `progress` receives supervision
 /// events (the AFK supervisor writes progress.md from them).
+///
+/// # Errors
+///
+/// Returns a message when the worker is unavailable, the verifier is
+/// missing, or the run cannot be persisted.
 pub fn run_verified_iteration(
     input: &IterationInput<'_>,
     mut progress: impl FnMut(ProgressEvent),
@@ -935,12 +947,12 @@ fn resolve_worker_name(name: Option<&str>) -> &str {
 /// budget/sandbox/capture contract, but `run --format json` with the
 /// usage telemetry parsed back into the run.
 #[derive(Debug, Clone, PartialEq)]
-enum WorkerKind {
+pub(crate) enum WorkerKind {
     Codex,
     OpenCode { model: Option<String> },
 }
 
-fn worker_kind(name: &str) -> WorkerKind {
+pub(crate) fn worker_kind(name: &str) -> WorkerKind {
     name.strip_prefix("opencode-").map_or_else(
         || {
             if name == "opencode" {
@@ -959,6 +971,69 @@ fn worker_kind(name: &str) -> WorkerKind {
 /// `exec`/`resume` shapes byte-identical; opencode maps them to
 /// `run --format json [-m <model>] [--continue|-s <session>] <prompt>`
 /// (opencode 1.18.11 CLI, grounded 2026-08-06).
+/// Worker-kind adapter for a SUPERVISED review/fix pass (single call).
+/// The supervisor previously hardcoded codex argv (`exec -s read-only`,
+/// `exec resume`) which opencode workers cannot run — every pass now
+/// flows through the per-kind mapping (resume -> `run -s`/`--continue`;
+/// read-only stays a SANDBOX property: `run_worker_sandboxed` enforces it
+/// via Landlock write-confinement, not a CLI flag).
+pub(crate) fn worker_pass_args(
+    kind: &WorkerKind,
+    resuming: bool,
+    session_id: Option<&str>,
+    read_only: bool,
+    prompt: &str,
+) -> Vec<String> {
+    match kind {
+        WorkerKind::Codex => {
+            let session = if read_only {
+                "read-only"
+            } else {
+                "workspace-write"
+            };
+            if resuming {
+                vec![
+                    "exec".to_string(),
+                    "resume".to_string(),
+                    session_id.unwrap_or("").to_string(),
+                    "--skip-git-repo-check".to_string(),
+                    prompt.to_string(),
+                ]
+            } else {
+                vec![
+                    "exec".to_string(),
+                    "-s".to_string(),
+                    session.to_string(),
+                    "--skip-git-repo-check".to_string(),
+                    prompt.to_string(),
+                ]
+            }
+        }
+        WorkerKind::OpenCode { model } => {
+            let mut args = vec![
+                "run".to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ];
+            if let Some(m) = model {
+                args.push("-m".to_string());
+                args.push(m.clone());
+            }
+            if resuming {
+                if let Some(s) = session_id.filter(|s| !s.is_empty()) {
+                    args.push("-s".to_string());
+                    args.push(s.to_string());
+                } else {
+                    args.push("--continue".to_string());
+                }
+            }
+            args.push("--".to_string());
+            args.push(prompt.to_string());
+            args
+        }
+    }
+}
+
 fn build_worker_args(
     kind: &WorkerKind,
     resuming: bool,
@@ -1024,6 +1099,9 @@ fn is_read_only_spec(spec_text: &str) -> bool {
     })
 }
 
+/// # Errors
+///
+/// Returns the spawn error when the worker executable cannot be started.
 pub fn run_worker_sandboxed(
     worker_name: &str,
     workdir: &Path,
@@ -1132,9 +1210,14 @@ pub fn run_worker_sandboxed(
     mini_agi_core::worker::run_capped_idle(exe, worker_args, workdir, wall_cap, idle_cap)
 }
 
-/// Run one opencode worker invocation (D1 adapter) with the given model
-/// and prompt — the dream-loop distiller/auditor seam. Reuses the same
-/// budget/sandbox/args contract as loop runs.
+/// Run one opencode worker invocation (D1 adapter).
+///
+/// Uses the given model and prompt — the dream-loop distiller/auditor
+/// seam. Reuses the same budget/sandbox/args contract as loop runs.
+///
+/// # Errors
+///
+/// Returns the spawn error when the worker cannot be started.
 pub fn run_opencode_worker(
     workdir: &Path,
     model: &str,
@@ -1154,10 +1237,12 @@ pub fn run_opencode_worker(
     Ok(result)
 }
 
-/// `exec-sandbox`: apply the Landlock write-containment policy to the
-/// current process, then run the command after `--` and forward its exit
-/// code. Linux-only (ADR-0012); on other targets it is a documented
-/// no-op error.
+/// `exec-sandbox`: apply Landlock write-containment, then run `--`.
+///
+/// Linux-only (ADR-0012); on other targets it is a documented no-op
+/// error. The policy applies to the current process, then the command
+/// after `--` runs and its exit code is forwarded.
+#[must_use]
 pub fn cmd_exec_sandbox(allow_write: &[PathBuf], command: &[String]) -> ExitCode {
     #[cfg(target_os = "linux")]
     {

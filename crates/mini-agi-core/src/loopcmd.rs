@@ -145,7 +145,7 @@ pub fn write_ledger_atomic(root: &Path, gap: &Gap) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let tmp = path.with_extension("json.tmp");
+    let tmp = crate::ticket::tmp_unique(&path, "ledger");
     let json = serde_json::to_string(gap).map_err(io::Error::other)?;
     std::fs::OpenOptions::new()
         .write(true)
@@ -842,6 +842,13 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
     let dir = crate::ticket::tickets_dir(root);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let _lock = crate::ticket::lock_claims(root).map_err(|e| e.to_string())?;
+    // Re-check under the lock: two concurrent dispatches of the same case
+    // can both miss the pre-check; if a ticket for the case now exists,
+    // reuse it instead of creating a second one (two live leases for one
+    // case strand the loser — terminal ledger rows have no release path).
+    if let Some(t) = ticket_for_case(root, case) {
+        return Ok(t.id);
+    }
     let next = crate::ticket::list_tickets(root)
         .unwrap_or_default()
         .iter()
@@ -1357,6 +1364,19 @@ mod loop_tests {
         assert!(
             err.contains("outside"),
             "verify refuses to run a gate in an outside target: {err}"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn create_case_ticket_reuses_an_existing_case_ticket() {
+        let root = tmp_root("t-reuse");
+        write_run(&root, "gap-r", false, Some(("true", ".")));
+        let id1 = create_case_ticket(&root, "gap-r").unwrap();
+        let id2 = create_case_ticket(&root, "gap-r").unwrap();
+        assert_eq!(
+            id1, id2,
+            "a second create for the same case reuses the ticket"
         );
         let _ = fs::remove_dir_all(&root);
     }
