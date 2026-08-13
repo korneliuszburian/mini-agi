@@ -1091,3 +1091,4 @@ research/what-is-22-answer-briefly.md
 2026-08-13T20:30:50Z VERIFY-FAIL round27-verify @ e2d473c -> ROLLBACK to e2d473c
 2026-08-13T20:31:54Z BEGIN round27b -> 2324234 (clean)
 2026-08-13T20:32:07Z VERIFY-PASS round27b @ 2324234
+2026-08-13T20:43:47Z BEGIN round28-fixes-cycle -> a416929
