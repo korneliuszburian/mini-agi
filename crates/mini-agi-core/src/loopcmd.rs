@@ -962,17 +962,10 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
     if let Some(t) = ticket_for_case(root, case) {
         return Ok(t.id);
     }
-    let next = crate::ticket::list_tickets(root)
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|t| {
-            t.id.strip_prefix("TICKET-")
-                .and_then(|s| s.split(|c: char| !c.is_ascii_digit()).next())
-                .and_then(|d| d.parse::<u32>().ok())
-        })
-        .max()
-        .unwrap_or(0)
-        + 1;
+    // Count every TICKET-<n>.md PRESENT, not only parseable ones: a
+    // corrupt ticket must keep reserving its number or the next id would
+    // collide and `fs::write` below would destroy the corrupt record.
+    let next = crate::ticket::next_ticket_number(root).unwrap_or(0) + 1;
     let id = format!("TICKET-{next}");
     let body = format!(
         "# Ticket\n\n- id: {id}\n- title: Fix capability gap: {case} below the loop target\n- goal (one sentence): Bring {case} to achieved by fixing the failing run.\n- scope: evals/cases\n- domain: eval\n"
@@ -1545,6 +1538,28 @@ mod loop_tests {
         assert_eq!(
             id1, id2,
             "a second create for the same case reuses the ticket"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn corrupt_ticket_reserves_its_number_in_create_case_ticket() {
+        let root = tmp_root("t-corrupt");
+        fs::create_dir_all(root.join("tickets")).unwrap();
+        fs::write(
+            root.join("tickets/TICKET-7.md"),
+            "this is {not valid ticket frontmatter",
+        )
+        .unwrap();
+        let id = create_case_ticket(&root, "gap-z").unwrap();
+        assert_eq!(
+            id, "TICKET-8",
+            "the corrupt TICKET-7 still reserves 7; the next id must skip it"
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("tickets/TICKET-7.md")).unwrap(),
+            "this is {not valid ticket frontmatter",
+            "the corrupt ticket file must survive untouched"
         );
         let _ = fs::remove_dir_all(&root);
     }

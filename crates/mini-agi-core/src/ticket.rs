@@ -91,13 +91,55 @@ pub fn list_tickets(root: &Path) -> Result<Vec<Ticket>, TicketError> {
                 .file_name()
                 .is_some_and(|n| n.to_string_lossy().starts_with("TICKET-"))
             && path.extension().is_some_and(|e| e == "md")
-            && let Ok(ticket) = load_ticket(&path)
         {
-            tickets.push(ticket);
+            match load_ticket(&path) {
+                Ok(ticket) => tickets.push(ticket),
+                Err(e) => eprintln!(
+                    "warning: {} unreadable ({e}) — skipping it (its number stays reserved)",
+                    path.display()
+                ),
+            }
         }
     }
     tickets.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(tickets)
+}
+
+/// Highest `TICKET-<n>.md` number present in the tickets directory.
+///
+/// Counts EVERY matching file regardless of parseability: a corrupt
+/// ticket file must still reserve its number, or `create_case_ticket`
+/// would pick a colliding id and truncate it away.
+///
+/// Returns `None` when the directory is empty or the highest match has
+/// no numeric prefix.
+#[must_use]
+pub fn next_ticket_number(root: &Path) -> Option<u32> {
+    let dir = tickets_dir(root);
+    let entries = fs::read_dir(&dir).ok()?;
+    let mut max = None;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+            continue;
+        };
+        let Some(rest) = name.strip_prefix("TICKET-") else {
+            continue;
+        };
+        let Some(ext) = rest.strip_suffix(".md") else {
+            continue;
+        };
+        let Some(digits) = ext.split(|c: char| !c.is_ascii_digit()).next() else {
+            continue;
+        };
+        let Ok(n) = digits.parse::<u32>() else {
+            continue;
+        };
+        if max.is_none_or(|m| n > m) {
+            max = Some(n);
+        }
+    }
+    max
 }
 
 /// True when `id`'s remainder (past the numeric prefix) is path-safe:

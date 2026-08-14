@@ -619,13 +619,22 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
         ) {
             Ok((promoted, queued, skipped)) => {
                 // Write the durable promotion receipt (idempotency guard):
-                // a re-promote of the same staged file is then refused.
-                let _ = mini_agi_core::dream::write_promotion_receipt(
+                // a re-promote of the same staged file is then refused. A
+                // lost receipt silently re-enables re-promotion, so the
+                // write is NOT best-effort — fail loudly (the promotion
+                // itself already applied and stays in-practice idempotent
+                // via the existing-id/queued-digest dedup).
+                if let Err(e) = mini_agi_core::dream::write_promotion_receipt(
                     &staged_path,
                     promoted,
                     queued,
                     skipped,
-                );
+                ) {
+                    return fail(&format!(
+                        "dream --promote: promotion applied but the receipt could not be recorded ({}): {e}; a re-promote may re-apply — inspect the canonical entries and staging dir before retrying",
+                        staged_path.display()
+                    ));
+                }
                 println!(
                     "dream --promote: {promoted} promoted, {queued} queued, {skipped} skipped"
                 );

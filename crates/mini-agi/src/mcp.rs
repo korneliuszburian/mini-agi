@@ -382,6 +382,21 @@ fn read_arg_file(root: &Path, args: &Value, key: &str) -> String {
     if !std::path::Path::new(&path).is_file() {
         return format!("\u{1}not-a-regular-file: {key} path '{declared}'");
     }
+    // Bounded read: the transport caps a FRAME at MAX_FRAME_BYTES, so a
+    // file argument that would blow past that bound must not be loaded
+    // whole into the single-threaded server (a multi-GB log would block
+    // every other tool).
+    let meta = match std::fs::metadata(&path) {
+        Ok(m) => m,
+        Err(e) => return format!("error: {e}"),
+    };
+    if meta.len() > MAX_FRAME_BYTES as u64 {
+        return format!(
+            "\u{1}too-large: {key} path '{}' is {} bytes (max {MAX_FRAME_BYTES})",
+            path,
+            meta.len()
+        );
+    }
     match std::fs::read_to_string(&path) {
         Ok(t) => t,
         Err(e) => format!("error: {e}"),

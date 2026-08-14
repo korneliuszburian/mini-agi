@@ -412,7 +412,7 @@ pub fn run_verified_iteration(
         };
         let idle_cap = match input.max_idle {
             Some(v) => Some(v),
-            None => match mini_agi_core::config::Config::load_checked(input.workdir) {
+            None => match mini_agi_core::config::Config::load_checked(&crate::root()) {
                 Ok(cfg) => cfg.max_idle_seconds,
                 Err(e) => {
                     // Do not strand the hidden suite renamed-aside on a
@@ -511,7 +511,7 @@ pub fn run_verified_iteration(
         // P0-1 post-hoc cap check (accumulated) — REAL cost and the
         // configured cost cap (was hardcoded 0.0/None: max_cost_usd was
         // dead enforcement).
-        let caps_cfg = mini_agi_core::config::Config::load_checked(input.workdir)?;
+        let caps_cfg = mini_agi_core::config::Config::load_checked(&crate::root())?;
         let mut violations = mini_agi_core::worker::budget_violations(
             all_steps.len(),
             total_cost,
@@ -569,7 +569,7 @@ pub fn run_verified_iteration(
             break;
         }
         // S4: total-budget governor across ALL attempts.
-        let cfg = mini_agi_core::config::Config::load_checked(input.workdir)?;
+        let cfg = mini_agi_core::config::Config::load_checked(&crate::root())?;
         if let Some(max_tokens) = cfg.max_tokens
             && total_bytes / 4 > max_tokens
         {
@@ -746,7 +746,9 @@ pub fn cmd_codex(args: &CodexRunArgs<'_>) -> ExitCode {
         .map(|s| s.trim().trim_matches('`').to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    let cfg = match mini_agi_core::config::Config::load_checked(workdir) {
+    // Caps anchor on the REPO ROOT (AGENTIC_ROOT/CWD), not the scratch
+    // workdir: a workdir-local load silently fails open (root caps dropped).
+    let cfg = match mini_agi_core::config::Config::load_checked(&crate::root()) {
         Ok(c) => c,
         Err(e) => return fail(&e),
     };

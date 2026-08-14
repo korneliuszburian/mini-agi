@@ -96,13 +96,14 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
 }
 
 fn git_rev(root: &Path) -> Option<String> {
-    std::process::Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
-        .current_dir(root)
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    // Through `run_capped` like every other subprocess — a bare
+    // `Command::output()` is the one remaining unbounded spawn.
+    let result =
+        crate::worker::run_capped("git", &["rev-parse", "--short", "HEAD"], root, Some(30)).ok()?;
+    if result.status != Some(0) {
+        return None;
+    }
+    Some(result.output.trim().to_string())
 }
 
 /// Parse `[FAIL] <label>` lines out of a gate run (the deterministic

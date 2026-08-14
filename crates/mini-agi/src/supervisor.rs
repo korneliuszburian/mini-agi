@@ -357,7 +357,7 @@ pub fn run(args: &SupervisorArgs<'_>) -> Result<SupervisorResult, String> {
             let kind = worker::worker_kind(args.worker_name);
             let fix_args = worker::worker_pass_args(&kind, true, Some(session), false, &fix_prompt);
             let wall_cap = args.wall_cap.unwrap_or(600);
-            let idle_cap = resolve_idle_cap(args.max_idle, args.workdir)?;
+            let idle_cap = resolve_idle_cap(args.max_idle)?;
             let fix = worker::run_worker_sandboxed(
                 args.worker_name,
                 args.workdir,
@@ -655,13 +655,15 @@ pub fn resolve(input: &ResolveInput<'_>) -> Result<ResolvedSpec, String> {
 /// Append a line to the progress artifact (best-effort).
 /// Resolve the idle cap: an explicit CLI value wins, else the config
 /// default (`max_idle_seconds`).
-fn resolve_idle_cap(explicit: Option<u64>, workdir: &Path) -> Result<Option<u64>, String> {
+fn resolve_idle_cap(explicit: Option<u64>) -> Result<Option<u64>, String> {
     if explicit.is_some() {
         return Ok(explicit);
     }
     // Fail-closed: a corrupt config must not silently DROP the operator's
-    // liveness cap (stuck-worker kills would be disabled).
-    Ok(mini_agi_core::config::Config::load_checked(workdir)?.max_idle_seconds)
+    // liveness cap (stuck-worker kills would be disabled). Caps anchor on
+    // the REPO ROOT (AGENTIC_ROOT/CWD), never the scratch workdir — a
+    // workdir-local load silently fails open (worker caps dropped).
+    Ok(mini_agi_core::config::Config::load_checked(&crate::root())?.max_idle_seconds)
 }
 
 /// The verifier command to run: an explicit `--verify` wins, else the
@@ -705,7 +707,7 @@ fn run_review_pass(args: &SupervisorArgs<'_>) -> Result<String, String> {
     );
     let kind = worker::worker_kind(args.worker_name);
     let review_args = worker::worker_pass_args(&kind, false, None, true, &prompt);
-    let idle_cap = resolve_idle_cap(args.max_idle, args.workdir)?;
+    let idle_cap = resolve_idle_cap(args.max_idle)?;
     let review = worker::run_worker_sandboxed(
         args.worker_name,
         args.workdir,
