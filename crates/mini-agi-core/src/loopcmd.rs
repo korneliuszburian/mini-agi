@@ -775,6 +775,11 @@ pub fn dispatch(
                 );
             }
         }
+        // An EXECUTABLE spec for a case that must never be worked must not
+        // stay on disk as an orphan: remove the whole artifacts/<ticket>
+        // dir (created fresh by write_spec; absent on the pre-spec
+        // rollback paths, where this is a no-op).
+        let _ = fs::remove_dir_all(root.join("artifacts").join(&ticket_id));
         // Restore the PRIOR ledger row — never delete it: a pre-existing
         // row carries attempt history (deleting it would reset the retry
         // bound and erase the case's dispatch record).

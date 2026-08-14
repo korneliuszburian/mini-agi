@@ -45,6 +45,24 @@ fn is_transcript_noise(trimmed: &str) -> bool {
 /// Extract the exit code from a codex tool-result line — codex logs
 /// ` exited 2 in 0ms:` (or `(exit 2)`) on the line AFTER the command.
 /// `None` when the line carries no exit evidence.
+/// True when `s` looks like a wall-clock duration (`0.42s`, `200ms`,
+/// `1m30s`, `2h`).
+fn is_duration(s: &str) -> bool {
+    let unit = s.find(|c: char| !c.is_ascii_digit() && c != '.');
+    let Some(u) = unit else {
+        return false;
+    };
+    let (num, unit_s) = s.split_at(u);
+    if num.is_empty()
+        || !num.chars().all(|c| c.is_ascii_digit() || c == '.')
+        || num.starts_with('.')
+        || num.ends_with('.')
+    {
+        return false;
+    }
+    matches!(unit_s, "s" | "ms" | "us" | "ns" | "m" | "h")
+}
+
 fn bash_exit(trimmed: &str) -> Option<i32> {
     let t = trimmed.trim();
     if let Some(rest) = t.strip_prefix("exited ") {
@@ -54,9 +72,17 @@ fn bash_exit(trimmed: &str) -> Option<i32> {
             .and_then(|n| n.trim_end_matches(':').parse().ok());
     }
     // The tool-result form is "succeeded in <duration>:" — a prose line
-    // merely STARTING with "succeeded" (the model narrating) is not
-    // exit-0 evidence; ok must never be invented (honest capture).
-    if t.starts_with("succeeded in ") && t.ends_with(':') {
+    // merely STARTING with "succeeded" (the model narrating, e.g.
+    // "succeeded in making things work:") is not exit-0 evidence; ok must
+    // never be invented (honest capture). The token after "in " MUST be a
+    // duration (`0.42s`, `200ms`) for this to count as a tool result.
+    if t.starts_with("succeeded in ")
+        && t.ends_with(':')
+        && t["succeeded in ".len()..]
+            .split_whitespace()
+            .next()
+            .is_some_and(|tok| is_duration(tok.trim_end_matches(':')))
+    {
         return Some(0);
     }
     if t.starts_with("(exit") {
@@ -246,6 +272,24 @@ verify: ALL GREEN
 <result>{"files": ["src/auth.py"], "tests": 5}</result>
 no completion marker here
 "#;
+
+    #[test]
+    fn prose_succeeded_with_an_in_duration_colon_is_not_evidence() {
+        // "succeeded in making things work:" starts with "succeeded in "
+        // and ends with ':' but "making" is NOT a duration — it must not
+        // be recorded as ok:true (ok must never be invented).
+        assert_eq!(
+            bash_exit("succeeded in making things work:"),
+            None,
+            "a prose narration must not fabricate exit 0"
+        );
+        assert_eq!(
+            bash_exit("succeeded in 1.2s:"),
+            Some(0),
+            "the real timed tool-result form stays exit 0"
+        );
+        assert_eq!(bash_exit("succeeded in 200ms:"), Some(0));
+    }
 
     #[test]
     fn prose_succeeded_is_not_exit_evidence() {

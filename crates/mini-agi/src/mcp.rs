@@ -406,21 +406,27 @@ fn read_arg_file(root: &Path, args: &Value, key: &str) -> String {
     // Bounded read: the transport caps a FRAME at MAX_FRAME_BYTES, so a
     // file argument that would blow past that bound must not be loaded
     // whole into the single-threaded server (a multi-GB log would block
-    // every other tool).
-    let meta = match std::fs::metadata(&path) {
-        Ok(m) => m,
-        Err(e) => return format!("error: {e}"),
-    };
-    if meta.len() > MAX_FRAME_BYTES as u64 {
-        return format!(
-            "\u{1}too-large: {key} path '{}' is {} bytes (max {MAX_FRAME_BYTES})",
-            path,
-            meta.len()
-        );
+    // every other tool). The bound is enforced ON THE READ (`take`), not
+    // on a prior `metadata()` — a file growing between a check and the
+    // read (check-then-read TOCTOU) can never defeat it.
+    let mut buf = Vec::with_capacity(MAX_FRAME_BYTES.min(64 * 1024));
+    {
+        use std::io::Read as _;
+        let f = match std::fs::File::open(&path) {
+            Ok(f) => f,
+            Err(e) => return format!("error: {e}"),
+        };
+        match f.take(MAX_FRAME_BYTES as u64 + 1).read_to_end(&mut buf) {
+            Ok(_) => {}
+            Err(e) => return format!("error: {e}"),
+        }
     }
-    match std::fs::read_to_string(&path) {
+    if buf.len() > MAX_FRAME_BYTES {
+        return format!("\u{1}too-large: {key} path '{path}' exceeds {MAX_FRAME_BYTES} bytes");
+    }
+    match String::from_utf8(buf) {
         Ok(t) => t,
-        Err(e) => format!("error: {e}"),
+        Err(e) => format!("error: not UTF-8: {e}"),
     }
 }
 

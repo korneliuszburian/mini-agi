@@ -646,7 +646,16 @@ pub fn apply_verdicts(
         let h = crate::hash::fact_id(&fact.body);
         match v.verdict.as_str() {
             "promote" => {
-                if known.contains(&h) {
+                // The STORED body is the single-space-joined form the
+                // kernel reads back (`parse_canonical_facts` joins
+                // multi-line bodies): the id must hash THAT, not the raw
+                // multi-line body — a raw-body id would never re-hash
+                // after write (signoff digest check refuses it, consolidate
+                // dedup misses the flattened body, a later consolidation
+                // writes the same content under a different id).
+                let flat_body = fact.body.split_whitespace().collect::<Vec<_>>().join(" ");
+                let flat_h = crate::hash::fact_id(&flat_body);
+                if known.contains(&flat_h) {
                     skipped += 1;
                     continue;
                 }
@@ -704,11 +713,11 @@ pub fn apply_verdicts(
                 promoted
                     .entry(fact.domain.clone())
                     .or_default()
-                    .push((fact.body.clone(), h.clone()));
+                    .push((flat_body, flat_h.clone()));
                 // Two verdicts for the same index (or two staged facts
                 // with identical bodies) must not write the same id
                 // twice — mark it known as it is promoted.
-                known.insert(h);
+                known.insert(flat_h);
             }
             "conflict" => {
                 let existing = v
