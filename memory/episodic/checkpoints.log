@@ -1111,4 +1111,5 @@ research/what-is-22-answer-briefly.md
 2026-08-13T21:51:03Z VERIFY-PASS round35-fixes-cycle @ 7c46848
 2026-08-14T05:53:03Z BEGIN round36-fixes-cycle -> 6094622
 2026-08-14T05:53:21Z VERIFY-PASS round36-fixes-cycle @ 862d2f4
-2026-08-14T06:11:55Z BEGIN round37-fixes-cycle -> a078409
+2026-08-14T06:12:20Z BEGIN round37-fixes-cycle -> a078409 (restored by rollback)
+2026-08-14T06:12:20Z VERIFY-FAIL round37-fixes-cycle @ 8aa75d3 -> ROLLBACK to a078409

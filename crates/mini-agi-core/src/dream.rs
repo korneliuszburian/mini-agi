@@ -138,25 +138,27 @@ pub fn parse_staged_facts(text: &str) -> Vec<StagedFact> {
     let mut out = Vec::new();
     let mut current_domain = String::new();
     let mut body = String::new();
+    let mut in_section = false;
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("## S-") {
-            if !body.is_empty() {
+            if in_section && !body.trim().is_empty() {
                 out.push(StagedFact {
                     body: body.trim().to_string(),
                     domain: current_domain.clone(),
                 });
             }
+            in_section = true;
             current_domain = rest
                 .split_once('(')
                 .and_then(|(_, d)| d.split_once(')'))
                 .map_or_else(|| "general".to_string(), |(d, _)| d.trim().to_string());
             body = String::new();
-        } else if !line.starts_with('#') && !line.starts_with("- ") {
+        } else if in_section && !line.starts_with('#') && !line.starts_with("- ") {
             body.push_str(line);
             body.push('\n');
         }
     }
-    if !body.is_empty() {
+    if in_section && !body.trim().is_empty() {
         out.push(StagedFact {
             body: body.trim().to_string(),
             domain: current_domain,
