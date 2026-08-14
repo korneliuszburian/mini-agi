@@ -111,14 +111,20 @@ pub fn list_tickets(root: &Path) -> Result<Vec<Ticket>, TicketError> {
 /// ticket file must still reserve its number, or `create_case_ticket`
 /// would pick a colliding id and truncate it away.
 ///
-/// Returns `None` when the directory is empty or the highest match has
-/// no numeric prefix.
-#[must_use]
-pub fn next_ticket_number(root: &Path) -> Option<u32> {
+/// Returns `Ok(None)` when the directory is empty or the highest match
+/// has no numeric prefix; `Err` when the directory cannot be read —
+/// callers must FAIL CLOSED (never fall back to `TICKET-1`, which would
+/// truncate an existing `TICKET-1.md`).
+///
+/// # Errors
+///
+/// Returns [`std::io::Error`] when the tickets directory cannot be read.
+pub fn next_ticket_number(root: &Path) -> std::io::Result<Option<u32>> {
     let dir = tickets_dir(root);
-    let entries = fs::read_dir(&dir).ok()?;
+    let entries = fs::read_dir(&dir)?;
     let mut max = None;
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = entry?;
         let path = entry.path();
         let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else {
             continue;
@@ -139,7 +145,7 @@ pub fn next_ticket_number(root: &Path) -> Option<u32> {
             max = Some(n);
         }
     }
-    max
+    Ok(max)
 }
 
 /// True when `id`'s remainder (past the numeric prefix) is path-safe:

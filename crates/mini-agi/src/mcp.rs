@@ -376,9 +376,13 @@ fn bounded_output(s: &str) -> String {
     if s.len() <= MAX_FRAME_BYTES {
         return s.to_string();
     }
-    let cut = &s[..MAX_FRAME_BYTES];
+    // CHAR-boundary-safe cut: `s[..MAX_FRAME_BYTES]` panics when the bound
+    // lands mid-UTF-8 (model-written canonical content has no charset
+    // restriction) — which would kill the single-threaded stdio server.
+    let end = s.floor_char_boundary(MAX_FRAME_BYTES);
     format!(
-        "{cut}\n... truncated ({} bytes, max {MAX_FRAME_BYTES})",
+        "{}\n... truncated ({} bytes, max {MAX_FRAME_BYTES})",
+        &s[..end],
         s.len()
     )
 }
@@ -499,22 +503,24 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             mini_agi_core::memory::canonical_fingerprint(root)
         ),
         "skill_list" => match mini_agi_core::skills::discover_skills(root) {
-            Ok(skills) => skills
-                .iter()
-                .map(|s| {
-                    format!(
-                        "{}  [{}]  {}",
-                        s.name,
-                        if s.verify.is_some() { "verify" } else { "ref" },
-                        s.description
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
+            Ok(skills) => bounded_output(
+                &skills
+                    .iter()
+                    .map(|s| {
+                        format!(
+                            "{}  [{}]  {}",
+                            s.name,
+                            if s.verify.is_some() { "verify" } else { "ref" },
+                            s.description
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
             Err(e) => format!("error: {e}"),
         },
         "skill_show" => match mini_agi_core::skills::find_skill(root, arg(args, "name")) {
-            Ok(s) => format!("{}: {}", s.name, s.description),
+            Ok(s) => bounded_output(&format!("{}: {}", s.name, s.description)),
             Err(e) => format!("error: {e}"),
         },
         "skill_add" => {
@@ -752,5 +758,25 @@ mod schema_tests {
                 "{tool}: {text}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod mcp_tests {
+    use super::*;
+
+    #[test]
+    fn bounded_output_cuts_on_a_char_boundary_not_mid_utf8() {
+        // A 3-byte CJK run longer than MAX_FRAME_BYTES: slicing the
+        // response at the byte bound would panic; the truncation must
+        // fall back to a char boundary and never crash the server.
+        let wide = "\u{4e2d}".repeat(MAX_FRAME_BYTES + 5);
+        let out = bounded_output(&wide);
+        assert!(out.contains("truncated"), "must report the truncation");
+        assert!(out.is_char_boundary(out.len()), "must not panic");
+        let wide = format!("prefix {}\u{4e2d} suffix", "a".repeat(MAX_FRAME_BYTES - 2));
+        let out = bounded_output(&wide);
+        assert!(out.contains("truncated"));
+        assert!(out.is_char_boundary(out.len()));
     }
 }

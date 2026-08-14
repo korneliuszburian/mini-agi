@@ -760,8 +760,20 @@ pub fn dispatch(
     let rollback = |prior_gap: &Option<Gap>| {
         let _ = crate::ticket::release_ticket_locked(root, &ticket_id, claimant);
         if ticket_created {
-            let _ =
-                fs::remove_file(crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")));
+            // Same-claimant race (dispatch claims BEFORE the lock): a
+            // concurrent `loop verify` may have closed this very ticket's
+            // case between our claim and the lock — its terminal ledger
+            // row then points closed_ticket AT this file. Deleting it
+            // would destroy the closed record while the ledger keeps the
+            // pointer. Remove the created ticket only when the case is NOT
+            // terminal right now.
+            let terminal_now = read_ledger_checked(root, &case)
+                .is_ok_and(|g| g.is_some_and(|gap| gap_is_terminal(&gap.state)));
+            if !terminal_now {
+                let _ = fs::remove_file(
+                    crate::ticket::tickets_dir(root).join(format!("{ticket_id}.md")),
+                );
+            }
         }
         // Restore the PRIOR ledger row — never delete it: a pre-existing
         // row carries attempt history (deleting it would reset the retry
@@ -965,7 +977,17 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
     // Count every TICKET-<n>.md PRESENT, not only parseable ones: a
     // corrupt ticket must keep reserving its number or the next id would
     // collide and `fs::write` below would destroy the corrupt record.
-    let next = crate::ticket::next_ticket_number(root).unwrap_or(0) + 1;
+    // FAIL CLOSED on a read_dir error: falling back to `TICKET-1` here
+    // would truncate an existing `TICKET-1.md`.
+    let next = crate::ticket::next_ticket_number(root)
+        .map_err(|e| {
+            format!(
+                "cannot scan {}/ for ticket numbers: {e}",
+                crate::ticket::tickets_dir(root).display()
+            )
+        })?
+        .unwrap_or(0)
+        + 1;
     let id = format!("TICKET-{next}");
     let body = format!(
         "# Ticket\n\n- id: {id}\n- title: Fix capability gap: {case} below the loop target\n- goal (one sentence): Bring {case} to achieved by fixing the failing run.\n- scope: evals/cases\n- domain: eval\n"

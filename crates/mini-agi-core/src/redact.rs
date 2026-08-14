@@ -75,8 +75,10 @@ pub fn redact(text: &str) -> String {
     let mut out = text.to_string();
     out = redact_pem_blocks(&out);
     out = redact_header_values(&out, "Cookie:");
+    out = redact_header_values(&out, "Set-Cookie:");
     out = redact_header_values(&out, "Authorization:");
     out = redact_header_values(&out, "\"Cookie\":");
+    out = redact_header_values(&out, "\"Set-Cookie\":");
     out = redact_header_values(&out, "\"Authorization\":");
     out = redact_flag_values(&out);
     out = redact_key_value_pairs(&out);
@@ -407,22 +409,29 @@ fn redact_flag_values(text: &str) -> String {
             // closes the element string, and the element's VALUE is the
             // next array element. Left_ok fails on the quote, so handle
             // it here: consume the key element and redact the value.
+            // Whitespace before the comma (`["-p" , "secret"]`, common in
+            // pretty-printed JSON) is skipped — untrusted strings are
+            // never trusted to be well-formed.
             if rest[..pos].ends_with('"')
                 && let Some(close) = rest[after..].find('"')
-                && let Some(vtail) = rest[after + close + 1..].strip_prefix(',')
             {
-                let vskip = vtail.len() - vtail.trim_start().len();
-                let vlen = quoted_value_len(vtail.trim_start()).unwrap_or_else(|| {
-                    // Unquoted (malformed-JSON) value: take to the next
-                    // delimiter so the literal cannot leak.
-                    vtail.find([',', ']']).map_or(vtail.len(), |i| i)
-                });
-                if vlen > 0 {
-                    out.push_str(&rest[..pos]);
-                    out.push_str(&rest[pos..after]);
-                    out.push_str(REDACTED);
-                    rest = &rest[after + close + 1 + 1 + vskip + vlen..];
-                    continue;
+                let after_close = &rest[after + close + 1..];
+                let skip_ws = after_close.len() - after_close.trim_start().len();
+                let after_ws = &after_close[skip_ws..];
+                if let Some(vtail) = after_ws.strip_prefix(',') {
+                    let vskip = vtail.len() - vtail.trim_start().len();
+                    let vlen = quoted_value_len(vtail.trim_start()).unwrap_or_else(|| {
+                        // Unquoted (malformed-JSON) value: take to the next
+                        // delimiter so the literal cannot leak.
+                        vtail.find([',', ']']).map_or(vtail.len(), |i| i)
+                    });
+                    if vlen > 0 {
+                        out.push_str(&rest[..pos]);
+                        out.push_str(&rest[pos..after]);
+                        out.push_str(REDACTED);
+                        rest = &rest[after + close + 1 + skip_ws + 1 + vskip + vlen..];
+                        continue;
+                    }
                 }
             }
             // Not the `-p` flag token (e.g. the middle of `--password`).
@@ -681,6 +690,20 @@ fn split_pair_value(text: &str, sep: u8) -> Option<(usize, usize)> {
 #[cfg(test)]
 mod redact_tests {
     use super::*;
+
+    #[test]
+    fn json_array_flag_with_space_before_comma_is_redacted() {
+        // `["-p" , "secret"]` (pretty-printed JSON puts a space before the
+        // comma) must not leak the value through the whitespace gap.
+        for cmd in [
+            r#"{"args": ["-p" , "hunter2secret"]}"#,
+            r#"{"args": ["-p"  ,   "hunter2secret"]}"#,
+        ] {
+            let out = redact(cmd);
+            assert!(!out.contains("hunter2secret"), "value leaked: {out}");
+            assert!(out.contains(REDACTED), "{out}");
+        }
+    }
 
     #[test]
     fn quoted_header_values_are_redacted_whole() {
