@@ -39,7 +39,7 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
     let name = format!("HARNESS-{}-{rev}.md", crate::memory::utc_now_date());
     let path = dir.join(&name);
     if !path.exists() {
-        fs::write(&path, spec_text())?;
+        write_atomic(&path, &spec_text())?;
     }
     let ledger = dir.join("ledger.md");
     // Hold the harness lock ACROSS the gate run AND the ledger write: a
@@ -77,7 +77,7 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
             .create_new(true)
             .open(&tmp)
             .and_then(|mut f| std::io::Write::write_all(&mut f, refreshed.as_bytes()))?;
-        fs::rename(&tmp, &ledger)?;
+        crate::ticket::sync_then_rename(&tmp, &ledger)?;
         return Ok((name, format!("gate: {gate} (revision {rev} refreshed)")));
     }
     let row = format!(
@@ -91,7 +91,7 @@ pub fn snapshot(root: &Path) -> Result<(String, String), std::io::Error> {
         .create_new(true)
         .open(&tmp)
         .and_then(|mut f| std::io::Write::write_all(&mut f, content.as_bytes()))?;
-    fs::rename(&tmp, &ledger)?;
+    crate::ticket::sync_then_rename(&tmp, &ledger)?;
     Ok((name, format!("gate: {gate}")))
 }
 

@@ -186,6 +186,12 @@ fn read_bounded_line<R: BufRead>(input: &mut R) -> io::Result<Option<String>> {
                 };
             }
             if let Some(i) = buf.iter().position(|&b| b == b'\n') {
+                if bytes.len() + i + 1 > MAX_FRAME_BYTES {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "frame too large",
+                    ));
+                }
                 bytes.extend_from_slice(&buf[..=i]);
                 (i + 1, true)
             } else {

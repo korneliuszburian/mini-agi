@@ -35,6 +35,10 @@ pub struct Ticket {
     /// Lifecycle status: OPEN (default) or CLOSED (parsed from the file).
     #[serde(default = "default_status")]
     pub status: String,
+    /// The exact file this ticket was loaded from (populated by
+    /// `find_ticket`/`load_ticket`; not serialized).
+    #[serde(skip)]
+    pub path: PathBuf,
 }
 
 fn default_status() -> String {
@@ -177,7 +181,9 @@ pub fn find_ticket(root: &Path, id: &str) -> Result<Ticket, TicketError> {
         }
         path
     };
-    load_ticket(&path)
+    let mut t = load_ticket(&path)?;
+    t.path = path;
+    Ok(t)
 }
 
 /// Load and validate a ticket file (JSON or markdown frontmatter).
@@ -341,6 +347,7 @@ fn parse_frontmatter_ticket(text: &str) -> Result<Ticket, TicketError> {
         scope,
         blocked_by,
         status,
+        path: PathBuf::new(),
     })
 }
 
@@ -435,6 +442,7 @@ fn parse_bullet_ticket(text: &str) -> Result<Ticket, TicketError> {
         scope,
         blocked_by,
         status: status.unwrap_or_else(|| "OPEN".to_string()),
+        path: PathBuf::new(),
     })
 }
 
@@ -515,7 +523,12 @@ pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> 
                 // Write OUR ownership token into the lock file so `drop`
                 // can verify it still holds OUR lock.
                 let token = lock_token();
-                fs::write(&path, &token)?;
+                if let Err(e) = fs::write(&path, &token) {
+                    // The lock file is now unowned + tokenless — remove it
+                    // so no one is denied for the stale threshold.
+                    let _ = fs::remove_file(&path);
+                    return Err(e);
+                }
                 return Ok(ClaimsLock { path, token });
             }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
@@ -861,7 +874,6 @@ pub fn append_ticket_note(root: &Path, id: &str, note: &str) -> Result<(), Ticke
 /// Returns [`TicketError::Io`] on filesystem failure or
 /// [`TicketError::Parse`] when the ticket file cannot be read.
 pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), TicketError> {
-    let dir = tickets_dir(root);
     // Same traversal guard as find_ticket: only `TICKET-<digits>` ids
     // (a suffix like `TICKET-001-v2` resolves via prefix scan); a
     // caller-supplied id can never escape `tickets/`.
@@ -886,35 +898,8 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
             format!("invalid ticket id '{id}': suffix must be path-safe"),
         )));
     }
-    let suffix = digits[prefix.len()..].trim_start_matches('-');
-    let exact = if suffix.is_empty() {
-        None
-    } else {
-        let p = dir.join(format!("TICKET-{prefix}-{suffix}.md"));
-        p.is_file().then_some(p)
-    };
-    let mut path = exact.unwrap_or_else(|| dir.join(format!("TICKET-{prefix}.md")));
-    if !path.is_file() {
-        let mut cands: Vec<PathBuf> = dir
-            .read_dir()
-            .map_err(TicketError::Io)?
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| {
-                p.file_name().is_some_and(|n| {
-                    let n = n.to_string_lossy();
-                    n.starts_with(&format!("TICKET-{prefix}-"))
-                })
-            })
-            .collect();
-        cands.sort();
-        path = cands.into_iter().next().ok_or_else(|| {
-            TicketError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("no ticket file for {id}"),
-            ))
-        })?;
-    }
+    let t = find_ticket(root, id)?;
+    let path = t.path;
     let text = fs::read_to_string(&path).map_err(TicketError::Io)?;
     let frontmatter = text.trim_start().starts_with("---");
     let status_line = if frontmatter {
@@ -945,7 +930,7 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
     };
     let tmp = tmp_unique(&path, "status");
     fs::write(&tmp, updated).map_err(TicketError::Io)?;
-    fs::rename(&tmp, &path).map_err(TicketError::Io)
+    sync_then_rename(&tmp, &path).map_err(TicketError::Io)
 }
 
 /// Resolve a `blocked_by` reference to a ticket id deterministically:

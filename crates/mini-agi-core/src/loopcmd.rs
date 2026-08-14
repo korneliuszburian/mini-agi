@@ -884,8 +884,9 @@ pub fn objective(
         if let Some(budget) = out.budget_cost
             && out.budget_spent + cost > budget
         {
-            // STOP, not skip: the batch is ordered worst-first; once the
-            // budget is exhausted the remaining cases are beyond it.
+            // STOP, not skip: once the budget is exhausted the remaining
+            // (lexicographically-later) cases are beyond it — there is no
+            // scoring post-condensation to define a worst-first order.
             break;
         }
         let d_out = dispatch(root, Some(&name), TARGET_COMPOSITE, claimant)?;
