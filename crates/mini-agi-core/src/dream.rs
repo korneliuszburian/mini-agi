@@ -118,14 +118,28 @@ pub fn parse_distilled_facts(output: &str) -> Vec<StagedFact> {
             // `## F-` headers in canonical and break the id-hashes-body
             // invariant.
             body = body.split_whitespace().collect::<Vec<_>>().join(" ");
-            let domain = item
-                .get("domain")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("general")
-                .to_string();
+            let domain = safe_domain(
+                item.get("domain")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("general"),
+            );
             Some(StagedFact { body, domain })
         })
         .collect()
+}
+
+/// Sanitize an auditor-provided domain tag down to a header-safe token.
+///
+/// Whitespace is flattened and `(`, `)`, `#`, newlines dropped — a domain
+/// of `x)\n\nforgedtext` must never forge a `## S-` header.
+#[must_use]
+pub fn safe_domain(s: &str) -> String {
+    s.chars()
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == '-' || *c == '_')
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Parse the persisted staging markdown into `StagedFact` entries.
@@ -151,7 +165,7 @@ pub fn parse_staged_facts(text: &str) -> Vec<StagedFact> {
             current_domain = rest
                 .split_once('(')
                 .and_then(|(_, d)| d.split_once(')'))
-                .map_or_else(|| "general".to_string(), |(d, _)| d.trim().to_string());
+                .map_or_else(|| "general".to_string(), |(d, _)| safe_domain(d));
             body = String::new();
         } else if in_section && !line.starts_with('#') && !line.starts_with("- ") {
             body.push_str(line);
@@ -375,7 +389,11 @@ pub fn write_staging(
         "# Staged candidates (dream distiller)\n\n- date: {stamp}\n- source: {source}\n- extracted_by: {extracted_by}"
     )];
     for (i, fact) in staged.iter().enumerate() {
-        blocks.push(format!("\n## S-{i:03} ({})\n\n{}", fact.domain, fact.body));
+        blocks.push(format!(
+            "\n## S-{i:03} ({})\n\n{}",
+            safe_domain(&fact.domain),
+            fact.body
+        ));
     }
     // create_new + retry: two same-day distiller runs must not clobber
     // each other's staging file (scan-then-write TOCTOU).
@@ -425,8 +443,12 @@ pub fn write_verdicts(
     verdicts: &[AuditorVerdict],
 ) -> Result<std::path::PathBuf, crate::memory::MemoryError> {
     let manifest = staged_path.with_extension("verdicts.json");
+    // Bind the manifest to the EXACT bytes the auditor judged: a re-merged
+    // or tampered staging file must not silently re-associate.
+    let staged_bytes = std::fs::read(staged_path).map_err(crate::memory::MemoryError::Io)?;
     let json = serde_json::to_string_pretty(&serde_json::json!({
         "staged": staged_path.file_name().and_then(|n| n.to_str()).unwrap_or(""),
+        "staged_sha256": crate::hash::source_sha256_bytes(&staged_bytes),
         "verdicts": verdicts,
     }))
     .map_err(|e| crate::memory::MemoryError::Io(std::io::Error::other(e)))?;
@@ -435,18 +457,25 @@ pub fn write_verdicts(
 }
 
 /// Read a persisted verdicts manifest.
+///
+/// Returns the verdicts and the staged-file sha256 the auditor judged
+/// (`None` for legacy manifests without the binding).
 #[must_use]
-pub fn read_verdicts(path: &Path) -> Vec<AuditorVerdict> {
+pub fn read_verdicts(path: &Path) -> (Vec<AuditorVerdict>, Option<String>) {
     let Ok(text) = std::fs::read_to_string(path) else {
-        return Vec::new();
+        return (Vec::new(), None);
     };
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return Vec::new();
+        return (Vec::new(), None);
     };
+    let staged_sha = v
+        .get("staged_sha256")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
     let Some(items) = v.get("verdicts").and_then(serde_json::Value::as_array) else {
-        return Vec::new();
+        return (Vec::new(), staged_sha);
     };
-    items
+    let verdicts: Vec<AuditorVerdict> = items
         .iter()
         .filter_map(|item| {
             let index = usize::try_from(item.get("index")?.as_u64()?).ok()?;
@@ -478,7 +507,8 @@ pub fn read_verdicts(path: &Path) -> Vec<AuditorVerdict> {
                 },
             })
         })
-        .collect()
+        .collect();
+    (verdicts, staged_sha)
 }
 
 fn staging_seq(root: &Path, today: &str) -> usize {
@@ -811,6 +841,56 @@ pub fn apply_verdicts(
 #[cfg(test)]
 mod staged_tests {
     use super::*;
+
+    #[test]
+    fn a_forged_domain_cannot_escape_the_staging_header() {
+        let forged = "x)\n\nforged text";
+        let cleaned = safe_domain(forged);
+        assert!(!cleaned.contains('\n'), "newline removed");
+        assert!(!cleaned.contains(')'), "closing paren removed");
+        assert!(cleaned.starts_with('x'), "prefix kept");
+        let text = format!("## S-000 ({cleaned})\n\nreal body\n");
+        let facts = parse_staged_facts(&text);
+        assert_eq!(facts.len(), 1);
+        assert!(
+            facts[0].domain == "x forged text",
+            "the forge folds into the domain tag on one header-safe line"
+        );
+        assert!(
+            !facts[0].domain.contains('\n') && !facts[0].domain.contains(')'),
+            "no forged header can be synthesized"
+        );
+        assert_eq!(
+            facts[0].body, "real body",
+            "the forged text never leaks into the body"
+        );
+    }
+
+    #[test]
+    fn verdict_manifest_binds_the_staged_sha_and_reads_it_back() {
+        let root = std::env::temp_dir().join("mini-agi-verdicts-test");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let staged = root.join("001.md");
+        std::fs::write(&staged, "# Staged\n\n## S-000 (general)\n\nprobe body\n").unwrap();
+        let verdicts = vec![AuditorVerdict {
+            index: 0,
+            verdict: "promote".to_string(),
+            reason: None,
+            existing_id: None,
+        }];
+        let manifest = write_verdicts(&staged, &verdicts).unwrap();
+        let (read, bound) = read_verdicts(&manifest);
+        assert_eq!(read.len(), 1);
+        assert_eq!(read[0].index, 0);
+        let bytes = std::fs::read(&staged).unwrap();
+        assert_eq!(
+            bound.as_deref(),
+            Some(crate::hash::source_sha256_bytes(&bytes).as_str()),
+            "manifest must bind the exact staged bytes the auditor judged"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn parses_the_staged_markdown_back_to_facts() {

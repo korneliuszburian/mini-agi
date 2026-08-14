@@ -912,7 +912,11 @@ fn find_status_line(text: &str, frontmatter: bool) -> Option<usize> {
             if l.starts_with("status:") {
                 return Some(i);
             }
-        } else if l.starts_with("- status:") || l.starts_with("status:") {
+        } else if l.starts_with("- status:") {
+            // ONLY the bullet form the parser reads: a plain `status:`
+            // body line is invisible to parse_bullet_ticket, so rewriting
+            // it would close the ledger while the ticket stays OPEN (a
+            // dead close).
             return Some(i);
         }
     }
@@ -1132,6 +1136,37 @@ mod status_tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("tickets")).unwrap();
         root
+    }
+
+    #[test]
+    fn bullet_ticket_with_a_plain_status_body_line_does_not_dead_close() {
+        // A bullet ticket carrying BOTH a plain `status: OPEN` body line
+        // (which parse_bullet_ticket never reads) and no `- status:`
+        // bullet: the close must land on a line the parser reads, else
+        // the ledger closes while the ticket stays OPEN.
+        let root = tmp_root("deadclose");
+        let path = root.join("tickets/TICKET-1.md");
+        fs::write(
+            &path,
+            "- id: TICKET-1\n- title: t\nstatus: OPEN\n- goal: g\n",
+        )
+        .unwrap();
+        set_ticket_status(&root, "TICKET-1", "CLOSED").unwrap();
+        let t = find_ticket(&root, "TICKET-1").unwrap();
+        assert_eq!(
+            t.status, "CLOSED",
+            "the bullet path must close on a `- status:` line the parser reads"
+        );
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("- status: CLOSED"),
+            "an appended `- status:` bullet must exist"
+        );
+        assert!(
+            text.contains("status: OPEN"),
+            "the plain body line is left untouched (parser ignores it)"
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

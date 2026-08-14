@@ -369,6 +369,20 @@ fn contained_path(root: &Path, declared: &str) -> String {
     }
 }
 
+/// Bound a tool RESPONSE so a broad query can never force the
+/// single-threaded stdio server to emit an unbounded payload (the frame
+/// cap bounds input; this bounds output).
+fn bounded_output(s: &str) -> String {
+    if s.len() <= MAX_FRAME_BYTES {
+        return s.to_string();
+    }
+    let cut = &s[..MAX_FRAME_BYTES];
+    format!(
+        "{cut}\n... truncated ({} bytes, max {MAX_FRAME_BYTES})",
+        s.len()
+    )
+}
+
 fn read_arg_file(root: &Path, args: &Value, key: &str) -> String {
     let declared = arg(args, key);
     let path = contained_path(root, declared);
@@ -471,11 +485,13 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             if facts.is_empty() {
                 "no matching facts".into()
             } else {
-                facts
-                    .iter()
-                    .map(|(id, d, b)| format!("`{id}` [{d}] {b}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
+                bounded_output(
+                    &facts
+                        .iter()
+                        .map(|(id, d, b)| format!("`{id}` [{d}] {b}"))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                )
             }
         }
         "provenance" => format!(
@@ -520,12 +536,13 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             format!("{} events, {} bad", events.len(), audit.bad.len())
         }
         "loop_status" => match mini_agi_core::loopcmd::status(root) {
-            Ok(s) => s
-                .cases
-                .iter()
-                .map(|r| format!("{} attempts={} {:?}", r.case, r.attempts, r.status))
-                .collect::<Vec<_>>()
-                .join("\n"),
+            Ok(s) => bounded_output(
+                &s.cases
+                    .iter()
+                    .map(|r| format!("{} attempts={} {:?}", r.case, r.attempts, r.status))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
             Err(e) => format!("error: {e}"),
         },
         "loop_dispatch" => {
@@ -602,18 +619,18 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
                     let already = mini_agi_core::memory::queued_facts(&q)
                         .iter()
                         .any(|(d, _)| *d == flat_h);
-                    if !already
-                        && let Err(e) = mini_agi_core::memory::append_contested(
+                    if !already {
+                        if let Err(e) = mini_agi_core::memory::append_contested(
                             root,
                             &f.body,
                             &h,
                             source,
                             "0000000000000000",
-                        )
-                    {
-                        return format!("error: dream queue write failed: {e}");
+                        ) {
+                            return format!("error: dream queue write failed: {e}");
+                        }
+                        queued += 1;
                     }
-                    queued += 1;
                     continue;
                 }
                 let _ = writeln!(buffer, "- {}", f.body);

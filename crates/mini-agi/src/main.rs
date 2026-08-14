@@ -572,7 +572,7 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
         };
         // Use the CANONICAL path for every read (containment verified on
         // the path that is actually opened — no TOCTOU mismatch).
-        let verdicts = mini_agi_core::dream::read_verdicts(&manifest_canon);
+        let (verdicts, bound_sha) = mini_agi_core::dream::read_verdicts(&manifest_canon);
         if verdicts.is_empty() {
             return fail(&format!("dream --promote: no verdicts in {manifest}"));
         }
@@ -601,8 +601,8 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
         }
         // Read the CANONICAL staged file (the raw-path shadow would
         // follow a symlink planted inside memory/staging outside it).
-        let staged = match std::fs::read_to_string(&staged_path) {
-            Ok(t) => mini_agi_core::dream::parse_staged_facts(&t),
+        let staged_text = match std::fs::read_to_string(&staged_path) {
+            Ok(t) => t,
             Err(e) => {
                 return fail(&format!(
                     "dream --promote: cannot read {}: {e}",
@@ -610,6 +610,19 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
                 ));
             }
         };
+        // Hash binding: the manifest records the sha256 of the EXACT bytes
+        // the auditor judged. A re-merged/tampered staging file must be
+        // refused, not silently re-associated with the verdicts.
+        if let Some(bound) = &bound_sha {
+            let actual = mini_agi_core::hash::source_sha256_bytes(staged_text.as_bytes());
+            if &actual != bound {
+                return fail(&format!(
+                    "dream --promote: {} has been modified since the audit (sha256                      {actual} != bound {bound}) — re-run the AUDITOR stage, do not promote",
+                    staged_path.display()
+                ));
+            }
+        }
+        let staged = mini_agi_core::dream::parse_staged_facts(&staged_text);
         match mini_agi_core::dream::apply_verdicts(
             &root,
             &staged,
@@ -691,8 +704,8 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
                             source,
                             "0000000000000000",
                         );
+                        queued += 1;
                     }
-                    queued += 1;
                     continue;
                 }
                 let _ = writeln!(buffer, "- {}", f.body);

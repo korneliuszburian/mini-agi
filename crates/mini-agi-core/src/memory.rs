@@ -839,6 +839,12 @@ pub fn append_contested(
     if let Some(parent) = queue.parent() {
         fs::create_dir_all(parent)?;
     }
+    // Lock-held + atomic temp/rename, like every other authoritative file
+    // (claims/ledger/tickets): a bare `append(true)` lets two concurrent
+    // consolidations interleave lines INSIDE one record (mangled queue =
+    // a human repair job; the digest check at signoff then fails).
+    let _lock =
+        crate::ticket::lock_file(&queue.with_extension("lock"), 120).map_err(MemoryError::Io)?;
     let current = fs::read_to_string(&queue).unwrap_or_default();
     let number = current.lines().filter(|l| l.starts_with("## C-")).count() + 1;
     // Single-line payload: a multi-line fact would truncate on the
@@ -856,16 +862,20 @@ pub fn append_contested(
     // ` {body}` which reads back as `body` — hash the TRIMMED form, not
     // the escape-prefixed one, or the entry is permanently un-promotable.
     let digest = fact_digest_stored(&fact_flat);
-    let mut f = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&queue)?;
     let source = flat_meta(source);
     let existing_hash = flat_meta(existing_hash);
-    writeln!(
-        f,
+    let record = format!(
         "## C-{number:03} `{digest}`\n- source: {source}\n- reason: same first 40 chars\n- existing fact hash: {existing_hash}\n\n{fact_flat}\n"
-    )?;
+    );
+    let tmp = crate::ticket::tmp_unique(&queue, "contested");
+    {
+        use std::io::Write as _;
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(current.as_bytes())?;
+        f.write_all(record.as_bytes())?;
+        f.flush()?;
+    }
+    crate::ticket::sync_then_rename(&tmp, &queue).map_err(MemoryError::Io)?;
     Ok(queue)
 }
 

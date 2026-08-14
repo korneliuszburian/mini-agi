@@ -14,13 +14,16 @@ use std::path::Path;
 pub fn spec_text() -> String {
     format!(
         "# HARNESS SPEC (versioned; docs/harness/)\n\n\
-         - loop target composite: {}\n\
-         - gap threshold (insights): 0.05\n\
-         - gate composite tolerance: 0.05\n\
-         - gate mismatch tolerance: 1\n\
+         - target composite: {} (constant kept for API compatibility; the\n\
+           minimal model is achieved=true)\n\
          - verifier: declared verify_command executed in verify_target (ADR-0011)\n\
-         - close requires: composite >= target AND verifier pass AND zero gate regressions\n\
-         - registers: failures (Reflexion + MAST), mismatches (tool parity)\n\
+         - close requires: run achieved AND verifier pass (the gate IS the verification;\n\
+           composite scoring / judge calibration / registers were removed as\n\
+           over-verification)\n\
+         - gap lifecycle: evals/ledger/<case>.json is authoritative, written by\n\
+           loop dispatch/verify under the claims lock; terminal states are never redispatched\n\
+         - unverified runs are never reported successful: loop verify closes a gap\n\
+           only when the run is achieved AND the declared gate passes (or --allow-unverified)\n\
          - discipline: checkpoint begin/verify per edit; verify refuses without open BEGIN\n",
         crate::loopcmd::TARGET_COMPOSITE
     )
