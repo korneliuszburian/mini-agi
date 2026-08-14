@@ -960,6 +960,9 @@ pub fn consolidate(
 
     let mut known: Vec<String> = existing_fact_ids(root);
     let canonical = canonical_facts(root);
+    // Hoisted once (cycle-45 review): the D3 preserved-collision check
+    // re-read the preserved file PER CANDIDATE (N × preserve-file reads).
+    let preserved_ids = preserved_ids(root);
 
     let mut new_facts: Vec<(String, String)> = Vec::new();
     let mut skipped = 0usize;
@@ -991,7 +994,7 @@ pub fn consolidate(
         // prefix rule as the contested check).
         let preserved: Vec<(&str, &str)> = canonical
             .iter()
-            .filter(|(_, id)| preserved_ids(root).contains(id))
+            .filter(|(_, id)| preserved_ids.contains(id))
             .map(|(body, id)| (body.as_str(), id.as_str()))
             .collect();
         let preserved_collision = (!preserved.is_empty())

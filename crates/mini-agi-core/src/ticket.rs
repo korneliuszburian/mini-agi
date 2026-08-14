@@ -595,7 +595,13 @@ pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> 
                     // succeed; the loser retries and then waits on the
                     // winner's new lock (or steals a genuinely stale one).
                     // The renamed inode is discarded best-effort.
-                    let steal = path.with_extension(format!("lock.steal.{}", std::process::id()));
+                    // PID + a monotonic counter: two steals in one process
+                    // must not overwrite each other's steal file.
+                    static STEAL_SEQ: std::sync::atomic::AtomicU64 =
+                        std::sync::atomic::AtomicU64::new(0);
+                    let seq = STEAL_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let steal =
+                        path.with_extension(format!("lock.steal.{}.{seq}", std::process::id()));
                     if fs::rename(&path, &steal).is_ok() {
                         // POST-RENAME verify: between observing "stale"
                         // and the rename, the original holder may have
@@ -609,6 +615,15 @@ pub(crate) fn lock_file(path: &Path, stale_secs: u64) -> io::Result<ClaimsLock> 
                             })
                         });
                         if still_stale {
+                            let _ = fs::remove_file(&steal);
+                            continue;
+                        }
+                        if fs::metadata(&steal).is_err() {
+                            // The inode vanished between rename and metadata
+                            // (the original holder's drop removed it): it is
+                            // NEITHER stale nor live — discard the orphaned
+                            // steal file and retry (do NOT run the "fresh
+                            // lock, put it back" branch on an error).
                             let _ = fs::remove_file(&steal);
                             continue;
                         }
@@ -861,7 +876,6 @@ pub fn write_claims_registry(root: &Path, claims: &[Claim]) -> io::Result<()> {
 ///
 /// Returns [`TicketError::Io`] on filesystem failure.
 pub fn append_ticket_note(root: &Path, id: &str, note: &str) -> Result<(), TicketError> {
-    use std::io::Write as _;
     // Append to the EXACT file find_ticket loaded (Ticket.path): a
     // name/id mismatch (TICKET-006.md containing id TICKET-006-v2) must
     // not route the note to a different file.
@@ -885,13 +899,13 @@ pub fn append_ticket_note(root: &Path, id: &str, note: &str) -> Result<(), Ticke
         .map_err(TicketError::Io)?;
         return sync_then_rename(&tmp, &path).map_err(TicketError::Io);
     }
-    let mut f = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(TicketError::Io)?;
-    writeln!(f, "- note: {note}").map_err(TicketError::Io)?;
-    Ok(())
+    // Atomic temp+rename, same as the JSON branch (caller holds the
+    // claims lock, but a crash mid-`append(true)` could leave a partial
+    // `- note:` line; the rewritten file cannot).
+    let updated = format!("{text}\n- note: {note}\n");
+    let tmp = tmp_unique(&path, "note");
+    fs::write(&tmp, updated).map_err(TicketError::Io)?;
+    sync_then_rename(&tmp, &path).map_err(TicketError::Io)
 }
 
 /// Set a ticket's lifecycle status (`OPEN`/`CLOSED`/...), rewriting the

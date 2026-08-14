@@ -155,17 +155,58 @@ enum Framing {
     Newline,
 }
 
+/// A stalled client (sends a validated `Content-Length` then nothing, or
+/// nothing at all) must not block the single-threaded stdio server
+/// forever — every other tool would freeze. The reader runs in a thread
+/// owning `Stdin` (Send), and the main loop waits per-frame with a
+/// deadline; on timeout the server exits the connection with an error
+/// instead of hanging.
+const FRAME_READ_DEADLINE: std::time::Duration = std::time::Duration::from_mins(1);
+
 pub fn run_stdio_server() -> Result<(), io::Error> {
-    let stdin = io::stdin();
-    let mut input = stdin.lock();
     let stdout = io::stdout();
     let mut output = stdout.lock();
     let mut initialized = false;
-    while let Some((message, framing)) = read_frame(&mut input)? {
-        if let Some(payload) = dispatch(&message, &mut initialized) {
-            write_frame(&mut output, &payload, framing)?;
+    let (tx, rx) = std::sync::mpsc::channel::<io::Result<(Value, Framing)>>();
+    let reader = std::thread::spawn(move || {
+        let stdin = io::stdin();
+        let mut input = stdin.lock();
+        loop {
+            match read_frame(&mut input) {
+                Ok(Some((message, framing))) => {
+                    if tx.send(Ok((message, framing))).is_err() {
+                        break;
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    let _ = tx.send(Err(e));
+                    break;
+                }
+            }
+        }
+    });
+    loop {
+        match rx.recv_timeout(FRAME_READ_DEADLINE) {
+            Ok(Ok((message, framing))) => {
+                if let Some(payload) = dispatch(&message, &mut initialized) {
+                    write_frame(&mut output, &payload, framing)?;
+                }
+            }
+            Ok(Err(e)) => {
+                let _ = reader.join();
+                return Err(e);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "no MCP frame from the client within the deadline — refusing to block forever",
+                ));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
+    let _ = reader.join();
     Ok(())
 }
 
