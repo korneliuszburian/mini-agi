@@ -372,15 +372,27 @@ fn substitution_len(text: &str) -> Option<usize> {
     None
 }
 
+/// Next `-p`/`-u` flag position by a SINGLE linear scan (advancing by
+/// char indices, first match wins): `match_indices("-p").chain(...)
+/// .min_by_key(...)` re-scanned the ENTIRE remaining text every loop
+/// pass — O(k·n) on text with k flags (a crafted multi-hundred-KB
+/// `verify_command` stalled `loop verify` for minutes).
+fn next_flag(rest: &str) -> Option<(usize, &str)> {
+    for (i, _) in rest.char_indices() {
+        if rest[i..].starts_with("-p") {
+            return Some((i, "-p"));
+        }
+        if rest[i..].starts_with("-u") {
+            return Some((i, "-u"));
+        }
+    }
+    None
+}
+
 fn redact_flag_values(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some((pos, flag)) = rest
-        .match_indices("-p")
-        .chain(rest.match_indices("-u"))
-        .min_by_key(|(p, _)| *p)
-    {
-        let _ = flag;
+    while let Some((pos, _flag)) = next_flag(rest) {
         let after = pos + 2;
         // Left boundary: shell-command context only. `"` is EXCLUDED — a
         // `-p` preceded by a quote is inside a JSON/array string
@@ -770,6 +782,27 @@ mod redact_tests {
             out.matches(REDACTED).count(),
             2_000,
             "all 2000 values redacted"
+        );
+    }
+
+    #[test]
+    fn many_flag_values_are_all_redacted_in_one_pass() {
+        // Linear next_flag scan (single char-index pass, first match
+        // wins) must still find EVERY `-p`/`-u` deep in a long string —
+        // a dropped offset would silently skip the tail's flags.
+        let mut text = String::new();
+        for _ in 0..1_000 {
+            text.push_str("-p secretvalue ");
+        }
+        let out = redact(&text);
+        assert!(
+            !out.contains("secretvalue"),
+            "a mid-stream flag secret leaked"
+        );
+        assert_eq!(
+            out.matches(REDACTED).count(),
+            1_000,
+            "all 1000 flag values redacted"
         );
     }
 

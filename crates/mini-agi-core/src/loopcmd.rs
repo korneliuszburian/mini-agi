@@ -964,7 +964,12 @@ fn write_spec(root: &Path, case: &str, ticket_id: &str) -> io::Result<PathBuf> {
         body,
         "- acceptance: `mini-agi loop verify {case}-rerun` closes only when the declared gate passes"
     );
-    fs::write(&path, body)?;
+    // Atomic temp+rename, like every other authoritative file: the spec
+    // is the ONE artifact the worker parses and EXECUTES — a crash
+    // mid-`fs::write` must not leave a truncated executable gate.
+    let tmp = crate::ticket::tmp_unique(&path, "spec");
+    fs::write(&tmp, body)?;
+    crate::ticket::sync_then_rename(&tmp, &path)?;
     Ok(path)
 }
 
@@ -997,7 +1002,10 @@ fn create_case_ticket(root: &Path, case: &str) -> Result<String, String> {
     let body = format!(
         "# Ticket\n\n- id: {id}\n- title: Fix capability gap: {case} below the loop target\n- goal (one sentence): Bring {case} to achieved by fixing the failing run.\n- scope: evals/cases\n- domain: eval\n"
     );
-    fs::write(dir.join(format!("{id}.md")), body).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{id}.md"));
+    let tmp = crate::ticket::tmp_unique(&path, "ticket");
+    fs::write(&tmp, body).map_err(|e| e.to_string())?;
+    crate::ticket::sync_then_rename(&tmp, &path).map_err(|e| e.to_string())?;
     Ok(id)
 }
 

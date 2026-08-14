@@ -147,6 +147,16 @@ impl Config {
                 path.display()
             ));
         }
+        // Same class: a NaN/inf/out-of-range `target_composite` would make
+        // every "below target" comparison permanently false — a silently
+        // dead loop. Must be a finite proportion.
+        if !cfg.target_composite.is_finite() || !(0.0..=1.0).contains(&cfg.target_composite) {
+            return Err(format!(
+                "{} has target_composite = {} — must be a finite number in [0, 1]",
+                path.display(),
+                cfg.target_composite
+            ));
+        }
         let check = |name: &str, kind: &str, parse: fn(&str) -> bool| {
             if let Some(raw) = std::env::var(name).ok()
                 && !parse(&raw)
@@ -155,8 +165,9 @@ impl Config {
             }
             Ok(())
         };
-        check("MINIAGI_TARGET_COMPOSITE", "number", |s| {
-            s.parse::<f64>().is_ok()
+        check("MINIAGI_TARGET_COMPOSITE", "finite number in [0, 1]", |s| {
+            s.parse::<f64>()
+                .is_ok_and(|v| v.is_finite() && (0.0..=1.0).contains(&v))
         })?;
         check("MINIAGI_MAX_COST_USD", "finite non-negative number", |s| {
             s.parse::<f64>().is_ok_and(|v| v.is_finite() && v >= 0.0)
@@ -254,6 +265,27 @@ mod config_tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         root
+    }
+
+    #[test]
+    fn an_out_of_range_target_composite_fails_closed() {
+        for bad in ["NaN", "1e999", "1.5", "-0.1"] {
+            let root = tmp_root("tc");
+            fs::write(
+                root.join(".miniagi.json"),
+                format!("{{\"target_composite\": {bad}}}"),
+            )
+            .unwrap();
+            assert!(
+                Config::load_checked(&root).is_err(),
+                "target_composite = {bad} must fail closed (a NaN/out-of-range target makes the loop dead)"
+            );
+            let _ = fs::remove_dir_all(&root);
+        }
+        let root = tmp_root("tc-ok");
+        fs::write(root.join(".miniagi.json"), r#"{"target_composite": 0.5}"#).unwrap();
+        assert!((Config::load_checked(&root).unwrap().target_composite - 0.5).abs() < 1e-9);
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
