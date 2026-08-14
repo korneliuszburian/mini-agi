@@ -32,13 +32,15 @@ Canonical memory import source: `agentic-core@HEAD`.
 
 - `mini-agi harness` snapshots the harness spec + gate ledger row.
 - `mini-agi harness verify <target> <candidate> [--claims]` swaps a
-  candidate, runs the gate, and ACCEPTS only on observed failure
-  reduction; a claim of fixing a failure never observed before the edit
-  is REJECTED with evidence (Phantom Guardrails). The gate itself
-  (scripts/verify.sh) is never its own counterfactual subject.
-- Harness/AGENTS changes that cannot show an observed failure reduction
-  land as normal documentation commits — the counterfactual gate only
-  justifies failure-reducing edits.
+  candidate, runs the gate, and ACCEPTS only when the swap leaves the
+  gate FULLY green (observed failures reduced to zero); a partial
+  reduction that still leaves any failure REJECTS (fail-closed). A claim
+  of fixing a failure never observed before the edit is REJECTED with
+  evidence (Phantom Guardrails). The gate itself (scripts/verify.sh) is
+  never its own counterfactual subject.
+- Harness/AGENTS changes that cannot show a fully-green failure
+  reduction land as normal documentation commits — the counterfactual
+  gate only justifies failure-reducing edits.
 
 ## Toolchain (pinned)
 

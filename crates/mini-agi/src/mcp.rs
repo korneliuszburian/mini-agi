@@ -340,7 +340,10 @@ fn handle_tools_call(params: &Value) -> Value {
         .unwrap_or_else(|| json!({}));
     let root = super::root();
     let text = call_tool(name, &args, &root);
-    let is_error = text.starts_with("error:");
+    // `read_arg_file` rejections use the `\u{1}` sentinel (containment-
+    // rejected / too-large / not-a-regular-file) so they are NOT silently
+    // delivered as successful tool results — surface them as errors too.
+    let is_error = text.starts_with("error:") || text.starts_with('\u{1}');
     json!({ "isError": is_error, "content": [{ "type": "text", "text": text }] })
 }
 
@@ -580,6 +583,17 @@ fn call_tool(name: &str, args: &Value, root: &Path) -> String {
             // without it one approved call could dispatch the whole gap
             // set with no cost bound.
             let budget = args.get("budget_cost").and_then(Value::as_f64);
+            // Parity with the CLI validation: a NaN/inf/negative budget
+            // makes `spent + cost > budget` permanently false — one
+            // approved call could then dispatch the whole open set
+            // unbounded. Refuse it here (the CLI rejects `v >= 0.0`).
+            if let Some(b) = budget
+                && (!b.is_finite() || b < 0.0)
+            {
+                return format!(
+                    "error: budget_cost must be a finite non-negative number (got {b})"
+                );
+            }
             match mini_agi_core::loopcmd::objective(root, max, arg(args, "claimant"), budget) {
                 Ok(o) => format!("dispatched {} case(s)", o.dispatched.len()),
                 Err(e) => format!("error: {e}"),

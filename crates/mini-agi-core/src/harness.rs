@@ -123,8 +123,8 @@ pub fn gate_failures(text: &str) -> Vec<String> {
 }
 
 /// Counterfactual harness gate (Phase 9 slice 5, Phantom Guardrails
-/// 2607.13083): a candidate edit must REDUCE observed gate failures;
-/// fixing a failure never observed before the edit is fabricated.
+/// 2607.13083): a candidate edit must reduce observed gate failures to
+/// ZERO; fixing a failure never observed before the edit is fabricated.
 ///
 /// Runs the gate before (with the current file), swaps in the candidate,
 /// runs the gate after, then restores the original. Returns a human
@@ -132,13 +132,18 @@ pub fn gate_failures(text: &str) -> Vec<String> {
 /// claim is not in the BEFORE failure set, the edit is rejected with
 /// evidence (byte-exact replay, not suppression).
 ///
+/// ACCEPT is reachable ONLY on a fully green after-gate (exit 0 ⟹ zero
+/// remaining failures); a partial reduction that still leaves any
+/// failure is REJECTED (fail-closed) — the after-gate must never look
+/// like a reduction while the repo stays red.
+///
 /// Stale threshold for the DEDICATED harness lock: above the capped
 /// gate run so a concurrent harness cannot steal a live counterfactual.
 const HARNESS_STALE_SECS: u64 = 3600;
 
 /// Counterfactual gate (Phantom Guardrails): a candidate edit must
-/// REDUCE observed gate failures; fixing a failure never observed before
-/// the edit is fabricated.
+/// reduce observed gate failures to ZERO; fixing a failure never
+/// observed before the edit is fabricated.
 ///
 /// # Errors
 ///
@@ -231,7 +236,7 @@ pub fn verify_candidate(
     let after_count = after.len();
     match after_count.cmp(&before_count) {
         std::cmp::Ordering::Less => Ok(format!(
-            "ACCEPT: gate failures {before_count} -> {after_count} (observed reduction)\n  before: {before:?}\n  after: {after:?}"
+            "ACCEPT: gate fully green after the swap ({before_count} -> 0 observed failures)\n  before: {before:?}\n  after: {after:?}"
         )),
         std::cmp::Ordering::Equal => Ok(format!(
             "NEUTRAL: gate failures unchanged ({before_count}) — no observed reduction, edit not justified\n  before: {before:?}\n  after: {after:?}"

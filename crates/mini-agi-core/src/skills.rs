@@ -863,6 +863,17 @@ fn install_one(root: &Path, skill_md: &Path) -> Result<String, SkillError> {
             name = skill.name
         )));
     }
+    // Read-path parity: find_skill/load (name_is_plain_segment) refuse a
+    // leading-dot name, but discover_skills has no such check — a skill
+    // repo shipping a `.hidden` directory would install into
+    // `.agents/skills/.hidden` and still be discovered, evading the
+    // naming contract the read path applies. Install enforces it here.
+    if !name_is_plain_segment(&skill.name) {
+        return Err(SkillError::Parse(format!(
+            "skill name '{name}' is not a plain path segment (no separators, no leading dot)",
+            name = skill.name
+        )));
+    }
     let dest = agents_dir(root).join(&skill.name);
     // Install-diff (D5): compare the WHOLE installable unit (SKILL.md
     // + aux files) and copy only when it differs. On a difference the
@@ -958,6 +969,75 @@ fn copy_dir(src: &Path, dest: &Path) -> Result<(), SkillError> {
 fn hash_tail(s: &str) -> String {
     let h = crate::hash::source_sha256(s);
     h[..12].to_string()
+}
+
+#[cfg(test)]
+mod install_tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-skill-{}-{}", tag, std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join(".agents/skills")).unwrap();
+        root
+    }
+
+    fn make_repo(root: &Path) -> std::path::PathBuf {
+        let repo = root.join("repo");
+        fs::create_dir_all(repo.join(".agents/skills/.hidden")).unwrap();
+        fs::write(
+            repo.join(".agents/skills/.hidden/SKILL.md"),
+            "---\nname: .hidden\ndescription: probe\n---\n\nprobe\n",
+        )
+        .unwrap();
+        let ok = std::process::Command::new("git")
+            .args(["init", "-q", repo.to_str().unwrap()])
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "git init");
+        let ok = std::process::Command::new("git")
+            .args(["-C", repo.to_str().unwrap(), "add", "."])
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "git add");
+        let ok = std::process::Command::new("git")
+            .args([
+                "-C",
+                repo.to_str().unwrap(),
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-q",
+                "-m",
+                "probe",
+            ])
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "git commit");
+        repo
+    }
+
+    #[test]
+    fn install_rejects_a_leading_dot_skill_directory() {
+        let root = tmp_root("dot");
+        let repo = make_repo(&root);
+        let out = install_skills(&root, &repo.to_string_lossy());
+        assert!(
+            out.is_err(),
+            "a leading-dot skill name must be rejected at install, not discovered later"
+        );
+        assert!(
+            !root.join(".agents/skills/.hidden").exists(),
+            "the leading-dot skill must not be installed"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
 }
 
 #[cfg(test)]

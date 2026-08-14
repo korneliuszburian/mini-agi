@@ -1071,6 +1071,12 @@ pub fn signoff(
     if !queue.exists() {
         return Err(MemoryError::BadSignoff);
     }
+    // Signoff is lock-held (same per-queue lock as append_contested):
+    // the known-id check + create_new write must be one atomic section or
+    // two racing signoffs of the same index BOTH pass FactKnown and land
+    // duplicate 16-hex ids in different seq files (append-only store).
+    let _lock = crate::ticket::lock_file(&queue_canon.with_extension("lock"), 120)
+        .map_err(MemoryError::Io)?;
     // Read the CANONICAL path (not the raw caller string): this NARROWS
     // the symlink-swap window between containment and read to a
     // concurrent local writer racing the kernel (not a remote-caller

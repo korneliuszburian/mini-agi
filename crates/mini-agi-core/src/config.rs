@@ -136,6 +136,17 @@ impl Config {
                 ));
             }
         }
+        // Range-check JSON bounds: `1e999` deserializes to `inf` and a NaN
+        // bound would make `cost > max` permanently false — a silently
+        // DEAD cap, exactly the failure mode the module refuses to allow.
+        if let Some(v) = cfg.max_cost_usd
+            && (!v.is_finite() || v < 0.0)
+        {
+            return Err(format!(
+                "{} has max_cost_usd = {v} — must be a finite non-negative number",
+                path.display()
+            ));
+        }
         let check = |name: &str, kind: &str, parse: fn(&str) -> bool| {
             if let Some(raw) = std::env::var(name).ok()
                 && !parse(&raw)
@@ -147,8 +158,8 @@ impl Config {
         check("MINIAGI_TARGET_COMPOSITE", "number", |s| {
             s.parse::<f64>().is_ok()
         })?;
-        check("MINIAGI_MAX_COST_USD", "number", |s| {
-            s.parse::<f64>().is_ok()
+        check("MINIAGI_MAX_COST_USD", "finite non-negative number", |s| {
+            s.parse::<f64>().is_ok_and(|v| v.is_finite() && v >= 0.0)
         })?;
         check("MINIAGI_MAX_STEPS", "integer", |s| {
             s.parse::<usize>().is_ok()
@@ -215,7 +226,10 @@ impl Config {
         set_u64("MINIAGI_MAX_IDLE_SECONDS", &mut self.max_idle_seconds);
         if let Some(raw) = get("MINIAGI_MAX_COST_USD") {
             match raw.parse::<f64>() {
-                Ok(v) => self.max_cost_usd = Some(v),
+                Ok(v) if v.is_finite() && v >= 0.0 => self.max_cost_usd = Some(v),
+                Ok(v) => eprintln!(
+                    "warning: MINIAGI_MAX_COST_USD = {v} is not a finite non-negative number ('{raw}') — ignoring"
+                ),
                 Err(e) => eprintln!(
                     "warning: MINIAGI_MAX_COST_USD is not a number ('{raw}') — ignoring ({e})"
                 ),
@@ -227,5 +241,42 @@ impl Config {
     #[must_use]
     pub fn target_composite_for(root: &Path) -> f64 {
         Self::load(root).target_composite
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::*;
+    use std::fs;
+
+    fn tmp_root(tag: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("mag-cfg-{}-{}", tag, std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn an_infinite_or_nan_cost_bound_fails_closed() {
+        for bad in ["1e999", "NaN", "-5"] {
+            let root = tmp_root("cost");
+            fs::write(
+                root.join(".miniagi.json"),
+                format!("{{\"max_cost_usd\": {bad}}}"),
+            )
+            .unwrap();
+            assert!(
+                Config::load_checked(&root).is_err(),
+                "max_cost_usd = {bad} must fail closed (a NaN/inf bound silently disables the cost cap)"
+            );
+            let _ = fs::remove_dir_all(&root);
+        }
+        let root = tmp_root("cost-ok");
+        fs::write(root.join(".miniagi.json"), r#"{"max_cost_usd": 12.5}"#).unwrap();
+        assert_eq!(
+            Config::load_checked(&root).unwrap().max_cost_usd,
+            Some(12.5)
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 }
