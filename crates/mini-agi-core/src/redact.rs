@@ -55,17 +55,28 @@ fn token_contains_key(token: &str, key: &str) -> bool {
     if token.len() < key.len() {
         return false;
     }
-    (0..=token.len() - key.len()).any(|pos| {
-        token[pos..].starts_with(key)
-            && token[..pos]
-                .chars()
-                .next_back()
-                .is_none_or(|c| !c.is_alphanumeric())
-            && token[pos + key.len()..]
-                .chars()
-                .next()
-                .is_none_or(|c| !c.is_alphanumeric())
-    })
+    // CHAR-BOUNDARY positions only: `token[pos..]` panics when a byte
+    // index lands mid-UTF-8 (keys are ASCII, so an ASCII key can never
+    // begin mid-char — skipping non-boundary positions loses nothing).
+    // A crafted `evals/cases/` verify_command or a model-written action
+    // containing any multi-byte word would otherwise crash every redact
+    // caller (worker, MCP server, supervisor) with a byte-index panic.
+    token
+        .char_indices()
+        .map(|(i, _)| i)
+        .chain(std::iter::once(token.len()))
+        .any(|pos| {
+            pos + key.len() <= token.len()
+                && token[pos..].starts_with(key)
+                && token[..pos]
+                    .chars()
+                    .next_back()
+                    .is_none_or(|c| !c.is_alphanumeric())
+                && token[pos + key.len()..]
+                    .chars()
+                    .next()
+                    .is_none_or(|c| !c.is_alphanumeric())
+        })
 }
 
 /// Redact credential values in `text` (CLI command strings and JSON
@@ -702,6 +713,25 @@ mod redact_tests {
             let out = redact(cmd);
             assert!(!out.contains("hunter2secret"), "value leaked: {out}");
             assert!(out.contains(REDACTED), "{out}");
+        }
+    }
+
+    #[test]
+    fn multibyte_utf8_never_panics_the_redactor() {
+        // Byte-index slicing in token_contains_key used to panic on any
+        // multi-byte word (`tést`, `paßword=x`, `echo ✓`, Japanese git
+        // messages) — every redact caller (worker draft, MCP loop_verify,
+        // supervisor spec) is untrusted input.
+        for cmd in [
+            "töken",
+            "paßword=x",
+            "auténtic=tok",
+            "tést",
+            "echo ✓",
+            "git commit -m \"日本語\"",
+            "tröd knöd",
+        ] {
+            let _ = redact(cmd); // must not panic
         }
     }
 

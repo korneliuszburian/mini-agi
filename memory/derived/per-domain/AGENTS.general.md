@@ -1,6 +1,6 @@
 # PROVENANCE
-# canonical_sha256: f3c3013b18f288d4
-# canonical_entries: 151
+# canonical_sha256: 4dd4a9a8c016cc0c
+# canonical_entries: 152
 # derived_at: regenerated deterministically by mini-agi derive
 # rule: if this file's canonical_sha256 differs from `mini-agi provenance` output, re-run derive
 
@@ -1025,3 +1025,4 @@ Applies when working on this domain. Canonical memory wins on conflict.
 - `0be4a280fa1f03ba` cycle 51 (2026-08-14): thirty-eighth deepseek-v4-pro whole-repo review (repo-health-37) — 5 fixed (corrupt-ticket collision/next_ticket_number, worker caps anchored on repo root, receipt write loud, MCP read bounded, git_rev run_capped), 1 rejected with evidence (URL-userinfo). 126 tests green.
 - `ae8f80a4b8157746` cycle 52 (2026-08-14): thirty-ninth deepseek-v4-pro whole-repo review (repo-health-38) — 5 fixed (dream staging safe_domain + staged_sha256 binding, harness spec_text, dead-close bullet status, lock-held append_contested, MCP output bound + queued counter). 129 tests green.
 - `24256365b3ef7810` cycle 53 (2026-08-14): fortieth deepseek-v4-pro whole-repo review (repo-health-39) — 6 fixed (bounded_output char-boundary, dispatch rollback record-loss race, next_ticket_number fail-closed, redact ws-before-comma, Set-Cookie, skill outputs bounded), 1 rejected. 131 tests green.
+- `423fb4ed137b7fbf` cycle 54 (2026-08-14): forty-first deepseek-v4-pro whole-repo review (repo-health-40) — 6 fixed (NaN/inf cost bound fail-closed, MCP budget finiteness, harness ACCEPT contract, signoff lock, isError sentinel, skill install plain-segment). 133 tests green.

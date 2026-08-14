@@ -839,12 +839,28 @@ pub fn append_contested(
     if let Some(parent) = queue.parent() {
         fs::create_dir_all(parent)?;
     }
+    // Lock the CANONICAL queue path, mirroring signoff: if `memory/review`
+    // is a symlink, an un-canonicalized lock file would name a DIFFERENT
+    // file than signoff locks — silently splitting the "same per-queue
+    // lock" invariant (lost-update window, not corruption today).
+    let canonical_lock = {
+        let parent = queue
+            .parent()
+            .and_then(|p| fs::canonicalize(p).ok())
+            .unwrap_or_else(|| Path::new(".").to_path_buf());
+        parent.join(
+            queue
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default()
+                + ".lock",
+        )
+    };
     // Lock-held + atomic temp/rename, like every other authoritative file
     // (claims/ledger/tickets): a bare `append(true)` lets two concurrent
     // consolidations interleave lines INSIDE one record (mangled queue =
     // a human repair job; the digest check at signoff then fails).
-    let _lock =
-        crate::ticket::lock_file(&queue.with_extension("lock"), 120).map_err(MemoryError::Io)?;
+    let _lock = crate::ticket::lock_file(&canonical_lock, 120).map_err(MemoryError::Io)?;
     let current = fs::read_to_string(&queue).unwrap_or_default();
     let number = current.lines().filter(|l| l.starts_with("## C-")).count() + 1;
     // Single-line payload: a multi-line fact would truncate on the
