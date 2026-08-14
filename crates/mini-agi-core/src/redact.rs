@@ -37,10 +37,12 @@ const CREDENTIAL_KEYS: [&str; 14] = [
 /// (`mycredstuff`, `tokens_total` stay untouched). Hyphens and underscores
 /// are treated as equivalent joins, so `X-Api-Key` matches `api_key`.
 fn is_credential_key(token: &str) -> bool {
-    // The sshpass password flag as a bare key (`-p`, `p`) is a credential
+    // The sshpass/basic-auth flag as a key (`-p`, `-u`) is a credential
     // key — this catches the JSON form `{"-p": "secret"}` whose value the
-    // flag scanner (correctly) no longer touches.
-    if token == "p" || token == "-p" || token == "u" || token == "-u" {
+    // flag scanner (correctly) no longer touches. BARE `p`/`u` are NOT
+    // keys: `echo u abc` / `curl .../u secret` would over-redact the next
+    // token and corrupt the honest transcript.
+    if token == "-p" || token == "-u" {
         return true;
     }
     let norm = token.replace('-', "_");

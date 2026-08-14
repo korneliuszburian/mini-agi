@@ -577,7 +577,17 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
             return fail(&format!("dream --promote: no verdicts in {manifest}"));
         }
         // The staged facts sit next to the manifest (`<seq>.md`).
-        let staged_path = manifest_canon.with_extension("md");
+        // The staged file is `<seq>.md`; the manifest is `<seq>.verdicts.json`.
+        // `with_extension("md")` on the manifest would give `001.verdicts.md`
+        // (a dead path) — strip a trailing `.verdicts` suffix first.
+        let staged_stem = manifest_canon
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map_or_else(
+                || "staged".to_string(),
+                |s| s.strip_suffix(".verdicts").unwrap_or(s).to_string(),
+            );
+        let staged_path = manifest_canon.with_file_name(format!("{staged_stem}.md"));
         // Idempotency receipt: a manifest whose staged file was already
         // promoted must NOT be re-applied (documented D2 contract).
         if let Some(receipt) = mini_agi_core::dream::read_promotion_receipt(&staged_path)
@@ -592,7 +602,7 @@ fn cmd_dream(args: &DreamArgs) -> ExitCode {
         // Read the CANONICAL staged file (the raw-path shadow would
         // follow a symlink planted inside memory/staging outside it).
         let staged = match std::fs::read_to_string(&staged_path) {
-            Ok(t) => mini_agi_core::dream::parse_distilled_facts(&t),
+            Ok(t) => mini_agi_core::dream::parse_staged_facts(&t),
             Err(e) => {
                 return fail(&format!(
                     "dream --promote: cannot read {}: {e}",

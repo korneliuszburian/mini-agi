@@ -814,53 +814,67 @@ pub fn write_claims_registry(root: &Path, claims: &[Claim]) -> io::Result<()> {
 /// Returns [`TicketError::Io`] on filesystem failure.
 pub fn append_ticket_note(root: &Path, id: &str, note: &str) -> Result<(), TicketError> {
     use std::io::Write as _;
-    // Resolve the EXACT file (parity with set_ticket_status): a suffixed
-    // id must annotate `TICKET-006-v2.md`, never create a stray
-    // `TICKET-006.md` that aliases lookups away from the real ticket.
+    // Append to the EXACT file find_ticket loaded (Ticket.path): a
+    // name/id mismatch (TICKET-006.md containing id TICKET-006-v2) must
+    // not route the note to a different file.
     let t = find_ticket(root, id)?;
-    let prefix: String =
-        t.id.strip_prefix("TICKET-")
-            .unwrap_or(&t.id)
-            .chars()
-            .take_while(char::is_ascii_digit)
-            .collect();
-    let dir = tickets_dir(root);
-    let path = {
-        let p = dir.join(format!("{}.md", t.id));
-        if p.is_file() {
-            p
-        } else {
-            let mut cands: Vec<PathBuf> = dir
-                .read_dir()
-                .map_err(TicketError::Io)?
-                .flatten()
-                .map(|e| e.path())
-                .filter(|p| {
-                    p.file_name().is_some_and(|n| {
-                        let n = n.to_string_lossy();
-                        n.starts_with(&format!("TICKET-{prefix}-"))
-                    })
-                })
-                .collect();
-            cands.sort();
-            cands.into_iter().next().ok_or_else(|| {
-                TicketError::Io(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("no ticket file for {id}"),
-                ))
-            })?
-        }
-    };
+    let path = t.path;
+    // Flatten the note: a newline would inject a `- blocked_by:`/`- status:`
+    // line into the ticket file.
+    let note = note.split_whitespace().collect::<Vec<_>>().join(" ");
+    let text = fs::read_to_string(&path).map_err(TicketError::Io)?;
+    if text.trim_start().starts_with('{') {
+        // JSON ticket: append a `note` field (a `- note:` line would make
+        // the file invalid JSON and the ticket vanish from list_tickets).
+        let mut value: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| TicketError::Parse(e.to_string()))?;
+        value["note"] = serde_json::Value::String(note);
+        let tmp = tmp_unique(&path, "note");
+        fs::write(
+            &tmp,
+            serde_json::to_string_pretty(&value).unwrap_or_default(),
+        )
+        .map_err(TicketError::Io)?;
+        return sync_then_rename(&tmp, &path).map_err(TicketError::Io);
+    }
     let mut f = fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&path)
         .map_err(TicketError::Io)?;
-    // Flatten the note: a newline would inject a `- blocked_by:`/`- status:`
-    // line into the ticket file.
-    let note = note.split_whitespace().collect::<Vec<_>>().join(" ");
     writeln!(f, "- note: {note}").map_err(TicketError::Io)?;
     Ok(())
+}
+
+/// Set a ticket's lifecycle status (`OPEN`/`CLOSED`/...), rewriting the
+/// ticket file atomically (temp + rename).
+///
+/// Callers MUST already hold the claims lock so the status change is part
+/// of one atomic close transaction.
+///
+/// # Errors
+///
+/// Returns [`TicketError::Io`] on filesystem failure or
+/// [`TicketError::Parse`] when the ticket file cannot be read.
+/// Locate the status line to overwrite. For a FRONTMATTER ticket the scan
+/// stays INSIDE the `---` block (a `- status:` bullet in the BODY is not
+/// a frontmatter key — overwriting it would never be re-read).
+fn find_status_line(text: &str, frontmatter: bool) -> Option<usize> {
+    let lines: Vec<&str> = text.lines().collect();
+    for (i, raw) in lines.iter().enumerate() {
+        let l = raw.trim();
+        if frontmatter {
+            if l.starts_with("---") && i > 0 {
+                return None; // past the frontmatter block
+            }
+            if l.starts_with("status:") {
+                return Some(i);
+            }
+        } else if l.starts_with("- status:") || l.starts_with("status:") {
+            return Some(i);
+        }
+    }
+    None
 }
 
 /// Set a ticket's lifecycle status (`OPEN`/`CLOSED`/...), rewriting the
@@ -912,10 +926,7 @@ pub fn set_ticket_status(root: &Path, id: &str, status: &str) -> Result<(), Tick
             serde_json::from_str(&text).map_err(|e| TicketError::Parse(e.to_string()))?;
         value["status"] = serde_json::Value::String(status.to_string());
         serde_json::to_string_pretty(&value).map_err(|e| TicketError::Parse(e.to_string()))?
-    } else if let Some(pos) = text.lines().position(|l| {
-        let l = l.trim();
-        l.starts_with("- status:") || l.starts_with("status:")
-    }) {
+    } else if let Some(pos) = find_status_line(&text, frontmatter) {
         let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
         lines[pos] = status_line;
         lines.join("\n")

@@ -128,6 +128,43 @@ pub fn parse_distilled_facts(output: &str) -> Vec<StagedFact> {
         .collect()
 }
 
+/// Parse the persisted staging markdown into `StagedFact` entries.
+///
+/// Reads the `## S-<n> (<domain>)` blocks written by `write_staging` —
+/// the `dream --promote` input. (The distiller's JSON output is a
+/// different format; the persisted staging file is this markdown.)
+#[must_use]
+pub fn parse_staged_facts(text: &str) -> Vec<StagedFact> {
+    let mut out = Vec::new();
+    let mut current_domain = String::new();
+    let mut body = String::new();
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("## S-") {
+            if !body.is_empty() {
+                out.push(StagedFact {
+                    body: body.trim().to_string(),
+                    domain: current_domain.clone(),
+                });
+            }
+            current_domain = rest
+                .split_once('(')
+                .and_then(|(_, d)| d.split_once(')'))
+                .map_or_else(|| "general".to_string(), |(d, _)| d.trim().to_string());
+            body = String::new();
+        } else if !line.starts_with('#') && !line.starts_with("- ") {
+            body.push_str(line);
+            body.push('\n');
+        }
+    }
+    if !body.is_empty() {
+        out.push(StagedFact {
+            body: body.trim().to_string(),
+            domain: current_domain,
+        });
+    }
+    out
+}
+
 /// The distiller prompt: cheap model extracts durable facts.
 #[must_use]
 pub fn distiller_prompt(material: &str) -> String {
@@ -767,4 +804,20 @@ pub fn apply_verdicts(
         }
     }
     Ok((promoted_count, queued, skipped))
+}
+
+#[cfg(test)]
+mod staged_tests {
+    use super::*;
+
+    #[test]
+    fn parses_the_staged_markdown_back_to_facts() {
+        let text = "# Staged candidates\n\n## S-000 (general)\n\nfirst probe fact\n\n## S-001 (strategy)\n\nsecond probe fact\n";
+        let facts = parse_staged_facts(text);
+        assert_eq!(facts.len(), 2);
+        assert_eq!(facts[0].body, "first probe fact");
+        assert_eq!(facts[0].domain, "general");
+        assert_eq!(facts[1].body, "second probe fact");
+        assert_eq!(facts[1].domain, "strategy");
+    }
 }
