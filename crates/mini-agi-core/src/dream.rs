@@ -626,6 +626,14 @@ pub fn apply_verdicts(
     // candidate against an existing fact's body; reading the whole
     // canonical store per duplicate verdict was O(verdicts × entries).
     let all_facts = crate::memory::read_all_facts(root);
+    // Hoisted once (cycle-43 review): the promote arm's preserved-collision
+    // check compared against the preserved facts' canonical BODIES — that
+    // full-store scan ran PER promote verdict (O(verdicts × entries)).
+    let preserved_bodies: Vec<String> = crate::memory::canonical_facts(root)
+        .into_iter()
+        .filter(|(_, id)| preserved.contains(id))
+        .map(|(body, _)| body)
+        .collect();
     let mut promoted: std::collections::BTreeMap<String, Vec<(String, String)>> =
         std::collections::BTreeMap::new();
     let mut queued = 0usize;
@@ -675,15 +683,9 @@ pub fn apply_verdicts(
                     continue;
                 }
                 // Preserved-fact collision (ADR-0010 D3): compare against
-                // the preserved facts' canonical BODIES (resolved from the
-                // preserved ids) — a body-vs-id comparison never matches
-                // and would let a promote rewrite a preserved fact.
-                let preserved_ids = crate::memory::preserved_ids(root);
-                let preserved_bodies: Vec<String> = crate::memory::canonical_facts(root)
-                    .into_iter()
-                    .filter(|(_, id)| preserved_ids.contains(id))
-                    .map(|(body, _)| body)
-                    .collect();
+                // the preserved facts' canonical BODIES (hoisted once
+                // above) — a body-vs-id comparison never matches and
+                // would let a promote rewrite a preserved fact.
                 let preserved_collision = preserved_bodies.iter().any(|p| {
                     let take = fact
                         .body

@@ -169,15 +169,17 @@ fn redact_pem_blocks(text: &str) -> String {
 /// Bearer y` and the JSON `"Cookie": "x"` form).
 fn redact_header_values(text: &str, key: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    let mut rest = text;
+    let lower = text.to_ascii_lowercase();
+    let mut at = 0usize;
     loop {
-        let lower = rest.to_ascii_lowercase();
-        let Some(pos) = lower.find(key.to_ascii_lowercase().as_str()) else {
+        let rest = &text[at..];
+        let Some(pos) = lower[at..].find(key.to_ascii_lowercase().as_str()) else {
             out.push_str(rest);
             break;
         };
         out.push_str(&rest[..pos + key.len()]);
-        rest = &rest[pos + key.len()..];
+        at += pos + key.len();
+        let rest = &text[at..];
         let trimmed = rest.trim_start();
         if trimmed.starts_with('"') {
             // JSON form: opening quote stays visible, value ends at the
@@ -188,7 +190,7 @@ fn redact_header_values(text: &str, key: &str) -> String {
             if let Some(end) = closing_quote(inside) {
                 out.push_str(&rest[..=value_start]);
                 out.push_str(REDACTED);
-                rest = &rest[value_start + 1 + end + 1..];
+                at += value_start + 1 + end + 1;
                 continue;
             }
         }
@@ -196,6 +198,7 @@ fn redact_header_values(text: &str, key: &str) -> String {
         // (keep the rest of the command line). A quote-delimited value
         // (`Bearer "secret"`) runs through its CLOSING quote — stopping
         // at the opening quote leaked the credential.
+        let rest = &text[at..];
         let trimmed = rest.trim_start();
         let skip = rest.len() - trimmed.len();
         if trimmed.is_empty() {
@@ -206,7 +209,7 @@ fn redact_header_values(text: &str, key: &str) -> String {
         let take = header_value_len(trimmed);
         out.push_str(&rest[..skip]);
         out.push_str(REDACTED);
-        rest = &rest[skip + take..];
+        at += skip + take;
     }
     out
 }
@@ -519,8 +522,13 @@ fn redact_flag_values(text: &str) -> String {
 /// credential-ish (deny-by-default for unseen keys).
 fn redact_key_value_pairs(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(pos) = find_credential_key(rest) {
+    let lower = text.to_ascii_lowercase();
+    let mut at = 0usize;
+    loop {
+        let rest = &text[at..];
+        let Some(pos) = find_credential_key(&lower[at..], rest) else {
+            break;
+        };
         if rest[pos..].is_empty() {
             break;
         }
@@ -531,13 +539,13 @@ fn redact_key_value_pairs(text: &str) -> String {
                 break;
             }
             out.push_str(&rest[..pos + token_len]);
-            rest = &rest[pos + token_len..];
+            at += pos + token_len;
             continue;
         };
         let key_text = &rest[pos..pos + key_len];
         let Some((skip, take)) = split_pair_value(&rest[pos + sep_after..], sep) else {
             out.push_str(&rest[..pos + sep_after]);
-            rest = &rest[pos + sep_after..];
+            at += pos + sep_after;
             continue;
         };
         let value = &rest[pos + sep_after + skip..pos + sep_after + skip + take];
@@ -547,7 +555,7 @@ fn redact_key_value_pairs(text: &str) -> String {
         // the redactor — deny-by-default).
         if value.trim() == REDACTED {
             out.push_str(&rest[..pos + sep_after + skip + take]);
-            rest = &rest[pos + sep_after + skip + take..];
+            at += pos + sep_after + skip + take;
             continue;
         }
         out.push_str(&rest[..pos]);
@@ -560,9 +568,9 @@ fn redact_key_value_pairs(text: &str) -> String {
         if quoted {
             out.push('"');
         }
-        rest = &rest[pos + sep_after + skip + take..];
+        at += pos + sep_after + skip + take;
     }
-    out.push_str(rest);
+    out.push_str(&text[at..]);
     out
 }
 
@@ -576,8 +584,14 @@ fn token_len_at(text: &str) -> usize {
 }
 
 /// Find the next credential-ish key start (case-insensitive, word-bounded).
-fn find_credential_key(text: &str) -> Option<usize> {
-    let lower = text.to_ascii_lowercase();
+///
+/// `lower` must be `text.to_ascii_lowercase()` — byte positions align
+/// because ASCII lowercasing is length-preserving, so callers precompute
+/// it ONCE (per redact stage) instead of re-lowercasing the whole
+/// remaining text per match (the O(K·n) re-scan was a quadratic denial
+/// of service on long untrusted input — `loop verify` redacts an
+/// untrusted `verify_command` before executing it).
+fn find_credential_key(lower: &str, text: &str) -> Option<usize> {
     for (start, _) in lower.char_indices() {
         if !starts_word_here(text, start) {
             continue;
@@ -733,6 +747,30 @@ mod redact_tests {
         ] {
             let _ = redact(cmd); // must not panic
         }
+    }
+
+    #[test]
+    fn long_inputs_redact_every_match_in_the_tail() {
+        // Linear refactor (precomputed lowercase + offset) must find and
+        // redact matches deep into a long string — a lost offset would
+        // silently skip the tail's credentials.
+        let mut text = String::new();
+        for i in 0..2_000 {
+            text.push_str("password=v");
+            text.push_str(&i.to_string());
+            text.push_str("_notasecret ");
+        }
+        let out = redact(&text);
+        assert!(!out.contains("notasecret"), "a mid-stream secret leaked");
+        assert!(
+            !out.ends_with("notasecret"),
+            "the FINAL token's secret leaked (offset drift)"
+        );
+        assert_eq!(
+            out.matches(REDACTED).count(),
+            2_000,
+            "all 2000 values redacted"
+        );
     }
 
     #[test]

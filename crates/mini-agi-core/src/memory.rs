@@ -839,22 +839,21 @@ pub fn append_contested(
     if let Some(parent) = queue.parent() {
         fs::create_dir_all(parent)?;
     }
-    // Lock the CANONICAL queue path, mirroring signoff: if `memory/review`
-    // is a symlink, an un-canonicalized lock file would name a DIFFERENT
-    // file than signoff locks — silently splitting the "same per-queue
-    // lock" invariant (lost-update window, not corruption today).
+    // Lock the SAME file signoff locks: canonicalize the full queue path
+    // (resolves a symlinked `memory/review`) and use `.with_extension`
+    // exactly like signoff — `contested-<date>.lock`. A name split
+    // (`...md.lock` vs `...lock`) would silently defeat the shared
+    // per-queue lock (lost-update window between append and signoff).
     let canonical_lock = {
         let parent = queue
             .parent()
             .and_then(|p| fs::canonicalize(p).ok())
             .unwrap_or_else(|| Path::new(".").to_path_buf());
-        parent.join(
-            queue
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default()
-                + ".lock",
-        )
+        let file = queue
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        parent.join(file).with_extension("lock")
     };
     // Lock-held + atomic temp/rename, like every other authoritative file
     // (claims/ledger/tickets): a bare `append(true)` lets two concurrent

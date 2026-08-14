@@ -234,17 +234,30 @@ pub fn verify_candidate(
     }
     let before_count = before.len();
     let after_count = after.len();
-    match after_count.cmp(&before_count) {
-        std::cmp::Ordering::Less => Ok(format!(
+    // ACCEPT only when the after-gate is FULLY green (exit 0 AND zero
+    // observed failures): the `after_ok` gate above already required exit
+    // 0, but a verify.sh drift that prints `[FAIL]` while returning 0 (or
+    // a test whose stdout contains a `[FAIL]`-prefixed line — gate_failures
+    // scans ALL output) must not turn a partial reduction into a
+    // fabricated full-green ACCEPT. Contract: partial reductions REJECT.
+    if after.is_empty() {
+        return Ok(format!(
             "ACCEPT: gate fully green after the swap ({before_count} -> 0 observed failures)\n  before: {before:?}\n  after: {after:?}"
-        )),
-        std::cmp::Ordering::Equal => Ok(format!(
-            "NEUTRAL: gate failures unchanged ({before_count}) — no observed reduction, edit not justified\n  before: {before:?}\n  after: {after:?}"
-        )),
-        std::cmp::Ordering::Greater => Ok(format!(
-            "REJECT: gate failures {before_count} -> {after_count} (regression)\n  before: {before:?}\n  after: {after:?}"
-        )),
+        ));
     }
+    if after_count < before_count {
+        return Ok(format!(
+            "REJECT: partial reduction only ({before_count} -> {after_count}) — the contract requires failures reduced to ZERO (fail-closed)\n  before: {before:?}\n  after: {after:?}"
+        ));
+    }
+    if after_count == before_count {
+        return Ok(format!(
+            "NEUTRAL: gate failures unchanged ({before_count}) — no observed reduction, edit not justified\n  before: {before:?}\n  after: {after:?}"
+        ));
+    }
+    Ok(format!(
+        "REJECT: gate failures {before_count} -> {after_count} (regression)\n  before: {before:?}\n  after: {after:?}"
+    ))
 }
 
 fn gate_failures_text(root: &Path) -> Vec<String> {
